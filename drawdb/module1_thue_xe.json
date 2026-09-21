@@ -1,0 +1,90 @@
+{
+  "author": "Motov Team",
+  "title": "Mo-dun 1: Thue Xe & Giao Dich (Core Rental Flow)",
+  "date": "2026-09-21",
+  "tables": [
+    {
+      "id": 0, "name": "User", "x": 80, "y": 80, "comment": "Khach hang thue xe",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"username","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"","id":1},
+        {"name":"firstName","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":2},
+        {"name":"lastName","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":3},
+        {"name":"phoneNumber","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4},
+        {"name":"identityStatus","type":"VARCHAR","default":"Unverified","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"eKYC","id":5},
+        {"name":"drivingLicenseUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"GPLX","id":6}
+      ],
+      "indices": []
+    },
+    {
+      "id": 1, "name": "Booking", "x": 480, "y": 80, "comment": "Don thue xe",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"bookingCode","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"MTV-XXXXXX","id":1},
+        {"name":"userId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":2},
+        {"name":"vehicleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Vehicle","id":3},
+        {"name":"pickupBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch (nhan)","id":4},
+        {"name":"returnBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch (tra)","id":5},
+        {"name":"pickupDateTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":6},
+        {"name":"returnDateTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":7},
+        {"name":"totalAmount","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Tong tien","id":8},
+        {"name":"depositAmount","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Coc 30%","id":9},
+        {"name":"remainingAmount","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Con lai 70%","id":10},
+        {"name":"status","type":"VARCHAR","default":"Pending","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Pending/Approved/Ongoing...","id":11},
+        {"name":"discountId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> Discount","id":12}
+      ],
+      "indices": []
+    },
+    {
+      "id": 2, "name": "Vehicle", "x": 880, "y": 80, "comment": "Xe duoc thue",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"vehicleModel","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Vision, SH...","id":1},
+        {"name":"licensePlate","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"Bien so","id":2},
+        {"name":"dailyPrice","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Gia/ngay","id":3},
+        {"name":"status","type":"VARCHAR","default":"Available","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Available/Rented...","id":4},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch","id":5}
+      ],
+      "indices": []
+    },
+    {
+      "id": 3, "name": "Branch", "x": 480, "y": 520, "comment": "Chi nhanh nhan/tra xe",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"name","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Ten chi nhanh","id":1},
+        {"name":"code","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"CN-Q1","id":2},
+        {"name":"address","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":3},
+        {"name":"phone","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":4}
+      ],
+      "indices": []
+    },
+    {
+      "id": 4, "name": "Discount", "x": 80, "y": 520, "comment": "Ma giam gia ap dung",
+      "color": "#10b981",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"code","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"Voucher code","id":1},
+        {"name":"discountPercent","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"% giam","id":2},
+        {"name":"maxDiscountAmount","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Toi da VND","id":3}
+      ],
+      "indices": []
+    }
+  ],
+  "relationships": [
+    {"id":0,"name":"booking_user","startTableId":0,"startFieldId":0,"endTableId":1,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":1,"name":"booking_vehicle","startTableId":2,"startFieldId":0,"endTableId":1,"endFieldId":3,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":2,"name":"booking_pickup_branch","startTableId":3,"startFieldId":0,"endTableId":1,"endFieldId":4,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":3,"name":"booking_return_branch","startTableId":3,"startFieldId":0,"endTableId":1,"endFieldId":5,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":4,"name":"booking_discount","startTableId":4,"startFieldId":0,"endTableId":1,"endFieldId":12,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":5,"name":"vehicle_branch","startTableId":3,"startFieldId":0,"endTableId":2,"endFieldId":5,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"}
+  ],
+  "notes": [],
+  "subjectAreas": [
+    {"id":0,"name":"MÔ-ĐUN 1: THUÊ XE & GIAO DỊCH","x":40,"y":30,"width":1100,"height":720,"color":"#3b82f6"}
+  ],
+  "types": []
+}

@@ -1,0 +1,16 @@
+{
+  "name": "motorent-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MOTOV - Motorbike Rental Chain Management System Workspace",
+  "scripts": {
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "seed": "npm --prefix server run seed",
+    "health": "powershell -Command \"Invoke-RestMethod -Uri 'http://localhost:5000/api/health'\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
+  }
+}

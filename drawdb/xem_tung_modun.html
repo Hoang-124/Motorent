@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Motov v2 - Phân Rã Sơ Đồ CSDL Theo Mô-đun</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --blue: #38bdf8;
+      --amber: #fbbf24;
+      --emerald: #34d399;
+      --purple: #c084fc;
+      --rose: #fb7185;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; }
+    header { text-align: center; margin-bottom: 28px; }
+    h1 { font-size: 26px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    p.sub { color: var(--text-muted); font-size: 15px; }
+
+    .tabs { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
+    .tab-btn {
+      background: #1e293b; color: #94a3b8; border: 1px solid #334155;
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .tab-btn:hover { background: #334155; color: #fff; }
+    .tab-btn.active { background: #2563eb; color: #fff; border-color: #3b82f6; box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+
+    .module-content { display: none; background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 24px; max-width: 1200px; margin: 0 auto; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+    .module-content.active { display: block; }
+
+    .mod-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #334155; padding-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .mod-title { font-size: 20px; font-weight: 700; }
+    .mod-badge { background: #0f172a; padding: 6px 14px; border-radius: 20px; font-size: 13px; color: var(--blue); border: 1px solid #334155; }
+
+    .diagram-box { background: #0b1120; border-radius: 10px; padding: 20px; border: 1px dashed #334155; margin-bottom: 24px; overflow-x: auto; }
+    .flow-flex { display: flex; gap: 20px; justify-content: center; align-items: center; flex-wrap: wrap; }
+    .table-card {
+      background: #1e293b; border: 1px solid #475569; border-radius: 8px; width: 230px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-size: 13px;
+    }
+    .table-card .t-head {
+      padding: 8px 12px; font-weight: 700; border-top-left-radius: 7px; border-top-right-radius: 7px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .bg-blue { background: #1d4ed8; color: #fff; }
+    .bg-amber { background: #b45309; color: #fff; }
+    .bg-emerald { background: #047857; color: #fff; }
+    .bg-purple { background: #6d28d9; color: #fff; }
+
+    .table-card .t-body { padding: 10px 12px; }
+    .field-row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #334155; }
+    .field-row:last-child { border-bottom: none; }
+    .pk { color: #f59e0b; font-weight: 600; }
+    .fk { color: #38bdf8; }
+    .type { color: #94a3b8; font-size: 11px; }
+
+    .arrow-icon { font-size: 22px; color: #64748b; font-weight: bold; }
+
+    .desc-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 14px; }
+    .desc-table th, .desc-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #334155; }
+    .desc-table th { background: #0f172a; color: #cbd5e1; }
+    .desc-table tr:hover { background: #243248; }
+
+    .btn-download {
+      display: inline-flex; align-items: center; gap: 8px; background: #0284c7; color: #fff;
+      padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-download:hover { background: #0369a1; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Hệ Thống Motov v2 - Phân Rã Theo 5 Mô-Đun Chuyên Biệt</h1>
+    <p class="sub">Tách nhỏ 18 bảng thành từng phân hệ tinh gọn, xóa bỏ hoàn toàn hiện tượng dây chéo chằng chịt</p>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab(1)">🛵 Mô-đun 1: Thuê Xe & Đặt Cọc</button>
+    <button class="tab-btn" onclick="switchTab(2)">🏢 Mô-đun 2: Đội Xe & Chi Nhánh</button>
+    <button class="tab-btn" onclick="switchTab(3)">👥 Mô-đun 3: Nhân Sự & Kiểm Toán</button>
+    <button class="tab-btn" onclick="switchTab(4)">⭐ Mô-đun 4: CSKH & Đánh Giá</button>
+    <button class="tab-btn" onclick="switchTab(5)">💬 Mô-đun 5: Chat Trực Tuyến & CMS</button>
+  </div>
+
+  <!-- MODULE 1 -->
+  <div id="mod-1" class="module-content active">
+    <div class="mod-header">
+      <div>
+        <div class="mod-title">🛵 Mô-đun 1: Thuê Xe & Giao Dịch Đặt Cọc (Core Rental Flow)</div>
+        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Tập trung duy nhất vào luồng khách đặt xe, nhận xe, trả xe và thanh toán</p>
+      </div>
+      <span class="mod-badge">5 Bảng • File: module1_thue_xe.json</span>
+    </div>
+
+    <div class="diagram-box">
+      <div class="flow-flex">
+        <div class="table-card">
+          <div class="t-head bg-blue"><span>User</span><span>Khách</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>username</span><span class="type">VARCHAR</span></div>
+            <div class="field-row"><span>phoneNumber</span><span class="type">VARCHAR</span></div>
+            <div class="field-row"><span>drivingLicenseUrl</span><span class="type">GPLX</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">➔ 1 : N ➔</div>
+
+        <div class="table-card" style="border: 2px solid #3b82f6;">
+          <div class="t-head bg-blue"><span>Booking</span><span>(Trung tâm)</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">userId</span><span class="type">FK -> User</span></div>
+            <div class="field-row"><span class="fk">vehicleId</span><span class="type">FK -> Vehicle</span></div>
+            <div class="field-row"><span class="fk">pickupBranchId</span><span class="type">FK -> Branch (nhận)</span></div>
+            <div class="field-row"><span class="fk">returnBranchId</span><span class="type">FK -> Branch (trả)</span></div>
+            <div class="field-row"><span>totalAmount</span><span class="type">FLOAT</span></div>
+            <div class="field-row"><span>depositAmount</span><span class="type">Cọc 30%</span></div>
+            <div class="field-row"><span class="fk">discountId</span><span class="type">FK -> Discount</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">➔ N : 1 ➔</div>
+
+        <div class="table-card">
+          <div class="t-head bg-blue"><span>Vehicle</span><span>Xe máy</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>vehicleModel</span><span class="type">VARCHAR</span></div>
+            <div class="field-row"><span>licensePlate</span><span class="type">Biển số</span></div>
+            <div class="field-row"><span>dailyPrice</span><span class="type">Giá ngày</span></div>
+            <div class="field-row"><span class="fk">branchId</span><span class="type">FK -> Branch</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table class="desc-table">
+      <thead><tr><th>Bảng</th><th>Vai trò trong Mô-đun</th><th>Đặc điểm nổi bật</th></tr></thead>
+      <tbody>
+        <tr><td><b>User</b></td><td>Khách hàng đăng ký tài khoản, tải ảnh GPLX thẩm định</td><td>Chỉ lưu các thông tin cần thiết phục vụ giao dịch</td></tr>
+        <tr><td><b>Booking</b></td><td>Quản lý toàn bộ hợp đồng thuê, giữ cọc 30%, chốt số tiền còn lại</td><td><b>Hỗ trợ thuê ở Branch A, trả ở Branch B</b></td></tr>
+        <tr><td><b>Vehicle</b></td><td>Xe máy cụ thể được khách lựa chọn thuê</td><td>Khóa trạng thái <code>Rented</code> khi cọc thành công</td></tr>
+        <tr><td><b>Branch</b></td><td>Hai chi nhánh đón khách nhận xe và nhận xe trả</td><td>Được tham chiếu bởi <code>pickupBranchId</code> và <code>returnBranchId</code></td></tr>
+        <tr><td><b>Discount</b></td><td>Mã voucher khuyến mãi áp vào đơn thuê để trừ tiền</td><td>Kiểm tra điều kiện đơn tối thiểu và hạn dùng</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODULE 2 -->
+  <div id="mod-2" class="module-content">
+    <div class="mod-header">
+      <div>
+        <div class="mod-title">🏢 Mô-đun 2: Quản Lý Đội Xe & Vận Hành Chi Nhánh (Fleet & Operations)</div>
+        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Dành cho bộ phận Quản lý tài sản: Kiểm soát kho xe, điều chuyển xe và bảo dưỡng định kỳ</p>
+      </div>
+      <span class="mod-badge">5 Bảng • File: module2_doi_xe_chi_nhanh.json</span>
+    </div>
+
+    <div class="diagram-box">
+      <div class="flow-flex">
+        <div class="table-card">
+          <div class="t-head bg-blue"><span>Category</span><span>Phân loại</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>name</span><span class="type">Tay ga/Số...</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">➔</div>
+
+        <div class="table-card" style="border: 2px solid #f59e0b;">
+          <div class="t-head bg-blue"><span>Vehicle</span><span>Đội xe</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">branchId</span><span class="type">FK -> Branch</span></div>
+            <div class="field-row"><span>licensePlate</span><span class="type">Biển số</span></div>
+            <div class="field-row"><span>odometer</span><span class="type">Số km</span></div>
+            <div class="field-row"><span>status</span><span class="type">Trạng thái</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">➔</div>
+
+        <div class="table-card">
+          <div class="t-head bg-amber"><span>VehicleTransfer</span><span>Điều chuyển</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">vehicleId</span><span class="type">FK -> Vehicle</span></div>
+            <div class="field-row"><span class="fk">fromBranchId</span><span class="type">FK -> Branch (đi)</span></div>
+            <div class="field-row"><span class="fk">toBranchId</span><span class="type">FK -> Branch (đến)</span></div>
+            <div class="field-row"><span>status</span><span class="type">InTransit</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="t-head bg-amber"><span>MaintenanceLog</span><span>Bảo dưỡng</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">vehicleId</span><span class="type">FK -> Vehicle</span></div>
+            <div class="field-row"><span class="fk">branchId</span><span class="type">FK -> Branch</span></div>
+            <div class="field-row"><span>cost</span><span class="type">Chi phí</span></div>
+            <div class="field-row"><span>odometerAt</span><span class="type">Km lúc làm</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <table class="desc-table">
+      <thead><tr><th>Bảng</th><th>Vai trò trong Mô-đun</th><th>Ý nghĩa nghiệp vụ</th></tr></thead>
+      <tbody>
+        <tr><td><b>VehicleTransfer</b></td><td>Lệnh vận chuyển xe giữa 2 chi nhánh</td><td>Cân bằng lượng xe mùa cao điểm, tránh tình trạng nơi thừa nơi thiếu</td></tr>
+        <tr><td><b>MaintenanceLog</b></td><td>Nhật ký bảo dưỡng, thay nhớt, kiểm định phanh xe</td><td>Theo dõi hao mòn dựa trên số km lăn bánh thực tế (Odometer)</td></tr>
+        <tr><td><b>Branch</b></td><td>Điểm tập kết kho xe vật lý</td><td>Mỗi xe luôn thuộc về 1 chi nhánh quản lý</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- MODULE 3 -->
+  <div id="mod-3" class="module-content">
+    <div class="mod-header">
+      <div>
+        <div class="mod-title">👥 Mô-đun 3: Quản Lý Nhân Sự & Nhật Ký Kiểm Toán (HR & Security)</div>
+        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Dành cho Giám đốc chuỗi: Phân ca làm việc cho nhân viên và giám sát chống gian lận</p>
+      </div>
+      <span class="mod-badge">4 Bảng • File: module3_nhan_su_kiem_toan.json</span>
+    </div>
+
+    <div class="diagram-box">
+      <div class="flow-flex">
+        <div class="table-card">
+          <div class="t-head bg-blue"><span>Branch</span><span>Chi nhánh</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>name</span><span class="type">Tên CN</span></div>
+            <div class="field-row"><span class="fk">managerId</span><span class="type">FK -> User (Trưởng CN)</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">◄──►</div>
+
+        <div class="table-card">
+          <div class="t-head bg-blue"><span>User</span><span>Nhân viên</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>roles</span><span class="type">BranchManager/Staff</span></div>
+            <div class="field-row"><span class="fk">branchId</span><span class="type">FK -> Branch</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">➔</div>
+
+        <div class="table-card">
+          <div class="t-head bg-amber"><span>StaffSchedule</span><span>Lịch trực</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">staffId</span><span class="type">FK -> User</span></div>
+            <div class="field-row"><span class="fk">branchId</span><span class="type">FK -> Branch</span></div>
+            <div class="field-row"><span>shiftType</span><span class="type">Morning/Evening</span></div>
+            <div class="field-row"><span>checkInTime</span><span class="type">Điểm danh</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="t-head bg-amber"><span>AuditLog</span><span>Nhật ký</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">userId</span><span class="type">FK -> User</span></div>
+            <div class="field-row"><span>action</span><span class="type">Sửa giá/Hủy cọc</span></div>
+            <div class="field-row"><span>ipAddress</span><span class="type">IP truy cập</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE 4 -->
+  <div id="mod-4" class="module-content">
+    <div class="mod-header">
+      <div>
+        <div class="mod-title">⭐ Mô-đun 4: Chăm Sóc Khách Hàng & Xử Lý Sự Cố (Customer Support)</div>
+        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Dành cho bộ phận Hậu mãi: Đánh giá chất lượng sau thuê, giải quyết khiếu nại và gửi nhắc nhở</p>
+      </div>
+      <span class="mod-badge">6 Bảng • File: module4_cskh_danh_gia.json</span>
+    </div>
+
+    <div class="diagram-box">
+      <div class="flow-flex">
+        <div class="table-card">
+          <div class="t-head bg-blue"><span>Booking</span><span>Đơn thuê gốc</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">userId</span><span class="type">FK -> User</span></div>
+            <div class="field-row"><span>bookingCode</span><span class="type">Mã đơn</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">➔</div>
+
+        <div class="table-card">
+          <div class="t-head bg-emerald"><span>Feedback</span><span>Đánh giá 1-1</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">bookingId</span><span class="type">FK -> Booking (1-1)</span></div>
+            <div class="field-row"><span>rating</span><span class="type">1-5 sao</span></div>
+            <div class="field-row"><span>comment</span><span class="type">Nhận xét</span></div>
+            <div class="field-row"><span>response</span><span class="type">Phản hồi</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="t-head bg-amber"><span>Complaint</span><span>Khiếu nại</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">bookingId</span><span class="type">FK -> Booking</span></div>
+            <div class="field-row"><span>title</span><span class="type">Hỏng xe dọc đường</span></div>
+            <div class="field-row"><span>status</span><span class="type">Pending/Resolved</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="t-head bg-emerald"><span>BookingReminder</span><span>Nhắc SMS</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">bookingId</span><span class="type">FK -> Booking</span></div>
+            <div class="field-row"><span>reminderType</span><span class="type">Nhận/Trả xe</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE 5 -->
+  <div id="mod-5" class="module-content">
+    <div class="mod-header">
+      <div>
+        <div class="mod-title">💬 Mô-đun 5: Giao Tiếp Trực Tuyến & CMS Giao Diện (Chat & Content)</div>
+        <p style="color: #94a3b8; font-size: 13px; margin-top: 4px;">Khung chat tư vấn thời gian thực và quản trị nội dung bài viết, banner quảng cáo</p>
+      </div>
+      <span class="mod-badge">5 Bảng • File: module5_chat_cms.json</span>
+    </div>
+
+    <div class="diagram-box">
+      <div class="flow-flex">
+        <div class="table-card">
+          <div class="t-head bg-purple"><span>Conversation</span><span>Hội thoại</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>participants</span><span class="type">Array User IDs</span></div>
+          </div>
+        </div>
+
+        <div class="arrow-icon">➔ 1 : N ➔</div>
+
+        <div class="table-card">
+          <div class="t-head bg-purple"><span>Message</span><span>Tin nhắn chat</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span class="fk">conversationId</span><span class="type">FK -> Conv</span></div>
+            <div class="field-row"><span class="fk">senderId</span><span class="type">FK -> User</span></div>
+            <div class="field-row"><span>content</span><span class="type">Nội dung</span></div>
+          </div>
+        </div>
+
+        <div style="border-left: 2px dashed #475569; height: 160px; margin: 0 10px;"></div>
+
+        <div class="table-card">
+          <div class="t-head bg-purple"><span>Banner</span><span>Quảng cáo</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>title</span><span class="type">Khuyến mãi hè</span></div>
+            <div class="field-row"><span>imageUrl</span><span class="type">Link ảnh</span></div>
+            <div class="field-row"><span>isActive</span><span class="type">Bật/Tắt</span></div>
+          </div>
+        </div>
+
+        <div class="table-card">
+          <div class="t-head bg-purple"><span>StaticPage</span><span>Trang tĩnh</span></div>
+          <div class="t-body">
+            <div class="field-row"><span class="pk">🔑 _id</span><span class="type">PK</span></div>
+            <div class="field-row"><span>slug</span><span class="type">/dieu-khoan</span></div>
+            <div class="field-row"><span>title</span><span class="type">Điều khoản cọc</span></div>
+            <div class="field-row"><span>content</span><span class="type">HTML/Markdown</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(num) {
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', i === (num - 1));
+      });
+      document.querySelectorAll('.module-content').forEach((c, i) => {
+        c.classList.toggle('active', i === (num - 1));
+      });
+    }
+  </script>
+</body>
+</html>
