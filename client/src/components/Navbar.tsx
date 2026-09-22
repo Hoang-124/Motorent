@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Compass, 
   MapPin, 
@@ -20,8 +20,17 @@ import { useAuth } from '../context/AuthContext';
 
 export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+
+  const handleConfirmLogout = () => {
+    setShowLogoutConfirm(false);
+    logout();
+    setMobileMenuOpen(false);
+    navigate('/');
+  };
 
   const navLinks = [
     { name: 'Trang chủ', path: '/' },
@@ -123,7 +132,7 @@ export const Navbar: React.FC = () => {
                 </Link>
 
                 <button
-                  onClick={logout}
+                  onClick={() => setShowLogoutConfirm(true)}
                   className="p-2 text-xs font-semibold text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                   title="Đăng xuất"
                 >
@@ -202,10 +211,7 @@ export const Navbar: React.FC = () => {
                   <span>Hồ sơ: {user.firstName || user.username}</span>
                 </Link>
                 <button
-                  onClick={() => {
-                    logout();
-                    setMobileMenuOpen(false);
-                  }}
+                  onClick={() => setShowLogoutConfirm(true)}
                   className="w-full text-center py-2 rounded-lg text-sm font-semibold text-red-600 hover:bg-red-50"
                 >
                   Đăng xuất
@@ -236,6 +242,66 @@ export const Navbar: React.FC = () => {
             >
               Đặt xe trực tuyến (Cọc 30%)
             </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div 
+          className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setShowLogoutConfirm(false)}
+        >
+          <div 
+            className="bg-white rounded-3xl max-w-sm w-full p-6 sm:p-7 border border-slate-200/80 shadow-2xl relative text-center animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowLogoutConfirm(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              aria-label="Đóng"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 border border-red-100 flex items-center justify-center mx-auto mb-4 shadow-2xs">
+              <LogOut className="w-6 h-6 stroke-2" />
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900 tracking-tight">
+              Xác nhận đăng xuất
+            </h3>
+            
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">
+              Bạn có chắc chắn muốn đăng xuất khỏi tài khoản{' '}
+              <strong className="text-slate-900 font-bold">
+                {user?.firstName || user?.username || 'hiện tại'}
+              </strong>{' '}
+              không?
+            </p>
+
+            <p className="text-[11px] text-slate-400 mt-1">
+              Phiên làm việc hiện tại của bạn trên thiết bị này sẽ kết thúc.
+            </p>
+
+            <div className="grid grid-cols-2 gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmLogout}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-red-600 hover:bg-red-700 shadow-md shadow-red-600/20 transition-all flex items-center justify-center space-x-1.5 active:scale-95 cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Đăng xuất</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -21,6 +21,10 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
+# Uploads
+uploads/
+server/uploads/
+
 # Editor & OS
 .vscode/
 .idea/
