@@ -53,6 +53,10 @@ export interface User {
   loyaltyPoints: number;
   referralCode?: string;
   drivingLicenseUrl?: string;
+  isEmailVerified?: boolean;
+  gender?: 'Male' | 'Female' | 'Other';
+  dob?: string;
+  createdAt?: string;
 }
 
 export interface Booking {

@@ -23,6 +23,11 @@ export interface IUser extends Document {
   loyaltyPoints: number;
   referralCode?: string;
   drivingLicenseUrl?: string;
+  isEmailVerified: boolean;
+  emailVerificationToken?: string;
+  emailVerificationExpires?: Date;
+  resetPasswordToken?: string;
+  resetPasswordExpires?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -59,6 +64,11 @@ const UserSchema = new Schema<IUser>(
     loyaltyPoints: { type: Number, default: 0 },
     referralCode: { type: String, unique: true, sparse: true },
     drivingLicenseUrl: { type: String, default: '' },
+    isEmailVerified: { type: Boolean, default: false },
+    emailVerificationToken: { type: String, index: true },
+    emailVerificationExpires: { type: Date },
+    resetPasswordToken: { type: String, index: true },
+    resetPasswordExpires: { type: Date },
   },
   { timestamps: true }
 );

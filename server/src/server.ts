@@ -30,6 +30,8 @@ import {
   StaticPage,
 } from './models';
 
+import authRoutes from './modules/auth/authRoutes';
+
 const app = express();
 const server = http.createServer(app);
 
@@ -45,6 +47,12 @@ export const io = new SocketIOServer(server, {
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded static files (avatars, eKYC licenses)
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
+
+// Mount Modules
+app.use('/api/auth', authRoutes);
 
 // Health check & System Stats route
 app.get('/api/health', async (req, res) => {

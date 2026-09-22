@@ -98,6 +98,15 @@ Motorent/
 * **Kiểm Toán An Toàn (`AuditLog`)**: Tự động lưu vết người dùng, thao tác sửa đổi dữ liệu nhạy cảm, địa chỉ IP và User-Agent.
 * **Live Chat Thời Gian Thực**: Kết nối phòng trò chuyện hỗ trợ khách hàng trực tuyến thông qua Socket.IO.
 
+### 3. Phân Hệ Xác Thực & Quản Lý Hồ Sơ Cá Nhân (Auth & Profile Subsystem)
+* **Đăng ký tài khoản & Kích hoạt Email**: Đăng ký nhanh, tự động gửi email chứa token xác thực (`/verify-email?token=...`). Mật khẩu được mã hóa an toàn bằng thuật toán bcrypt (Salt round 10).
+* **Đăng nhập linh hoạt**: Hỗ trợ đăng nhập bằng Username hoặc Email + Mật khẩu, hoặc đăng nhập trực tiếp một chạm qua **Google OAuth2** (xác thực ID token từ Google Auth Library).
+* **Quên mật khẩu & Cơ chế phân luồng Email thông minh**:
+  * Hỗ trợ đa dạng tên miền email cá nhân và doanh nghiệp: `@outlook.com.vn`, `@yahoo.com`, `@company.vn`, v.v.
+  * **Bộ lọc nhận diện tài khoản Google**: Nếu người dùng nhập email Google (`@gmail.com`, `@googlemail.com` hoặc tài khoản đã liên kết Google ID), hệ thống sẽ chủ động hướng dẫn khách hàng đăng nhập trực tiếp bằng tài khoản Google, kèm nút đăng nhập Google nhanh chóng để tránh nhầm lẫn.
+* **Đổi ảnh đại diện (Avatar Upload)**: Tải lên ảnh avatar cá nhân (PNG, JPG, WebP) qua Multer, lưu trữ tĩnh tại `/uploads/avatars/` và cập nhật tức thì.
+* **Hồ sơ cá nhân & Đổi mật khẩu**: Xem trạng thái eKYC, điểm thưởng thành viên, cập nhật thông tin cá nhân (Họ tên, SĐT, giới tính, ngày sinh) và đổi mật khẩu bảo mật.
+
 ---
 
 ## Mô Hình Dữ Liệu 18 Bảng (Database Models)
@@ -215,6 +224,19 @@ Sau khi chạy lệnh `npm run seed`, hệ thống đã có sẵn các tài kho�
 * `GET /api/vehicles`: Lấy danh sách đội xe (hỗ trợ lọc theo `branchId`, `category`, `status`).
 * `GET /api/bookings`: Lấy danh sách các đơn đặt thuê xe mới nhất.
 * `POST /api/bookings`: Tạo đơn đặt xe mới (tính cọc 30%, sinh mã đơn `MV-xxxxxx`).
+
+### Nhóm API Xác Thực & Hồ Sơ (`/api/auth`)
+* `POST /api/auth/register`: Đăng ký tài khoản mới & gửi email xác thực kích hoạt.
+* `GET /api/auth/verify-email?token=...`: Kích hoạt tài khoản người dùng qua token email.
+* `POST /api/auth/login`: Đăng nhập bằng tên người dùng hoặc email + mật khẩu (trả về JWT Token).
+* `POST /api/auth/google`: Đăng nhập/Đăng ký một chạm với Google ID token.
+* `POST /api/auth/logout`: Xóa phiên đăng nhập người dùng.
+* `POST /api/auth/forgot-password`: Yêu cầu cấp lại mật khẩu (hỗ trợ email đa miền `@outlook.com.vn`, phân luồng thông minh với tài khoản `@gmail.com`).
+* `POST /api/auth/reset-password`: Đặt lại mật khẩu mới với token bí mật.
+* `GET /api/auth/me`: Lấy dữ liệu hồ sơ cá nhân của người dùng hiện tại (kèm thông tin eKYC, điểm thưởng).
+* `PUT /api/auth/profile`: Chỉnh sửa thông tin cá nhân (Họ tên, SĐT, giới tính, ngày sinh).
+* `POST /api/auth/change-password`: Thay đổi mật khẩu tài khoản.
+* `POST /api/auth/avatar`: Tải lên và cập nhật ảnh đại diện đại diện người dùng.
 
 ---
 

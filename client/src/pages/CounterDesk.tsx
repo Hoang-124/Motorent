@@ -370,8 +370,9 @@ export const CounterDesk: React.FC = () => {
                         Chữ ký xác nhận nhận xe của khách hàng
                       </p>
                       {customerSigned ? (
-                        <div className="py-3 text-emerald-700 font-serif italic text-lg font-bold">
-                          ✓ Đã ký điện tử xác nhận bàn giao
+                        <div className="py-3 text-emerald-700 font-serif italic text-lg font-bold flex items-center justify-center space-x-1.5">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          <span>Đã ký điện tử xác nhận bàn giao</span>
                         </div>
                       ) : (
                         <button
