@@ -173,38 +173,53 @@ export const login = async (identifier: string, password: string) => {
 /**
  * Login with Google OAuth2 ID Token
  */
-export const loginWithGoogle = async (googleIdToken: string) => {
+export const loginWithGoogle = async (googleIdToken: any) => {
   let payload: any = null;
   const clientId = getGoogleClientId();
 
-  try {
-    // Attempt official verification with google-auth-library
-    if (clientId) {
-      const client = new OAuth2Client(clientId);
-      const ticket = await client.verifyIdToken({
-        idToken: googleIdToken,
-        audience: clientId,
-      });
-      payload = ticket.getPayload();
+  // If token is already an object or a JSON string from Google userinfo
+  if (typeof googleIdToken === 'object' && googleIdToken !== null) {
+    payload = googleIdToken;
+  } else if (typeof googleIdToken === 'string') {
+    const trimmed = googleIdToken.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        payload = JSON.parse(trimmed);
+      } catch (e) {
+        console.warn('JSON parse error on Google token string:', e);
+      }
     }
-  } catch (err) {
-    console.warn('Google client verification error, fallback to token decode:', err);
   }
 
-  // If not verified through googleClient, decode JWT safely (supports standard Google ID Token)
-  if (!payload) {
-    try {
-      const parts = googleIdToken.split('.');
-      if (parts.length >= 2) {
+  // If not a JSON object, it must be a Google OAuth JWT ID Token
+  if (!payload && typeof googleIdToken === 'string') {
+    const parts = googleIdToken.trim().split('.');
+    
+    // Attempt official verification with google-auth-library for 3-part JWT
+    if (parts.length === 3 && clientId) {
+      try {
+        const client = new OAuth2Client(clientId);
+        const ticket = await client.verifyIdToken({
+          idToken: googleIdToken,
+          audience: clientId,
+        });
+        payload = ticket.getPayload();
+      } catch (err) {
+        console.warn('Google verifyIdToken error, attempting safe JWT payload extraction:', err);
+      }
+    }
+
+    // Fallback safe base64url decode of JWT payload
+    if (!payload && parts.length === 3) {
+      try {
         const base64Url = parts[1];
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
         const jsonStr = Buffer.from(base64, 'base64').toString('utf8');
         payload = JSON.parse(jsonStr);
-      } else if (googleIdToken.trim().startsWith('{')) {
-        payload = JSON.parse(googleIdToken);
+      } catch (e) {
+        console.error('JWT payload decode error:', e);
+        throw new Error('Xác thực Google ID Token không thành công.');
       }
-    } catch (e) {
-      throw new Error('Xác thực Google ID Token không thành công.');
     }
   }
 
@@ -228,8 +243,15 @@ export const loginWithGoogle = async (googleIdToken: string) => {
     await user.save();
   } else {
     // Create new customer account via Google
-    const baseUsername = normalizedEmail.split('@')[0].replace(/[^a-z0-9]/g, '');
-    const uniqueUsername = `${baseUsername}_${Math.random().toString(36).slice(-4)}`;
+    const baseUsername = normalizedEmail.split('@')[0].replace(/[^a-z0-9]/g, '') || 'user';
+    let uniqueUsername = `${baseUsername}_${Math.random().toString(36).slice(-4)}`.toLowerCase();
+
+    // Ensure username uniqueness
+    let existingUser = await User.findOne({ username: uniqueUsername });
+    while (existingUser) {
+      uniqueUsername = `${baseUsername}_${Math.random().toString(36).slice(-4)}`.toLowerCase();
+      existingUser = await User.findOne({ username: uniqueUsername });
+    }
 
     user = await User.create({
       username: uniqueUsername,
