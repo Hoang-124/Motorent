@@ -231,7 +231,20 @@ export const ProfilePage: React.FC = () => {
               <div className="relative mt-8 mb-4 inline-block">
                 <div className="w-24 h-24 rounded-full border-4 border-white shadow-md overflow-hidden bg-slate-100 flex items-center justify-center mx-auto">
                   {currentAvatar ? (
-                    <img src={currentAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                    <img
+                      src={currentAvatar}
+                      alt="Avatar"
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      onError={(e) => {
+                        const target = e.currentTarget;
+                        target.style.display = 'none';
+                        if (target.parentElement) {
+                          target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-emerald-100 text-forest-800 font-bold text-2xl">${(user.firstName || user.username || 'U').charAt(0).toUpperCase()}</div>`;
+                        }
+                      }}
+                    />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-emerald-50 text-forest-700">
                       <UserIcon className="w-12 h-12" />
@@ -500,7 +513,13 @@ export const ProfilePage: React.FC = () => {
                     <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 p-6 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
                       <div className="w-28 h-28 rounded-2xl overflow-hidden border-2 border-emerald-500/50 bg-white shadow-sm flex items-center justify-center flex-shrink-0">
                         {currentAvatar ? (
-                          <img src={currentAvatar} alt="Preview" className="w-full h-full object-cover" />
+                          <img
+                            src={currentAvatar}
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                            crossOrigin="anonymous"
+                          />
                         ) : (
                           <UserIcon className="w-14 h-14 text-slate-300" />
                         )}

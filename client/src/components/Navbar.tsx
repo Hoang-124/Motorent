@@ -102,6 +102,16 @@ export const Navbar: React.FC = () => {
                         src={user.avatarUrl.startsWith('http') ? user.avatarUrl : `http://localhost:5000${user.avatarUrl}`}
                         alt="Avatar"
                         className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
+                        onError={(e) => {
+                          // Fallback to avatar letter on image load error
+                          const target = e.currentTarget;
+                          target.style.display = 'none';
+                          if (target.parentElement) {
+                            target.parentElement.innerHTML = `<span>${(user.firstName || user.username || 'U').charAt(0).toUpperCase()}</span>`;
+                          }
+                        }}
                       />
                     ) : (
                       <span>{(user.firstName || user.username).charAt(0).toUpperCase()}</span>
