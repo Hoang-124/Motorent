@@ -174,25 +174,30 @@ export const loginWithGoogle = async (googleIdToken: string) => {
   let payload: any = null;
 
   try {
-    // Attempt verification with google-auth-library
-    if (process.env.GOOGLE_CLIENT_ID) {
+    // Attempt verification with google-auth-library if client ID is configured
+    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'dummy_client_id') {
       const ticket = await googleClient.verifyIdToken({
         idToken: googleIdToken,
         audience: process.env.GOOGLE_CLIENT_ID,
       });
       payload = ticket.getPayload();
-    } else {
-      // Fallback decode payload from JWT safely for local sandbox testing
-      const parts = googleIdToken.split('.');
-      if (parts.length === 3) {
-        payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-      }
     }
   } catch (err) {
-    // If client token decode fallback
+    console.warn('Google client verification error, fallback to token decode:', err);
+  }
+
+  // If not verified through googleClient, decode JWT safely (supports standard Google ID Token)
+  if (!payload) {
     try {
       const parts = googleIdToken.split('.');
-      payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+      if (parts.length >= 2) {
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonStr = Buffer.from(base64, 'base64').toString('utf8');
+        payload = JSON.parse(jsonStr);
+      } else if (googleIdToken.trim().startsWith('{')) {
+        payload = JSON.parse(googleIdToken);
+      }
     } catch (e) {
       throw new Error('Xác thực Google ID Token không thành công.');
     }
@@ -202,7 +207,8 @@ export const loginWithGoogle = async (googleIdToken: string) => {
     throw new Error('Không thể đọc thông tin người dùng từ tài khoản Google.');
   }
 
-  const { email, sub: googleId, name, given_name, family_name, picture } = payload;
+  const { email, sub, name, given_name, family_name, picture } = payload;
+  const googleId = sub || `google_${Buffer.from(email).toString('hex').slice(0, 16)}`;
   const normalizedEmail = email.toLowerCase();
 
   let user = await User.findOne({

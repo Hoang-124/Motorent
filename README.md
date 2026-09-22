@@ -9,7 +9,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Socket.IO](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io/)
 
-> **MOTORENT (Motorent)** là nền tảng quản lý và vận hành chuỗi cho thuê xe máy tự lái tự doanh đa chi nhánh. Hệ thống giải quyết trọn vẹn bài toán di chuyển liên trạm (thuê tại Quận 1 - trả tại Sân bay), loại bỏ rủi ro giữ giấy tờ tùy thân của khách bằng quy trình eKYC số hóa, và tối ưu hóa quy trình điều chuyển xe nội bộ giữa các cơ sở.
+> **MOTORENT (Motorent)** là nền tảng quản lý và vận hành chuỗi cho thuê xe máy tự lái tự doanh đa chi nhánh tại **TP. Đà Nẵng**. Hệ thống giải quyết trọn vẹn bài toán di chuyển liên trạm (thuê tại Sân bay Quốc tế Đà Nẵng - trả tại Bãi biển Mỹ Khê), loại bỏ rủi ro giữ giấy tờ tùy thân của khách bằng quy trình eKYC số hóa, và tối ưu hóa quy trình điều chuyển xe nội bộ giữa các cơ sở.
 
 ---
 
@@ -27,11 +27,11 @@
 
 ## Tổng Quan & Giá Trị Khác Biệt
 
-MOTORENT được thiết kế dựa trên các nghiệp vụ thực tế của thị trường cho thuê xe máy tại Việt Nam:
+MOTORENT được thiết kế dựa trên các nghiệp vụ thực tế của thị trường cho thuê xe máy tại TP. Đà Nẵng:
 
 * **Không Giữ CCCD Bản Gốc**: Khách hàng chỉ cần quét/chụp ảnh giấy tờ tùy thân và GPLX qua quy trình eKYC đối chiếu. Khách toàn quyền giữ lại bản gốc khi tham gia giao thông.
 * **Cơ Chế Cọc 30% Minh Bạch**: Hệ thống tự động tính toán dòng tiền: Khách thanh toán cọc 30% online để khóa đúng biển số xe mong muốn, 70% còn lại thanh toán tại quầy khi nhận xe và ưng ý.
-* **Thuê Xe Một Chiều (One-Way Rental)**: Hỗ trợ linh hoạt nhận xe tại trạm Trung tâm (Quận 1 Bến Thành) và trả xe tại trạm Cửa ngõ (Sân bay Tân Sơn Nhất) mà không tính thêm phụ phí chuyển trạm.
+* **Thuê Xe Một Chiều (One-Way Rental)**: Hỗ trợ linh hoạt nhận xe tại Cửa ngõ (Sân bay Quốc tế Đà Nẵng) và trả xe tại trạm Ven biển (Bãi biển Mỹ Khê - Sơn Trà) mà không tính thêm phụ phí chuyển trạm.
 * **Quầy Tiếp Tân Kỹ Thuật Số (Counter Desk)**: Bàn làm việc cho nhân viên tại trạm xử lý check-in đối chiếu 5 điểm an toàn, lưu ODO ban đầu, chữ ký số điện tử và check-out tự động tính phụ thu trễ giờ (30.000 đ/giờ).
 * **Gói An Tâm Chu Đáo**: Mỗi xe cho thuê đi kèm 2 mũ bảo hiểm đạt chuẩn kiểm định CR khử khuẩn, 2 áo mưa tiện lợi dự phòng và giá kẹp điện thoại phượt.
 
@@ -76,7 +76,7 @@ Motorent/
 * **Widget Tìm & Giữ Xe Nhanh**: Chọn điểm nhận, điểm trả độc lập, thời gian thuê với tính toán số ngày tức thời.
 * **Đội Xe & Bộ Lọc Đa Chiều**: Phân loại theo dòng xe (Xe ga, Xe số, Côn tay, Xe máy điện), lọc theo cơ sở quản lý, sắp xếp theo đơn giá thuê.
 * **Modal Đặt Xe Thông Minh**: Tính toán tự động mức cọc 30%, lựa chọn phương thức thanh toán (QR VNPay / Chuyển khoản ngân hàng / Cọc tại quầy).
-* **Tra Cứu Chi Nhánh**: Danh bạ 3 chi nhánh trực thuộc kèm giờ mở cửa, số hotline và số lượng phương tiện thực tế đang sẵn sàng tại trạm.
+* **Tra Cứu Chi Nhánh**: Danh bạ 2 chi nhánh trực thuộc tại TP. Đà Nẵng (Sân bay Đà Nẵng & Bãi biển Mỹ Khê) kèm giờ mở cửa, số hotline và số lượng phương tiện thực tế đang sẵn sàng tại trạm.
 
 ### 2. Bàn Làm Việc Tiếp Tân Quầy (Staff Counter Desk)
 * **Tra Cứu Mã Đặt Xe**: Tìm kiếm tức thì thông tin đơn thuê qua mã `MV-xxxxxx`.
@@ -92,7 +92,7 @@ Motorent/
 
 ### 3. Vận Hành & Quản Trị Doanh Nghiệp (Enterprise Fleet & HR)
 * **Phân Quyền RBAC 4 Cấp**: `SystemAdmin`, `BranchManager`, `Staff`, `Customer`.
-* **Điều Chuyển Xe Giữa Các Trạm (`VehicleTransfer`)**: Điều phối số lượng xe cân bằng giữa trạm Quận 1 và Sân bay.
+* **Điều Chuyển Xe Giữa Các Trạm (`VehicleTransfer`)**: Điều phối số lượng xe cân bằng giữa trạm Sân bay Đà Nẵng và Biển Mỹ Khê.
 * **Cảnh Báo Bảo Dưỡng ODO (`MaintenanceLog`)**: Tự động bật cờ bảo trì khi xe chạm ngưỡng ODO khuyến nghị.
 * **Phân Ca Trực & Điểm Danh (`StaffSchedule`)**: Xếp ca sáng/chiều/tối, ghi nhận thời gian vào/ra ca của nhân viên chi nhánh.
 * **Kiểm Toán An Toàn (`AuditLog`)**: Tự động lưu vết người dùng, thao tác sửa đổi dữ liệu nhạy cảm, địa chỉ IP và User-Agent.
@@ -115,7 +115,7 @@ Hệ thống quản lý chặt chẽ 18 Collections chuẩn hóa trong MongoDB:
 
 | # | Tên Model | File định nghĩa | Mục đích nghiệp vụ |
 | :---: | :--- | :--- | :--- |
-| 1 | `Branch` | `Branch.ts` | Quản lý 3 cơ sở, tọa độ GPS, giờ mở/đóng cửa, quản lý trưởng |
+| 1 | `Branch` | `Branch.ts` | Quản lý 2 cơ sở tại Đà Nẵng, tọa độ GPS, giờ mở/đóng cửa, quản lý trưởng |
 | 2 | `User` | `User.ts` | Người dùng đa vai trò (Admin, Manager, Staff, Customer), eKYC, điểm thưởng |
 | 3 | `Category` | `Category.ts` | Phân loại dòng xe (Xe ga, Xe số, Côn tay, Xe điện) |
 | 4 | `Vehicle` | `Vehicle.ts` | Quản lý tài sản xe, biển số, ODO, đơn giá ngày, cờ bảo dưỡng |
@@ -142,7 +142,7 @@ Hệ thống quản lý chặt chẽ 18 Collections chuẩn hóa trong MongoDB:
    * Màu chính: `#047857` (Forest 700), `#059669` (Forest 600), `#10b981` (Emerald 500).
    * Màu phụ trợ: Mint nhạt `#ecfdf5` tạo điểm nhấn dịu mắt, kết hợp nền sáng `#f8fafc` và Dark Slate `#0f172a`.
 2. **Nguyên Tắc Anti-AI (Thiết Kế Đậm Chất Thực Tế)**:
-   * Văn phong bản địa hóa tự nhiên, thực tế: xe có biển số cụ thể (59-P1 988.23), mốc ODO chính xác, cam kết phụ kiện thực (2 nón bảo hiểm + 2 áo mưa).
+   * Văn phong bản địa hóa tự nhiên, thực tế: xe có biển số Đà Nẵng cụ thể (`43-D1 289.45`, `43-E1 668.99`), mốc ODO chính xác, cam kết phụ kiện thực (2 nón bảo hiểm + 2 áo mưa).
    * Tuyệt đối không dùng những hình ảnh trừu tượng, thẻ trống hoặc từ ngữ sáo rỗng thường thấy ở các giao diện dựng tự động.
 3. **Quy Chuẩn STRICT SVG ONLY**:
    * **0 emoji** trong mã nguồn và giao diện người dùng.
@@ -202,17 +202,19 @@ npm run dev
 
 ## Tài Khoản Thử Nghiệm Mẫu
 
-Sau khi chạy lệnh `npm run seed`, hệ thống đã có sẵn các tài khoản tương ứng với 4 vai trò RBAC:
+Sau khi chạy lệnh `npm run seed`, tài khoản quản trị viên cao cấp nhất để đăng nhập hệ thống:
 
 | Vai trò | Tên đăng nhập | Mật khẩu mặc định | Ghi chú quyền hạn |
 | :--- | :--- | :--- | :--- |
-| **System Admin** | `admin` | `admin123` | Toàn quyền kiểm soát toàn chuỗi và xem audit log |
-| **Branch Manager Q1** | `manager_q1` | `manager123` | Quản lý cơ sở Quận 1, duyệt lệnh điều chuyển xe |
-| **Branch Manager Sân Bay**| `manager_sb` | `manager123` | Quản lý cơ sở Sân Bay Tân Sơn Nhất |
-| **Staff Q1** | `staff_q1` | `staff123` | Nhân viên bàn quầy Check-in / Check-out tại Quận 1 |
-| **Staff Sân Bay** | `staff_sb` | `staff123` | Nhân viên bàn quầy Check-in / Check-out tại Sân Bay |
+| **System Admin** (Chính) | `admin` | `admin123` | Toàn quyền kiểm soát toàn chuỗi, duyệt xe, cấu hình hệ thống & kiểm toán |
+| **Branch Manager Sân Bay** | `manager_dad` | `manager123` | Quản lý cơ sở Sân Bay Quốc Tế Đà Nẵng |
+| **Branch Manager Mỹ Khê** | `manager_mk` | `manager123` | Quản lý cơ sở Bãi Biển Mỹ Khê - Sơn Trà |
+| **Staff Sân Bay** | `staff_dad` | `staff123` | Nhân viên bàn quầy Check-in / Check-out tại Sân Bay Đà Nẵng |
+| **Staff Mỹ Khê** | `staff_mk` | `staff123` | Nhân viên bàn quầy Check-in / Check-out tại Mỹ Khê |
 | **Customer An** | `customer_an` | `customer123` | Khách hàng đã hoàn thành đối chiếu eKYC |
 | **Customer Bình** | `customer_binh`| `customer123` | Khách hàng mới đăng ký |
+
+*(Lưu ý: Trên giao diện Đăng nhập trang chủ, hệ thống chỉ hiển thị gợi ý tài khoản `admin` để đảm bảo tính bảo mật và sự gọn gàng theo yêu cầu).*
 
 ---
 

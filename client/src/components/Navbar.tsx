@@ -34,28 +34,6 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-emerald-100 shadow-sm transition-all">
-      {/* Top micro-bar */}
-      <div className="bg-forest-900 text-emerald-100 text-xs py-1.5 px-4 hidden sm:block">
-        <div className="max-w-7xl mx-auto flex justify-between items-center font-medium">
-          <div className="flex items-center space-x-6">
-            <span className="flex items-center space-x-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Chuỗi cho thuê xe tự lái tự doanh 100% xe chính hãng</span>
-            </span>
-            <span className="flex items-center space-x-1.5">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-              <span>3 Cơ sở: Quận 1 • Sân Bay Tân Sơn Nhất • TP. Thủ Đức</span>
-            </span>
-          </div>
-          <div className="flex items-center space-x-4 text-emerald-200">
-            <a href="tel:02838221101" className="hover:text-white flex items-center space-x-1 transition-colors">
-              <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Hotline 24/7: (028) 3822 1101</span>
-            </a>
-          </div>
-        </div>
-      </div>
-
       {/* Main Navbar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-3">

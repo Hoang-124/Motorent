@@ -31,12 +31,12 @@ export const Footer: React.FC = () => {
               </span>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed pr-6">
-              Hệ thống chuỗi cửa hàng cho thuê xe máy tự lái tự doanh đa chi nhánh. 100% xe mới, hỗ trợ nhận xe tại Quận 1 trả xe tại Sân bay, hợp đồng điện tử eKYC minh bạch không giữ CCCD gốc.
+              Hệ thống chuỗi cửa hàng cho thuê xe máy tự lái tự doanh đa chi nhánh tại TP. Đà Nẵng. 100% xe mới chính hãng, hỗ trợ nhận xe tại Sân bay Đà Nẵng trả xe tại Biển Mỹ Khê, hợp đồng điện tử eKYC minh bạch không giữ CCCD gốc.
             </p>
             <div className="space-y-2 text-xs text-slate-400 pt-2">
               <div className="flex items-center space-x-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span>Giấy chứng nhận ĐKKD: 0318920101 do Sở KH&ĐT TP.HCM cấp</span>
+                <span>Giấy chứng nhận ĐKKD: 0402198010 do Sở KH&ĐT TP. Đà Nẵng cấp</span>
               </div>
               <div className="flex items-center space-x-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
@@ -87,26 +87,26 @@ export const Footer: React.FC = () => {
             </h4>
             <div className="space-y-3 text-sm">
               <div className="p-3 rounded-lg bg-slate-800/60 border border-slate-800">
-                <p className="font-semibold text-white">1. Chi nhánh Quận 1 (Trụ sở trung tâm)</p>
+                <p className="font-semibold text-white">1. Chi nhánh Sân Bay Quốc Tế Đà Nẵng</p>
                 <p className="text-xs text-slate-400 mt-1 flex items-start space-x-1.5">
                   <MapPin className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                  <span>120 Lê Lai, P. Bến Thành, Q.1 (Gần ga Metro Bến Thành)</span>
+                  <span>Cổng Ga Quốc Tế, Đường Duy Tân, Q. Hải Châu, TP. Đà Nẵng</span>
                 </p>
                 <p className="text-xs text-slate-400 mt-1 flex items-center space-x-1.5">
                   <Clock className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                  <span>Mở cửa: 07:30 - 22:30 hàng ngày • Hotline: (028) 3822 1101</span>
+                  <span>Mở cửa: 06:00 - 23:00 hàng ngày • Hotline: (0236) 3822 101</span>
                 </p>
               </div>
 
               <div className="p-3 rounded-lg bg-slate-800/60 border border-slate-800">
-                <p className="font-semibold text-white">2. Chi nhánh Sân Bay Tân Sơn Nhất</p>
+                <p className="font-semibold text-white">2. Chi nhánh Bãi Biển Mỹ Khê - Sơn Trà</p>
                 <p className="text-xs text-slate-400 mt-1 flex items-start space-x-1.5">
                   <MapPin className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
-                  <span>45 Trường Sơn, P.2, Q. Tân Bình (Cách cổng Sân bay 200m)</span>
+                  <span>28 Võ Nguyên Giáp, P. Phước Mỹ, Q. Sơn Trà, TP. Đà Nẵng</span>
                 </p>
                 <p className="text-xs text-slate-400 mt-1 flex items-center space-x-1.5">
                   <Clock className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                  <span>Mở cửa: 06:00 - 23:00 hàng ngày • Hotline: (028) 3848 2202</span>
+                  <span>Mở cửa: 07:00 - 22:30 hàng ngày • Hotline: (0236) 3822 202</span>
                 </p>
               </div>
             </div>

@@ -47,40 +47,29 @@ export const HomePage: React.FC = () => {
         }
       } catch (err) {
         console.warn('Using fallback initial state for preview');
-        // Sensible fallback branch data if API takes a moment
+        // Sensible fallback branch data for Da Nang
         setBranches([
           {
             _id: 'b1',
-            name: 'Chi nhánh Quận 1 - Chợ Bến Thành',
-            code: 'CN-Q1',
-            address: '120 Lê Lai, Phường Bến Thành, Quận 1, TP.HCM',
-            phone: '028.3822.1101',
-            hours_open: '07:00',
-            hours_close: '22:30',
+            name: 'Chi nhánh Sân Bay Quốc Tế Đà Nẵng',
+            code: 'CN-DAD',
+            address: 'Cổng Ga Quốc Tế, Đường Duy Tân, P. Hòa Thuận Tây, Q. Hải Châu, TP. Đà Nẵng',
+            phone: '0236.3822.101',
+            hours_open: '06:00',
+            hours_close: '23:00',
             isActive: true,
-            description: 'Cách ga Metro Bến Thành 150m, thuận tiện dạo phố trung tâm',
+            description: 'Cơ sở tại cửa ngõ Sân bay Đà Nẵng, giao nhận xe siêu tốc trong 2 phút khi vừa hạ cánh.',
           },
           {
             _id: 'b2',
-            name: 'Chi nhánh Sân Bay Tân Sơn Nhất',
-            code: 'CN-SB',
-            address: '45 Trường Sơn, Phường 2, Quận Tân Bình, TP.HCM',
-            phone: '028.3848.2202',
-            hours_open: '06:00',
-            hours_close: '23:30',
+            name: 'Chi nhánh Bãi Biển Mỹ Khê - Sơn Trà',
+            code: 'CN-MK',
+            address: '28 Võ Nguyên Giáp, P. Phước Mỹ, Q. Sơn Trà, TP. Đà Nẵng',
+            phone: '0236.3822.202',
+            hours_open: '07:00',
+            hours_close: '22:30',
             isActive: true,
-            description: 'Cách cổng ga quốc nội 200m, hỗ trợ khách bay ngày đêm',
-          },
-          {
-            _id: 'b3',
-            name: 'Chi nhánh TP. Thủ Đức',
-            code: 'CN-TD',
-            address: '215 Võ Văn Ngân, Phường Linh Chiểu, TP. Thủ Đức, TP.HCM',
-            phone: '028.3722.3303',
-            hours_open: '07:30',
-            hours_close: '21:30',
-            isActive: true,
-            description: 'Khu vực làng Đại học và khu Công nghệ cao',
+            description: 'Nằm sát bãi biển Mỹ Khê, thuận tiện di chuyển bán đảo Sơn Trà, Ngũ Hành Sơn & Hội An.',
           },
         ]);
       } finally {
@@ -130,7 +119,7 @@ export const HomePage: React.FC = () => {
             {/* Pill badge */}
             <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/30 text-emerald-300 text-xs font-bold tracking-wide">
               <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Chuỗi cho thuê xe tự doanh đa chi nhánh số 1 TP.HCM</span>
+              <span>Chuỗi cho thuê xe máy tự lái tự doanh hàng đầu TP. Đà Nẵng</span>
             </div>
 
             {/* Human-crafted main headline */}
@@ -138,7 +127,7 @@ export const HomePage: React.FC = () => {
               Thuê xe máy tự lái,
               <br />
               <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-200 bg-clip-text text-transparent">
-                nhận Quận 1 - trả Sân bay
+                nhận Sân bay - trả Biển Mỹ Khê
               </span>
             </h1>
 
@@ -217,10 +206,10 @@ export const HomePage: React.FC = () => {
                 <MapPin className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-slate-900 mb-2">
-                Nhận Q.1 - Trả Sân bay
+                Nhận Sân bay - Trả Biển Mỹ Khê
               </h3>
               <p className="text-xs text-slate-600 leading-relaxed">
-                Linh hoạt nhận xe tại chi nhánh Quận 1 và trả xe ngay cổng Sân bay Tân Sơn Nhất. Không tính thêm phụ phí điều chuyển xe.
+                Linh hoạt nhận xe ngay cổng Sân bay Quốc tế Đà Nẵng và trả xe tại phố biển Mỹ Khê - Sơn Trà (hoặc ngược lại). Không tính phụ phí chuyển trạm.
               </p>
             </div>
 
@@ -317,7 +306,7 @@ export const HomePage: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
             {branches.map((branch, index) => (
               <div
                 key={branch._id}
@@ -444,7 +433,7 @@ export const HomePage: React.FC = () => {
                   ))}
                 </div>
                 <p className="text-xs text-slate-700 leading-relaxed mb-4">
-                  "Mình từ Hà Nội vào công tác 3 ngày. Nhận xe ở trạm Bến Thành Q1 lúc trưa, đến ngày về trả thẳng ở trạm 45 Trường Sơn cách sân bay 200m rồi đi bộ sang ga bay về luôn. Nhân viên siêu nhiệt tình, không phải đi taxi ngược lại!"
+                  "Gia đình mình từ Hà Nội vào Đà Nẵng du lịch. Vừa hạ cánh Sân bay Quốc tế Đà Nẵng là nhận xe ngay trong 3 phút, sau 3 ngày vi vu đèo Hải Vân và Hội An thì trả xe tại trạm Biển Mỹ Khê. Nhân viên siêu nhiệt tình, tiết kiệm được cả triệu tiền taxi!"
                 </p>
               </div>
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">

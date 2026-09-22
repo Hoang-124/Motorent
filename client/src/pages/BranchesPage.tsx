@@ -52,18 +52,18 @@ export const BranchesPage: React.FC = () => {
         <div className="max-w-3xl mb-10">
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mb-2">
             <Building2 className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Mạng lưới cơ sở tự doanh chuẩn hóa</span>
+            <span>Mạng lưới 2 cơ sở tự doanh tại TP. Đà Nẵng</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-            Hệ thống chi nhánh Motorent
+            Hệ thống chi nhánh Motorent Đà Nẵng
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
-            Các trạm giao nhận xe của Motorent đều tọa lạc tại các vị trí đắc địa: cửa ngõ Sân bay Tân Sơn Nhất, trung tâm Quận 1 Bến Thành, và trung tâm TP. Thủ Đức. Quý khách hoàn toàn có thể nhận xe tại một trạm và trả xe tại bất kỳ trạm nào khác trong hệ thống.
+            Hệ thống 2 trạm giao nhận xe của Motorent tọa lạc tại các vị trí đắc địa nhất TP. Đà Nẵng: cửa ngõ Sân bay Quốc tế Đà Nẵng và trung tâm phố biển du lịch Mỹ Khê - Sơn Trà. Quý khách hoàn toàn có thể nhận xe tại Sân bay và trả xe tại Bãi biển Mỹ Khê (hoặc ngược lại) vô cùng thuận tiện.
           </p>
         </div>
 
         {/* Branch Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16 max-w-5xl mx-auto">
           {branches.map((branch, idx) => {
             const count = getBranchBikeCount(branch._id);
             return (
@@ -160,7 +160,7 @@ export const BranchesPage: React.FC = () => {
               Thuê xe một chiều giữa các chi nhánh
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
-              Bạn có thể nhận xe tại chi nhánh Quận 1 để đi tham quan thành phố, sau đó kết thúc chuyến đi bằng việc trả xe thẳng tại chi nhánh Sân bay Tân Sơn Nhất trước giờ bay. Đội xe trung chuyển nội bộ của Motorent sẽ tự động điều phối xe mà không tính phí chuyển trạm của bạn.
+              Bạn có thể nhận xe ngay khi vừa hạ cánh tại Sân bay Quốc tế Đà Nẵng để khám phá đèo Hải Vân, bán đảo Sơn Trà, sau đó kết thúc chuyến đi bằng việc trả xe thẳng tại chi nhánh Bãi biển Mỹ Khê hoặc ngược lại trước giờ bay. Đội xe điều chuyển nội bộ của Motorent sẽ tự động hỗ trợ mà không tính phí chuyển trạm.
             </p>
             <div className="pt-2">
               <Link
