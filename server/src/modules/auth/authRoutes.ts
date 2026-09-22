@@ -8,6 +8,8 @@ const router = Router();
 // Public routes
 router.post('/register', authController.register);
 router.get('/verify-email', authController.verifyEmail);
+router.post('/verify-otp', authController.verifyOtp);
+router.post('/resend-otp', authController.resendOtp);
 router.post('/login', authController.login);
 router.post('/google', authController.loginWithGoogle);
 router.post('/logout', authController.logout);

@@ -60,6 +60,50 @@ export const verifyEmail = async (req: AuthenticatedRequest, res: Response): Pro
   }
 };
 
+export const verifyOtp = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập đầy đủ địa chỉ email và mã OTP 6 chữ số.',
+      });
+      return;
+    }
+
+    const result = await authService.verifyOtp(email, otp);
+    res.json({
+      success: true,
+      message: 'Xác thực mã OTP thành công! Tài khoản của bạn đã được kích hoạt.',
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const resendOtp = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp địa chỉ email để gửi lại mã OTP.',
+      });
+      return;
+    }
+
+    const result = await authService.resendOtp(email);
+    res.json({
+      success: true,
+      message: result.message,
+      data: result,
+    });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 export const login = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const { identifier, username, email, password } = req.body;

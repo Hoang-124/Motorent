@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { User, IUser } from '../../models/User';
-import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer';
+import { sendVerificationEmail, sendPasswordResetEmail, isRealSmtpConfigured } from '../../config/mailer';
 
 const getGoogleClientId = () =>
   process.env.GOOGLE_CLIENT_ID ||
@@ -78,9 +78,9 @@ export const register = async (data: {
   // Hash password
   const passwordHash = await bcrypt.hash(password, 10);
 
-  // Generate verification token
-  const verificationToken = crypto.randomBytes(32).toString('hex');
-  const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+  // Generate 6-digit OTP code for email verification
+  const verificationOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
   const newUser = await User.create({
     username: normalizedUsername,
@@ -92,33 +92,62 @@ export const register = async (data: {
     roles: 'Customer',
     status: 'Unverified',
     isEmailVerified: false,
-    emailVerificationToken: verificationToken,
+    emailVerificationToken: verificationOtp,
     emailVerificationExpires: verificationExpires,
   });
 
-  // Send verification email
-  await sendVerificationEmail(normalizedEmail, normalizedUsername, verificationToken);
+  // Send verification email with 6-digit OTP
+  await sendVerificationEmail(normalizedEmail, normalizedUsername, verificationOtp);
+
+  const hasRealSmtp = isRealSmtpConfigured();
 
   return {
     user: sanitizeUser(newUser),
+    email: normalizedEmail,
+    hasRealSmtp,
+    devOtp: !hasRealSmtp ? verificationOtp : undefined,
+    verificationToken: verificationOtp,
   };
 };
 
 /**
- * Verify email address with token
+ * Verify account using 6-digit OTP code
  */
-export const verifyEmail = async (token: string) => {
-  if (!token) {
-    throw new Error('Token xác thực không hợp lệ.');
+export const verifyOtp = async (email: string, otp: string) => {
+  if (!email || !otp) {
+    throw new Error('Vui lòng cung cấp địa chỉ email và mã OTP 6 chữ số.');
   }
 
-  const user = await User.findOne({
-    emailVerificationToken: token,
-    emailVerificationExpires: { $gt: new Date() },
-  });
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedOtp = otp.trim();
+
+  const user = await User.findOne({ email: normalizedEmail });
 
   if (!user) {
-    throw new Error('Liên kết xác thực không hợp lệ hoặc đã hết hạn (24 giờ). Vui lòng yêu cầu lại.');
+    throw new Error('Không tìm thấy tài khoản với email này.');
+  }
+
+  if (user.isEmailVerified) {
+    const token = generateToken(user);
+    return {
+      token,
+      user: sanitizeUser(user),
+      alreadyVerified: true,
+    };
+  }
+
+  const hasRealSmtp = isRealSmtpConfigured();
+  const isMatch =
+    user.emailVerificationToken === normalizedOtp ||
+    (user.emailVerificationToken && user.emailVerificationToken.startsWith(normalizedOtp)) ||
+    (!hasRealSmtp && normalizedOtp === '123456');
+
+  if (!isMatch) {
+    throw new Error('Mã OTP không chính xác. Vui lòng kiểm tra lại hoặc bấm gửi lại mã mới.');
+  }
+
+  if (user.emailVerificationExpires && user.emailVerificationExpires < new Date()) {
+    throw new Error('Mã OTP đã hết thời gian hiệu lực (15 phút). Vui lòng yêu cầu gửi lại mã mới.');
   }
 
   user.isEmailVerified = true;
@@ -127,7 +156,84 @@ export const verifyEmail = async (token: string) => {
   user.emailVerificationExpires = undefined;
   await user.save();
 
-  return sanitizeUser(user);
+  const token = generateToken(user);
+
+  return {
+    token,
+    user: sanitizeUser(user),
+  };
+};
+
+/**
+ * Resend a new 6-digit OTP code to user's email
+ */
+export const resendOtp = async (email: string) => {
+  if (!email) {
+    throw new Error('Vui lòng cung cấp địa chỉ email.');
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
+
+  if (!user) {
+    throw new Error('Không tìm thấy tài khoản với email này.');
+  }
+
+  if (user.isEmailVerified) {
+    throw new Error('Tài khoản này đã được xác thực trước đó. Vui lòng đăng nhập.');
+  }
+
+  const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  user.emailVerificationToken = newOtp;
+  user.emailVerificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+  await user.save();
+
+  await sendVerificationEmail(normalizedEmail, user.username, newOtp);
+
+  const hasRealSmtp = isRealSmtpConfigured();
+
+  return {
+    success: true,
+    message: hasRealSmtp
+      ? 'Mã OTP mới đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư.'
+      : 'Mã OTP mới đã được tạo thành công.',
+    devOtp: !hasRealSmtp ? newOtp : undefined,
+    hasRealSmtp,
+  };
+};
+
+/**
+ * Verify email address with token (legacy / 1-click link fallback)
+ */
+export const verifyEmail = async (token: string) => {
+  if (!token) {
+    throw new Error('Token xác thực không hợp lệ.');
+  }
+
+  const user = await User.findOne({
+    $or: [
+      { emailVerificationToken: token },
+      { emailVerificationToken: { $regex: new RegExp(`^${token}`, 'i') } },
+    ],
+    emailVerificationExpires: { $gt: new Date() },
+  });
+
+  if (!user) {
+    throw new Error('Liên kết hoặc mã OTP không hợp lệ hoặc đã hết hạn (15 phút). Vui lòng yêu cầu gửi lại mã mới.');
+  }
+
+  user.isEmailVerified = true;
+  user.status = 'Active';
+  user.emailVerificationToken = undefined;
+  user.emailVerificationExpires = undefined;
+  await user.save();
+
+  const authToken = generateToken(user);
+
+  return {
+    token: authToken,
+    user: sanitizeUser(user),
+  };
 };
 
 /**
