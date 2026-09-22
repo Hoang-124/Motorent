@@ -1,7 +1,7 @@
 {
   "name": "motorent-server",
   "version": "1.0.0",
-  "description": "Backend API for MOTOV - Motorbike Rental Chain Management System",
+  "description": "Backend API for MOTORENT - Motorbike Rental Chain Management System",
   "main": "src/server.ts",
   "scripts": {
     "dev": "tsx watch src/server.ts",

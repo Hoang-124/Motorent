@@ -27,7 +27,7 @@ export const Footer: React.FC = () => {
                 </svg>
               </div>
               <span className="text-2xl font-black text-white tracking-tight">
-                MOTO<span className="text-forest-400">V</span>
+                MOTO<span className="text-forest-400">RENT</span>
               </span>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed pr-6">
@@ -115,7 +115,7 @@ export const Footer: React.FC = () => {
 
         {/* Bottom copyright */}
         <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 space-y-4 sm:space-y-0">
-          <p>© 2026 MOTOV Systems. Toàn bộ bản quyền thuộc về Hệ thống Chuỗi Cho Thuê Xe Máy Motov.</p>
+          <p>© 2026 MOTORENT Systems. Toàn bộ bản quyền thuộc về Hệ thống Chuỗi Cho Thuê Xe Máy Motorent.</p>
           <div className="flex space-x-6">
             <span className="hover:text-slate-400 cursor-pointer">Chính sách bảo mật</span>
             <span className="hover:text-slate-400 cursor-pointer">Điều khoản bồi thường</span>

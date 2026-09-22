@@ -55,10 +55,10 @@ export const BranchesPage: React.FC = () => {
             <span>Mạng lưới cơ sở tự doanh chuẩn hóa</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
-            Hệ thống chi nhánh Motov
+            Hệ thống chi nhánh Motorent
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
-            Các trạm giao nhận xe của Motov đều tọa lạc tại các vị trí đắc địa: cửa ngõ Sân bay Tân Sơn Nhất, trung tâm Quận 1 Bến Thành, và trung tâm TP. Thủ Đức. Quý khách hoàn toàn có thể nhận xe tại một trạm và trả xe tại bất kỳ trạm nào khác trong hệ thống.
+            Các trạm giao nhận xe của Motorent đều tọa lạc tại các vị trí đắc địa: cửa ngõ Sân bay Tân Sơn Nhất, trung tâm Quận 1 Bến Thành, và trung tâm TP. Thủ Đức. Quý khách hoàn toàn có thể nhận xe tại một trạm và trả xe tại bất kỳ trạm nào khác trong hệ thống.
           </p>
         </div>
 
@@ -160,7 +160,7 @@ export const BranchesPage: React.FC = () => {
               Thuê xe một chiều giữa các chi nhánh
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100/80 leading-relaxed">
-              Bạn có thể nhận xe tại chi nhánh Quận 1 để đi tham quan thành phố, sau đó kết thúc chuyến đi bằng việc trả xe thẳng tại chi nhánh Sân bay Tân Sơn Nhất trước giờ bay. Đội xe trung chuyển nội bộ của Motov sẽ tự động điều phối xe mà không tính phí chuyển trạm của bạn.
+              Bạn có thể nhận xe tại chi nhánh Quận 1 để đi tham quan thành phố, sau đó kết thúc chuyến đi bằng việc trả xe thẳng tại chi nhánh Sân bay Tân Sơn Nhất trước giờ bay. Đội xe trung chuyển nội bộ của Motorent sẽ tự động điều phối xe mà không tính phí chuyển trạm của bạn.
             </p>
             <div className="pt-2">
               <Link

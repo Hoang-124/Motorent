@@ -78,14 +78,14 @@ export const ForgotPasswordPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-slate-900 tracking-tight">
-              MOTO<span className="text-forest-600">V</span>
+              MOTO<span className="text-forest-600">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
             Quên mật khẩu?
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Nhập địa chỉ email liên kết với tài khoản MOTOV của bạn
+            Nhập địa chỉ email liên kết với tài khoản Motorent của bạn
           </p>
         </div>
 

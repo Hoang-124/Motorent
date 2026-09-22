@@ -33,13 +33,13 @@ export const sendVerificationEmail = async (
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
       <div style="background: linear-gradient(135deg, #065f46 0%, #059669 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">MOTO<span style="color: #6ee7b7;">V</span></h1>
+        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">MOTO<span style="color: #6ee7b7;">RENT</span></h1>
         <p style="margin: 8px 0 0; font-size: 13px; color: #d1fae5;">Chuỗi Cho Thuê Xe Máy Tự Lái Đa Chi Nhánh</p>
       </div>
       <div style="padding: 32px 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #0f172a;">Chào bạn ${username},</h2>
         <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #475569;">
-          Cảm ơn bạn đã đăng ký tài khoản tại hệ thống MOTOV. Để kích hoạt tài khoản và bắt đầu đặt xe tự lái, vui lòng xác thực địa chỉ email của bạn bằng cách bấm vào nút bên dưới:
+          Cảm ơn bạn đã đăng ký tài khoản tại hệ thống Motorent. Để kích hoạt tài khoản và bắt đầu đặt xe tự lái, vui lòng xác thực địa chỉ email của bạn bằng cách bấm vào nút bên dưới:
         </p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${verifyUrl}" target="_blank" style="display: inline-block; background: #059669; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);">
@@ -57,7 +57,7 @@ export const sendVerificationEmail = async (
         </p>
       </div>
       <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
-        © 2026 MOTOV Systems. Hệ thống thuê xe máy tự lái tự doanh đa chi nhánh.
+        © 2026 MOTORENT Systems. Hệ thống thuê xe máy tự lái tự doanh đa chi nhánh.
       </div>
     </div>
   `;
@@ -65,9 +65,9 @@ export const sendVerificationEmail = async (
   try {
     if (process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== 'test@motorent.vn') {
       await transporter.sendMail({
-        from: `"MOTOV Support" <${process.env.SMTP_USER}>`,
+        from: `"MOTORENT Support" <${process.env.SMTP_USER}>`,
         to: toEmail,
-        subject: 'Xác thực địa chỉ email tài khoản MOTOV',
+        subject: 'Xác thực địa chỉ email tài khoản Motorent',
         html: htmlContent,
       });
     }
@@ -97,13 +97,13 @@ export const sendPasswordResetEmail = async (
   const htmlContent = `
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
       <div style="background: linear-gradient(135deg, #065f46 0%, #059669 100%); padding: 32px 24px; text-align: center; color: #ffffff;">
-        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">MOTO<span style="color: #6ee7b7;">V</span></h1>
+        <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">MOTO<span style="color: #6ee7b7;">RENT</span></h1>
         <p style="margin: 8px 0 0; font-size: 13px; color: #d1fae5;">Yêu Cầu Đặt Lại Mật Khẩu</p>
       </div>
       <div style="padding: 32px 24px;">
         <h2 style="margin: 0 0 16px; font-size: 18px; color: #0f172a;">Chào bạn ${username},</h2>
         <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #475569;">
-          Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản MOTOV liên kết với địa chỉ email này. Vui lòng bấm vào nút dưới đây để thiết lập mật khẩu mới:
+          Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Motorent liên kết với địa chỉ email này. Vui lòng bấm vào nút dưới đây để thiết lập mật khẩu mới:
         </p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${resetUrl}" target="_blank" style="display: inline-block; background: #059669; color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);">
@@ -121,7 +121,7 @@ export const sendPasswordResetEmail = async (
         </p>
       </div>
       <div style="background: #f8fafc; padding: 16px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; text-align: center;">
-        © 2026 MOTOV Systems. Hệ thống thuê xe máy tự lái tự doanh đa chi nhánh.
+        © 2026 MOTORENT Systems. Hệ thống thuê xe máy tự lái tự doanh đa chi nhánh.
       </div>
     </div>
   `;
@@ -129,9 +129,9 @@ export const sendPasswordResetEmail = async (
   try {
     if (process.env.SMTP_USER && process.env.SMTP_PASS && process.env.SMTP_USER !== 'test@motorent.vn') {
       await transporter.sendMail({
-        from: `"MOTOV Support" <${process.env.SMTP_USER}>`,
+        from: `"MOTORENT Support" <${process.env.SMTP_USER}>`,
         to: toEmail,
-        subject: 'Yêu cầu đặt lại mật khẩu tài khoản MOTOV',
+        subject: 'Yêu cầu đặt lại mật khẩu tài khoản Motorent',
         html: htmlContent,
       });
     }

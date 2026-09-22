@@ -70,7 +70,7 @@ export const Navbar: React.FC = () => {
             </div>
             <div>
               <span className="text-2xl font-black tracking-tight text-slate-900 flex items-center">
-                MOTO<span className="text-forest-600">V</span>
+                MOTO<span className="text-forest-600">RENT</span>
                 <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-forest-100 text-forest-800 rounded">
                   Chính hãng
                 </span>

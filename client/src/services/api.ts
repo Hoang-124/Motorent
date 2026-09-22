@@ -10,7 +10,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('motov_token');
+  const token = localStorage.getItem('motorent_token') || localStorage.getItem('motov_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

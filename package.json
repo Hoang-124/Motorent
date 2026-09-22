@@ -2,7 +2,7 @@
   "name": "motorent-workspace",
   "version": "1.0.0",
   "private": true,
-  "description": "MOTOV - Motorbike Rental Chain Management System Workspace",
+  "description": "MOTORENT - Motorbike Rental Chain Management System Workspace",
   "scripts": {
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "dev:server": "npm --prefix server run dev",

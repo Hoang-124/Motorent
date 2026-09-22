@@ -394,7 +394,7 @@ const seedDatabase = async () => {
     bookingId: bookingCompleted._id,
     rating: 5,
     comment: 'Xe Vision chạy cực kỳ êm ái, nhân viên chi nhánh Quận 1 bàn giao nhanh chóng và nhiệt tình!',
-    response: 'Cảm ơn bạn An đã ủng hộ dịch vụ của Motov! Hẹn gặp lại bạn trong những chuyến đi tiếp theo.',
+    response: 'Cảm ơn bạn An đã ủng hộ dịch vụ của Motorent! Hẹn gặp lại bạn trong những chuyến đi tiếp theo.',
     respondedBy: userManagerQ1._id,
     isPublic: true,
   });
@@ -409,7 +409,7 @@ const seedDatabase = async () => {
     approvedBy: userAdmin._id,
     status: 'InTransit',
     departureTime: new Date(Date.now() - 2 * 3600 * 1000),
-    notes: 'Đã sạc đầy pin 100%, kèm 1 bộ sạc chính hãng và 2 nón bảo hiểm Motov.',
+    notes: 'Đã sạc đầy pin 100%, kèm 1 bộ sạc chính hãng và 2 nón bảo hiểm Motorent.',
   });
 
   await MaintenanceLog.create({
@@ -478,7 +478,7 @@ const seedDatabase = async () => {
     entityId: bookingCompleted._id.toString(),
     details: { bookingCode: 'MTV-100201', lateFee: 40000, remainingPaid: 210000 },
     ipAddress: '192.168.1.25',
-    userAgent: 'Chrome/128.0.0.0 Motov Counter Client',
+    userAgent: 'Chrome/128.0.0.0 Motorent Counter Client',
     timestamp: new Date(),
   });
 
@@ -513,7 +513,7 @@ const seedDatabase = async () => {
 
   await StaticPage.create({
     slug: 'terms',
-    title: 'Quy Định & Chính Sách Thuê Xe Máy Motov',
+    title: 'Quy Định & Chính Sách Thuê Xe Máy Motorent',
     content: '<h2>1. Điều kiện thuê xe</h2><p>Khách hàng cần có CCCD/Hộ chiếu và Giấy phép lái xe hạng A1/A2 hợp lệ...</p><h2>2. Chính sách đặt cọc</h2><p>Thanh toán 30% giá trị hợp đồng khi đặt xe online...</p>',
     isPublished: true,
     updatedBy: userAdmin._id,

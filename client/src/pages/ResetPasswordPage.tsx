@@ -73,7 +73,7 @@ export const ResetPasswordPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-slate-900 tracking-tight">
-              MOTO<span className="text-forest-600">V</span>
+              MOTO<span className="text-forest-600">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">

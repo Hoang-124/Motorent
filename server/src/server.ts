@@ -242,7 +242,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   await connectDatabase();
   server.listen(PORT, () => {
-    console.log(`🚀 MOTOV Server running on http://localhost:${PORT}`);
+    console.log(`🚀 MOTORENT Server running on http://localhost:${PORT}`);
     console.log(`📡 Realtime Socket.IO initialized`);
     console.log(`🩺 Health check endpoint: http://localhost:${PORT}/api/health`);
   });

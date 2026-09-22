@@ -87,7 +87,7 @@ export const RegisterPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-slate-900 tracking-tight">
-              MOTO<span className="text-forest-600">V</span>
+              MOTO<span className="text-forest-600">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
@@ -296,7 +296,7 @@ export const RegisterPage: React.FC = () => {
               </button>
 
               <div className="pt-2 text-center text-xs text-slate-500 border-t border-slate-100">
-                Đã có tài khoản MOTOV?{' '}
+                Đã có tài khoản Motorent?{' '}
                 <Link to="/login" className="font-bold text-forest-600 hover:text-forest-700">
                   Đăng nhập
                 </Link>

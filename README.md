@@ -1,4 +1,4 @@
-# MOTOV - Hệ Thống Chuỗi Quản Lý & Cho Thuê Xe Máy Tự Lái Đa Chi Nhánh
+# MOTORENT - Hệ Thống Chuỗi Quản Lý & Cho Thuê Xe Máy Tự Lái Đa Chi Nhánh
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-43853D?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
@@ -9,7 +9,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Socket.IO](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socket.io&logoColor=white)](https://socket.io/)
 
-> **MOTOV (Motorent)** là nền tảng quản lý và vận hành chuỗi cho thuê xe máy tự lái tự doanh đa chi nhánh. Hệ thống giải quyết trọn vẹn bài toán di chuyển liên trạm (thuê tại Quận 1 - trả tại Sân bay), loại bỏ rủi ro giữ giấy tờ tùy thân của khách bằng quy trình eKYC số hóa, và tối ưu hóa quy trình điều chuyển xe nội bộ giữa các cơ sở.
+> **MOTORENT (Motorent)** là nền tảng quản lý và vận hành chuỗi cho thuê xe máy tự lái tự doanh đa chi nhánh. Hệ thống giải quyết trọn vẹn bài toán di chuyển liên trạm (thuê tại Quận 1 - trả tại Sân bay), loại bỏ rủi ro giữ giấy tờ tùy thân của khách bằng quy trình eKYC số hóa, và tối ưu hóa quy trình điều chuyển xe nội bộ giữa các cơ sở.
 
 ---
 
@@ -27,7 +27,7 @@
 
 ## Tổng Quan & Giá Trị Khác Biệt
 
-MOTOV được thiết kế dựa trên các nghiệp vụ thực tế của thị trường cho thuê xe máy tại Việt Nam:
+MOTORENT được thiết kế dựa trên các nghiệp vụ thực tế của thị trường cho thuê xe máy tại Việt Nam:
 
 * **Không Giữ CCCD Bản Gốc**: Khách hàng chỉ cần quét/chụp ảnh giấy tờ tùy thân và GPLX qua quy trình eKYC đối chiếu. Khách toàn quyền giữ lại bản gốc khi tham gia giao thông.
 * **Cơ Chế Cọc 30% Minh Bạch**: Hệ thống tự động tính toán dòng tiền: Khách thanh toán cọc 30% online để khóa đúng biển số xe mong muốn, 70% còn lại thanh toán tại quầy khi nhận xe và ưng ý.
@@ -242,4 +242,4 @@ Sau khi chạy lệnh `npm run seed`, hệ thống đã có sẵn các tài kho�
 
 ## Giấy Phép & Bản Quyền
 
-Dự án được phân phối dưới giấy phép **MIT License**. Toàn bộ mã nguồn và tài liệu thuộc về nhóm phát triển hệ thống **MOTOV**.
+Dự án được phân phối dưới giấy phép **MIT License**. Toàn bộ mã nguồn và tài liệu thuộc về nhóm phát triển hệ thống **MOTORENT**.

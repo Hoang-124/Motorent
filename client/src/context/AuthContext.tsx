@@ -17,11 +17,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('motov_token'));
+  const [token, setToken] = useState<string | null>(localStorage.getItem('motorent_token') || localStorage.getItem('motov_token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const fetchProfile = async () => {
-    const savedToken = localStorage.getItem('motov_token');
+    const savedToken = localStorage.getItem('motorent_token') || localStorage.getItem('motov_token');
     if (!savedToken) {
       setUser(null);
       setIsLoading(false);
@@ -48,12 +48,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = (newToken: string, newUser: User) => {
-    localStorage.setItem('motov_token', newToken);
+    localStorage.setItem('motorent_token', newToken);
     setToken(newToken);
     setUser(newUser);
   };
 
   const logout = () => {
+    localStorage.removeItem('motorent_token');
     localStorage.removeItem('motov_token');
     setToken(null);
     setUser(null);

@@ -173,7 +173,7 @@ export const CounterDesk: React.FC = () => {
                     const isSelected = selectedBooking?._id === b._id;
                     const bikeName = typeof b.vehicleId === 'object' && b.vehicleId !== null 
                       ? b.vehicleId.vehicleModel 
-                      : 'Xe máy Motov';
+                      : 'Xe máy Motorent';
                     const userName = typeof b.userId === 'object' && b.userId !== null 
                       ? `${b.userId.firstName || ''} ${b.userId.lastName || ''}`.trim() || b.userId.username
                       : 'Khách hàng';
@@ -250,7 +250,7 @@ export const CounterDesk: React.FC = () => {
                     <div>
                       <span className="text-slate-400 block text-[10px]">Phương tiện:</span>
                       <span className="font-bold text-slate-200 truncate block">
-                        {typeof selectedBooking.vehicleId === 'object' ? selectedBooking.vehicleId?.vehicleModel : 'Xe Motov'}
+                        {typeof selectedBooking.vehicleId === 'object' ? selectedBooking.vehicleId?.vehicleModel : 'Xe Motorent'}
                       </span>
                     </div>
                     <div>
@@ -355,7 +355,7 @@ export const CounterDesk: React.FC = () => {
                       <ShieldCheck className="w-4 h-4 text-emerald-700 mt-0.5 flex-shrink-0" />
                       <div>
                         <p className="font-bold text-emerald-900">
-                          Quy chuẩn eKYC Motov: Không giữ CCCD bản gốc
+                          Quy chuẩn eKYC Motorent: Không giữ CCCD bản gốc
                         </p>
                         <p className="text-emerald-800 text-[11px] mt-0.5">
                           Nhân viên đã chụp ảnh CCCD & GPLX của khách lưu vào hồ sơ bảo mật. Khách cầm lại toàn bộ giấy tờ tùy thân.
