@@ -24,7 +24,9 @@ const getTransporter = () => {
   const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = Number(process.env.SMTP_PORT) || 587;
   const user = process.env.SMTP_USER?.trim() || '';
-  const pass = process.env.SMTP_PASS?.trim() || '';
+  const rawPass = process.env.SMTP_PASS?.trim() || '';
+  // Google App Passwords often have spaces like "ghmz yryj ivhs mtwq", strip them
+  const pass = host.includes('gmail') ? rawPass.replace(/\s+/g, '') : rawPass;
 
   if (host.includes('gmail')) {
     return nodemailer.createTransport({
