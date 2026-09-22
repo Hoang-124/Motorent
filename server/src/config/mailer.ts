@@ -125,14 +125,7 @@ export const sendVerificationEmail = async (
               </a>
             </div>
 
-            <p style="margin: 0 0 6px; font-size: 11px; color: #64748b; text-align: center;">
-              Nếu nút trên không phản hồi, hãy mở liên kết này trên trình duyệt:
-            </p>
-            <p style="margin: 0; font-size: 11px; word-break: break-all; color: #059669; background-color: #f1f5f9; padding: 8px 12px; border-radius: 8px; text-align: center; font-family: monospace;">
-              ${verifyUrl}
-            </p>
-
-            <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; line-height: 1.5; text-align: center;">
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; line-height: 1.5; text-align: center;">
               * Nếu bạn không thực hiện đăng ký tài khoản này, vui lòng bỏ qua email để đảm bảo an toàn.
             </div>
           </td>
@@ -234,14 +227,7 @@ export const sendPasswordResetEmail = async (
               </a>
             </div>
 
-            <p style="margin: 0 0 6px; font-size: 11px; color: #64748b; text-align: center;">
-              Hoặc sao chép đường dẫn sau vào trình duyệt nếu nút bấm không phản hồi:
-            </p>
-            <p style="margin: 0; font-size: 11px; word-break: break-all; color: #059669; background-color: #f1f5f9; padding: 8px 12px; border-radius: 8px; text-align: center; font-family: monospace;">
-              ${resetUrl}
-            </p>
-
-            <div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; line-height: 1.5; text-align: center;">
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; line-height: 1.5; text-align: center;">
               * Liên kết này chỉ có hiệu lực trong vòng 1 giờ. Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này, mật khẩu hiện tại của bạn vẫn được bảo vệ an toàn tuyệt đối.
             </div>
           </td>
