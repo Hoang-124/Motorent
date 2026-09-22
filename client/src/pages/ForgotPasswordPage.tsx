@@ -153,21 +153,15 @@ export const ForgotPasswordPage: React.FC = () => {
                 Vui lòng kiểm tra hộp thư của <strong className="text-forest-800">{email}</strong>. Liên kết có hiệu lực trong 60 phút.
               </p>
 
-              {devResetToken && (
-                <div className="p-3 bg-white rounded-xl border border-emerald-300 text-xs text-left space-y-1.5">
-                  <span className="font-bold text-forest-800 flex items-center">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 mr-1" />
-                    Thử nghiệm phát triển (Dev Mode):
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/reset-password?token=${devResetToken}`)}
-                    className="w-full py-2 bg-forest-600 hover:bg-forest-700 text-white rounded-lg font-bold text-xs"
-                  >
-                    Mở form Đặt lại mật khẩu ngay
-                  </button>
-                </div>
-              )}
+              <div className="pt-2">
+                <Link
+                  to="/login"
+                  className="inline-flex items-center space-x-1 text-xs font-bold text-forest-600 hover:text-forest-700"
+                >
+                  <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+                  <span>Quay lại trang Đăng nhập</span>
+                </Link>
+              </div>
             </div>
           )}
 

@@ -101,7 +101,6 @@ export const register = async (data: {
 
   return {
     user: sanitizeUser(newUser),
-    verificationToken, // Returned in dev mode
   };
 };
 
@@ -320,7 +319,6 @@ export const forgotPassword = async (email: string) => {
   return {
     isGoogleAccount: false,
     message: 'Hướng dẫn đặt lại mật khẩu đã được gửi tới địa chỉ email của bạn. Vui lòng kiểm tra hộp thư.',
-    resetToken, // Dev mode preview
   };
 };
 

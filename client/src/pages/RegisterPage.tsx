@@ -115,33 +115,22 @@ export const RegisterPage: React.FC = () => {
                 Vui lòng kiểm tra hộp thư (cả mục Spam/Junk nếu cần) và bấm vào liên kết để kích hoạt tài khoản.
               </p>
 
-              {successData.token && (
-                <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-left space-y-2">
-                  <div className="flex items-center space-x-1.5 text-forest-800 font-bold">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Chế độ thử nghiệm phát triển (Dev Mode):</span>
-                  </div>
-                  <p className="text-[11px] text-slate-600">
-                    Bạn có thể bấm trực tiếp nút bên dưới để kích hoạt tài khoản ngay mà không cần mở hộp thư:
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/verify-email?token=${successData.token}`)}
-                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs shadow-xs"
-                  >
-                    Kích hoạt tài khoản ngay
-                  </button>
-                </div>
-              )}
-
-              <div className="pt-2">
+              {/* Resend verification button */}
+              <div className="pt-2 flex flex-col space-y-3">
                 <Link
                   to="/login"
-                  className="inline-flex items-center space-x-1 text-xs font-bold text-forest-600 hover:text-forest-700"
+                  className="w-full py-3 bg-forest-600 hover:bg-forest-700 text-white rounded-xl font-bold text-xs shadow-md shadow-forest-600/20 transition-all flex items-center justify-center space-x-1.5"
                 >
                   <span>Chuyển đến trang Đăng nhập</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setSuccessData(null)}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors"
+                >
+                  Đăng ký bằng địa chỉ email khác
+                </button>
               </div>
             </div>
           ) : (
