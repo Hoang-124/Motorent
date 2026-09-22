@@ -32,11 +32,12 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Official Google Sign-In state
+  // Official Google Sign-In state (Motorent Google Cloud Project)
+  const MOTORENT_GOOGLE_CLIENT_ID = '956847251739-0rsphvuagch0sqhkkqb9lpf2afisoei7.apps.googleusercontent.com';
   const [googleClientId, setGoogleClientId] = useState(
-    localStorage.getItem('motorent_google_client_id') ||
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-    '616320462696-b4nbu6h1gnq3k197nesv4imu4hj657no.apps.googleusercontent.com'
+    localStorage.getItem('motorent_google_client_id') ||
+    MOTORENT_GOOGLE_CLIENT_ID
   );
   const [showConfig, setShowConfig] = useState(false);
   const [tempClientId, setTempClientId] = useState('');

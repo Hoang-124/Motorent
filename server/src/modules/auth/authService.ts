@@ -7,7 +7,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mail
 
 const getGoogleClientId = () =>
   process.env.GOOGLE_CLIENT_ID ||
-  '616320462696-b4nbu6h1gnq3k197nesv4imu4hj657no.apps.googleusercontent.com';
+  '956847251739-0rsphvuagch0sqhkkqb9lpf2afisoei7.apps.googleusercontent.com';
 
 const jwtSecret = process.env.JWT_SECRET || 'motov_super_secret_jwt_key_2026';
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
