@@ -36,7 +36,7 @@ export const LoginPage: React.FC = () => {
   const [googleClientId, setGoogleClientId] = useState(
     localStorage.getItem('motorent_google_client_id') ||
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-    ''
+    '616320462696-b4nbu6h1gnq3k197nesv4imu4hj657no.apps.googleusercontent.com'
   );
   const [showConfig, setShowConfig] = useState(false);
   const [tempClientId, setTempClientId] = useState('');

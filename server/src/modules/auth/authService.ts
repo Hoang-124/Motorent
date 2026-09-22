@@ -5,7 +5,10 @@ import { OAuth2Client } from 'google-auth-library';
 import { User, IUser } from '../../models/User';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer';
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const getGoogleClientId = () =>
+  process.env.GOOGLE_CLIENT_ID ||
+  '616320462696-b4nbu6h1gnq3k197nesv4imu4hj657no.apps.googleusercontent.com';
+
 const jwtSecret = process.env.JWT_SECRET || 'motov_super_secret_jwt_key_2026';
 const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
 
@@ -172,13 +175,15 @@ export const login = async (identifier: string, password: string) => {
  */
 export const loginWithGoogle = async (googleIdToken: string) => {
   let payload: any = null;
+  const clientId = getGoogleClientId();
 
   try {
-    // Attempt verification with google-auth-library if client ID is configured
-    if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID !== 'dummy_client_id') {
-      const ticket = await googleClient.verifyIdToken({
+    // Attempt official verification with google-auth-library
+    if (clientId) {
+      const client = new OAuth2Client(clientId);
+      const ticket = await client.verifyIdToken({
         idToken: googleIdToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
+        audience: clientId,
       });
       payload = ticket.getPayload();
     }
