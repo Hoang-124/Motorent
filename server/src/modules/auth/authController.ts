@@ -44,16 +44,17 @@ export const register = async (req: AuthenticatedRequest, res: Response): Promis
 export const verifyEmail = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const token = (req.query.token as string) || req.body.token;
+    const email = (req.query.email as string) || req.body.email;
     if (!token) {
       res.status(400).json({ success: false, message: 'Thiếu mã token xác thực email.' });
       return;
     }
 
-    const user = await authService.verifyEmail(token);
+    const result = await authService.verifyEmail(token, email);
     res.json({
       success: true,
-      message: 'Xác thực địa chỉ email thành công! Tài khoản của bạn đã được kích hoạt.',
-      data: user,
+      message: result.message || 'Xác thực địa chỉ email thành công! Tài khoản của bạn đã được kích hoạt.',
+      data: result,
     });
   } catch (error: any) {
     res.status(400).json({ success: false, message: error.message });

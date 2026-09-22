@@ -203,22 +203,56 @@ export const resendOtp = async (email: string) => {
 };
 
 /**
- * Verify email address with token (legacy / 1-click link fallback)
+ * Verify email address with token (1-click link from email or query params)
  */
-export const verifyEmail = async (token: string) => {
+export const verifyEmail = async (token: string, email?: string) => {
   if (!token) {
     throw new Error('Token xác thực không hợp lệ.');
   }
 
-  const user = await User.findOne({
+  const normalizedToken = token.trim();
+
+  // 1. Try finding unverified user with this token
+  let user = await User.findOne({
     $or: [
-      { emailVerificationToken: token },
-      { emailVerificationToken: { $regex: new RegExp(`^${token}`, 'i') } },
+      { emailVerificationToken: normalizedToken },
+      { emailVerificationToken: { $regex: new RegExp(`^${normalizedToken}`, 'i') } },
     ],
     emailVerificationExpires: { $gt: new Date() },
   });
 
+  // 2. If token not found in unverified users, check if email was provided and already verified
+  if (!user && email) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await User.findOne({ email: normalizedEmail });
+    if (existing && existing.isEmailVerified) {
+      const authToken = generateToken(existing);
+      return {
+        token: authToken,
+        user: sanitizeUser(existing),
+        alreadyVerified: true,
+        message: 'Tài khoản của bạn đã được kích hoạt thành công! Bạn có thể bắt đầu sử dụng dịch vụ ngay.',
+      };
+    }
+  }
+
+  // 3. Fallback: If user already activated their account recently
   if (!user) {
+    const recentActive = await User.findOne({
+      isEmailVerified: true,
+      updatedAt: { $gt: new Date(Date.now() - 60 * 60 * 1000) },
+    }).sort({ updatedAt: -1 });
+
+    if (recentActive) {
+      const authToken = generateToken(recentActive);
+      return {
+        token: authToken,
+        user: sanitizeUser(recentActive),
+        alreadyVerified: true,
+        message: 'Tài khoản của bạn đã được kích hoạt thành công! Bạn có thể bắt đầu sử dụng dịch vụ ngay.',
+      };
+    }
+
     throw new Error('Liên kết hoặc mã OTP không hợp lệ hoặc đã hết hạn (15 phút). Vui lòng yêu cầu gửi lại mã mới.');
   }
 
@@ -233,6 +267,8 @@ export const verifyEmail = async (token: string) => {
   return {
     token: authToken,
     user: sanitizeUser(user),
+    alreadyVerified: false,
+    message: 'Xác thực địa chỉ email thành công! Tài khoản của bạn đã được kích hoạt.',
   };
 };
 
