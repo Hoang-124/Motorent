@@ -1,0 +1,55 @@
+// ============================================================
+// MODULE 1: CORE - Quản lý Người dùng & Chi nhánh
+// Bảng: User, Branch
+// ============================================================
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [unique, not null]
+  email varchar [unique, note: 'sparse unique']
+  passwordHash varchar [note: 'bcrypt salt 10']
+  googleId varchar [unique, note: 'Google OAuth2 ID']
+  firstName varchar
+  lastName varchar
+  phoneNumber varchar
+  avatarUrl varchar
+  gender varchar [note: 'Male / Female / Other']
+  dob datetime [note: 'Ngay sinh']
+  roles varchar [not null, default: 'Customer', note: 'SystemAdmin / BranchManager / Staff / Customer']
+  status varchar [default: 'Active', note: 'Active / Suspended / Unverified']
+  branchId varchar [note: 'FK -> Branch']
+  strikes int [default: 0, note: 'So lan vi pham']
+  identityStatus varchar [default: 'Unverified', note: 'Unverified / Pending / Verified / Rejected']
+  loyaltyPoints int [default: 0, note: 'Diem thuong tich luy']
+  referralCode varchar [unique, note: 'Ma gioi thieu']
+  drivingLicenseUrl varchar [note: 'Anh GPLX (eKYC)']
+  isEmailVerified boolean [default: false]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Nguoi dung he thong - 4 vai tro RBAC'
+}
+
+Table Branch {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [not null, note: 'Ten chi nhanh']
+  code varchar [unique, not null, note: 'Ma CN: CN-DAD']
+  address varchar [not null]
+  phone varchar [not null]
+  email varchar
+  location_lng float [note: 'Kinh do GPS']
+  location_lat float [note: 'Vi do GPS']
+  hours_open varchar [default: '08:00']
+  hours_close varchar [default: '22:00']
+  managerId varchar [note: 'FK -> User']
+  isActive boolean [default: true]
+  description text
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Chi nhanh cua hang cho thue xe'
+}
+
+// --- Quan he ---
+Ref: User.branchId > Branch._id           // N User thuoc 1 Branch
+Ref: Branch.managerId - User._id          // 1 Branch co dung 1 Manager

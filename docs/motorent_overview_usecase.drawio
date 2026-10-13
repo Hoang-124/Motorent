@@ -1,0 +1,221 @@
+<mxfile host="Electron">
+  <diagram id="motorent-complete-overview" name="Overview-Use-Case-Diagram">
+    <mxGraphModel dx="1400" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1100">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- ================= SYSTEM BOUNDARY ================= -->
+        <mxCell id="sys_box" value="Overview Use Case Diagram - MOTORENT System" style="shape=rect;html=1;verticalAlign=top;fontStyle=1;fontSize=14;fillColor=#ecfdf5;strokeColor=#047857;strokeWidth=1.8;rounded=0;spacingTop=10;fontColor=#064e3b;" vertex="1" parent="1">
+          <mxGeometry x="150" y="35" width="760" height="980" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= ACTORS (LEFT) ================= -->
+        <!-- 1. Guest -->
+        <mxCell id="act_guest" value="Guest" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=12;fontStyle=1;strokeColor=#047857;fontColor=#0f172a;fillColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="60" y="190" width="30" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- 2. Customer -->
+        <mxCell id="act_customer" value="Customer" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=12;fontStyle=1;strokeColor=#047857;fontColor=#0f172a;fillColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="60" y="660" width="30" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= ACTORS (RIGHT: 3 BẬC NỘI BỘ) ================= -->
+        <!-- 3. Staff -->
+        <mxCell id="act_staff" value="Staff" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=12;fontStyle=1;strokeColor=#047857;fontColor=#0f172a;fillColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="950" y="190" width="30" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- 4. Branch Manager (Quản lý chi nhánh) -->
+        <mxCell id="act_manager" value="Branch&#xa;Manager" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=12;fontStyle=1;strokeColor=#047857;fontColor=#0f172a;fillColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="950" y="490" width="30" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- 5. System Admin -->
+        <mxCell id="act_admin" value="System&#xa;Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;fontSize=12;fontStyle=1;strokeColor=#047857;fontColor=#0f172a;fillColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="950" y="810" width="30" height="60" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= GENERALIZATION ARROWS ================= -->
+        <!-- Customer -> Guest -->
+        <mxCell id="gen_cg" style="endArrow=block;endFill=0;strokeColor=#047857;strokeWidth=1.3;" edge="1" parent="1" source="act_customer" target="act_guest">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Staff -> Guest (Vòng qua đỉnh hộp hệ thống) -->
+        <mxCell id="gen_sg" style="endArrow=block;endFill=0;strokeColor=#047857;strokeWidth=1.3;edgeStyle=orthogonalEdgeStyle;rounded=0;" edge="1" parent="1" source="act_staff" target="act_guest">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="965" y="15"/>
+              <mxPoint x="40" y="15"/>
+              <mxPoint x="40" y="210"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Branch Manager -> Staff (Kế thừa quyền quầy) -->
+        <mxCell id="gen_ms" style="endArrow=block;endFill=0;strokeColor=#047857;strokeWidth=1.3;" edge="1" parent="1" source="act_manager" target="act_staff">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- System Admin -> Branch Manager (Kế thừa quyền quản lý cơ sở) -->
+        <mxCell id="gen_am" style="endArrow=block;endFill=0;strokeColor=#047857;strokeWidth=1.3;" edge="1" parent="1" source="act_admin" target="act_manager">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= USE CASES TRÊN TRÁI (GUEST) ================= -->
+        <mxCell id="uc_search_bike" value="Search motorbike &amp; branches" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="230" y="90" width="175" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_view_bike" value="View vehicle details &amp; pricing" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="160" width="175" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_register" value="Register account" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="230" y="225" width="150" height="36" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= USE CASES TRỤC GIỮA (TƯƠNG TÁC CHUNG) ================= -->
+        <mxCell id="uc_feedback" value="Give feedback &amp; review" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="110" width="150" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_report" value="Report incident &amp; complaint" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="450" y="170" width="160" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_progress" value="Track booking status" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="455" y="230" width="150" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_pay_deposit" value="Pay deposit 30% online" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="455" y="320" width="150" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_chat" value="Live chat with staff" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="390" width="140" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_notifications" value="View notifications &amp; SMS" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="435" y="460" width="170" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_wallet" value="View rental &amp; transaction history" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="420" y="530" width="195" height="38" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= USE CASES TRÊN PHẢI (STAFF) ================= -->
+        <mxCell id="uc_lookup" value="Lookup booking MV-xxxxxx" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="75" width="180" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_checkin" value="Check-in &amp; 5-point safety check" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="130" width="195" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_checkout" value="Check-out &amp; late fee calculation" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="655" y="185" width="190" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_settle_70" value="Confirm completion &amp; collect 70%" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="635" y="240" width="200" height="36" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= USE CASES GIỮA PHẢI (BRANCH MANAGER) ================= -->
+        <mxCell id="uc_transfer" value="Transfer fleet between branches" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="635" y="380" width="205" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_shifts" value="Assign staff work shifts" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="655" y="435" width="175" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_maintenance" value="Schedule periodic maintenance" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="640" y="490" width="195" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_mgr_report" value="Branch revenue &amp; vehicle report" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="545" width="190" height="36" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= USE CASES DƯỚI TRÁI (CUSTOMER) ================= -->
+        <mxCell id="uc_ekyc" value="Upload eKYC (CCCD &amp; GPLX)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="580" width="175" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_book_1way" value="Book 1-way rental (Airport - Beach)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="190" y="635" width="215" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_contract" value="Sign e-contract" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="210" y="690" width="140" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_cancel_refund" value="Request cancel &amp; refund" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="745" width="160" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_loyalty" value="Redeem loyalty points &amp; voucher" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="175" y="800" width="195" height="38" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_profile" value="Update personal profile" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="855" width="160" height="36" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= USE CASES DƯỚI PHẢI (ADMIN) ================= -->
+        <mxCell id="uc_admin_branches" value="Manage branches &amp; fleet policies" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="725" width="195" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_admin_users" value="Manage user accounts &amp; RBAC" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="780" width="185" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_admin_audit" value="View audit logs (AuditLog)" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="665" y="835" width="170" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="uc_admin_finance" value="Chain-wide financial reports" style="ellipse;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#059669;strokeWidth=1.2;fontColor=#064e3b;fontSize=11;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="890" width="190" height="36" as="geometry"/>
+        </mxCell>
+
+        <!-- ================= ĐƯỜNG KẾT NỐI: GUEST ================= -->
+        <mxCell id="e_g1" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_guest" target="uc_search_bike"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_g2" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_guest" target="uc_view_bike"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_g3" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_guest" target="uc_register"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ================= ĐƯỜNG KẾT NỐI: CUSTOMER ================= -->
+        <!-- Nối đến View bike -->
+        <mxCell id="e_c_vb" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_view_bike"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <!-- Nối đến trục giữa -->
+        <mxCell id="e_c_fb" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_feedback"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_rep" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_report"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_prg" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_progress"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_pay" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_pay_deposit"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_cht" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_chat"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_not" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_notifications"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_wal" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_wallet"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <!-- Nối đến các use case dưới trái -->
+        <mxCell id="e_c_ekyc" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_ekyc"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_1way" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_book_1way"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_cntr" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_contract"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_canc" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_cancel_refund"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_loy" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_loyalty"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_c_prof" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_customer" target="uc_profile"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ================= ĐƯỜNG KẾT NỐI: STAFF ================= -->
+        <!-- Nối đến các use case trên phải -->
+        <mxCell id="e_s_look" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_lookup"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_chin" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_checkin"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_chout" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_checkout"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_settle" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_settle_70"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <!-- Nối đến trục giữa -->
+        <mxCell id="e_s_fb" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_feedback"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_rep" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_report"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_prg" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_progress"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_pay" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_pay_deposit"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_cht" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_chat"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_s_not" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_staff" target="uc_notifications"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ================= ĐƯỜNG KẾT NỐI: BRANCH MANAGER ================= -->
+        <!-- Nối đến các use case giữa phải -->
+        <mxCell id="e_m_trans" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_manager" target="uc_transfer"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_m_shift" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_manager" target="uc_shifts"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_m_maint" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_manager" target="uc_maintenance"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_m_rep" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_manager" target="uc_mgr_report"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <!-- Nối đến trục giữa -->
+        <mxCell id="e_m_not" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_manager" target="uc_notifications"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_m_wal" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_manager" target="uc_wallet"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ================= ĐƯỜNG KẾT NỐI: ADMIN ================= -->
+        <mxCell id="e_a_br" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_admin" target="uc_admin_branches"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a_usr" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_admin" target="uc_admin_users"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a_aud" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_admin" target="uc_admin_audit"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a_fin" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_admin" target="uc_admin_finance"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a_not" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_admin" target="uc_notifications"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e_a_wal" style="endArrow=none;strokeColor=#047857;strokeWidth=1;" edge="1" parent="1" source="act_admin" target="uc_wallet"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

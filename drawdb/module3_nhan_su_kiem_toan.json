@@ -1,0 +1,72 @@
+{
+  "author": "Motov Team",
+  "title": "Mo-dun 3: Nhan Su, Ca Truc & Kiem Toan (HR & Audit)",
+  "date": "2026-09-21",
+  "tables": [
+    {
+      "id": 0, "name": "User", "x": 100, "y": 80, "comment": "Nhan vien & Quan ly",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"username","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"","id":1},
+        {"name":"firstName","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":2},
+        {"name":"lastName","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":3},
+        {"name":"roles","type":"VARCHAR","default":"Staff","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"SystemAdmin/BranchManager/Staff","id":4},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> Branch","id":5}
+      ],
+      "indices": []
+    },
+    {
+      "id": 1, "name": "Branch", "x": 600, "y": 80, "comment": "Chi nhanh truc thuoc",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"name","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Ten chi nhanh","id":1},
+        {"name":"code","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"CN-Q1","id":2},
+        {"name":"managerId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> User (Truong CN)","id":3}
+      ],
+      "indices": []
+    },
+    {
+      "id": 2, "name": "StaffSchedule", "x": 100, "y": 420, "comment": "Phan ca truc nhan vien",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"staffId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":1},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch","id":2},
+        {"name":"shiftDate","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Ngay truc","id":3},
+        {"name":"shiftType","type":"VARCHAR","default":"Morning","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Morning/Afternoon/Evening","id":4},
+        {"name":"checkInTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5},
+        {"name":"checkOutTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":6},
+        {"name":"status","type":"VARCHAR","default":"Assigned","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Assigned/Present/Absent","id":7}
+      ],
+      "indices": []
+    },
+    {
+      "id": 3, "name": "AuditLog", "x": 600, "y": 420, "comment": "Nhat ky thao tac kiem toan",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"userId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User (Ai thao tac)","id":1},
+        {"name":"action","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"CREATE_BOOKING, EDIT_PRICE...","id":2},
+        {"name":"entity","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Booking/Vehicle...","id":3},
+        {"name":"entityId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4},
+        {"name":"ipAddress","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5},
+        {"name":"timestamp","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":6}
+      ],
+      "indices": []
+    }
+  ],
+  "relationships": [
+    {"id":0,"name":"user_branch","startTableId":1,"startFieldId":0,"endTableId":0,"endFieldId":5,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":1,"name":"branch_manager","startTableId":0,"startFieldId":0,"endTableId":1,"endFieldId":3,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":2,"name":"schedule_staff","startTableId":0,"startFieldId":0,"endTableId":2,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":3,"name":"schedule_branch","startTableId":1,"startFieldId":0,"endTableId":2,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":4,"name":"audit_user","startTableId":0,"startFieldId":0,"endTableId":3,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"}
+  ],
+  "notes": [],
+  "subjectAreas": [
+    {"id":0,"name":"MÔ-ĐUN 3: NHÂN SỰ & KIỂM TOÁN","x":50,"y":30,"width":950,"height":680,"color":"#f59e0b"}
+  ],
+  "types": []
+}

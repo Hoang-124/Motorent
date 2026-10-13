@@ -1,0 +1,86 @@
+{
+  "author": "Motov Team",
+  "title": "Mo-dun 2: Quan Ly Doi Xe & Van Hanh Chi Nhanh (Fleet Operations)",
+  "date": "2026-09-21",
+  "tables": [
+    {
+      "id": 0, "name": "Category", "x": 80, "y": 80, "comment": "Phan loai xe",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"name","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"Tay ga/Xe so...","id":1},
+        {"name":"slug","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"","id":2}
+      ],
+      "indices": []
+    },
+    {
+      "id": 1, "name": "Vehicle", "x": 450, "y": 80, "comment": "Xe cua chi nhanh",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch","id":1},
+        {"name":"category","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Category","id":2},
+        {"name":"vehicleModel","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Vision, AirBlade","id":3},
+        {"name":"licensePlate","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"Bien so","id":4},
+        {"name":"odometer","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"So km","id":5},
+        {"name":"dailyPrice","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Gia/ngay","id":6},
+        {"name":"status","type":"VARCHAR","default":"Available","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Available/Rented/Maintenance/Transferring","id":7},
+        {"name":"requiresMaintenance","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8}
+      ],
+      "indices": []
+    },
+    {
+      "id": 2, "name": "Branch", "x": 880, "y": 80, "comment": "Chi nhanh quan ly kho xe",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"name","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Ten chi nhanh","id":1},
+        {"name":"code","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"CN-Q1","id":2},
+        {"name":"address","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":3},
+        {"name":"phone","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":4}
+      ],
+      "indices": []
+    },
+    {
+      "id": 3, "name": "VehicleTransfer", "x": 180, "y": 480, "comment": "Dieu chuyen xe giua 2 chi nhanh",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"vehicleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Vehicle","id":1},
+        {"name":"fromBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch (di)","id":2},
+        {"name":"toBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch (den)","id":3},
+        {"name":"transferReason","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Can bang xe/Bao duong","id":4},
+        {"name":"status","type":"VARCHAR","default":"Pending","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Pending/InTransit/Completed","id":5}
+      ],
+      "indices": []
+    },
+    {
+      "id": 4, "name": "MaintenanceLog", "x": 680, "y": 480, "comment": "Nhat ky bao duong sua chua",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"vehicleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Vehicle","id":1},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch","id":2},
+        {"name":"maintenanceType","type":"VARCHAR","default":"Routine","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Routine/Repair","id":3},
+        {"name":"description","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Thay nhot, phanh...","id":4},
+        {"name":"cost","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Chi phi VND","id":5},
+        {"name":"odometerAtMaintenance","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"So km","id":6}
+      ],
+      "indices": []
+    }
+  ],
+  "relationships": [
+    {"id":0,"name":"vehicle_category","startTableId":0,"startFieldId":0,"endTableId":1,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":1,"name":"vehicle_branch","startTableId":2,"startFieldId":0,"endTableId":1,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":2,"name":"transfer_vehicle","startTableId":1,"startFieldId":0,"endTableId":3,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":3,"name":"transfer_from","startTableId":2,"startFieldId":0,"endTableId":3,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":4,"name":"transfer_to","startTableId":2,"startFieldId":0,"endTableId":3,"endFieldId":3,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":5,"name":"maintenance_vehicle","startTableId":1,"startFieldId":0,"endTableId":4,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":6,"name":"maintenance_branch","startTableId":2,"startFieldId":0,"endTableId":4,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"}
+  ],
+  "notes": [],
+  "subjectAreas": [
+    {"id":0,"name":"MÔ-ĐUN 2: QUẢN LÝ ĐỘI XE & VẬN HÀNH","x":40,"y":30,"width":1150,"height":720,"color":"#f59e0b"}
+  ],
+  "types": []
+}

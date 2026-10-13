@@ -1,0 +1,144 @@
+Sprint	Ngày	Epic	Feature	User Story	Actor	Sign	Priority	Owner	Est.	Dependency	Acceptance Criteria	API/DB Notes	Status
+S1	27/09	Bootstrap	Seed Data	As system, I want to initialize sample data	System	Hoàng	Must	BE	M	none	Seed 3 branches, 11 users, 5 categories, 21 vehicles	npm run seed	Hoàn thành
+S1	27/09	Bootstrap	DB Schema	As system, I want 18 Mongoose models validated	System	Hoàng	Must	BE	M	none	18 models validated, indexes created, FK refs correct	models/*.ts	Hoàn thành
+S1	27/09	Bootstrap	Config Setup	As system, I want env config for DB, JWT, VNPay, Mailer	System	Hoàng	Must	BE	S	none	.env.example complete, env.ts Zod strict validation	config/env.ts	Hoàn thành
+S1	28/09	Auth	UC-15: Register	As a guest, I want to create account	Guest	Hoàng	Must	FE/BE	L	none	Email unique, bcrypt 10 rounds, OTP 6 digits	POST /api/auth/register	Hoàn thành
+S1	28/09	Auth	Email Verification	As system, I want to verify user emails	System	Hoàng	Must	BE	M	UC-15	Token 24h expiry, email match, no JWT leak	GET /api/auth/verify-email	Hoàn thành
+S1	29/09	Auth	UC-16: Login	As a user, I want to login	Guest	Hoàng	Must	FE/BE	L	UC-15	JWT 24h, tokenVersion, lockout 6 fails (30min)	POST /api/auth/login	Hoàn thành
+S1	30/09	Auth	UC-17: Google OAuth	As a guest, I want to login with Google	Guest	Hoàng	Must	FE/BE	L	UC-16	Google ID Token verify via OAuth2Client, email_verified	POST /api/auth/google	Hoàn thành
+S1	01/10	Auth	UC-18: Forgot Password	As a user, I want to reset password via email	Guest	Hoàng	Should	FE/BE	M	none	Reset token SHA-256 hash 1h expiry, single-use	POST /api/auth/forgot-password	Hoàn thành
+S1	02/10	Auth	UC-19: View Profile	As a user, I want to view my profile	Customer	Hoàng	Must	FE/BE	S	UC-16	Name, email, phone, avatar, eKYC, loyalty	GET /api/auth/me	Hoàn thành
+S1	02/10	Auth	UC-20: Update Profile	As a user, I want to update my info	Customer	Hoàng	Should	FE/BE	S	UC-19	Edit name, phone, gender, dob. Lock email/role	PUT /api/auth/me	Hoàn thành
+S1	02/10	Auth	UC-21: Upload Avatar	As a user, I want to change my avatar	Customer	Hoàng	Should	FE/BE	S	UC-19	Max 5MB, JPEG/PNG/WebP, Multer upload	PUT /api/auth/me/avatar	Hoàn thành
+S1	03/10	Auth	UC-22: eKYC Upload	As a customer, I want to verify identity	Customer	Hoàng	Must	FE/BE	M	UC-19	CCCD front/back + driving license, status->Pending	POST /api/auth/ekyc	Hoàn thành
+S1	03/10	Auth	UC-23: Change Password	As a user, I want to change password	Customer	Hoàng	Must	FE/BE	S	UC-16	Verify old, bcrypt new, min 8 chars	PUT /api/auth/change-password	Hoàn thành
+S1	03/10	Auth	UC-24: Logout	As a user, I want to logout	Customer	Hoàng	Must	FE/BE	S	UC-16	Clear JWT, invalidate token	POST /api/auth/logout	Hoàn thành
+S1	27/09	Branch	UC-93: Add Branch	As admin, I want to create a new branch	Admin	Cả	Must	FE/BE	M	none	Name, code unique, address, GPS, hours, manager	POST /api/branches	Hoàn thành
+S1	27/09	Branch	UC-94: Edit Branch	As admin, I want to update branch info	Admin	Cả	Must	FE/BE	M	UC-93	Update all fields, re-assign manager	PUT /api/branches/:id	Hoàn thành
+S1	27/09	Branch	UC-95: Disable Branch	As admin, I want to deactivate a branch	Admin	Cả	Should	FE/BE	S	UC-93	isActive=false, warn if active bookings	PUT /api/branches/:id/deactivate	Hoàn thành
+S1	28/09	Branch	UC-01: Branch List	As a guest, I want to view all branches	Guest	Cả	Must	FE/BE	M	none	List with address, phone, hours, vehicle count	GET /api/branches	Hoàn thành
+S1	29/09	Branch	UC-02: Branch Map	As a guest, I want to view branches on map	Guest	Cả	Should	FE	M	UC-01	Interactive map with GPS markers	Leaflet/Google Maps	
+S1	30/09	Branch	UC-27: GPS Search	As a customer, I want to find nearest branch	Customer	Cả	Should	FE/BE	M	UC-01	Sort by distance, show availability	GET /api/branches/nearby	Hoàn thành
+S1	01/10	Admin	UC-96: Add Manager	As admin, I want Manager account	Admin	Cả	Must	FE/BE	M	UC-93	role=BranchManager, assign branch	POST /api/admin/users	
+S1	01/10	Admin	UC-97-98: Edit/Delete Mgr	As admin, I want to manage managers	Admin	Cả	Must	FE/BE	S	UC-96	Update/suspend, unlink branch	PUT /api/admin/users/:id	
+S1	02/10	Admin	UC-100: Lock Account	As admin, I want to suspend accounts	Admin	Cả	Must	FE/BE	S	UC-96	Suspend, invalidate JWT	PUT /api/admin/users/:id/lock	
+S1	02/10	Admin	UC-101: Unlock Account	As admin, I want to reactivate accounts	Admin	Cả	Should	FE/BE	S	UC-100	Reactivate, reset failedLogin	PUT /api/admin/users/:id/unlock	
+S1	27/09	Vehicle	UC-107: Add Category	As admin, I want to create vehicle category	Admin	Tài	Must	FE/BE	S	none	Name, slug, description	POST /api/categories	Hoàn thành
+S1	27/09	Vehicle	UC-108: Edit Category	As admin, I want to update category	Admin	Tài	Should	FE/BE	S	UC-107	Update name/description	PUT /api/categories/:id	
+S1	27/09	Vehicle	UC-109: Delete Category	As admin, I want to remove unused category	Admin	Tài	Should	FE/BE	S	UC-107	Block if vehicles assigned	DELETE /api/categories/:id	
+S1	28/09	Vehicle	UC-67: Add Vehicle	As manager, I want to add motorbike	Manager	Tài	Must	FE/BE	M	UC-107	licensePlate unique, photos max 10	POST /api/vehicles	Hoàn thành
+S1	28/09	Vehicle	UC-68: Edit Vehicle	As manager, I want to update vehicle	Manager	Tài	Must	FE/BE	M	UC-67	Edit all except licensePlate	PUT /api/vehicles/:id	Hoàn thành
+S1	28/09	Vehicle	UC-69: Remove Vehicle	As manager, I want to soft-delete vehicle	Manager	Tài	Must	FE/BE	S	UC-67	isDeleted=true, block if active booking	DELETE /api/vehicles/:id	Hoàn thành
+S1	29/09	Vehicle	UC-70: Set Daily Price	As manager, I want daily rental rate	Manager	Tài	Must	FE/BE	S	UC-67	Update dailyPrice, audit log	PUT /api/vehicles/:id/pricing	
+S1	29/09	Vehicle	UC-71: Set Hourly Price	As manager, I want hourly rate	Manager	Tài	Should	FE/BE	S	UC-67	Update hourlyPrice	PUT /api/vehicles/:id/pricing	
+S1	30/09	Vehicle	UC-12: Vehicle Detail	As a guest, I want vehicle details	Guest	Tài	Must	FE/BE	M	UC-03	Gallery, specs, pricing, calendar, reviews	GET /api/vehicles/:id	Hoàn thành
+S1	01/10	Vehicle	UC-03: Fleet Catalog	As a guest, I want to browse fleet	Guest	Tài	Must	FE/BE	M	none	Grid/list, photos, price, availability	GET /api/vehicles	Hoàn thành
+S1	01/10	Vehicle	UC-04-08: Filters	As a guest, I want to filter vehicles	Guest	Tài	Must	FE/BE	M	UC-03	Branch, category, price range, brand	Query params	Hoàn thành
+S1	01/10	Vehicle	UC-09-10: Sort	As a guest, I want to sort vehicles	Guest	Tài	Must	FE/BE	S	UC-03	ASC/DESC by price or rating	sort param	Hoàn thành
+S1	01/10	Vehicle	UC-11: Search	As a guest, I want to search vehicles	Guest	Tài	Must	FE/BE	S	UC-03	Text search on model, brand, plate	text index	Hoàn thành
+S1	01/10	Vehicle	UC-13: Vehicle Reviews	As a guest, I want to read reviews	Guest	Tài	Must	FE/BE	S	UC-12	Paginated reviews with rating, photos	GET /api/vehicles/:id/reviews	
+S1	02/10	Vehicle	UC-72: Seasonal Pricing	As manager, I want peak pricing	Manager	Tài	Could	FE/BE	M	UC-70	Date range + multiplier	Pricing rules	
+S1	02/10	Vehicle	UC-14: Rental Policy	As a guest, I want rental policy	Guest	Tài	Should	FE	S	none	Static page with terms	StaticPage	
+S1	27/09	FE	Project Setup	Setup Vite, routing, layout shell	All	Dương	Must	FE	M	none	Vite + React/TS, React Router, layout	Client scaffold	
+S1	28/09	FE	Booking UI Wireframe	Design booking modal + components	Customer	Dương	Must	FE	M	none	Reusable form components, date pickers	UI components	
+S1	29/09	FE	Fleet Catalog Page	Fleet catalog FE page	Guest	Dương	Must	FE	M	UC-03	Grid/list toggle, filter sidebar	Vehicle listing	
+S1	30/09	FE	Vehicle Filters FE	Filter/sort/search components	Guest	Dương	Must	FE	M	UC-03	Connected to API, responsive	Filter components	
+S1	01/10	FE	Sort + Search FE	Sort dropdown + search bar	Guest	Dương	Must	FE	S	UC-03	Debounced search, URL params	Search component	
+S1	02/10	FE	Rental Policy Page	Static policy page	Guest	Dương	Should	FE	S	none	Render from StaticPage	CMS page	
+S1	03/10	FE	Integration Test Auth	E2E test login/register flow	All	Dương	Must	FE	M	UC-16	Login + Register + Profile works	Test suite	
+S1	28/09	CMS	UC-116: Add Banner	As admin, I want homepage banner	Admin	Tuyên	Must	FE/BE	M	none	Title, image, link, order, isActive	POST /api/cms/banners	
+S1	28/09	CMS	UC-117: Edit Banner	As admin, I want to update banner	Admin	Tuyên	Should	FE/BE	S	UC-116	Edit all, reorder	PUT /api/cms/banners/:id	
+S1	28/09	CMS	UC-118: Delete Banner	As admin, I want to remove banner	Admin	Tuyên	Should	FE/BE	S	UC-116	Soft delete	DELETE /api/cms/banners/:id	
+S1	29/09	CMS	UC-119: Static Pages	As admin, I want FAQ/Terms/Privacy	Admin	Tuyên	Must	FE/BE	M	none	Rich text, slug routing	CRUD /api/cms/pages	
+S1	30/09	Review	UC-39-41: Reviews CRUD	As customer, I want to manage reviews	Customer	Tuyên	Must	FE/BE	M	UC-57	1-5 stars, comment, photos, 1/booking	CRUD /api/feedbacks	
+S1	01/10	Complaint	UC-42: Submit Complaint	As customer, I want to file complaint	Customer	Tuyên	Must	FE/BE	M	UC-28	Link booking, category, status=Open	POST /api/complaints	
+S1	01/10	Complaint	UC-43: Track Complaint	As customer, I want to track status	Customer	Tuyên	Must	FE/BE	S	UC-42	Open->InProgress->Resolved->Closed	GET /api/complaints/:id	
+S1	02/10	Complaint	UC-65: Handle Complaint	As staff, I want to respond	Staff	Tuyên	Must	FE/BE	M	UC-42	Add response, update status	PUT /api/complaints/:id	
+S1	02/10	Complaint	UC-85: Resolve Complaint	As manager, I want to resolve	Manager	Tuyên	Must	FE/BE	M	UC-65	Final resolution, close	PUT /api/complaints/:id/resolve	
+S1	03/10	Wishlist	UC-25-26: Wishlist	As customer, I want favorites	Customer	Tuyên	Should	FE/BE	S	none	Add/remove vehicleId	CRUD /api/wishlist	
+S2	04/10	Booking	UC-28: Book Rental	As customer, I want to book motorbike	Customer	Dương	Must	FE/BE	L	UC-22	Select vehicle, dates, branches; MV-XXXXXX, 30% deposit	POST /api/bookings	Hoàn thành
+S2	04/10	Booking	UC-29: Pay Deposit VNPay	As customer, I want 30% deposit	Customer	Hoàng	Must	FE/BE	L	UC-28	VNPay redirect, IPN callback	POST /api/payments/vnpay/create	
+S2	05/10	Booking	VNPay IPN Handler	As system, I want VNPay callbacks	System	Hoàng	Must	BE	L	UC-29	Verify checksum, update payment	POST /api/payments/vnpay/ipn	
+S2	05/10	Booking	UC-31: Pay at Counter	As customer, I want 70% at pickup	Customer	Dương	Must	FE/BE	S	UC-28	Staff records payment, isPaid=true	PUT /api/bookings/:id/counter-pay	
+S2	06/10	Booking	UC-30: Pay Full Online	As customer, I want full VNPay	Customer	Hoàng	Should	FE/BE	M	UC-28	Full amount via VNPay	VNPay full flow	
+S2	06/10	Booking	UC-32: Cancel Order	As customer, I want to cancel	Customer	Dương	Must	FE/BE	M	UC-28	Cancel + BR-06 policy	PUT /api/bookings/:id/cancel	Hoàn thành
+S2	07/10	Booking	Availability Checker	As system, no double-booking	System	Hoàng	Must	BE	M	none	Atomic overlap check, 409 conflict	Mongoose transaction	Hoàn thành
+S2	07/10	Booking	UC-33: Request Refund	As customer, I want refund	Customer	Dương	Must	FE/BE	M	UC-32	Calculate refund per policy	POST /api/bookings/:id/refund	
+S2	08/10	Booking	UC-37: Track Status	As customer, real-time updates	Customer	Hoàng	Must	FE/BE	L	UC-28	Socket.IO room per booking	Socket.IO events	
+S2	08/10	Booking	UC-34: Extend Rental	As customer, extend return	Customer	Dương	Should	FE/BE	M	UC-28	Check availability, recalculate	PUT /api/bookings/:id/extend	
+S2	09/10	Booking	UC-99: RBAC Matrix	As admin, permissions management	Admin	Hoàng	Must	FE/BE	L	none	4-role matrix, enforce endpoints	RBAC middleware	Hoàn thành
+S2	09/10	Booking	UC-35: Rental History	As customer, booking list	Customer	Dương	Must	FE/BE	M	UC-28	Status tabs, pagination	GET /api/bookings/my	Hoàn thành
+S2	09/10	Booking	UC-36: Order Details	As customer, booking info	Customer	Dương	Must	FE/BE	S	UC-35	Timeline, pricing, actions	GET /api/bookings/:id	Hoàn thành
+S2	10/10	Booking	UC-73: Approve Order	As manager, approve bookings	Manager	Dương	Must	FE/BE	M	UC-28	Approve/Reject + notify	PUT /api/bookings/:id/approve	
+S2	10/10	Booking	UC-74: Reject Order	As manager, reject booking	Manager	Dương	Must	FE/BE	S	UC-73	Mandatory reason	PUT /api/bookings/:id/reject	
+S2	04/10	Fleet	UC-79: Request Transfer	As manager, vehicle from other branch	Manager	Tài	Must	FE/BE	M	UC-67	VehicleTransfer status=Pending	POST /api/transfers	
+S2	05/10	Fleet	UC-80: Approve Transfer	As manager, approve transfer	Manager	Tài	Must	FE/BE	M	UC-79	Approve, update branchId	PUT /api/transfers/:id/approve	
+S2	06/10	Fleet	UC-77: Schedule Maint.	As manager, maintenance schedule	Manager	Tài	Must	FE/BE	M	UC-67	MaintenanceLog, status=Maintenance	POST /api/maintenance	
+S2	07/10	Fleet	UC-78: Maint. History	As manager, maintenance log	Manager	Tài	Must	FE/BE	S	UC-77	Paginated history, cost summary	GET /api/maintenance/vehicle/:id	
+S2	08/10	Fleet	UC-64: Create Ticket	As staff, maintenance ticket	Staff	Tài	Must	FE/BE	M	UC-67	Log issue, assign technician	POST /api/maintenance	
+S2	09/10	Fleet	ODO Alert System	As system, flag vehicles	System	Tài	Must	BE	M	none	ODO vs threshold, flag=true	Cron job	
+S2	04/10	HR	UC-81: Add Staff	As manager, staff account	Manager	Cả	Must	FE/BE	M	UC-93	role=Staff, branchId=manager's	POST /api/staff	
+S2	05/10	HR	UC-82: Edit Staff	As manager, update staff	Manager	Cả	Must	FE/BE	S	UC-81	Update name, phone	PUT /api/staff/:id	
+S2	05/10	HR	UC-83: Delete Staff	As manager, deactivate staff	Manager	Cả	Should	FE/BE	S	UC-81	status=Suspended	PUT /api/staff/:id/deactivate	
+S2	06/10	HR	UC-84: Assign Shifts	As manager, shift schedules	Manager	Cả	Must	FE/BE	M	UC-81	Morning/Afternoon/Evening, no overlap	POST /api/schedules	
+S2	07/10	HR	Shift Calendar View	As manager, weekly calendar	Manager	Cả	Must	FE	M	UC-84	Color-coded grid, drag-drop	Calendar component	
+S2	08/10	HR	Clock In/Out	As staff, record attendance	Staff	Cả	Should	FE/BE	M	UC-84	Timestamp, late flag >15min	PUT /api/schedules/:id/clock	
+S2	09/10	Promo	UC-110-112: Discounts	As admin, discount CRUD	Admin	Cả	Must	FE/BE	M	none	Code unique, type, date range	CRUD /api/discounts	
+S2	10/10	Config	UC-113-115: System Config	As admin, configure policies	Admin	Cả	Must	FE/BE	S	none	Cancel, deposit %, loyalty rules	System config	
+S2	04/10	Notif	UC-45: Push Notif	As customer, in-app notifications	Customer	Tuyên	Must	FE/BE	M	none	Badge count, list, mark read	GET /api/notifications	
+S2	05/10	Notif	UC-46: Email Notif	As customer, email confirmations	Customer	Tuyên	Must	BE	M	none	Booking confirm, status change	Nodemailer templates	
+S2	06/10	Notif	UC-47: SMS Reminders	As customer, SMS before pickup	Customer	Tuyên	Could	BE	M	none	24h and 2h before	Cron + SMS	
+S2	07/10	Loyalty	UC-48: Earn Points	As customer, loyalty points	Customer	Tuyên	Must	BE	S	UC-57	1pt/10,000 VND on checkout	Auto-calc	
+S2	08/10	Loyalty	UC-49: Redeem Points	As customer, vouchers from points	Customer	Tuyên	Should	FE/BE	M	UC-48	Points->Discount conversion	POST /api/loyalty/redeem	
+S2	09/10	Loyalty	UC-50: Referral	As customer, refer friends	Customer	Tuyên	Could	FE/BE	S	UC-48	Unique code, bonus points	Referral tracking	
+S2	10/10	Marketing	UC-51: Promo Subscribe	As customer, promo offers	Customer	Tuyên	Could	FE/BE	S	none	Toggle subscription	PUT /api/auth/me/preferences	
+S3	11/10	Counter	UC-54: Branch Orders	As staff, branch booking queue	Staff	Dương	Must	FE/BE	M	UC-28	Filter by status, today's queue	GET /api/bookings/branch	Hoàn thành
+S3	12/10	Counter	UC-56: Check-in	As staff, vehicle handover	Staff	Dương	Must	FE/BE	L	UC-73	5-point: ID, license, 4 photos, ODO, fuel, canvas signature	PUT /api/bookings/:id/checkin	Hoàn thành
+S3	13/10	Counter	UC-57: Check-out	As staff, vehicle return	Staff	Dương	Must	FE/BE	L	UC-56	4 photos, ODO, fuel, damage, auto late fee 30k/h	PUT /api/bookings/:id/checkout	Hoàn thành
+S3	14/10	Counter	UC-58: Record Damage	As staff, document damage	Staff	Dương	Must	FE/BE	M	UC-57	Photos + description, damage fee	POST /api/bookings/:id/damage	Hoàn thành
+S3	15/10	Counter	UC-59: Calc Penalty	As staff, late+damage fees	Staff	Dương	Must	FE/BE	S	UC-57	30,000/hr ceil + damage auto-calc	Auto-calc	Hoàn thành
+S3	16/10	Counter	UC-61-63: Vehicle Status	As staff, toggle status	Staff	Dương	Must	FE/BE	S	UC-56	Available/Rented/Maintenance	PUT /api/vehicles/:id/status	Hoàn thành
+S3	17/10	Counter	UC-75: Approve Refund	As manager, approve refund	Manager	Dương	Must	FE/BE	M	UC-33	Approve/reject, calc amount	PUT /api/bookings/:id/refund/approve	
+S3	17/10	Counter	UC-76: Reject Refund	As manager, deny refund	Manager	Dương	Should	FE/BE	S	UC-75	Reject with reason	PUT /api/bookings/:id/refund/reject	
+S3	11/10	Chat	UC-44: Live Chat	As customer, real-time chat	Customer	Hoàng	Must	FE/BE	L	none	Socket.IO, Conversation + Messages	Socket.IO /chat	
+S3	12/10	Chat	UC-66: Staff Reply Chat	As staff, reply chat	Staff	Hoàng	Must	FE/BE	L	UC-44	Staff-side console, history	Socket.IO /chat	
+S3	13/10	Audit	UC-102: Audit Log Viewer	As admin, audit trail	Admin	Hoàng	Must	FE/BE	L	none	Searchable, filterable, paginated	GET /api/audit	
+S3	14/10	Audit	Audit Middleware	As system, auto-log CRUD	System	Hoàng	Must	BE	M	none	userId, action, entity, changes, auto-redacted	core/auditMiddleware.ts	Hoàn thành
+S3	15/10	Finance	UC-120: Reconcile	As admin, VNPay reconciliation	Admin	Hoàng	Must	FE/BE	L	UC-29	Match transactions, flag issues	GET /api/finance/reconcile	
+S3	16/10	Finance	UC-121: Tax Report	As admin, financial export	Admin	Hoàng	Should	FE/BE	M	UC-120	Monthly/quarterly Excel	GET /api/finance/tax-report	
+S3	11/10	Reports	UC-86: Daily Revenue	As manager, daily revenue	Manager	Cả	Must	FE/BE	M	UC-57	Today's bookings, total, breakdown	GET /api/reports/revenue/daily	
+S3	12/10	Reports	UC-87-88: Monthly Revenue	As manager, monthly reports	Manager	Cả	Must	FE/BE	M	UC-86	Monthly chart, comparison	GET /api/reports/revenue/monthly	
+S3	13/10	Reports	UC-89: Export Excel/PDF	As manager, export reports	Manager	Cả	Must	FE/BE	M	UC-86	ExcelJS + PDFKit with logo	GET /api/reports/export	
+S3	14/10	Reports	UC-90-92: Fleet Stats	As manager, fleet analytics	Manager	Cả	Should	FE/BE	M	UC-57	Utilization, avg rating	GET /api/reports/fleet	
+S3	15/10	Reports	UC-103: Chain Revenue	As admin, chain-wide reports	Admin	Cả	Must	FE/BE	M	UC-87	All branches combined	GET /api/reports/chain	
+S3	15/10	Reports	UC-104: Compare Branches	As admin, branch comparison	Admin	Cả	Should	FE/BE	M	UC-103	Side-by-side KPIs	GET /api/reports/compare	
+S3	16/10	Reports	UC-105: KPI Dashboard	As admin, executive dashboard	Admin	Cả	Must	FE/BE	L	UC-103	Revenue trend, top vehicles, funnel	Dashboard page	
+S3	17/10	Reports	UC-106: Demand Forecast	As admin, forecasting	Admin	Cả	Could	FE/BE	L	UC-103	Seasonal trends	Analytics service	
+S3	11/10	Fleet UI	Vehicle Search Optimization	As system, fast search	System	Tài	Must	BE	M	UC-03	Text index, response <200ms	DB optimization	
+S3	12/10	Fleet UI	Fleet Dashboard UI	As manager, fleet overview	Manager	Tài	Must	FE	M	UC-67	Vehicle count by status, charts	Dashboard component	
+S3	13/10	Fleet UI	Availability Calendar	As user, vehicle calendar	Guest	Tài	Must	FE	M	UC-12	Color-coded dates, blocked periods	Calendar component	
+S3	14/10	Fleet UI	Maintenance Log UI	As manager, maint. history view	Manager	Tài	Must	FE	M	UC-78	Timeline view, cost total	Timeline component	
+S3	15/10	Fleet UI	Transfer Approval UI	As manager, transfer queue	Manager	Tài	Must	FE	M	UC-80	Approve/reject actions	Transfer page	
+S3	16/10	Fleet UI	ODO Alert Notification UI	As manager, ODO warnings	Manager	Tài	Must	FE	S	ODO Alert	Badge + alert cards	Alert component	
+S3	11/10	CMS UI	Notification Center UI	As user, notification panel	Customer	Tuyên	Must	FE	M	UC-45	Dropdown, badge count, scroll	Notification panel	
+S3	12/10	CMS UI	Email Templates Design	As system, branded emails	System	Tuyên	Must	FE	M	UC-46	HTML template with logo	Email template	
+S3	13/10	CMS UI	Loyalty Dashboard UI	As customer, points view	Customer	Tuyên	Must	FE	M	UC-48	Points balance, history, redeem	Loyalty page	
+S3	14/10	CMS UI	Complaint Management UI	As staff, complaint queue	Staff	Tuyên	Must	FE	M	UC-65	Kanban/list, status filter	Complaint page	
+S3	15/10	CMS UI	Review Listing UI	As user, review display	Guest	Tuyên	Must	FE	M	UC-39	Stars, photos, pagination	Review component	
+S3	16/10	CMS UI	Banner Slider Component	As user, homepage slider	Guest	Tuyên	Must	FE	M	UC-116	Auto-rotate, swipe mobile	Slider component	
+S3	17/10	CMS UI	Static Pages Render	As user, FAQ/Terms pages	Guest	Tuyên	Must	FE	S	UC-119	Slug routing, styled content	CMS render	
+S4	18/10	Polish	UC-122: Multi-lang i18n	As admin, I want translations	Admin	Hoàng	Could	FE	L	none	Vietnamese + English	i18n framework	
+S4	18/10	Polish	UC-38: Download Invoice	As customer, PDF invoice	Customer	Dương	Should	FE/BE	M	UC-36	PDFKit with logo, details	GET /api/bookings/:id/invoice	
+S4	18/10	Polish	Responsive Vehicle Pages	Responsive vehicle section	Guest	Tài	Must	FE	M	UC-12	Mobile/tablet responsive	CSS responsive	
+S4	18/10	Polish	Report Charts Polish	Chart visuals + interactions	Manager	Cả	Must	FE	M	UC-105	Recharts animations	Chart polish	
+S4	18/10	Polish	Notif Badge Real-time	Live notification count	Customer	Tuyên	Must	FE	M	UC-45	Socket.IO badge update	Real-time badge	
+S4	19/10	Polish	Security Hardening	Rate limiting, XSS, CSRF, Fail-fast Env	System	Hoàng	Must	BE	M	none	helmet, express-rate-limit, Zod env.ts, CORS whitelist	Security middleware	Hoàn thành
+S4	19/10	Polish	Booking UX Polish	Smooth booking experience	Customer	Dương	Must	FE	M	UC-28	Animations, loading states	UX polish	
+S4	19/10	Polish	Image Optimization	Lazy load, compression	System	Tài	Must	FE	M	none	WebP, lazy load <2s	Performance	
+S4	19/10	Polish	Dashboard Responsive	Mobile admin dashboard	Admin	Cả	Must	FE	M	UC-105	Tablet/mobile layout	Responsive CSS	
+S4	19/10	Polish	CMS Content Seeding	Populate FAQ, banners	System	Tuyên	Must	BE	S	UC-119	Real content populated	Seed data	
+S4	20/10	QA	Cross-team Integration	Full system integration test	All	ALL	Must	FE/BE	L	All	All flows end-to-end	Integration test	
+S4	21/10	QA	Bug Fix Sprint	Fix critical/major bugs	All	ALL	Must	FE/BE	M	QA	0 critical, <5 minor	Bug tracking	
+S4	22/10	QA	E2E Test	End-to-end user journeys	All	ALL	Must	FE/BE	M	QA	Customer+Staff+Manager+Admin pass	E2E test	
+S4	23/10	Release	CODE FREEZE	Final review, merge PRs	All	ALL	Must	—	S	QA	All branches merged, no conflicts	Code freeze	
+S4	24/10	Release	DEMO DAY	Present full system demo	All	ALL	Must	—	—	All	4-role demo presentation	Presentation	

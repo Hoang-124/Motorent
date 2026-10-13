@@ -1,0 +1,27 @@
+// ============================================================
+// MODULE 8: AUDIT - Kiem toan & Nhat ky he thong
+// Bang: AuditLog
+// ============================================================
+
+Table AuditLog {
+  _id varchar [pk, note: 'ObjectId']
+  userId varchar [not null, note: 'FK -> User']
+  action varchar [not null, note: 'CREATE_VEHICLE, APPROVE_BOOKING, DELETE_USER...']
+  entityType varchar [not null, note: 'Branch / Vehicle / Booking / User']
+  entityId varchar
+  details text [note: 'JSON diff chi tiet thay doi']
+  ipAddress varchar
+  createdAt datetime
+
+  Note: 'Nhat ky kiem toan he thong - Ghi lai moi hanh vi nhay cam'
+}
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [not null]
+
+  Note: 'REF - Nguoi dung (xem Module 1)'
+}
+
+// --- Quan he ---
+Ref: AuditLog.userId > User._id             // Ai thuc hien hanh dong

@@ -1,0 +1,7 @@
+# Mark .agents directory as vendored and non-detectable so GitHub Linguist ignores Python & Go files in language statistics
+.agents/** linguist-vendored
+.agents/** -linguist-detectable
+.agents/** linguist-documentation
+
+# Preserve standard line endings
+* text=auto

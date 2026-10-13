@@ -1,0 +1,63 @@
+// ============================================================
+// MODULE 7: CMS & CHAT - Quan ly noi dung & Live Chat
+// Bang: Banner, StaticPage, Conversation, Message
+// ============================================================
+
+Table Banner {
+  _id varchar [pk, note: 'ObjectId']
+  title varchar [not null]
+  imageUrl varchar [not null]
+  linkUrl varchar
+  position int [default: 0, note: 'Thu tu hien thi']
+  isActive boolean [default: true]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Banner quang cao trang chu'
+}
+
+Table StaticPage {
+  _id varchar [pk, note: 'ObjectId']
+  slug varchar [unique, not null, note: 'about / terms / faq']
+  title varchar [not null]
+  content text [not null, note: 'HTML / Markdown']
+  isPublished boolean [default: false]
+  updatedBy varchar [note: 'FK -> User (Admin)']
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Trang tinh: FAQ, Dieu khoan, Chinh sach'
+}
+
+Table Conversation {
+  _id varchar [pk, note: 'ObjectId']
+  participants text [note: 'Array User IDs']
+  lastMessageId varchar
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Phien hoi thoai Live Chat (Socket.IO)'
+}
+
+Table Message {
+  _id varchar [pk, note: 'ObjectId']
+  conversationId varchar [not null, note: 'FK -> Conversation']
+  senderId varchar [not null, note: 'FK -> User']
+  content text [not null]
+  isRead boolean [default: false]
+  createdAt datetime
+
+  Note: 'Tin nhan trong phien chat'
+}
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [not null]
+
+  Note: 'REF - Nguoi dung (xem Module 1)'
+}
+
+// --- Quan he ---
+Ref: StaticPage.updatedBy > User._id             // Admin cap nhat trang
+Ref: Message.conversationId > Conversation._id   // Tin nhan thuoc hoi thoai
+Ref: Message.senderId > User._id                 // Nguoi gui tin nhan

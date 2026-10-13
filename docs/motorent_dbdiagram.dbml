@@ -1,0 +1,389 @@
+// ============================================================
+// MOTORENT - Sơ Đồ CSDL 18 Bảng (dbdiagram.io DBML)
+// Hệ thống Chuỗi Quản Lý & Cho Thuê Xe Máy Đa Chi Nhánh
+// Đồng bộ với Mongoose models tại server/src/models/
+// ============================================================
+// Hướng dẫn: Truy cập https://dbdiagram.io → Paste toàn bộ nội dung này
+// ============================================================
+
+// ─────────────── NHÓM 1: CORE (Lõi) ───────────────
+
+Table Branch {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [not null, note: 'Tên chi nhánh']
+  code varchar [unique, not null, note: 'Mã CN: CN-DAD, CN-MK']
+  address varchar [not null]
+  phone varchar [not null]
+  email varchar
+  location_lng float [note: 'Kinh độ GPS']
+  location_lat float [note: 'Vĩ độ GPS']
+  hours_open varchar [default: '08:00']
+  hours_close varchar [default: '22:00']
+  managerId varchar [note: 'FK -> User (Quản lý chi nhánh)']
+  isActive boolean [default: true]
+  description text
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Chi nhánh cửa hàng (Sân bay ĐN, Bãi biển Mỹ Khê)'
+}
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [unique, not null]
+  email varchar [unique, note: 'sparse unique']
+  passwordHash varchar [note: 'bcrypt salt 10']
+  googleId varchar [unique, note: 'Google OAuth2 ID']
+  firstName varchar
+  lastName varchar
+  phoneNumber varchar
+  avatarUrl varchar
+  gender varchar [note: 'Male / Female / Other']
+  dob datetime [note: 'Ngày sinh']
+  roles varchar [not null, default: 'Customer', note: 'SystemAdmin / BranchManager / Staff / Customer']
+  status varchar [default: 'Active', note: 'Active / Suspended / Unverified']
+  branchId varchar [note: 'FK -> Branch (Staff/Manager thuộc CN nào)']
+  strikes int [default: 0, note: 'Số lần vi phạm']
+  identityStatus varchar [default: 'Unverified', note: 'Unverified / Pending / Verified / Rejected']
+  loyaltyPoints int [default: 0, note: 'Điểm thưởng tích lũy']
+  referralCode varchar [unique, note: 'Mã giới thiệu bạn bè']
+  drivingLicenseUrl varchar [note: 'Ảnh GPLX (eKYC)']
+  isEmailVerified boolean [default: false]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Người dùng hệ thống - 4 vai trò RBAC'
+}
+
+Table Category {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [unique, not null, note: 'Xe tay ga / Xe số / Côn tay / Xe điện']
+  slug varchar [unique, not null, note: 'xe-tay-ga']
+  description text
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Phân loại dòng xe máy'
+}
+
+Table Vehicle {
+  _id varchar [pk, note: 'ObjectId']
+  branchId varchar [not null, note: 'FK -> Branch']
+  category varchar [not null, note: 'FK -> Category']
+  vehicleModel varchar [not null, note: 'Vision, SH, Air Blade...']
+  brand varchar [not null, note: 'Honda, Yamaha, VinFast...']
+  licensePlate varchar [unique, not null, note: 'Biển số: 43-D1 289.45']
+  odometer int [default: 0, note: 'Số km đã chạy']
+  dailyPrice float [not null, note: 'Giá thuê/ngày VNĐ']
+  hourlyPrice float [note: 'Giá thuê/giờ VNĐ']
+  status varchar [default: 'Available', note: 'Available / Rented / Maintenance / Transferring']
+  transmissionType varchar [not null, note: 'Automatic / Manual / Semi-Auto']
+  fuelType varchar [default: 'Gasoline', note: 'Gasoline / Electric']
+  yearManufactured int
+  images text [note: 'Array ảnh xe JSON']
+  requiresMaintenance boolean [default: false, note: 'Cờ cần bảo dưỡng']
+  isDeleted boolean [default: false, note: 'Soft delete']
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Xe máy thuộc chi nhánh'
+}
+
+Table Booking {
+  _id varchar [pk, note: 'ObjectId']
+  bookingCode varchar [unique, not null, note: 'MV-XXXXXX']
+  userId varchar [not null, note: 'FK -> User (Khách hàng)']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  pickupBranchId varchar [not null, note: 'FK -> Branch (Nhận xe)']
+  returnBranchId varchar [not null, note: 'FK -> Branch (Trả xe)']
+  pickupDateTime datetime [not null]
+  returnDateTime datetime [not null]
+  actualReturnDateTime datetime [note: 'Thời điểm trả thực tế']
+  totalAmount float [not null, note: 'Tổng tiền VNĐ']
+  depositAmount float [default: 0, note: 'Cọc 30%']
+  remainingAmount float [default: 0, note: 'Còn lại 70%']
+  discountId varchar [note: 'FK -> Discount']
+  discountAmount float [default: 0]
+  lateFee float [default: 0, note: 'Phí trả trễ 30.000đ/h']
+  damageFee float [default: 0, note: 'Phí hư hỏng phát sinh']
+  loyaltyPointsEarned int [default: 0, note: 'Điểm thưởng nhận được']
+  status varchar [default: 'Pending', note: 'Pending / Approved / Confirmed / Ongoing / Completed / Cancelled / Rejected']
+  paymentMethod varchar [default: 'Banking', note: 'Banking / Cash']
+  isPaid boolean [default: false]
+  approvedBy varchar [note: 'FK -> User (Manager duyệt)']
+  eSignatureUrl varchar [note: 'Chữ ký điện tử']
+  startOdometer int [default: 0, note: 'ODO lúc giao xe']
+  endOdometer int [note: 'ODO lúc trả xe']
+  startFuelLevel varchar [default: '100%', note: 'Mức xăng giao']
+  endFuelLevel varchar [note: 'Mức xăng trả']
+  checkinImages text [note: 'Array ảnh Check-in']
+  checkoutImages text [note: 'Array ảnh Check-out']
+  cancelReason varchar
+  rejectReason varchar
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Đơn thuê xe - Hỗ trợ One-way (nhận CN A, trả CN B)'
+}
+
+// ─────────────── NHÓM 2: OPERATIONS (Vận hành) ───────────────
+
+Table VehicleTransfer {
+  _id varchar [pk, note: 'ObjectId']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  fromBranchId varchar [not null, note: 'FK -> Branch (gốc)']
+  toBranchId varchar [not null, note: 'FK -> Branch (đích)']
+  transferReason varchar [not null]
+  requestedBy varchar [not null, note: 'FK -> User (Người yêu cầu)']
+  approvedBy varchar [note: 'FK -> User (Người duyệt)']
+  status varchar [default: 'Pending', note: 'Pending / Approved / InTransit / Completed / Rejected']
+  departureTime datetime
+  arrivalTime datetime
+  notes text
+  rejectionReason varchar
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Lệnh điều chuyển xe giữa chi nhánh'
+}
+
+Table MaintenanceLog {
+  _id varchar [pk, note: 'ObjectId']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  branchId varchar [not null, note: 'FK -> Branch']
+  type varchar [not null, note: 'Scheduled / Repair / Inspection']
+  description text [not null]
+  odometerAt int [not null, note: 'ODO lúc bảo trì']
+  cost float [note: 'Chi phí VNĐ']
+  performedBy varchar [note: 'FK -> User (Người thực hiện)']
+  scheduledDate datetime
+  completedDate datetime
+  status varchar [default: 'Scheduled', note: 'Scheduled / InProgress / Completed']
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Nhật ký bảo dưỡng xe'
+}
+
+Table Complaint {
+  _id varchar [pk, note: 'ObjectId']
+  customerId varchar [not null, note: 'FK -> User (Khách)']
+  bookingId varchar [note: 'FK -> Booking']
+  branchId varchar [note: 'FK -> Branch']
+  title varchar [not null, note: 'Tiêu đề khiếu nại']
+  description text [not null]
+  status varchar [default: 'Pending', note: 'Pending / Investigating / Resolved / Rejected']
+  priority varchar [default: 'Medium', note: 'Low / Medium / High / Urgent']
+  resolvedBy varchar [note: 'FK -> User (Nhân viên xử lý)']
+  resolutionNotes text
+  resolvedAt datetime
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Khiếu nại sự cố của khách hàng'
+}
+
+Table AuditLog {
+  _id varchar [pk, note: 'ObjectId']
+  userId varchar [not null, note: 'FK -> User']
+  action varchar [not null, note: 'CREATE_VEHICLE, APPROVE_BOOKING...']
+  entityType varchar [not null, note: 'Branch / Vehicle / Booking / User']
+  entityId varchar
+  details text [note: 'JSON diff chi tiết']
+  ipAddress varchar
+  createdAt datetime
+
+  Note: 'Nhật ký kiểm toán hệ thống'
+}
+
+Table StaffSchedule {
+  _id varchar [pk, note: 'ObjectId']
+  staffId varchar [not null, note: 'FK -> User (Nhân viên)']
+  branchId varchar [not null, note: 'FK -> Branch']
+  shiftDate datetime [not null, note: 'Ngày làm việc']
+  shiftType varchar [not null, note: 'Morning / Afternoon / Evening / FullDay']
+  checkInTime datetime [note: 'Điểm danh vào ca']
+  checkOutTime datetime [note: 'Điểm danh ra ca']
+  status varchar [default: 'Assigned', note: 'Assigned / Present / Absent / OnLeave']
+  assignedBy varchar [note: 'FK -> User (Manager phân ca)']
+  notes text
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Phân ca trực nhân viên chi nhánh'
+}
+
+// ─────────────── NHÓM 3: SUPPORT (Hỗ trợ) ───────────────
+
+Table Discount {
+  _id varchar [pk, note: 'ObjectId']
+  discountName varchar [not null]
+  discountType varchar [not null, note: 'Percentage / FixedAmount']
+  discountValue float [not null, note: 'phan tram hoac so tien VND']
+  voucherCode varchar [unique, not null]
+  startDate datetime [not null]
+  endDate datetime [not null]
+  usageLimit int
+  usedCount int [default: 0]
+  isActive boolean [default: true]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Ma giam gia / Voucher khuyen mai'
+}
+
+Table Feedback {
+  _id varchar [pk, note: 'ObjectId']
+  userId varchar [not null, note: 'FK -> User']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  bookingId varchar [unique, not null, note: 'FK -> Booking (1-1)']
+  rating int [not null, note: '1-5 sao']
+  comment text
+  imageUrls text [note: 'Array anh dinh kem']
+  response text [note: 'Phan hoi cua nhan vien']
+  respondedBy varchar [note: 'FK -> User (Nhan vien)']
+  isPublic boolean [default: true]
+  isBlocked boolean [default: false]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Danh gia sau chuyen di (1 Booking = 1 Feedback)'
+}
+
+Table Notification {
+  _id varchar [pk, note: 'ObjectId']
+  userId varchar [not null, note: 'FK -> User']
+  title varchar [not null]
+  message text [not null]
+  type varchar [default: 'System', note: 'Booking / Transfer / Complaint / Loyalty / System']
+  relatedId varchar [note: 'ID ban ghi lien quan']
+  isRead boolean [default: false]
+  createdAt datetime
+
+  Note: 'Thong bao in-app cho nguoi dung'
+}
+
+Table BookingReminder {
+  _id varchar [pk, note: 'ObjectId']
+  bookingId varchar [not null, note: 'FK -> Booking']
+  type varchar [not null, note: 'Pickup / Return']
+  scheduledAt datetime [not null]
+  sentAt datetime
+  status varchar [default: 'Pending', note: 'Pending / Sent / Failed']
+  channel varchar [default: 'SMS', note: 'SMS / Email']
+  createdAt datetime
+
+  Note: 'Lich nhac nho SMS/Email cho don thue'
+}
+
+// ─────────────── NHÓM 4: CMS & CHAT ───────────────
+
+Table Banner {
+  _id varchar [pk, note: 'ObjectId']
+  title varchar [not null]
+  imageUrl varchar [not null]
+  linkUrl varchar
+  position int [default: 0, note: 'Thu tu hien thi']
+  isActive boolean [default: true]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Banner quang cao trang chu'
+}
+
+Table StaticPage {
+  _id varchar [pk, note: 'ObjectId']
+  slug varchar [unique, not null, note: 'about / terms / faq']
+  title varchar [not null]
+  content text [not null, note: 'HTML / Markdown']
+  isPublished boolean [default: false]
+  updatedBy varchar [note: 'FK -> User (Admin)']
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Trang tinh: FAQ, Dieu khoan, Chinh sach'
+}
+
+Table Conversation {
+  _id varchar [pk, note: 'ObjectId']
+  participants text [note: 'Array User IDs']
+  lastMessageId varchar
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Phien hoi thoai Live Chat'
+}
+
+Table Message {
+  _id varchar [pk, note: 'ObjectId']
+  conversationId varchar [not null, note: 'FK -> Conversation']
+  senderId varchar [not null, note: 'FK -> User']
+  content text [not null]
+  isRead boolean [default: false]
+  createdAt datetime
+
+  Note: 'Tin nhan trong phien chat'
+}
+
+// ============================================================
+// QUAN HE FK (33 relationships)
+// ============================================================
+
+// --- Core ---
+Ref: User.branchId > Branch._id
+Ref: Branch.managerId - User._id
+Ref: Vehicle.branchId > Branch._id
+Ref: Vehicle.category > Category._id
+
+// --- Booking (7 FK) ---
+Ref: Booking.userId > User._id
+Ref: Booking.vehicleId > Vehicle._id
+Ref: Booking.pickupBranchId > Branch._id
+Ref: Booking.returnBranchId > Branch._id
+Ref: Booking.discountId > Discount._id
+Ref: Booking.approvedBy > User._id
+
+// --- VehicleTransfer (5 FK) ---
+Ref: VehicleTransfer.vehicleId > Vehicle._id
+Ref: VehicleTransfer.fromBranchId > Branch._id
+Ref: VehicleTransfer.toBranchId > Branch._id
+Ref: VehicleTransfer.requestedBy > User._id
+Ref: VehicleTransfer.approvedBy > User._id
+
+// --- MaintenanceLog (3 FK) ---
+Ref: MaintenanceLog.vehicleId > Vehicle._id
+Ref: MaintenanceLog.branchId > Branch._id
+Ref: MaintenanceLog.performedBy > User._id
+
+// --- Complaint (4 FK) ---
+Ref: Complaint.customerId > User._id
+Ref: Complaint.bookingId > Booking._id
+Ref: Complaint.branchId > Branch._id
+Ref: Complaint.resolvedBy > User._id
+
+// --- AuditLog ---
+Ref: AuditLog.userId > User._id
+
+// --- StaffSchedule (3 FK) ---
+Ref: StaffSchedule.staffId > User._id
+Ref: StaffSchedule.branchId > Branch._id
+Ref: StaffSchedule.assignedBy > User._id
+
+// --- Feedback (4 FK) ---
+Ref: Feedback.userId > User._id
+Ref: Feedback.vehicleId > Vehicle._id
+Ref: Feedback.bookingId - Booking._id
+Ref: Feedback.respondedBy > User._id
+
+// --- Notification ---
+Ref: Notification.userId > User._id
+
+// --- BookingReminder ---
+Ref: BookingReminder.bookingId > Booking._id
+
+// --- Message (2 FK) ---
+Ref: Message.conversationId > Conversation._id
+Ref: Message.senderId > User._id
+
+// --- StaticPage ---
+Ref: StaticPage.updatedBy > User._id

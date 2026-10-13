@@ -1,0 +1,74 @@
+// ============================================================
+// MODULE 4: FLEET - Dieu chuyen xe & Bao duong
+// Bang: VehicleTransfer, MaintenanceLog
+// ============================================================
+
+Table VehicleTransfer {
+  _id varchar [pk, note: 'ObjectId']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  fromBranchId varchar [not null, note: 'FK -> Branch (goc)']
+  toBranchId varchar [not null, note: 'FK -> Branch (dich)']
+  transferReason varchar [not null]
+  requestedBy varchar [not null, note: 'FK -> User (Nguoi yeu cau)']
+  approvedBy varchar [note: 'FK -> User (Nguoi duyet)']
+  status varchar [default: 'Pending', note: 'Pending / Approved / InTransit / Completed / Rejected']
+  departureTime datetime
+  arrivalTime datetime
+  notes text
+  rejectionReason varchar
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Lenh dieu chuyen xe giua chi nhanh'
+}
+
+Table MaintenanceLog {
+  _id varchar [pk, note: 'ObjectId']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  branchId varchar [not null, note: 'FK -> Branch']
+  type varchar [not null, note: 'Scheduled / Repair / Inspection']
+  description text [not null]
+  odometerAt int [not null, note: 'ODO luc bao tri']
+  cost float [note: 'Chi phi VND']
+  performedBy varchar [note: 'FK -> User (Nguoi thuc hien)']
+  scheduledDate datetime
+  completedDate datetime
+  status varchar [default: 'Scheduled', note: 'Scheduled / InProgress / Completed']
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Nhat ky bao duong xe'
+}
+
+Table Vehicle {
+  _id varchar [pk, note: 'ObjectId']
+  vehicleModel varchar [not null]
+
+  Note: 'REF - Xe may (xem Module 2)'
+}
+
+Table Branch {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [not null]
+
+  Note: 'REF - Chi nhanh (xem Module 1)'
+}
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [not null]
+
+  Note: 'REF - Nguoi dung (xem Module 1)'
+}
+
+// --- Quan he VehicleTransfer ---
+Ref: VehicleTransfer.vehicleId > Vehicle._id      // Xe duoc dieu chuyen
+Ref: VehicleTransfer.fromBranchId > Branch._id     // Tu chi nhanh
+Ref: VehicleTransfer.toBranchId > Branch._id       // Den chi nhanh
+Ref: VehicleTransfer.requestedBy > User._id        // Nguoi yeu cau
+Ref: VehicleTransfer.approvedBy > User._id         // Nguoi duyet
+
+// --- Quan he MaintenanceLog ---
+Ref: MaintenanceLog.vehicleId > Vehicle._id        // Xe duoc bao tri
+Ref: MaintenanceLog.branchId > Branch._id          // Tai chi nhanh nao
+Ref: MaintenanceLog.performedBy > User._id         // Nguoi thuc hien

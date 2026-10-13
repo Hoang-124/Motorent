@@ -1,0 +1,71 @@
+{
+  "author": "Motov Team",
+  "title": "Mo-dun 5: Giao Tiep Chat & Quan Tri CMS (Chat & CMS)",
+  "date": "2026-09-21",
+  "tables": [
+    {
+      "id": 0, "name": "User", "x": 80, "y": 80, "comment": "Nguoi dung he thong",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"username","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"","id":1}
+      ],
+      "indices": []
+    },
+    {
+      "id": 1, "name": "Conversation", "x": 480, "y": 80, "comment": "Cuoc hoi thoai chat",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"participants","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Array User IDs","id":1},
+        {"name":"lastMessageId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":2}
+      ],
+      "indices": []
+    },
+    {
+      "id": 2, "name": "Message", "x": 480, "y": 380, "comment": "Tin nhan",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"conversationId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Conversation","id":1},
+        {"name":"senderId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":2},
+        {"name":"content","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":3},
+        {"name":"isRead","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4}
+      ],
+      "indices": []
+    },
+    {
+      "id": 3, "name": "Banner", "x": 880, "y": 80, "comment": "Banner quang cao",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"title","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":1},
+        {"name":"imageUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":2},
+        {"name":"linkUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":3},
+        {"name":"isActive","type":"BOOLEAN","default":"true","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4}
+      ],
+      "indices": []
+    },
+    {
+      "id": 4, "name": "StaticPage", "x": 880, "y": 380, "comment": "Trang tinh (Dieu khoan, FAQ)",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"slug","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"about/terms/faq","id":1},
+        {"name":"title","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":2},
+        {"name":"content","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":3},
+        {"name":"isPublished","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4}
+      ],
+      "indices": []
+    }
+  ],
+  "relationships": [
+    {"id":0,"name":"message_conversation","startTableId":1,"startFieldId":0,"endTableId":2,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":1,"name":"message_sender","startTableId":0,"startFieldId":0,"endTableId":2,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"}
+  ],
+  "notes": [],
+  "subjectAreas": [
+    {"id":0,"name":"MÔ-ĐUN 5: CHAT & CMS","x":40,"y":30,"width":1100,"height":680,"color":"#8b5cf6"}
+  ],
+  "types": []
+}

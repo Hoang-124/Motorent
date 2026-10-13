@@ -1,0 +1,175 @@
+import mongoose from 'mongoose';
+import { Vehicle, IVehicle } from '../../models/Vehicle';
+import { Category, ICategory } from '../../models/Category';
+import { AppError } from '../../core/errorHandler';
+
+export interface VehicleFilterOptions {
+  branchId?: string;
+  category?: string;
+  status?: string;
+  q?: string;
+  fuelType?: string;
+  transmissionType?: string;
+  sortPrice?: 'asc' | 'desc';
+}
+
+export const getAllVehicles = async (options: VehicleFilterOptions) => {
+  const filter: Record<string, unknown> = { isDeleted: false };
+
+  if (options.branchId) {
+    filter.branchId = options.branchId;
+  }
+
+  if (options.category) {
+    if (mongoose.Types.ObjectId.isValid(options.category)) {
+      filter.category = options.category;
+    } else {
+      // Find category by slug
+      const cat = await Category.findOne({ slug: options.category.toLowerCase() });
+      if (cat) {
+        filter.category = cat._id;
+      }
+    }
+  }
+
+  if (options.status) {
+    filter.status = options.status;
+  }
+
+  if (options.fuelType) {
+    filter.fuelType = options.fuelType;
+  }
+
+  if (options.transmissionType) {
+    filter.transmissionType = options.transmissionType;
+  }
+
+  if (options.q && options.q.trim()) {
+    const searchRegex = new RegExp(options.q.trim(), 'i');
+    filter.$or = [
+      { vehicleModel: searchRegex },
+      { brand: searchRegex },
+      { licensePlate: searchRegex },
+    ];
+  }
+
+  const sort: Record<string, 1 | -1> = {};
+  if (options.sortPrice === 'asc') sort.dailyPrice = 1;
+  else if (options.sortPrice === 'desc') sort.dailyPrice = -1;
+  else sort.dailyPrice = 1;
+
+  const vehicles = await Vehicle.find(filter)
+    .populate('branchId', 'name code address phone hours_open hours_close')
+    .populate('category', 'name slug description')
+    .sort(sort);
+
+  return vehicles;
+};
+
+export const getVehicleById = async (id: string): Promise<IVehicle> => {
+  const vehicle = await Vehicle.findOne({ _id: id, isDeleted: false })
+    .populate('branchId', 'name code address phone hours_open hours_close')
+    .populate('category', 'name slug description');
+
+  if (!vehicle) {
+    throw new AppError(404, 'Không tìm thấy phương tiện hoặc xe đã bị xóa.');
+  }
+
+  return vehicle;
+};
+
+export const getAllCategories = async (): Promise<ICategory[]> => {
+  return Category.find().sort({ name: 1 });
+};
+
+export const createCategory = async (data: {
+  name: string;
+  slug: string;
+  description?: string;
+}): Promise<ICategory> => {
+  const slug = data.slug.trim().toLowerCase();
+  const existing = await Category.findOne({ slug });
+  if (existing) {
+    throw new AppError(409, `Danh mục với slug "${slug}" đã tồn tại.`);
+  }
+
+  return Category.create({
+    name: data.name.trim(),
+    slug,
+    description: data.description?.trim(),
+  });
+};
+
+export const createVehicle = async (data: {
+  branchId: string;
+  category: string;
+  vehicleModel: string;
+  brand: string;
+  licensePlate: string;
+  dailyPrice: number;
+  hourlyPrice?: number;
+  transmissionType?: 'Automatic' | 'Manual' | 'Semi-Auto';
+  fuelType?: 'Gasoline' | 'Electric';
+  yearManufactured?: number;
+  odometer?: number;
+  images?: string[];
+}): Promise<IVehicle> => {
+  const cleanPlate = data.licensePlate.trim().toUpperCase();
+  const existing = await Vehicle.findOne({ licensePlate: cleanPlate });
+  if (existing) {
+    throw new AppError(409, `Biển số xe "${cleanPlate}" đã tồn tại trong hệ thống.`);
+  }
+
+  return Vehicle.create({
+    ...data,
+    licensePlate: cleanPlate,
+    status: 'Available',
+    requiresMaintenance: false,
+    isDeleted: false,
+    odometer: data.odometer || 0,
+    images: data.images || [],
+  });
+};
+
+export const updateVehicle = async (
+  id: string,
+  data: Partial<{
+    branchId: string;
+    category: string;
+    vehicleModel: string;
+    brand: string;
+    dailyPrice: number;
+    hourlyPrice: number;
+    status: 'Available' | 'Rented' | 'Maintenance' | 'Transferring';
+    transmissionType: 'Automatic' | 'Manual' | 'Semi-Auto';
+    fuelType: 'Gasoline' | 'Electric';
+    yearManufactured: number;
+    requiresMaintenance: boolean;
+    images: string[];
+    odometer: number;
+  }>
+): Promise<IVehicle> => {
+  const vehicle = await Vehicle.findOne({ _id: id, isDeleted: false });
+  if (!vehicle) {
+    throw new AppError(404, 'Không tìm thấy phương tiện để cập nhật.');
+  }
+
+  Object.assign(vehicle, data);
+  await vehicle.save();
+  return vehicle;
+};
+
+export const deleteVehicle = async (id: string): Promise<IVehicle> => {
+  const vehicle = await Vehicle.findOne({ _id: id, isDeleted: false });
+  if (!vehicle) {
+    throw new AppError(404, 'Không tìm thấy phương tiện.');
+  }
+
+  if (vehicle.status === 'Rented') {
+    throw new AppError(400, 'Không thể xóa xe khi xe đang trong trạng thái cho thuê.');
+  }
+
+  vehicle.isDeleted = true;
+  await vehicle.save();
+  return vehicle;
+};

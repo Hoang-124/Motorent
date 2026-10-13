@@ -1,0 +1,112 @@
+// ============================================================
+// MODULE 6: SUPPORT - Danh gia, Khieu nai, Thong bao, Nhac nho
+// Bang: Feedback, Complaint, Notification, BookingReminder
+// ============================================================
+
+Table Feedback {
+  _id varchar [pk, note: 'ObjectId']
+  userId varchar [not null, note: 'FK -> User']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  bookingId varchar [unique, not null, note: 'FK -> Booking (1-1)']
+  rating int [not null, note: '1-5 sao']
+  comment text
+  imageUrls text [note: 'Array anh dinh kem']
+  response text [note: 'Phan hoi cua nhan vien']
+  respondedBy varchar [note: 'FK -> User (Nhan vien)']
+  isPublic boolean [default: true]
+  isBlocked boolean [default: false]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Danh gia sau chuyen di (1 Booking = 1 Feedback)'
+}
+
+Table Complaint {
+  _id varchar [pk, note: 'ObjectId']
+  customerId varchar [not null, note: 'FK -> User (Khach)']
+  bookingId varchar [note: 'FK -> Booking']
+  branchId varchar [note: 'FK -> Branch']
+  title varchar [not null, note: 'Tieu de khieu nai']
+  description text [not null]
+  status varchar [default: 'Pending', note: 'Pending / Investigating / Resolved / Rejected']
+  priority varchar [default: 'Medium', note: 'Low / Medium / High / Urgent']
+  resolvedBy varchar [note: 'FK -> User (Nhan vien xu ly)']
+  resolutionNotes text
+  resolvedAt datetime
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Khieu nai su co cua khach hang'
+}
+
+Table Notification {
+  _id varchar [pk, note: 'ObjectId']
+  userId varchar [not null, note: 'FK -> User']
+  title varchar [not null]
+  message text [not null]
+  type varchar [default: 'System', note: 'Booking / Transfer / Complaint / Loyalty / System']
+  relatedId varchar [note: 'ID ban ghi lien quan']
+  isRead boolean [default: false]
+  createdAt datetime
+
+  Note: 'Thong bao in-app cho nguoi dung'
+}
+
+Table BookingReminder {
+  _id varchar [pk, note: 'ObjectId']
+  bookingId varchar [not null, note: 'FK -> Booking']
+  type varchar [not null, note: 'Pickup / Return']
+  scheduledAt datetime [not null]
+  sentAt datetime
+  status varchar [default: 'Pending', note: 'Pending / Sent / Failed']
+  channel varchar [default: 'SMS', note: 'SMS / Email']
+  createdAt datetime
+
+  Note: 'Lich nhac nho SMS/Email cho don thue'
+}
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [not null]
+
+  Note: 'REF - Nguoi dung (xem Module 1)'
+}
+
+Table Vehicle {
+  _id varchar [pk, note: 'ObjectId']
+  vehicleModel varchar [not null]
+
+  Note: 'REF - Xe may (xem Module 2)'
+}
+
+Table Booking {
+  _id varchar [pk, note: 'ObjectId']
+  bookingCode varchar [not null]
+
+  Note: 'REF - Don thue (xem Module 3)'
+}
+
+Table Branch {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [not null]
+
+  Note: 'REF - Chi nhanh (xem Module 1)'
+}
+
+// --- Quan he Feedback ---
+Ref: Feedback.userId > User._id             // Khach danh gia
+Ref: Feedback.vehicleId > Vehicle._id       // Danh gia ve xe nao
+Ref: Feedback.bookingId - Booking._id       // 1-1: Moi don chi 1 danh gia
+Ref: Feedback.respondedBy > User._id        // Nhan vien phan hoi
+
+// --- Quan he Complaint ---
+Ref: Complaint.customerId > User._id        // Khach khieu nai
+Ref: Complaint.bookingId > Booking._id      // Lien quan don thue nao
+Ref: Complaint.branchId > Branch._id        // Khieu nai chi nhanh nao
+Ref: Complaint.resolvedBy > User._id        // Nguoi xu ly
+
+// --- Quan he Notification ---
+Ref: Notification.userId > User._id         // Thong bao cho ai
+
+// --- Quan he BookingReminder ---
+Ref: BookingReminder.bookingId > Booking._id // Nhac nho don thue nao

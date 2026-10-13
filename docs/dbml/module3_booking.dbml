@@ -1,0 +1,87 @@
+// ============================================================
+// MODULE 3: BOOKING - Dat xe & Thanh toan
+// Bang: Booking, Discount
+// ============================================================
+
+Table Booking {
+  _id varchar [pk, note: 'ObjectId']
+  bookingCode varchar [unique, not null, note: 'MV-XXXXXX']
+  userId varchar [not null, note: 'FK -> User (Khach hang)']
+  vehicleId varchar [not null, note: 'FK -> Vehicle']
+  pickupBranchId varchar [not null, note: 'FK -> Branch (Nhan xe)']
+  returnBranchId varchar [not null, note: 'FK -> Branch (Tra xe)']
+  pickupDateTime datetime [not null]
+  returnDateTime datetime [not null]
+  actualReturnDateTime datetime [note: 'Thoi diem tra thuc te']
+  totalAmount float [not null, note: 'Tong tien VND']
+  depositAmount float [default: 0, note: 'Coc 30%']
+  remainingAmount float [default: 0, note: 'Con lai 70%']
+  discountId varchar [note: 'FK -> Discount']
+  discountAmount float [default: 0]
+  lateFee float [default: 0, note: 'Phi tra tre 30.000d/h']
+  damageFee float [default: 0, note: 'Phi hu hong phat sinh']
+  loyaltyPointsEarned int [default: 0, note: 'Diem thuong nhan duoc']
+  status varchar [default: 'Pending', note: 'Pending / Approved / Confirmed / Ongoing / Completed / Cancelled / Rejected']
+  paymentMethod varchar [default: 'Banking', note: 'Banking / Cash']
+  isPaid boolean [default: false]
+  approvedBy varchar [note: 'FK -> User (Manager duyet)']
+  eSignatureUrl varchar [note: 'Chu ky dien tu']
+  startOdometer int [default: 0, note: 'ODO luc giao xe']
+  endOdometer int [note: 'ODO luc tra xe']
+  startFuelLevel varchar [default: '100%', note: 'Muc xang giao']
+  endFuelLevel varchar [note: 'Muc xang tra']
+  checkinImages text [note: 'Array anh Check-in']
+  checkoutImages text [note: 'Array anh Check-out']
+  cancelReason varchar
+  rejectReason varchar
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Don thue xe - Ho tro One-way (nhan CN A, tra CN B)'
+}
+
+Table Discount {
+  _id varchar [pk, note: 'ObjectId']
+  discountName varchar [not null]
+  discountType varchar [not null, note: 'Percentage / FixedAmount']
+  discountValue float [not null, note: 'phan tram hoac so tien VND']
+  voucherCode varchar [unique, not null]
+  startDate datetime [not null]
+  endDate datetime [not null]
+  usageLimit int
+  usedCount int [default: 0]
+  isActive boolean [default: true]
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Ma giam gia / Voucher khuyen mai'
+}
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [not null]
+
+  Note: 'REF - Nguoi dung (xem Module 1)'
+}
+
+Table Vehicle {
+  _id varchar [pk, note: 'ObjectId']
+  vehicleModel varchar [not null]
+
+  Note: 'REF - Xe may (xem Module 2)'
+}
+
+Table Branch {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [not null]
+
+  Note: 'REF - Chi nhanh (xem Module 1)'
+}
+
+// --- Quan he ---
+Ref: Booking.userId > User._id             // N don thuoc 1 khach
+Ref: Booking.vehicleId > Vehicle._id       // N don thue 1 xe
+Ref: Booking.pickupBranchId > Branch._id   // Nhan xe tai chi nhanh
+Ref: Booking.returnBranchId > Branch._id   // Tra xe tai chi nhanh
+Ref: Booking.discountId > Discount._id     // Ap ma giam gia
+Ref: Booking.approvedBy > User._id         // Manager duyet don

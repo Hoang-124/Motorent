@@ -1,0 +1,818 @@
+[
+  {
+    "bikeId": 1,
+    "angleCode": 1,
+    "targetFilename": "Honda_Vision_Smartkey_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643917/bikes/1_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Vision_Smartkey_Front.png",
+    "bytes": 1054808
+  },
+  {
+    "bikeId": 1,
+    "angleCode": 3,
+    "targetFilename": "Honda_Vision_Smartkey_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643840/bikes/1_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Vision_Smartkey_Side.png",
+    "bytes": 1223088
+  },
+  {
+    "bikeId": 1,
+    "angleCode": 4,
+    "targetFilename": "Honda_Vision_Smartkey_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643840/bikes/1_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Vision_Smartkey_Back.png",
+    "bytes": 1029531
+  },
+  {
+    "bikeId": 10,
+    "angleCode": 1,
+    "targetFilename": "Suzuki_Burgman_Street_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643856/bikes/10_1.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Burgman_Street_Front.png",
+    "bytes": 1078449
+  },
+  {
+    "bikeId": 10,
+    "angleCode": 3,
+    "targetFilename": "Suzuki_Burgman_Street_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643860/bikes/10_3.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Burgman_Street_Side.png",
+    "bytes": 1189269
+  },
+  {
+    "bikeId": 10,
+    "angleCode": 4,
+    "targetFilename": "Suzuki_Burgman_Street_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643860/bikes/10_4.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Burgman_Street_Back.png",
+    "bytes": 1107861
+  },
+  {
+    "bikeId": 11,
+    "angleCode": 1,
+    "targetFilename": "Suzuki_Impulse_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643859/bikes/11_1.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Impulse_Front.png",
+    "bytes": 1155169
+  },
+  {
+    "bikeId": 11,
+    "angleCode": 3,
+    "targetFilename": "Suzuki_Impulse_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643862/bikes/11_3.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Impulse_Side.png",
+    "bytes": 1333538
+  },
+  {
+    "bikeId": 11,
+    "angleCode": 4,
+    "targetFilename": "Suzuki_Impulse_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643860/bikes/11_4.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Impulse_Back.png",
+    "bytes": 1149722
+  },
+  {
+    "bikeId": 12,
+    "angleCode": 1,
+    "targetFilename": "SYM_Attila_(Elizabeth_Venus)_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643867/bikes/12_1.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Attila_(Elizabeth_Venus)_Front.png",
+    "bytes": 1028940
+  },
+  {
+    "bikeId": 12,
+    "angleCode": 3,
+    "targetFilename": "SYM_Attila_(Elizabeth_Venus)_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643864/bikes/12_3.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Attila_(Elizabeth_Venus)_Side.png",
+    "bytes": 1178238
+  },
+  {
+    "bikeId": 12,
+    "angleCode": 4,
+    "targetFilename": "SYM_Attila_(Elizabeth_Venus)_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643864/bikes/12_4.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Attila_(Elizabeth_Venus)_Back.png",
+    "bytes": 1081839
+  },
+  {
+    "bikeId": 13,
+    "angleCode": 1,
+    "targetFilename": "SYM_Elite_50_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643864/bikes/13_1.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Elite_50_Front.png",
+    "bytes": 1055173
+  },
+  {
+    "bikeId": 13,
+    "angleCode": 3,
+    "targetFilename": "SYM_Elite_50_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643864/bikes/13_3.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Elite_50_Side.png",
+    "bytes": 1120709
+  },
+  {
+    "bikeId": 13,
+    "angleCode": 4,
+    "targetFilename": "SYM_Elite_50_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643867/bikes/13_4.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Elite_50_Back.png",
+    "bytes": 1007448
+  },
+  {
+    "bikeId": 14,
+    "angleCode": 1,
+    "targetFilename": "SYM_Passing_50_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643868/bikes/14_1.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Passing_50_Front.png",
+    "bytes": 1120335
+  },
+  {
+    "bikeId": 14,
+    "angleCode": 3,
+    "targetFilename": "SYM_Passing_50_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643869/bikes/14_3.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Passing_50_Side.png",
+    "bytes": 1260924
+  },
+  {
+    "bikeId": 14,
+    "angleCode": 4,
+    "targetFilename": "SYM_Passing_50_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643869/bikes/14_4.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Passing_50_Back.png",
+    "bytes": 1101171
+  },
+  {
+    "bikeId": 15,
+    "angleCode": 1,
+    "targetFilename": "SYM_Attila_50_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643877/bikes/15_1.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Attila_50_Front.png",
+    "bytes": 908159
+  },
+  {
+    "bikeId": 15,
+    "angleCode": 3,
+    "targetFilename": "SYM_Attila_50_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643871/bikes/15_3.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Attila_50_Side.png",
+    "bytes": 1069238
+  },
+  {
+    "bikeId": 15,
+    "angleCode": 4,
+    "targetFilename": "SYM_Attila_50_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643872/bikes/15_4.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Attila_50_Back.png",
+    "bytes": 957419
+  },
+  {
+    "bikeId": 16,
+    "angleCode": 1,
+    "targetFilename": "SYM_Elegant_50_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643872/bikes/16_1.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Elegant_50_Front.png",
+    "bytes": 1136949
+  },
+  {
+    "bikeId": 16,
+    "angleCode": 3,
+    "targetFilename": "SYM_Elegant_50_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643873/bikes/16_3.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Elegant_50_Side.png",
+    "bytes": 1288023
+  },
+  {
+    "bikeId": 16,
+    "angleCode": 4,
+    "targetFilename": "SYM_Elegant_50_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643874/bikes/16_4.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Elegant_50_Back.png",
+    "bytes": 1180490
+  },
+  {
+    "bikeId": 17,
+    "angleCode": 1,
+    "targetFilename": "SYM_Angela_50_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643875/bikes/17_1.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Angela_50_Front.png",
+    "bytes": 997469
+  },
+  {
+    "bikeId": 17,
+    "angleCode": 3,
+    "targetFilename": "SYM_Angela_50_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643876/bikes/17_3.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Angela_50_Side.png",
+    "bytes": 1166165
+  },
+  {
+    "bikeId": 17,
+    "angleCode": 4,
+    "targetFilename": "SYM_Angela_50_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643876/bikes/17_4.jpg.png",
+    "localPath": "/uploads/bikes/SYM_Angela_50_Back.png",
+    "bytes": 1040420
+  },
+  {
+    "bikeId": 18,
+    "angleCode": 1,
+    "targetFilename": "Honda_Wave_Alpha_RSX_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643877/bikes/18_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Wave_Alpha_RSX_Front.png",
+    "bytes": 1128691
+  },
+  {
+    "bikeId": 18,
+    "angleCode": 3,
+    "targetFilename": "Honda_Wave_Alpha_RSX_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643880/bikes/18_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Wave_Alpha_RSX_Side.png",
+    "bytes": 1343054
+  },
+  {
+    "bikeId": 18,
+    "angleCode": 4,
+    "targetFilename": "Honda_Wave_Alpha_RSX_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643879/bikes/18_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Wave_Alpha_RSX_Back.png",
+    "bytes": 1105755
+  },
+  {
+    "bikeId": 19,
+    "angleCode": 1,
+    "targetFilename": "Honda_Future_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643880/bikes/19_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Future_Front.png",
+    "bytes": 1073659
+  },
+  {
+    "bikeId": 19,
+    "angleCode": 3,
+    "targetFilename": "Honda_Future_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643881/bikes/19_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Future_Side.png",
+    "bytes": 1297630
+  },
+  {
+    "bikeId": 19,
+    "angleCode": 4,
+    "targetFilename": "Honda_Future_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643882/bikes/19_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Future_Back.png",
+    "bytes": 1138549
+  },
+  {
+    "bikeId": 2,
+    "angleCode": 1,
+    "targetFilename": "Honda_Air_Blade_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643840/bikes/2_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Air_Blade_Front.png",
+    "bytes": 1040547
+  },
+  {
+    "bikeId": 2,
+    "angleCode": 3,
+    "targetFilename": "Honda_Air_Blade_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643841/bikes/2_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Air_Blade_Side.png",
+    "bytes": 1259014
+  },
+  {
+    "bikeId": 2,
+    "angleCode": 4,
+    "targetFilename": "Honda_Air_Blade_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643841/bikes/2_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Air_Blade_Back.png",
+    "bytes": 1322090
+  },
+  {
+    "bikeId": 20,
+    "angleCode": 1,
+    "targetFilename": "Yamaha_Sirius_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643881/bikes/20_1.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Sirius_Front.png",
+    "bytes": 1132280
+  },
+  {
+    "bikeId": 20,
+    "angleCode": 3,
+    "targetFilename": "Yamaha_Sirius_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643884/bikes/20_3.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Sirius_Side.png",
+    "bytes": 1305097
+  },
+  {
+    "bikeId": 20,
+    "angleCode": 4,
+    "targetFilename": "Yamaha_Sirius_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643884/bikes/20_4.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Sirius_Back.png",
+    "bytes": 1129408
+  },
+  {
+    "bikeId": 21,
+    "angleCode": 1,
+    "targetFilename": "Yamaha_Jupiter_FI_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643885/bikes/21_1.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Jupiter_FI_Front.png",
+    "bytes": 1162748
+  },
+  {
+    "bikeId": 21,
+    "angleCode": 3,
+    "targetFilename": "Yamaha_Jupiter_FI_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643885/bikes/21_3.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Jupiter_FI_Side.png",
+    "bytes": 1331064
+  },
+  {
+    "bikeId": 21,
+    "angleCode": 4,
+    "targetFilename": "Yamaha_Jupiter_FI_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643885/bikes/21_4.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Jupiter_FI_Back.png",
+    "bytes": 1160394
+  },
+  {
+    "bikeId": 22,
+    "angleCode": 1,
+    "targetFilename": "Yamaha_Exciter_150_155_VVA_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643886/bikes/22_1.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Exciter_150_155_VVA_Front.png",
+    "bytes": 1158251
+  },
+  {
+    "bikeId": 22,
+    "angleCode": 3,
+    "targetFilename": "Yamaha_Exciter_150_155_VVA_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643888/bikes/22_3.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Exciter_150_155_VVA_Side.png",
+    "bytes": 1331176
+  },
+  {
+    "bikeId": 22,
+    "angleCode": 4,
+    "targetFilename": "Yamaha_Exciter_150_155_VVA_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643888/bikes/22_4.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Exciter_150_155_VVA_Back.png",
+    "bytes": 1138137
+  },
+  {
+    "bikeId": 23,
+    "angleCode": 1,
+    "targetFilename": "Honda_Winner_X_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643889/bikes/23_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Winner_X_Front.png",
+    "bytes": 1126417
+  },
+  {
+    "bikeId": 23,
+    "angleCode": 3,
+    "targetFilename": "Honda_Winner_X_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643890/bikes/23_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Winner_X_Side.png",
+    "bytes": 1338297
+  },
+  {
+    "bikeId": 23,
+    "angleCode": 4,
+    "targetFilename": "Honda_Winner_X_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643890/bikes/23_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Winner_X_Back.png",
+    "bytes": 1294461
+  },
+  {
+    "bikeId": 24,
+    "angleCode": 1,
+    "targetFilename": "Suzuki_Raider_Satria_150_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643893/bikes/24_1.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Raider_Satria_150_Front.png",
+    "bytes": 1142173
+  },
+  {
+    "bikeId": 24,
+    "angleCode": 3,
+    "targetFilename": "Suzuki_Raider_Satria_150_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643893/bikes/24_3.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Raider_Satria_150_Side.png",
+    "bytes": 1347729
+  },
+  {
+    "bikeId": 24,
+    "angleCode": 4,
+    "targetFilename": "Suzuki_Raider_Satria_150_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643893/bikes/24_4.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Raider_Satria_150_Back.png",
+    "bytes": 1120217
+  },
+  {
+    "bikeId": 25,
+    "angleCode": 1,
+    "targetFilename": "Yamaha_XSR_155_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643894/bikes/25_1.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_XSR_155_Front.png",
+    "bytes": 1173404
+  },
+  {
+    "bikeId": 25,
+    "angleCode": 3,
+    "targetFilename": "Yamaha_XSR_155_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643894/bikes/25_3.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_XSR_155_Side.png",
+    "bytes": 1410081
+  },
+  {
+    "bikeId": 25,
+    "angleCode": 4,
+    "targetFilename": "Yamaha_XSR_155_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643894/bikes/25_4.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_XSR_155_Back.png",
+    "bytes": 1096959
+  },
+  {
+    "bikeId": 26,
+    "angleCode": 1,
+    "targetFilename": "Honda_CB150R_Neo_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643897/bikes/26_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_CB150R_Neo_Front.png",
+    "bytes": 1121427
+  },
+  {
+    "bikeId": 26,
+    "angleCode": 3,
+    "targetFilename": "Honda_CB150R_Neo_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643898/bikes/26_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_CB150R_Neo_Side.png",
+    "bytes": 1376257
+  },
+  {
+    "bikeId": 26,
+    "angleCode": 4,
+    "targetFilename": "Honda_CB150R_Neo_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643897/bikes/26_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_CB150R_Neo_Back.png",
+    "bytes": 1044619
+  },
+  {
+    "bikeId": 27,
+    "angleCode": 1,
+    "targetFilename": "Suzuki_Bandit_150_GSX-S150_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643899/bikes/27_1.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Bandit_150_GSX-S150_Front.png",
+    "bytes": 1144861
+  },
+  {
+    "bikeId": 27,
+    "angleCode": 3,
+    "targetFilename": "Suzuki_Bandit_150_GSX-S150_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643901/bikes/27_3.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Bandit_150_GSX-S150_Side.png",
+    "bytes": 1362640
+  },
+  {
+    "bikeId": 27,
+    "angleCode": 4,
+    "targetFilename": "Suzuki_Bandit_150_GSX-S150_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643898/bikes/27_4.jpg.png",
+    "localPath": "/uploads/bikes/Suzuki_Bandit_150_GSX-S150_Back.png",
+    "bytes": 1078038
+  },
+  {
+    "bikeId": 28,
+    "angleCode": 1,
+    "targetFilename": "VinFast_Evo200_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643900/bikes/28_1.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Evo200_Front.png",
+    "bytes": 890365
+  },
+  {
+    "bikeId": 28,
+    "angleCode": 3,
+    "targetFilename": "VinFast_Evo200_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643903/bikes/28_3.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Evo200_Side.png",
+    "bytes": 1153373
+  },
+  {
+    "bikeId": 28,
+    "angleCode": 4,
+    "targetFilename": "VinFast_Evo200_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643902/bikes/28_4.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Evo200_Back.png",
+    "bytes": 1024140
+  },
+  {
+    "bikeId": 29,
+    "angleCode": 1,
+    "targetFilename": "VinFast_Feliz_S_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643903/bikes/29_1.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Feliz_S_Front.png",
+    "bytes": 1203469
+  },
+  {
+    "bikeId": 29,
+    "angleCode": 3,
+    "targetFilename": "VinFast_Feliz_S_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643904/bikes/29_3.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Feliz_S_Side.png",
+    "bytes": 1260219
+  },
+  {
+    "bikeId": 29,
+    "angleCode": 4,
+    "targetFilename": "VinFast_Feliz_S_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643905/bikes/29_4.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Feliz_S_Back.png",
+    "bytes": 1103639
+  },
+  {
+    "bikeId": 3,
+    "angleCode": 1,
+    "targetFilename": "Honda_Lead_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643843/bikes/3_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Lead_Front.png",
+    "bytes": 1037768
+  },
+  {
+    "bikeId": 3,
+    "angleCode": 3,
+    "targetFilename": "Honda_Lead_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643842/bikes/3_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Lead_Side.png",
+    "bytes": 1236092
+  },
+  {
+    "bikeId": 3,
+    "angleCode": 4,
+    "targetFilename": "Honda_Lead_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643843/bikes/3_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Lead_Back.png",
+    "bytes": 1113639
+  },
+  {
+    "bikeId": 30,
+    "angleCode": 1,
+    "targetFilename": "VinFast_Klara_S_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643908/bikes/30_1.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Klara_S_Front.png",
+    "bytes": 1112330
+  },
+  {
+    "bikeId": 30,
+    "angleCode": 3,
+    "targetFilename": "VinFast_Klara_S_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643906/bikes/30_3.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Klara_S_Side.png",
+    "bytes": 1136096
+  },
+  {
+    "bikeId": 30,
+    "angleCode": 4,
+    "targetFilename": "VinFast_Klara_S_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643906/bikes/30_4.jpg.png",
+    "localPath": "/uploads/bikes/VinFast_Klara_S_Back.png",
+    "bytes": 1037619
+  },
+  {
+    "bikeId": 31,
+    "angleCode": 1,
+    "targetFilename": "Dat_Bike_Weaver_Plus_Plus_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643908/bikes/31_1.jpg.png",
+    "localPath": "/uploads/bikes/Dat_Bike_Weaver_Plus_Plus_Front.png",
+    "bytes": 1093901
+  },
+  {
+    "bikeId": 31,
+    "angleCode": 3,
+    "targetFilename": "Dat_Bike_Weaver_Plus_Plus_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643909/bikes/31_3.jpg.png",
+    "localPath": "/uploads/bikes/Dat_Bike_Weaver_Plus_Plus_Side.png",
+    "bytes": 1278424
+  },
+  {
+    "bikeId": 31,
+    "angleCode": 4,
+    "targetFilename": "Dat_Bike_Weaver_Plus_Plus_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643909/bikes/31_4.jpg.png",
+    "localPath": "/uploads/bikes/Dat_Bike_Weaver_Plus_Plus_Back.png",
+    "bytes": 1073640
+  },
+  {
+    "bikeId": 32,
+    "angleCode": 1,
+    "targetFilename": "Honda_Rebel_300_500_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643910/bikes/32_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Rebel_300_500_Front.png",
+    "bytes": 1135739
+  },
+  {
+    "bikeId": 32,
+    "angleCode": 3,
+    "targetFilename": "Honda_Rebel_300_500_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643911/bikes/32_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Rebel_300_500_Side.png",
+    "bytes": 1281533
+  },
+  {
+    "bikeId": 32,
+    "angleCode": 4,
+    "targetFilename": "Honda_Rebel_300_500_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643912/bikes/32_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_Rebel_300_500_Back.png",
+    "bytes": 1055163
+  },
+  {
+    "bikeId": 33,
+    "angleCode": 1,
+    "targetFilename": "Honda_CB500X_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643914/bikes/33_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_CB500X_Front.png",
+    "bytes": 1116649
+  },
+  {
+    "bikeId": 33,
+    "angleCode": 3,
+    "targetFilename": "Honda_CB500X_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643914/bikes/33_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_CB500X_Side.png",
+    "bytes": 1619093
+  },
+  {
+    "bikeId": 33,
+    "angleCode": 4,
+    "targetFilename": "Honda_CB500X_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643913/bikes/33_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_CB500X_Back.png",
+    "bytes": 1172996
+  },
+  {
+    "bikeId": 34,
+    "angleCode": 1,
+    "targetFilename": "Kawasaki_Ninja_400_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643915/bikes/34_1.jpg.png",
+    "localPath": "/uploads/bikes/Kawasaki_Ninja_400_Front.png",
+    "bytes": 1258666
+  },
+  {
+    "bikeId": 34,
+    "angleCode": 3,
+    "targetFilename": "Kawasaki_Ninja_400_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643916/bikes/34_3.jpg.png",
+    "localPath": "/uploads/bikes/Kawasaki_Ninja_400_Side.png",
+    "bytes": 1390160
+  },
+  {
+    "bikeId": 34,
+    "angleCode": 4,
+    "targetFilename": "Kawasaki_Ninja_400_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643916/bikes/34_4.jpg.png",
+    "localPath": "/uploads/bikes/Kawasaki_Ninja_400_Back.png",
+    "bytes": 1152619
+  },
+  {
+    "bikeId": 4,
+    "angleCode": 1,
+    "targetFilename": "Honda_SH_Mode_SH_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643844/bikes/4_1.jpg.png",
+    "localPath": "/uploads/bikes/Honda_SH_Mode_SH_Front.png",
+    "bytes": 1069159
+  },
+  {
+    "bikeId": 4,
+    "angleCode": 3,
+    "targetFilename": "Honda_SH_Mode_SH_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643845/bikes/4_3.jpg.png",
+    "localPath": "/uploads/bikes/Honda_SH_Mode_SH_Side.png",
+    "bytes": 1209696
+  },
+  {
+    "bikeId": 4,
+    "angleCode": 4,
+    "targetFilename": "Honda_SH_Mode_SH_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643846/bikes/4_4.jpg.png",
+    "localPath": "/uploads/bikes/Honda_SH_Mode_SH_Back.png",
+    "bytes": 1095275
+  },
+  {
+    "bikeId": 5,
+    "angleCode": 1,
+    "targetFilename": "Yamaha_Grande_Hybrid_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643846/bikes/5_1.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Grande_Hybrid_Front.png",
+    "bytes": 1204906
+  },
+  {
+    "bikeId": 5,
+    "angleCode": 3,
+    "targetFilename": "Yamaha_Grande_Hybrid_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643847/bikes/5_3.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Grande_Hybrid_Side.png",
+    "bytes": 1156096
+  },
+  {
+    "bikeId": 5,
+    "angleCode": 4,
+    "targetFilename": "Yamaha_Grande_Hybrid_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643848/bikes/5_4.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Grande_Hybrid_Back.png",
+    "bytes": 1168826
+  },
+  {
+    "bikeId": 6,
+    "angleCode": 1,
+    "targetFilename": "Yamaha_Janus_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643849/bikes/6_1.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Janus_Front.png",
+    "bytes": 1086376
+  },
+  {
+    "bikeId": 6,
+    "angleCode": 3,
+    "targetFilename": "Yamaha_Janus_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643850/bikes/6_3.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Janus_Side.png",
+    "bytes": 1178617
+  },
+  {
+    "bikeId": 6,
+    "angleCode": 4,
+    "targetFilename": "Yamaha_Janus_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643851/bikes/6_4.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_Janus_Back.png",
+    "bytes": 1098876
+  },
+  {
+    "bikeId": 7,
+    "angleCode": 1,
+    "targetFilename": "Yamaha_NVX_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643852/bikes/7_1.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_NVX_Front.png",
+    "bytes": 1171051
+  },
+  {
+    "bikeId": 7,
+    "angleCode": 3,
+    "targetFilename": "Yamaha_NVX_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643851/bikes/7_3.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_NVX_Side.png",
+    "bytes": 1297193
+  },
+  {
+    "bikeId": 7,
+    "angleCode": 4,
+    "targetFilename": "Yamaha_NVX_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643852/bikes/7_4.jpg.png",
+    "localPath": "/uploads/bikes/Yamaha_NVX_Back.png",
+    "bytes": 1123316
+  },
+  {
+    "bikeId": 8,
+    "angleCode": 1,
+    "targetFilename": "Vespa_Sprint_Primavera_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643852/bikes/8_1.jpg.png",
+    "localPath": "/uploads/bikes/Vespa_Sprint_Primavera_Front.png",
+    "bytes": 840079
+  },
+  {
+    "bikeId": 8,
+    "angleCode": 3,
+    "targetFilename": "Vespa_Sprint_Primavera_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643854/bikes/8_3.jpg.png",
+    "localPath": "/uploads/bikes/Vespa_Sprint_Primavera_Side.png",
+    "bytes": 1114856
+  },
+  {
+    "bikeId": 8,
+    "angleCode": 4,
+    "targetFilename": "Vespa_Sprint_Primavera_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643857/bikes/8_4.jpg.png",
+    "localPath": "/uploads/bikes/Vespa_Sprint_Primavera_Back.png",
+    "bytes": 961104
+  },
+  {
+    "bikeId": 9,
+    "angleCode": 1,
+    "targetFilename": "Piaggio_Liberty_ABS_Front.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643855/bikes/9_1.jpg.png",
+    "localPath": "/uploads/bikes/Piaggio_Liberty_ABS_Front.png",
+    "bytes": 1089819
+  },
+  {
+    "bikeId": 9,
+    "angleCode": 3,
+    "targetFilename": "Piaggio_Liberty_ABS_Side.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643856/bikes/9_3.jpg.png",
+    "localPath": "/uploads/bikes/Piaggio_Liberty_ABS_Side.png",
+    "bytes": 1170649
+  },
+  {
+    "bikeId": 9,
+    "angleCode": 4,
+    "targetFilename": "Piaggio_Liberty_ABS_Back.png",
+    "secureUrl": "https://res.cloudinary.com/dsxbuk4pe/image/upload/v1780643856/bikes/9_4.jpg.png",
+    "localPath": "/uploads/bikes/Piaggio_Liberty_ABS_Back.png",
+    "bytes": 1107089
+  }
+]

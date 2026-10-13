@@ -1,0 +1,49 @@
+// ============================================================
+// MODULE 2: VEHICLE - Quan ly Doi xe & Danh muc
+// Bang: Vehicle, Category
+// ============================================================
+
+Table Vehicle {
+  _id varchar [pk, note: 'ObjectId']
+  branchId varchar [not null, note: 'FK -> Branch']
+  category varchar [not null, note: 'FK -> Category']
+  vehicleModel varchar [not null, note: 'Vision, SH, Air Blade...']
+  brand varchar [not null, note: 'Honda, Yamaha, VinFast...']
+  licensePlate varchar [unique, not null, note: 'Bien so: 43-D1 289.45']
+  odometer int [default: 0, note: 'So km da chay']
+  dailyPrice float [not null, note: 'Gia thue/ngay VND']
+  hourlyPrice float [note: 'Gia thue/gio VND']
+  status varchar [default: 'Available', note: 'Available / Rented / Maintenance / Transferring']
+  transmissionType varchar [not null, note: 'Automatic / Manual / Semi-Auto']
+  fuelType varchar [default: 'Gasoline', note: 'Gasoline / Electric']
+  yearManufactured int
+  images text [note: 'Array anh xe JSON']
+  requiresMaintenance boolean [default: false, note: 'Co can bao duong']
+  isDeleted boolean [default: false, note: 'Soft delete']
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Xe may thuoc chi nhanh'
+}
+
+Table Category {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [unique, not null, note: 'Xe tay ga / Xe so / Con tay']
+  slug varchar [unique, not null, note: 'xe-tay-ga']
+  description text
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Phan loai dong xe may'
+}
+
+Table Branch {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [not null]
+
+  Note: 'REF - Chi nhanh (xem Module 1)'
+}
+
+// --- Quan he ---
+Ref: Vehicle.branchId > Branch._id        // N xe thuoc 1 chi nhanh
+Ref: Vehicle.category > Category._id      // N xe thuoc 1 loai

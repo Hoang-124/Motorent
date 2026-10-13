@@ -1,0 +1,346 @@
+{
+  "author": "Motov Team",
+  "title": "Motov v2 - Chuoi Cua Hang Cho Thue Xe May",
+  "date": "2026-09-15",
+  "tables": [
+    {
+      "id": 0, "name": "Branch", "x": 60, "y": 380, "comment": "Chi nhanh cua hang",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"name","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Ten chi nhanh","id":1},
+        {"name":"code","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"Ma CN: CN-Q1","id":2},
+        {"name":"address","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":3},
+        {"name":"phone","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":4},
+        {"name":"email","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5},
+        {"name":"location_lng","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Kinh do","id":6},
+        {"name":"location_lat","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Vi do","id":7},
+        {"name":"hours_open","type":"VARCHAR","default":"08:00","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8},
+        {"name":"hours_close","type":"VARCHAR","default":"22:00","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":9},
+        {"name":"managerId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> User","id":10},
+        {"name":"isActive","type":"BOOLEAN","default":"true","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":11},
+        {"name":"description","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":12}
+      ],
+      "indices": []
+    },
+    {
+      "id": 1, "name": "User", "x": 1360, "y": 380, "comment": "Nguoi dung he thong",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"username","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"","id":1},
+        {"name":"email","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":false,"increment":false,"comment":"","id":2},
+        {"name":"passwordHash","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"bcrypt","id":3},
+        {"name":"googleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":false,"increment":false,"comment":"OAuth","id":4},
+        {"name":"firstName","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5},
+        {"name":"lastName","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":6},
+        {"name":"phoneNumber","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":7},
+        {"name":"avatarUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8},
+        {"name":"gender","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Male/Female/Other","id":9},
+        {"name":"dob","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Ngay sinh","id":10},
+        {"name":"roles","type":"VARCHAR","default":"Customer","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"SystemAdmin/BranchManager/Staff/Customer","id":11},
+        {"name":"status","type":"VARCHAR","default":"Active","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Active/Suspended/Unverified","id":12},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> Branch","id":13},
+        {"name":"strikes","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Vi pham","id":14},
+        {"name":"identityStatus","type":"VARCHAR","default":"Unverified","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"eKYC","id":15},
+        {"name":"loyaltyPoints","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Diem thuong","id":16},
+        {"name":"referralCode","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":false,"increment":false,"comment":"Ma gioi thieu","id":17},
+        {"name":"drivingLicenseUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Anh GPLX","id":18}
+      ],
+      "indices": []
+    },
+    {
+      "id": 2, "name": "Vehicle", "x": 480, "y": 380, "comment": "Xe may cua chi nhanh",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch","id":1},
+        {"name":"vehicleModel","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Vision, SH...","id":2},
+        {"name":"brand","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Honda, Yamaha...","id":3},
+        {"name":"licensePlate","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"Bien so","id":4},
+        {"name":"odometer","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"So km","id":5},
+        {"name":"dailyPrice","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Gia/ngay VND","id":6},
+        {"name":"hourlyPrice","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Gia/gio VND","id":7},
+        {"name":"status","type":"VARCHAR","default":"Available","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Available/Rented/Maintenance/Transferring","id":8},
+        {"name":"category","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Category","id":9},
+        {"name":"transmissionType","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Manual/Automatic/Semi-Auto","id":10},
+        {"name":"fuelType","type":"VARCHAR","default":"Gasoline","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Gasoline/Electric","id":11},
+        {"name":"yearManufactured","type":"INT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":12},
+        {"name":"requiresMaintenance","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Can bao duong","id":13},
+        {"name":"isDeleted","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Soft delete","id":14}
+      ],
+      "indices": []
+    },
+    {
+      "id": 3, "name": "Category", "x": 480, "y": 80, "comment": "Loai xe may",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"name","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"Tay ga/So/Con tay","id":1},
+        {"name":"slug","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"xe-tay-ga","id":2},
+        {"name":"description","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":3}
+      ],
+      "indices": []
+    },
+    {
+      "id": 4, "name": "Booking", "x": 920, "y": 380, "comment": "Don thue xe",
+      "color": "#3b82f6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"userId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User (Khach)","id":1},
+        {"name":"vehicleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Vehicle","id":2},
+        {"name":"pickupBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch nhan xe","id":3},
+        {"name":"returnBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch tra xe","id":4},
+        {"name":"pickupDateTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":5},
+        {"name":"returnDateTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":6},
+        {"name":"totalAmount","type":"FLOAT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Tong tien VND","id":7},
+        {"name":"depositAmount","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Coc 30%","id":8},
+        {"name":"remainingAmount","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Con lai 70%","id":9},
+        {"name":"status","type":"VARCHAR","default":"Pending","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Pending/Approved/Confirmed/Ongoing/Completed/Cancelled/Rejected","id":10},
+        {"name":"bookingCode","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"MTV-XXXXXX","id":11},
+        {"name":"approvedBy","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> User (Manager)","id":12},
+        {"name":"rejectReason","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":13},
+        {"name":"discountId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> Discount","id":14},
+        {"name":"eSignatureUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Hop dong dien tu","id":15},
+        {"name":"loyaltyPointsEarned","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Diem tich luy","id":16},
+        {"name":"actualReturnDateTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":17},
+        {"name":"lateFee","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Phi tre gio","id":18},
+        {"name":"damageFee","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Phi hu hong","id":19}
+      ],
+      "indices": []
+    },
+    {
+      "id": 5, "name": "VehicleTransfer", "x": 480, "y": 820, "comment": "Dieu chuyen xe giua chi nhanh",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"vehicleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Vehicle","id":1},
+        {"name":"fromBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch goc","id":2},
+        {"name":"toBranchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch dich","id":3},
+        {"name":"transferReason","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Can bang xe/Bao duong","id":4},
+        {"name":"requestedBy","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":5},
+        {"name":"approvedBy","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> User","id":6},
+        {"name":"status","type":"VARCHAR","default":"Pending","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Pending/Approved/InTransit/Completed/Rejected","id":7},
+        {"name":"departureTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8},
+        {"name":"arrivalTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":9},
+        {"name":"notes","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":10}
+      ],
+      "indices": []
+    },
+    {
+      "id": 6, "name": "Complaint", "x": 1360, "y": 820, "comment": "Khieu nai cua khach",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"customerId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":1},
+        {"name":"bookingId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> Booking","id":2},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> Branch","id":3},
+        {"name":"title","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Tieu de","id":4},
+        {"name":"description","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":5},
+        {"name":"status","type":"VARCHAR","default":"Pending","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Pending/Investigating/Resolved/Rejected","id":6},
+        {"name":"priority","type":"VARCHAR","default":"Medium","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Low/Medium/High/Urgent","id":7},
+        {"name":"resolutionNotes","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8},
+        {"name":"resolvedBy","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> User","id":9}
+      ],
+      "indices": []
+    },
+    {
+      "id": 7, "name": "MaintenanceLog", "x": 60, "y": 820, "comment": "Lich su bao tri xe",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"vehicleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Vehicle","id":1},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch","id":2},
+        {"name":"maintenanceType","type":"VARCHAR","default":"Routine","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Routine/Repair/Inspection","id":3},
+        {"name":"description","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Thay nhot, phanh...","id":4},
+        {"name":"cost","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Chi phi VND","id":5},
+        {"name":"startDate","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":6},
+        {"name":"endDate","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":7},
+        {"name":"performedBy","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Ten tho/gara","id":8},
+        {"name":"odometerAtMaintenance","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"So km luc bao duong","id":9},
+        {"name":"status","type":"VARCHAR","default":"Scheduled","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Scheduled/InProgress/Completed","id":10}
+      ],
+      "indices": []
+    },
+    {
+      "id": 8, "name": "AuditLog", "x": 60, "y": 1220, "comment": "Nhat ky he thong",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"userId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":1},
+        {"name":"action","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"CREATE_BOOKING...","id":2},
+        {"name":"entity","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Booking/Vehicle...","id":3},
+        {"name":"entityId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4},
+        {"name":"details","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"JSON diff","id":5},
+        {"name":"ipAddress","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":6},
+        {"name":"userAgent","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":7},
+        {"name":"timestamp","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8}
+      ],
+      "indices": []
+    },
+    {
+      "id": 9, "name": "StaffSchedule", "x": 60, "y": 80, "comment": "Phan ca nhan vien",
+      "color": "#f59e0b",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"staffId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":1},
+        {"name":"branchId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Branch","id":2},
+        {"name":"shiftDate","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Ngay truc","id":3},
+        {"name":"shiftType","type":"VARCHAR","default":"Morning","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Morning/Afternoon/Evening","id":4},
+        {"name":"checkInTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5},
+        {"name":"checkOutTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":6},
+        {"name":"status","type":"VARCHAR","default":"Assigned","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Assigned/Present/Absent/OnLeave","id":7},
+        {"name":"notes","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8}
+      ],
+      "indices": []
+    },
+    {
+      "id": 10, "name": "Discount", "x": 920, "y": 80, "comment": "Ma giam gia / Voucher",
+      "color": "#10b981",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"code","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"HELLOSUMMER","id":1},
+        {"name":"description","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":2},
+        {"name":"discountPercent","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"10 = 10%","id":3},
+        {"name":"maxDiscountAmount","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Toi da VND","id":4},
+        {"name":"minBookingAmount","type":"FLOAT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Don toi thieu","id":5},
+        {"name":"startDate","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":6},
+        {"name":"endDate","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":7},
+        {"name":"usageLimit","type":"INT","default":"100","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"So luot dung","id":8},
+        {"name":"usedCount","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":9},
+        {"name":"isActive","type":"BOOLEAN","default":"true","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":10}
+      ],
+      "indices": []
+    },
+    {
+      "id": 11, "name": "Feedback", "x": 920, "y": 820, "comment": "Danh gia xe va chuyen di",
+      "color": "#10b981",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"userId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":1},
+        {"name":"vehicleId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Vehicle","id":2},
+        {"name":"bookingId","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"FK -> Booking (1-1)","id":3},
+        {"name":"rating","type":"INT","default":"5","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"1 den 5 sao","id":4},
+        {"name":"comment","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5},
+        {"name":"response","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Phan hoi cua cua hang","id":6},
+        {"name":"respondedBy","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> User","id":7},
+        {"name":"isPublic","type":"BOOLEAN","default":"true","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":8}
+      ],
+      "indices": []
+    },
+    {
+      "id": 12, "name": "Notification", "x": 1360, "y": 80, "comment": "Thong bao push",
+      "color": "#10b981",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"userId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":1},
+        {"name":"title","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":2},
+        {"name":"body","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":3},
+        {"name":"type","type":"VARCHAR","default":"SYSTEM","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"BOOKING/REMINDER/PROMO/MAINTENANCE","id":4},
+        {"name":"isRead","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5},
+        {"name":"data","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"JSON meta","id":6}
+      ],
+      "indices": []
+    },
+    {
+      "id": 13, "name": "BookingReminder", "x": 920, "y": 1220, "comment": "Nhac nho SMS/Email",
+      "color": "#10b981",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"bookingId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Booking","id":1},
+        {"name":"reminderType","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"PICKUP_UPCOMING/RETURN_UPCOMING/RETURN_OVERDUE","id":2},
+        {"name":"scheduledTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"Thoi gian gui","id":3},
+        {"name":"sentTime","type":"DATETIME","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4},
+        {"name":"status","type":"VARCHAR","default":"Pending","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Pending/Sent/Failed","id":5},
+        {"name":"channel","type":"VARCHAR","default":"SMS","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"SMS/Email","id":6}
+      ],
+      "indices": []
+    },
+    {
+      "id": 14, "name": "Banner", "x": 480, "y": 1220, "comment": "Banner trang chu",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"title","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":1},
+        {"name":"imageUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":2},
+        {"name":"linkUrl","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":3},
+        {"name":"position","type":"INT","default":"0","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Thu tu","id":4},
+        {"name":"isActive","type":"BOOLEAN","default":"true","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":5}
+      ],
+      "indices": []
+    },
+    {
+      "id": 15, "name": "StaticPage", "x": 1360, "y": 1220, "comment": "Trang tinh: FAQ, Dieu khoan",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"slug","type":"VARCHAR","default":"","check":"","primary":false,"unique":true,"notNull":true,"increment":false,"comment":"about/terms/faq","id":1},
+        {"name":"title","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":2},
+        {"name":"content","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"HTML/Markdown","id":3},
+        {"name":"isPublished","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4},
+        {"name":"updatedBy","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"FK -> User","id":5}
+      ],
+      "indices": []
+    },
+    {
+      "id": 16, "name": "Conversation", "x": 1800, "y": 80, "comment": "Hoi thoai chat",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"participants","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"Array User IDs","id":1},
+        {"name":"lastMessageId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":2}
+      ],
+      "indices": []
+    },
+    {
+      "id": 17, "name": "Message", "x": 1800, "y": 380, "comment": "Tin nhan chat",
+      "color": "#8b5cf6",
+      "fields": [
+        {"name":"_id","type":"VARCHAR","default":"","check":"","primary":true,"unique":true,"notNull":true,"increment":false,"comment":"PK","id":0},
+        {"name":"conversationId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> Conversation","id":1},
+        {"name":"senderId","type":"VARCHAR","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"FK -> User","id":2},
+        {"name":"content","type":"TEXT","default":"","check":"","primary":false,"unique":false,"notNull":true,"increment":false,"comment":"","id":3},
+        {"name":"isRead","type":"BOOLEAN","default":"false","check":"","primary":false,"unique":false,"notNull":false,"increment":false,"comment":"","id":4}
+      ],
+      "indices": []
+    }
+  ],
+  "relationships": [
+    {"id":0,"name":"user_branch","startTableId":0,"startFieldId":0,"endTableId":1,"endFieldId":13,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":1,"name":"branch_manager","startTableId":1,"startFieldId":0,"endTableId":0,"endFieldId":10,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":2,"name":"vehicle_branch","startTableId":0,"startFieldId":0,"endTableId":2,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":3,"name":"vehicle_category","startTableId":3,"startFieldId":0,"endTableId":2,"endFieldId":9,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":4,"name":"booking_user","startTableId":1,"startFieldId":0,"endTableId":4,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":5,"name":"booking_vehicle","startTableId":2,"startFieldId":0,"endTableId":4,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":6,"name":"booking_pickup_branch","startTableId":0,"startFieldId":0,"endTableId":4,"endFieldId":3,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":7,"name":"booking_return_branch","startTableId":0,"startFieldId":0,"endTableId":4,"endFieldId":4,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":8,"name":"booking_discount","startTableId":10,"startFieldId":0,"endTableId":4,"endFieldId":14,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":9,"name":"transfer_vehicle","startTableId":2,"startFieldId":0,"endTableId":5,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":10,"name":"transfer_from","startTableId":0,"startFieldId":0,"endTableId":5,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":11,"name":"transfer_to","startTableId":0,"startFieldId":0,"endTableId":5,"endFieldId":3,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":12,"name":"complaint_user","startTableId":1,"startFieldId":0,"endTableId":6,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":13,"name":"complaint_booking","startTableId":4,"startFieldId":0,"endTableId":6,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":14,"name":"complaint_branch","startTableId":0,"startFieldId":0,"endTableId":6,"endFieldId":3,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":15,"name":"maintenance_vehicle","startTableId":2,"startFieldId":0,"endTableId":7,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":16,"name":"maintenance_branch","startTableId":0,"startFieldId":0,"endTableId":7,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":17,"name":"audit_user","startTableId":1,"startFieldId":0,"endTableId":8,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":18,"name":"schedule_staff","startTableId":1,"startFieldId":0,"endTableId":9,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":19,"name":"schedule_branch","startTableId":0,"startFieldId":0,"endTableId":9,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":20,"name":"feedback_user","startTableId":1,"startFieldId":0,"endTableId":11,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":21,"name":"feedback_vehicle","startTableId":2,"startFieldId":0,"endTableId":11,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":22,"name":"feedback_booking","startTableId":4,"startFieldId":0,"endTableId":11,"endFieldId":3,"cardinality":"One to one","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":23,"name":"notif_user","startTableId":1,"startFieldId":0,"endTableId":12,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":24,"name":"reminder_booking","startTableId":4,"startFieldId":0,"endTableId":13,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":25,"name":"message_conversation","startTableId":16,"startFieldId":0,"endTableId":17,"endFieldId":1,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"},
+    {"id":26,"name":"message_sender","startTableId":1,"startFieldId":0,"endTableId":17,"endFieldId":2,"cardinality":"One to many","updateConstraint":"No action","deleteConstraint":"No action"}
+  ],
+  "notes": [],
+  "subjectAreas": [
+    {"id":0,"name":"1. CHI NHÁNH & NHÂN SỰ","x":30,"y":30,"width":380,"height":1500,"color":"#3b82f6"},
+    {"id":1,"name":"2. ĐỘI XE & BẢO DƯỠNG","x":440,"y":30,"width":420,"height":1500,"color":"#f59e0b"},
+    {"id":2,"name":"3. ĐẶT XE & THANH TOÁN","x":880,"y":30,"width":420,"height":1500,"color":"#10b981"},
+    {"id":3,"name":"4. NGƯỜI DÙNG & HỖ TRỢ","x":1320,"y":30,"width":420,"height":1500,"color":"#8b5cf6"},
+    {"id":4,"name":"5. CHAT TRỰC TUYẾN","x":1760,"y":30,"width":360,"height":1500,"color":"#ec4899"}
+  ],
+  "types": []
+}

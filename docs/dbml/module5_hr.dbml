@@ -1,0 +1,41 @@
+// ============================================================
+// MODULE 5: HR - Nhan su & Phan ca truc
+// Bang: StaffSchedule
+// ============================================================
+
+Table StaffSchedule {
+  _id varchar [pk, note: 'ObjectId']
+  staffId varchar [not null, note: 'FK -> User (Nhan vien)']
+  branchId varchar [not null, note: 'FK -> Branch']
+  shiftDate datetime [not null, note: 'Ngay lam viec']
+  shiftType varchar [not null, note: 'Morning / Afternoon / Evening / FullDay']
+  checkInTime datetime [note: 'Diem danh vao ca']
+  checkOutTime datetime [note: 'Diem danh ra ca']
+  status varchar [default: 'Assigned', note: 'Assigned / Present / Absent / OnLeave']
+  assignedBy varchar [note: 'FK -> User (Manager phan ca)']
+  notes text
+  createdAt datetime
+  updatedAt datetime
+
+  Note: 'Phan ca truc nhan vien chi nhanh'
+}
+
+Table User {
+  _id varchar [pk, note: 'ObjectId']
+  username varchar [not null]
+  roles varchar [note: 'Staff / BranchManager']
+
+  Note: 'REF - Nguoi dung (xem Module 1)'
+}
+
+Table Branch {
+  _id varchar [pk, note: 'ObjectId']
+  name varchar [not null]
+
+  Note: 'REF - Chi nhanh (xem Module 1)'
+}
+
+// --- Quan he ---
+Ref: StaffSchedule.staffId > User._id       // N ca thuoc 1 nhan vien
+Ref: StaffSchedule.branchId > Branch._id    // Ca truc tai chi nhanh nao
+Ref: StaffSchedule.assignedBy > User._id    // Manager phan ca
