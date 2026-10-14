@@ -292,7 +292,7 @@ export const BookingPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0B0F17] flex items-center justify-center text-slate-300">
+      <div className="min-h-screen bg-[#040D08] flex items-center justify-center text-slate-300">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -305,10 +305,10 @@ export const BookingPage: React.FC = () => {
 
   if (!vehicle) {
     return (
-      <div className="min-h-screen bg-[#0B0F17] flex items-center justify-center p-4">
-        <div className="bg-[#0A1813] p-8 rounded-[2rem] border border-white/10 text-center max-w-md w-full space-y-4">
-          <AlertCircle className="w-12 h-12 text-emerald-400 mx-auto" />
-          <h2 className="text-xl font-black text-white">Không tìm thấy xe</h2>
+      <div className="min-h-screen bg-[#040D08] flex items-center justify-center p-4">
+        <div className="bg-[#091810] p-8 rounded-2xl border border-white/10 text-center max-w-md w-full space-y-4">
+          <AlertCircle className="w-12 h-12 text-amber-400 mx-auto" />
+          <h2 className="text-xl font-bold text-white">Không tìm thấy xe</h2>
           <p className="text-xs text-slate-400">
             Phương tiện bạn tìm kiếm hiện không tồn tại hoặc đã được chuyển giao sang chi nhánh khác.
           </p>
@@ -325,7 +325,7 @@ export const BookingPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#040D08] text-slate-100 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
         {/* Breadcrumb Navigation */}
@@ -391,14 +391,14 @@ export const BookingPage: React.FC = () => {
 
             {/* Guest Banner if not logged in */}
             {!isAuthenticated && currentStep < 5 && (
-              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
-                <div className="flex items-center space-x-2 text-emerald-300 text-xs">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                <div className="flex items-center space-x-2 text-amber-200 text-xs">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-400" />
                   <span>Đăng nhập để tự động lưu thông tin hợp đồng và tích điểm thành viên.</span>
                 </div>
                 <Link
                   to={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
-                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white text-xs font-black rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0 ml-3"
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-[#040D08] text-xs font-bold rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0 ml-3"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Đăng nhập</span>
@@ -838,7 +838,7 @@ export const BookingPage: React.FC = () => {
 
                 {/* VietQR Dynamic Preview Box */}
                 {paymentOption === 'VietQR' && (
-                  <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0B0F17] via-[#161F30] to-[#0D1524] border border-emerald-500/30 space-y-4">
+                  <div className="p-5 rounded-2xl bg-[#091810] border border-emerald-500/30 space-y-4">
                     <div className="flex flex-col sm:flex-row items-center gap-5">
                       <div className="bg-white p-3 rounded-2xl shadow-xl flex flex-col items-center">
                         <img
@@ -959,7 +959,7 @@ export const BookingPage: React.FC = () => {
                 </div>
 
                 {/* Booking Code Card */}
-                <div className="max-w-md mx-auto p-4 bg-gradient-to-r from-[#0B0F17] via-[#161F30] to-[#0D1524] border border-emerald-500/40 rounded-2xl space-y-2">
+                <div className="max-w-md mx-auto p-4 bg-[#091810] border border-emerald-500/40 rounded-2xl space-y-2">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                     Mã đặt xe điện tử (Check-in Code)
                   </span>
@@ -1067,7 +1067,7 @@ export const BookingPage: React.FC = () => {
                   ) : (
                     <div className="py-4 flex flex-col items-center justify-center">
                       <svg
-                        className="w-36 h-24 text-orange-500"
+                        className="w-36 h-24 text-emerald-500"
                         viewBox="0 0 64 48"
                         fill="none"
                         stroke="currentColor"

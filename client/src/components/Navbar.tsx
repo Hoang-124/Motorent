@@ -265,7 +265,7 @@ export const Navbar: React.FC = () => {
                           Đã duyệt
                         </span>
                       ) : (
-                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] shrink-0 ml-2">
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[10px] shrink-0 ml-2">
                           Cần làm
                         </span>
                       )}
@@ -433,7 +433,7 @@ export const Navbar: React.FC = () => {
                         Đã duyệt
                       </span>
                     ) : (
-                      <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold text-[10px]">
                         Cần làm
                       </span>
                     )}

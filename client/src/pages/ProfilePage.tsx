@@ -423,7 +423,7 @@ export const ProfilePage: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#0B0F17]">
+      <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#040D08]">
         <div className="text-center space-y-3">
           <p className="text-sm text-slate-400">Vui lòng đăng nhập để xem thông tin hồ sơ cá nhân.</p>
           <button
@@ -458,7 +458,7 @@ export const ProfilePage: React.FC = () => {
 
 
   return (
-    <div className="min-h-screen bg-[#0D1524] text-slate-100 py-8 lg:py-12">
+    <div className="min-h-screen bg-[#040D08] text-slate-100 py-8 lg:py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Header & Breadcrumb */}
         <div className="mb-8">
@@ -494,7 +494,7 @@ export const ProfilePage: React.FC = () => {
               {/* User Mini Profile Header */}
               <div className="flex items-center space-x-3.5">
                 <div className="relative group shrink-0">
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-[#0D1524] ring-2 ring-orange-500/30 flex items-center justify-center">
+                  <div className="w-14 h-14 rounded-full overflow-hidden bg-[#07130D] ring-2 ring-emerald-500/30 flex items-center justify-center">
                     {currentAvatar ? (
                       <img
                         src={currentAvatar}
@@ -540,8 +540,8 @@ export const ProfilePage: React.FC = () => {
                         Đã xác thực eKYC
                       </span>
                     ) : user.identityStatus === 'Pending' ? (
-                      <span className="inline-flex items-center text-[10px] font-semibold text-emerald-400">
-                        <Clock className="w-3 h-3 mr-1" />
+                      <span className="inline-flex items-center text-[10px] font-semibold text-amber-400">
+                        <Clock className="w-3 h-3 mr-1 text-amber-400" />
                         Chờ duyệt eKYC
                       </span>
                     ) : (
@@ -573,7 +573,7 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('bookings')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'bookings'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
@@ -598,7 +598,7 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('info')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'info'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
@@ -614,7 +614,7 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('avatar')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'avatar'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
@@ -631,7 +631,7 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('ekyc')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'ekyc'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
@@ -656,7 +656,7 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('password')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'password'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
@@ -859,8 +859,8 @@ export const ProfilePage: React.FC = () => {
 
                                 <div>
                                   {b.status === 'Pending' && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5" />
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse mr-1.5" />
                                       Chờ xác nhận cọc
                                     </span>
                                   )}
@@ -1082,7 +1082,7 @@ export const ProfilePage: React.FC = () => {
                             placeholder="VD: Nguyễn Văn"
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                           />
                         </div>
 
@@ -1095,7 +1095,7 @@ export const ProfilePage: React.FC = () => {
                             placeholder="VD: An"
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                           />
                         </div>
                       </div>
@@ -1114,7 +1114,7 @@ export const ProfilePage: React.FC = () => {
                                   setGender(val);
                                 }
                               }}
-                              className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none appearance-none cursor-pointer transition-all"
+                              className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none appearance-none cursor-pointer transition-all"
                             >
                               <option value="Male" className="bg-[#111715] text-white">Nam</option>
                               <option value="Female" className="bg-[#111715] text-white">Nữ</option>
@@ -1132,7 +1132,7 @@ export const ProfilePage: React.FC = () => {
                             type="date"
                             value={dob}
                             onChange={(e) => setDob(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all [color-scheme:dark]"
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all [color-scheme:dark]"
                           />
                         </div>
                       </div>
@@ -1154,7 +1154,7 @@ export const ProfilePage: React.FC = () => {
                           placeholder="VD: 0912 345 678"
                           value={phoneNumber}
                           onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="w-full sm:w-1/2 bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full sm:w-1/2 bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <p className="text-[11px] text-slate-400 mt-1.5">
                           Dùng để nhận tin nhắn SMS xác nhận lịch bàn giao xe và mã PIN mở khóa phương tiện.
@@ -1211,7 +1211,7 @@ export const ProfilePage: React.FC = () => {
                   <form onSubmit={handleUploadAvatar} className="space-y-6">
                     {/* Preview & Dropzone Box */}
                     <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 p-6 rounded-2xl bg-white/[0.02] border border-dashed border-white/15 hover:border-white/25 transition-colors">
-                      <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-orange-500/20 bg-[#0D1524] shadow-md flex items-center justify-center flex-shrink-0">
+                      <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-emerald-500/20 bg-[#07130D] shadow-md flex items-center justify-center flex-shrink-0">
                         {currentAvatar ? (
                           <img
                             src={currentAvatar}
@@ -1292,8 +1292,8 @@ export const ProfilePage: React.FC = () => {
                           <span>Đã xác thực hợp lệ</span>
                         </div>
                       ) : user.identityStatus === 'Pending' ? (
-                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          <Clock className="w-4 h-4 mr-1.5 text-emerald-400 animate-spin" />
+                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          <Clock className="w-4 h-4 mr-1.5 text-amber-400 animate-spin" />
                           <span>Đang chờ kiểm duyệt</span>
                         </div>
                       ) : user.identityStatus === 'Rejected' ? (
@@ -1315,7 +1315,7 @@ export const ProfilePage: React.FC = () => {
                     user.identityStatus === 'Verified'
                       ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
                       : user.identityStatus === 'Pending'
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-200'
                       : user.identityStatus === 'Rejected'
                       ? 'bg-red-500/10 border-red-500/20 text-red-300'
                       : 'bg-white/[0.02] border-white/10 text-slate-300'
@@ -1330,7 +1330,7 @@ export const ProfilePage: React.FC = () => {
                       </div>
                     ) : user.identityStatus === 'Pending' ? (
                       <div className="flex items-start space-x-2.5">
-                        <Clock className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <Clock className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                         <div>
                           <strong className="block font-bold">Hồ sơ đang trong hàng đợi đối soát</strong>
                           <span>Nhân viên điều phối sẽ đối chiếu thông tin trong vòng 15-30 phút. Bạn vẫn có thể đặt trước phương tiện bình thường.</span>
@@ -1377,7 +1377,7 @@ export const ProfilePage: React.FC = () => {
                           )}
                         </div>
 
-                        <div className="w-full h-36 rounded-lg bg-[#0D1524] border border-white/10 overflow-hidden flex items-center justify-center relative">
+                        <div className="w-full h-36 rounded-lg bg-[#07130D] border border-white/10 overflow-hidden flex items-center justify-center relative">
                           {isWatermarking === 'idCardFront' ? (
                             <div className="p-4 text-center space-y-2">
                               <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
@@ -1429,7 +1429,7 @@ export const ProfilePage: React.FC = () => {
                           )}
                         </div>
 
-                        <div className="w-full h-36 rounded-lg bg-[#0D1524] border border-white/10 overflow-hidden flex items-center justify-center relative">
+                        <div className="w-full h-36 rounded-lg bg-[#07130D] border border-white/10 overflow-hidden flex items-center justify-center relative">
                           {isWatermarking === 'idCardBack' ? (
                             <div className="p-4 text-center space-y-2">
                               <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
@@ -1481,7 +1481,7 @@ export const ProfilePage: React.FC = () => {
                           )}
                         </div>
 
-                        <div className="w-full h-36 rounded-lg bg-[#0D1524] border border-white/10 overflow-hidden flex items-center justify-center relative">
+                        <div className="w-full h-36 rounded-lg bg-[#07130D] border border-white/10 overflow-hidden flex items-center justify-center relative">
                           {isWatermarking === 'drivingLicense' ? (
                             <div className="p-4 text-center space-y-2">
                               <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
@@ -1545,7 +1545,7 @@ export const ProfilePage: React.FC = () => {
                           type="checkbox"
                           checked={ekycConsent}
                           onChange={(e) => setEkycConsent(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-white/20 text-emerald-500 focus:ring-orange-500/20 bg-black/40 cursor-pointer accent-orange-500 shrink-0"
+                          className="mt-0.5 h-4 w-4 rounded border-white/20 text-emerald-500 focus:ring-emerald-500/20 bg-black/40 cursor-pointer accent-emerald-500 shrink-0"
                         />
                         <span className="text-xs text-slate-300 leading-relaxed">
                           Tôi xác nhận đồng ý cung cấp thông tin giấy tờ tùy thân cho Motorent xử lý xác thực theo <strong>Nghị định 13/2023/NĐ-CP</strong>. Tôi đã kiểm tra ảnh đã được đóng dấu chống mạo danh và ủy quyền cho nhân viên Motorent đối soát khi giao nhận xe.
@@ -1645,7 +1645,7 @@ export const ProfilePage: React.FC = () => {
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -1671,7 +1671,7 @@ export const ProfilePage: React.FC = () => {
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -1724,7 +1724,7 @@ export const ProfilePage: React.FC = () => {
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -1835,7 +1835,7 @@ export const ProfilePage: React.FC = () => {
                 value={cancelReasonInput}
                 onChange={(e) => setCancelReasonInput(e.target.value)}
                 placeholder="Hoặc nhập lý do khác..."
-                className="w-full px-3 py-2 bg-[#0B0F17] border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-[#040D08] border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
               />
             </div>
 

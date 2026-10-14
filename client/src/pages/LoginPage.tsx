@@ -180,7 +180,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#0B0F17] text-slate-100">
+    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#040D08] text-slate-100">
       <div className="max-w-md w-full space-y-6">
         {/* Brand Header */}
         <div className="text-center">
@@ -193,7 +193,7 @@ export const LoginPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-white tracking-tight">
-              MOTO<span className="text-orange-500">RENT</span>
+              MOTO<span className="text-emerald-400">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
@@ -244,7 +244,7 @@ export const LoginPage: React.FC = () => {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="VD: admin hoặc yourname@outlook.com.vn"
-                className={`w-full px-3.5 py-2.5 bg-[#0B0F17] border rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all ${
+                className={`w-full px-3.5 py-2.5 bg-[#06120B] border rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all ${
                   isGmail
                     ? 'border-emerald-500/70 focus:border-emerald-400 bg-emerald-500/[0.04]'
                     : 'border-white/10 focus:border-emerald-500'
@@ -285,7 +285,7 @@ export const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 bg-[#0B0F17] border border-white/10 rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-all pr-10"
+                  className="w-full px-3.5 py-2.5 bg-[#06120B] border border-white/10 rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-all pr-10"
                 />
                 <button
                   type="button"

@@ -356,13 +356,13 @@ export const CounterDesk: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-100 py-8">
+    <div className="min-h-screen bg-[#040D08] text-slate-100 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-400 animate-pulse"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
               <span className="text-xs font-semibold tracking-wider text-emerald-400">
                 Phân hệ Quản lý Vận hành Chi nhánh
               </span>
@@ -463,7 +463,7 @@ export const CounterDesk: React.FC = () => {
                   placeholder="Nhập mã đơn, VD: MV-892101..."
                   value={searchCode}
                   onChange={(e) => setSearchCode(e.target.value)}
-                  className="w-full pl-9 pr-24 py-2.5 bg-[#0B0F17] border border-white/10 rounded-xl text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
+                  className="w-full pl-9 pr-24 py-2.5 bg-[#06120B] border border-white/10 rounded-xl text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
                 />
                 <button
                   type="submit"
@@ -521,12 +521,12 @@ export const CounterDesk: React.FC = () => {
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                               b.status === 'Confirmed'
-                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                                 : b.status === 'Ongoing'
-                                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
                                 : b.status === 'Completed'
                                 ? 'bg-slate-800 text-slate-300 border border-slate-700'
-                                : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700'
                             }`}
                           >
                             {b.status === 'Confirmed'
@@ -651,7 +651,7 @@ export const CounterDesk: React.FC = () => {
                         value={startOdo}
                         onChange={(e) => setStartOdo(Number(e.target.value))}
                         disabled={selectedBooking.status !== 'Confirmed'}
-                        className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-emerald-500 disabled:opacity-50"
+                        className="w-full bg-[#06120B] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-emerald-500 disabled:opacity-50"
                       />
                       <p className="text-[11px] text-slate-400 mt-1">
                         Chỉ số ODO làm căn cứ đối chiếu khi khách bàn giao trả xe.
@@ -674,7 +674,7 @@ export const CounterDesk: React.FC = () => {
                         ].map((item) => (
                           <label
                             key={item.key}
-                            className="flex items-center space-x-2 p-2.5 rounded-xl border border-white/10 bg-[#0B0F17] cursor-pointer hover:bg-white/[0.02]"
+                            className="flex items-center space-x-2 p-2.5 rounded-xl border border-white/10 bg-[#06120B] cursor-pointer hover:bg-white/[0.02]"
                           >
                             <input
                               type="checkbox"
@@ -683,7 +683,7 @@ export const CounterDesk: React.FC = () => {
                               onChange={(e) =>
                                 setChecklist({ ...checklist, [item.key]: e.target.checked })
                               }
-                              className="rounded accent-orange-500"
+                              className="rounded accent-emerald-500"
                             />
                             <span className="text-slate-300 font-medium">{item.label}</span>
                           </label>
@@ -705,7 +705,7 @@ export const CounterDesk: React.FC = () => {
                     </div>
 
                     {/* Digital Signature Canvas */}
-                    <div className="border border-dashed border-white/15 rounded-2xl p-4 bg-[#0B0F17]/40">
+                    <div className="border border-dashed border-white/15 rounded-2xl p-4 bg-[#06120B]/40">
                       <div className="flex items-center justify-between mb-2">
                         <p className="text-xs font-semibold text-slate-300 flex items-center">
                           <PenTool className="w-3.5 h-3.5 text-emerald-400 mr-1" />
@@ -746,7 +746,7 @@ export const CounterDesk: React.FC = () => {
                           )}
                         </div>
                       ) : (
-                        <div className="p-3 bg-[#0B0F17] rounded-xl text-center">
+                        <div className="p-3 bg-[#06120B] rounded-xl text-center">
                           {selectedBooking.eSignatureUrl ? (
                             <img
                               src={selectedBooking.eSignatureUrl}
@@ -800,7 +800,7 @@ export const CounterDesk: React.FC = () => {
                         value={endOdo}
                         onChange={(e) => setEndOdo(Number(e.target.value))}
                         disabled={selectedBooking.status !== 'Ongoing'}
-                        className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-emerald-500 disabled:opacity-50"
+                        className="w-full bg-[#06120B] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-emerald-500 disabled:opacity-50"
                       />
                       <p className="text-[11px] text-slate-400 mt-1">
                         Quãng đường khách đã di chuyển trong chuyến: ~{Math.max(0, endOdo - (selectedBooking.startOdometer || 0))} km
@@ -821,7 +821,7 @@ export const CounterDesk: React.FC = () => {
                           value={damageFee}
                           onChange={(e) => setDamageFee(Number(e.target.value))}
                           disabled={selectedBooking.status !== 'Ongoing'}
-                          className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                          className="w-full bg-[#06120B] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                         />
                         <p className="text-[10px] text-slate-400 mt-1">0 đ nếu phương tiện nguyên vẹn</p>
                       </div>
@@ -837,7 +837,7 @@ export const CounterDesk: React.FC = () => {
                           value={returnNotes}
                           onChange={(e) => setReturnNotes(e.target.value)}
                           disabled={selectedBooking.status !== 'Ongoing'}
-                          className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 disabled:opacity-50"
+                          className="w-full bg-[#06120B] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-slate-500 disabled:opacity-50"
                         />
                         <p className="text-[10px] text-slate-400 mt-1">Ghi chú lưu biên bản tất toán</p>
                       </div>
@@ -953,7 +953,7 @@ export const CounterDesk: React.FC = () => {
                           onClick={() => setSelectedEkycUser(customer)}
                           className={`p-4 cursor-pointer transition-all flex items-start space-x-3 ${
                             isSelected
-                              ? 'bg-emerald-500/10 border-l-4 border-orange-400 pl-3'
+                              ? 'bg-emerald-500/10 border-l-4 border-emerald-400 pl-3'
                               : 'hover:bg-white/[0.02]'
                           }`}
                         >
@@ -1049,7 +1049,7 @@ export const CounterDesk: React.FC = () => {
                       {/* Doc 1: CCCD Front */}
                       <div className="p-3 bg-white/[0.02] rounded-xl border border-white/10 flex flex-col justify-between">
                         <span className="text-xs font-semibold text-slate-300 mb-2">1. Mặt trước CCCD</span>
-                        <div className="w-full h-36 bg-[#0B0F17] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
+                        <div className="w-full h-36 bg-[#06120B] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
                           <img
                             src={formatAdminDocUrl(selectedEkycUser._id, 'idCardFront')}
                             alt="CCCD Front"
@@ -1079,7 +1079,7 @@ export const CounterDesk: React.FC = () => {
                       {/* Doc 2: CCCD Back */}
                       <div className="p-3 bg-white/[0.02] rounded-xl border border-white/10 flex flex-col justify-between">
                         <span className="text-xs font-semibold text-slate-300 mb-2">2. Mặt sau CCCD</span>
-                        <div className="w-full h-36 bg-[#0B0F17] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
+                        <div className="w-full h-36 bg-[#06120B] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
                           <img
                             src={formatAdminDocUrl(selectedEkycUser._id, 'idCardBack')}
                             alt="CCCD Back"
@@ -1109,7 +1109,7 @@ export const CounterDesk: React.FC = () => {
                       {/* Doc 3: Driving License */}
                       <div className="p-3 bg-white/[0.02] rounded-xl border border-white/10 flex flex-col justify-between">
                         <span className="text-xs font-semibold text-slate-300 mb-2">3. Giấy phép lái xe</span>
-                        <div className="w-full h-36 bg-[#0B0F17] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
+                        <div className="w-full h-36 bg-[#06120B] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
                           <img
                             src={formatAdminDocUrl(selectedEkycUser._id, 'drivingLicense')}
                             alt="Driving License"
@@ -1149,7 +1149,7 @@ export const CounterDesk: React.FC = () => {
                         placeholder="VD: Ảnh CCCD mặt sau bị mờ góc mã QR, đề nghị khách chụp lại..."
                         value={rejectNote}
                         onChange={(e) => setRejectNote(e.target.value)}
-                        className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
+                        className="w-full bg-[#06120B] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
                       />
                     </div>
 
@@ -1208,7 +1208,7 @@ export const CounterDesk: React.FC = () => {
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="p-4 bg-[#0B0F17] flex items-center justify-center max-h-[75vh] overflow-auto">
+              <div className="p-4 bg-[#06120B] flex items-center justify-center max-h-[75vh] overflow-auto">
                 <img
                   src={previewDocModal.url}
                   alt={previewDocModal.title}

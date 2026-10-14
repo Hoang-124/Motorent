@@ -423,8 +423,8 @@ export const HomePage: React.FC = () => {
                       <ShieldCheck className="w-3 h-3 text-emerald-400 mr-1" />
                       Hộp Số
                     </div>
-                    <div className="font-bold text-white text-sm">
-                      {activeVehicle.transmissionType === 'Manual' ? 'Côn Tay Thể Thao' : activeVehicle.transmissionType === 'Automatic' ? 'Tay Ga Tự Động' : 'Xe Số Tròn'}
+                    <div className="font-bold text-white text-sm truncate">
+                      {activeVehicle.transmissionType === 'Manual' ? 'Côn tay' : activeVehicle.transmissionType === 'Automatic' ? 'Tay ga' : 'Xe số'}
                     </div>
                     <div className="text-[10px] text-emerald-400">Leo dốc đèo tốt</div>
                   </div>

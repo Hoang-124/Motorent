@@ -297,7 +297,7 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#0B0F17] text-slate-100">
+    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#040D08] text-slate-100">
       <div className="max-w-lg w-full space-y-6">
         {/* Brand Header */}
         <div className="text-center">
@@ -310,7 +310,7 @@ export const RegisterPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-white tracking-tight">
-              MOTO<span className="text-orange-500">RENT</span>
+              MOTO<span className="text-emerald-400">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
@@ -430,7 +430,7 @@ export const RegisterPage: React.FC = () => {
                       }}
                       placeholder="------"
                       autoFocus
-                      className="w-full text-center font-mono font-black text-2xl tracking-[0.5em] py-3.5 bg-[#0B0F17] border border-white/15 focus:border-emerald-500 rounded-2xl outline-none transition-all placeholder:text-slate-600 placeholder:tracking-[0.5em] text-emerald-400"
+                      className="w-full text-center font-mono font-black text-2xl tracking-[0.5em] py-3.5 bg-[#06120B] border border-white/15 focus:border-emerald-500 rounded-2xl outline-none transition-all placeholder:text-slate-600 placeholder:tracking-[0.5em] text-emerald-400"
                     />
                     <p className="text-[11px] text-slate-400">
                       Mã OTP có hiệu lực trong vòng 15 phút
@@ -537,8 +537,8 @@ export const RegisterPage: React.FC = () => {
                         usernameError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isUsernameValid && touched.username
-                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#06120B] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#06120B] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     {isUsernameValid && touched.username && !usernameError && (
@@ -576,8 +576,8 @@ export const RegisterPage: React.FC = () => {
                           : emailError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isEmailValid && touched.email
-                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#06120B] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#06120B] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     {isGoogleEmail ? (
@@ -626,7 +626,7 @@ export const RegisterPage: React.FC = () => {
                       </p>
                       <Link
                         to="/login"
-                        className="w-full py-1.5 px-3 bg-[#0B0F17] hover:bg-white/5 border border-emerald-500/30 rounded-lg text-[11px] font-semibold text-emerald-200 transition-colors flex items-center justify-center space-x-1.5"
+                        className="w-full py-1.5 px-3 bg-[#06120B] hover:bg-white/5 border border-emerald-500/30 rounded-lg text-[11px] font-semibold text-emerald-200 transition-colors flex items-center justify-center space-x-1.5"
                       >
                         <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
                           <path
@@ -673,7 +673,7 @@ export const RegisterPage: React.FC = () => {
                     className={`w-full rounded-xl px-3 py-2 text-xs font-medium outline-none transition-all ${
                       lastNameError
                         ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
-                        : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                        : 'bg-[#06120B] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                     }`}
                   />
                   {lastNameError && (
@@ -701,7 +701,7 @@ export const RegisterPage: React.FC = () => {
                     className={`w-full rounded-xl px-3 py-2 text-xs font-medium outline-none transition-all ${
                       firstNameError
                         ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
-                        : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                        : 'bg-[#06120B] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                     }`}
                   />
                   {firstNameError && (
@@ -734,8 +734,8 @@ export const RegisterPage: React.FC = () => {
                       phoneError
                         ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                         : isPhoneValid && touched.phoneNumber
-                        ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
-                        : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                        ? 'bg-[#06120B] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                        : 'bg-[#06120B] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                     }`}
                   />
                   {isPhoneValid && touched.phoneNumber && !phoneError && (
@@ -773,8 +773,8 @@ export const RegisterPage: React.FC = () => {
                         passwordError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isPasswordValid && touched.password
-                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#06120B] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#06120B] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     <button
@@ -843,8 +843,8 @@ export const RegisterPage: React.FC = () => {
                         confirmPasswordError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isConfirmPasswordValid && touched.confirmPassword
-                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#06120B] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#06120B] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     <button

@@ -69,7 +69,7 @@ export const ResetPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#0B0F17] text-slate-100">
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#040D08] text-slate-100">
       <div className="max-w-md w-full space-y-6">
         <div className="text-center">
           <Link to="/" className="inline-flex items-center space-x-2.5 mb-3">
@@ -81,7 +81,7 @@ export const ResetPasswordPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-white tracking-tight">
-              MOTO<span className="text-orange-500">RENT</span>
+              MOTO<span className="text-emerald-400">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-extrabold text-white tracking-tight">
@@ -136,7 +136,7 @@ export const ResetPasswordPage: React.FC = () => {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
-                    className="w-full bg-[#0B0F17] border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:bg-[#07110E]"
+                    className="w-full bg-[#06120B] border border-white/10 rounded-xl pl-3.5 pr-10 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:bg-[#07110E]"
                   />
                   <button
                     type="button"
@@ -159,7 +159,7 @@ export const ResetPasswordPage: React.FC = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
-                  className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:bg-[#07110E]"
+                  className="w-full bg-[#06120B] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:bg-[#07110E]"
                 />
               </div>
 

@@ -70,7 +70,7 @@ export const ForgotPasswordPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#0B0F17] text-slate-100">
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#040D08] text-slate-100">
       <div className="max-w-md w-full space-y-6">
         {/* Header */}
         <div className="text-center">
@@ -83,7 +83,7 @@ export const ForgotPasswordPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-white tracking-tight">
-              MOTO<span className="text-orange-500">RENT</span>
+              MOTO<span className="text-emerald-400">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-extrabold text-white tracking-tight">
@@ -118,7 +118,7 @@ export const ForgotPasswordPage: React.FC = () => {
           {/* Case 1: Google Email Account Detected */}
           {isGoogleAccount && (
             <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-4 animate-in fade-in zoom-in duration-200">
-              <div className="w-12 h-12 rounded-full bg-[#0B0F17] border border-emerald-500/30 shadow-2xs flex items-center justify-center mx-auto">
+              <div className="w-12 h-12 rounded-full bg-[#06120B] border border-emerald-500/30 shadow-2xs flex items-center justify-center mx-auto">
                 <svg className="w-6 h-6" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
@@ -150,7 +150,7 @@ export const ForgotPasswordPage: React.FC = () => {
 
               <Link
                 to="/login"
-                className="w-full py-3 bg-[#0B0F17] hover:bg-white/5 border border-emerald-500/30 rounded-xl text-xs font-semibold text-emerald-200 transition-all flex items-center justify-center space-x-2"
+                className="w-full py-3 bg-[#06120B] hover:bg-white/5 border border-emerald-500/30 rounded-xl text-xs font-semibold text-emerald-200 transition-all flex items-center justify-center space-x-2"
               >
                 <span>Chuyển sang Đăng nhập bằng Google</span>
                 <ArrowRight className="w-4 h-4 text-emerald-300" />
@@ -197,7 +197,7 @@ export const ForgotPasswordPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:bg-[#07110E] transition-colors"
+                  className="w-full bg-[#06120B] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:bg-[#07110E] transition-colors"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
                   Hệ thống hỗ trợ Outlook, Yahoo, email doanh nghiệp hoặc tài khoản cá nhân.

@@ -64,7 +64,7 @@ export const VerifyEmailPage: React.FC = () => {
   }, [token, email]);
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#0B0F17] text-slate-100">
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#040D08] text-slate-100">
       <div className="max-w-md w-full bg-[#0A1813] rounded-3xl p-8 border border-white/10 shadow-2xl shadow-black/50 text-center space-y-5">
         {loading ? (
           <div className="py-8 space-y-4">
@@ -101,7 +101,7 @@ export const VerifyEmailPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/login?verified=true')}
-                className="w-full py-2.5 bg-[#0B0F17] hover:bg-white/5 border border-white/10 text-slate-200 font-semibold rounded-xl text-xs transition-colors"
+                className="w-full py-2.5 bg-[#06120B] hover:bg-white/5 border border-white/10 text-slate-200 font-semibold rounded-xl text-xs transition-colors"
               >
                 Chuyển đến trang Đăng nhập
               </button>
@@ -118,7 +118,7 @@ export const VerifyEmailPage: React.FC = () => {
             <p className="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
               {message}
             </p>
-            <div className="p-3 bg-[#0B0F17] rounded-xl border border-white/10 text-[11px] text-slate-400 text-left flex items-start space-x-2">
+            <div className="p-3 bg-[#06120B] rounded-xl border border-white/10 text-[11px] text-slate-400 text-left flex items-start space-x-2">
               <Sparkles className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
               <span><strong className="text-slate-200">Lưu ý:</strong> Nếu bạn đã hoàn thành kích hoạt hoặc nhập mã OTP 6 số trên trang web trước đó, tài khoản của bạn đã ở trạng thái hoạt động. Bạn có thể bấm đăng nhập ngay bên dưới!</span>
             </div>
@@ -132,7 +132,7 @@ export const VerifyEmailPage: React.FC = () => {
               </Link>
               <Link
                 to="/register"
-                className="w-full py-2.5 bg-[#0B0F17] hover:bg-white/5 border border-white/10 text-slate-200 font-semibold rounded-xl text-xs transition-colors"
+                className="w-full py-2.5 bg-[#06120B] hover:bg-white/5 border border-white/10 text-slate-200 font-semibold rounded-xl text-xs transition-colors"
               >
                 Quay lại trang Đăng ký
               </Link>
