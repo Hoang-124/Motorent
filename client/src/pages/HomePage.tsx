@@ -208,7 +208,7 @@ export const HomePage: React.FC = () => {
                 <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.05]">
                   GIỮA ĐẠI NGÀN
                   <br />
-                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-moss-400">
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-teal-300">
                     & BIỂN CẢ.
                   </span>
                 </h1>
@@ -462,7 +462,7 @@ export const HomePage: React.FC = () => {
             </div>
 
             {/* Right 5 Columns: The Curated Machine Roster */}
-            <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+            <div className="lg:col-span-5 flex flex-col space-y-3">
               <div className="flex items-center justify-between pb-2 text-xs font-mono text-[#8CA899]">
                 <span>DANH SÁCH TUYỂN CHỌN ({vehicles.length} XE)</span>
                 <span>CHỌN ĐỂ XEM CHI TIẾT</span>

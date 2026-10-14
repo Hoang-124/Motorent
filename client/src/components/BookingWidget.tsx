@@ -111,7 +111,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
       </div>
 
       {/* 4-Column Search Form */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5 mt-6">
         
         {/* Field 1: Pickup Location */}
         <div className="space-y-1.5">
@@ -172,18 +172,18 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
             <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
             Ngày & giờ nhận
           </label>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-[1fr_auto] gap-2">
             <input
               type="date"
               value={pickupDate}
               onChange={(e) => setPickupDate(e.target.value)}
-              className="col-span-3 bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-xs font-medium text-white outline-none"
+              className="min-w-0 bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-xs font-medium text-white outline-none"
             />
             <input
               type="time"
               value={pickupTime}
               onChange={(e) => setPickupTime(e.target.value)}
-              className="col-span-2 bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-2 py-2.5 text-xs font-medium text-white outline-none"
+              className="w-[92px] bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-2 py-2.5 text-xs font-medium text-white outline-none"
             />
           </div>
           <p className="text-[11px] text-slate-400 flex items-center">
@@ -198,19 +198,19 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
             <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
             Ngày & giờ trả
           </label>
-          <div className="grid grid-cols-5 gap-2">
+          <div className="grid grid-cols-[1fr_auto] gap-2">
             <input
               type="date"
               value={returnDate}
               min={pickupDate}
               onChange={(e) => setReturnDate(e.target.value)}
-              className="col-span-3 bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-xs font-medium text-white outline-none"
+              className="min-w-0 bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-3 py-2.5 text-xs font-medium text-white outline-none"
             />
             <input
               type="time"
               value={returnTime}
               onChange={(e) => setReturnTime(e.target.value)}
-              className="col-span-2 bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-2 py-2.5 text-xs font-medium text-white outline-none"
+              className="w-[92px] bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-2 py-2.5 text-xs font-medium text-white outline-none"
             />
           </div>
           <p className="text-[11px] text-emerald-300 font-medium flex items-center">
@@ -222,7 +222,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
       </div>
 
       {/* Action Footer */}
-      <div className="mt-8 pt-6 border-t border-white/[0.08] flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="mt-8 pt-6 border-t border-white/[0.08] flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
           <span className="flex items-center space-x-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
@@ -237,7 +237,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
         <button
           type="button"
           onClick={handleSearchClick}
-          className="w-full sm:w-auto px-7 py-3 rounded-xl font-bold text-sm bg-emerald-500 hover:bg-emerald-400 text-[#06100C] transition-all active:scale-[0.99] flex items-center justify-center space-x-2 shadow-md cursor-pointer"
+          className="w-full whitespace-nowrap px-7 py-3 rounded-xl font-bold text-sm bg-emerald-500 hover:bg-emerald-400 text-[#06100C] transition-all active:scale-[0.99] flex items-center justify-center space-x-2 shadow-md cursor-pointer"
         >
           <Search className="w-4 h-4 stroke-[2.5]" />
           <span>Tìm xe phù hợp ({durationDays} ngày)</span>

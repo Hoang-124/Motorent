@@ -34,7 +34,7 @@ export const Footer: React.FC = () => {
                   </svg>
                 </div>
                 <span className="text-2xl font-black text-white tracking-tight">
-                  MOTO<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-300 to-moss-400">RENT</span>
+                  MOTO<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-300 to-teal-300">RENT</span>
                 </span>
               </div>
 

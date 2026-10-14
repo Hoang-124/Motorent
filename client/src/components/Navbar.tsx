@@ -120,7 +120,7 @@ export const Navbar: React.FC = () => {
               </svg>
             </div>
             <span className="text-lg font-black tracking-tight text-white">
-              MOTO<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-300 to-moss-400">RENT</span>
+              MOTO<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-300 to-teal-300">RENT</span>
             </span>
           </Link>
 
