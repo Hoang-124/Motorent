@@ -5,9 +5,19 @@ import { Branch } from '../models/Branch';
 import { User } from '../models/User';
 import { Vehicle } from '../models/Vehicle';
 import { Category } from '../models/Category';
+import { Booking } from '../models/Booking';
+import { BookingReminder } from '../models/BookingReminder';
+import { AuditLog } from '../models/AuditLog';
+import { Notification } from '../models/Notification';
 
 export const setupTestEnvironment = async (): Promise<void> => {
   await connectDatabase();
+
+  // Clean dynamic operational test collections for idempotency
+  await Booking.deleteMany({});
+  await BookingReminder.deleteMany({});
+  await AuditLog.deleteMany({});
+  await Notification.deleteMany({});
 
   // Find or create category
   let cat = await Category.findOne({ slug: 'xe-tay-ga' });

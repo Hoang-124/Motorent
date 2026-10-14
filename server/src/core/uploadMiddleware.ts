@@ -40,13 +40,13 @@ export const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // Giới hạn 10MB
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|webp|svg/;
+    const allowedTypes = /jpeg|jpg|png|webp/;
     const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mime = allowedTypes.test(file.mimetype);
     if (ext && mime) {
       cb(null, true);
     } else {
-      cb(new Error('Chỉ chấp nhận file ảnh (jpg, png, webp, svg).'));
+      cb(new Error('Chỉ chấp nhận file ảnh định dạng JPEG, PNG hoặc WebP.'));
     }
   },
 });

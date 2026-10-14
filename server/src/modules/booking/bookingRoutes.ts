@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { authenticateJWT } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
 import { auditLogger } from '../../core/auditMiddleware';
@@ -6,10 +7,22 @@ import * as bookingController from './bookingController';
 
 const router = Router();
 
+const bookingCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 30, // max 30 bookings created per hour
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Bạn đã tạo quá nhiều đơn đặt xe trong 1 giờ. Vui lòng thử lại sau.',
+  },
+});
+
 // Customer bookings
 router.post(
   '/',
   authenticateJWT,
+  bookingCreateLimiter,
   auditLogger('CREATE_BOOKING', 'Booking'),
   bookingController.createBooking
 );

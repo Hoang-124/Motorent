@@ -5,10 +5,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 
+import jwt from 'jsonwebtoken';
 import { env } from './config/env';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './core/errorHandler';
 import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
+import { User } from './models/User';
+import { Booking } from './models/Booking';
+import { Conversation } from './models/Conversation';
 import apiRouter from './routes';
 
 export const app = express();
@@ -58,18 +62,87 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 // Mount Central Modular Monolith API
 app.use('/api', apiRouter);
 
+// Socket.IO authentication middleware
+io.use(async (socket, next) => {
+  try {
+    const rawToken =
+      (typeof socket.handshake.auth?.token === 'string' ? socket.handshake.auth.token : undefined) ||
+      (typeof socket.handshake.headers?.authorization === 'string'
+        ? socket.handshake.headers.authorization.replace('Bearer ', '')
+        : undefined);
+
+    // Allow anonymous socket connections only in development/test if not provided, otherwise require JWT
+    if (!rawToken) {
+      if (env.NODE_ENV === 'production') {
+        return next(new Error('Yêu cầu token xác thực để kết nối Socket.IO.'));
+      }
+      return next();
+    }
+
+    const decoded = jwt.verify(rawToken, env.JWT_SECRET) as { userId: string; tokenVersion?: number };
+    const user = await User.findById(decoded.userId);
+    if (!user || user.status === 'Suspended') {
+      return next(new Error('Tài khoản không tồn tại hoặc đã bị tạm khóa.'));
+    }
+    if (decoded.tokenVersion === undefined || user.tokenVersion !== decoded.tokenVersion) {
+      return next(new Error('Phiên làm việc đã hết hạn.'));
+    }
+
+    socket.data.user = user;
+    next();
+  } catch (err) {
+    next(new Error('Token Socket không hợp lệ hoặc đã hết hạn.'));
+  }
+});
+
 // Socket.IO event handling
 io.on('connection', (socket) => {
-  if (env.NODE_ENV === 'development') {
-    console.log(`[SOCKET] Connected: ${socket.id}`);
+  const user = socket.data.user;
+  if (user?._id) {
+    socket.join(`user:${user._id}`);
   }
 
-  socket.on('join_conversation', (conversationId: string) => {
-    socket.join(conversationId);
+  if (env.NODE_ENV === 'development') {
+    console.log(`[SOCKET] Connected: ${socket.id} (User: ${user?.username || 'Guest'})`);
+  }
+
+  socket.on('join_booking', async (bookingId: string) => {
+    if (!bookingId || !user) return;
+    const booking = await Booking.findById(bookingId);
+    if (!booking) return;
+
+    const isOwner = booking.userId.toString() === user._id.toString();
+    const isBranchStaff =
+      ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
+      (!user.branchId ||
+        booking.pickupBranchId.toString() === user.branchId.toString() ||
+        booking.returnBranchId.toString() === user.branchId.toString());
+
+    if (isOwner || isBranchStaff) {
+      socket.join(`booking:${bookingId}`);
+    }
+  });
+
+  socket.on('leave_booking', (bookingId: string) => {
+    socket.leave(`booking:${bookingId}`);
+  });
+
+  socket.on('join_conversation', async (conversationId: string) => {
+    if (!conversationId || !user) return;
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) return;
+
+    const isParticipant =
+      conversation.participants.some((p: { toString(): string }) => p.toString() === user._id.toString()) ||
+      ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles);
+
+    if (isParticipant) {
+      socket.join(`conversation:${conversationId}`);
+    }
   });
 
   socket.on('leave_conversation', (conversationId: string) => {
-    socket.leave(conversationId);
+    socket.leave(`conversation:${conversationId}`);
   });
 
   socket.on('disconnect', () => {
