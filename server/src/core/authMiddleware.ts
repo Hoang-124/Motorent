@@ -19,17 +19,19 @@ export const authenticateJWT = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    let token: string | undefined;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (req.query && typeof req.query.token === 'string') {
+      token = req.query.token;
+    }
+
+    if (!token) {
       res.status(401).json({ success: false, message: 'Yêu cầu token xác thực hợp lệ.' });
       return;
     }
 
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-      res.status(401).json({ success: false, message: 'Token xác thực không hợp lệ.' });
-      return;
-    }
 
     const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
     const user = await User.findById(decoded.userId);

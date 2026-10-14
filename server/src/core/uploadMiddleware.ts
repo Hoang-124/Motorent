@@ -7,9 +7,27 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const privateEkycDir = path.resolve(__dirname, '../../private_uploads/ekyc');
+if (!fs.existsSync(privateEkycDir)) {
+  fs.mkdirSync(privateEkycDir, { recursive: true });
+}
+
+export { uploadDir, privateEkycDir };
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(file.originalname);
+    cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+  },
+});
+
+const privateEkycStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, privateEkycDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -53,9 +71,10 @@ export const avatarUpload = multer({
 
 /**
  * Upload middleware for eKYC Identity Documents (UC-22: CCCD front/back + driving license)
+ * Stored in private directory private_uploads/ekyc - blocked from public static HTTP serving!
  */
 export const ekycUpload = multer({
-  storage,
+  storage: privateEkycStorage,
   limits: { fileSize: 10 * 1024 * 1024 }, // Max 10MB per document
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|webp/;
@@ -68,3 +87,4 @@ export const ekycUpload = multer({
     }
   },
 });
+

@@ -41,7 +41,8 @@ const seedDatabase = async (): Promise<void> => {
   console.log('🧹 Đang làm sạch toàn bộ 18 bộ sưu tập cơ sở dữ liệu...');
   await Promise.all([
     Branch.deleteMany({}),
-    User.deleteMany({}),
+    // Preserve real user accounts (e.g. Google OAuth and personal test emails)
+    User.deleteMany({ email: { $nin: ['ht20041975@gmail.com', 'ht20041975@outlook.com.vn'] } }),
     Category.deleteMany({}),
     Vehicle.deleteMany({}),
     Booking.deleteMany({}),
@@ -110,7 +111,7 @@ const seedDatabase = async (): Promise<void> => {
     description: 'Dung tích từ 300cc trở lên, phong cách touring trải nghiệm dài ngày.',
   });
 
-  console.log('🏢 Khởi tạo 3 Chi nhánh thống nhất (Branches)...');
+  console.log('🏢 Khởi tạo 2 Chi nhánh thống nhất (Branches)...');
   const branchDAD = await Branch.create({
     name: 'Chi nhánh Sân Bay Quốc Tế Đà Nẵng',
     code: 'CN-DAD',
@@ -139,21 +140,7 @@ const seedDatabase = async (): Promise<void> => {
     description: 'Nằm sát bãi biển Mỹ Khê, thuận tiện di chuyển khám phá Bán đảo Sơn Trà, Ngũ Hành Sơn và phố cổ Hội An.',
   });
 
-  const branchCR = await Branch.create({
-    name: 'Chi nhánh Cầu Rồng - Trung Tâm Hải Châu',
-    code: 'CN-CR',
-    address: '02 Bạch Đằng, Phường Thạch Thang, Quận Hải Châu, TP. Đà Nẵng',
-    phone: '0236.3822.303',
-    email: 'dragon.bridge@motorent.vn',
-    location_lng: 108.2235,
-    location_lat: 16.0658,
-    hours_open: '06:30',
-    hours_close: '23:00',
-    isActive: true,
-    description: 'Trung tâm thành phố, ngay chân Cầu Rồng và phố đi bộ Bạch Đằng, đón trả khách sầm uất.',
-  });
-
-  console.log('👤 Khởi tạo 11 Tài khoản người dùng chuẩn RBAC...');
+  console.log('👤 Khởi tạo Tài khoản người dùng chuẩn RBAC...');
   const userAdmin = await User.create({
     username: 'admin',
     email: 'admin@motorent.vn',
@@ -198,28 +185,11 @@ const seedDatabase = async (): Promise<void> => {
     isEmailVerified: true,
   });
 
-  const userManagerCR = await User.create({
-    username: 'manager_cr',
-    email: 'manager.cr@motorent.vn',
-    passwordHash: managerPass,
-    firstName: 'Vũ Quốc',
-    lastName: 'Quản Lý Cầu Rồng',
-    phoneNumber: '0904555666',
-    roles: 'BranchManager',
-    status: 'Active',
-    branchId: branchCR._id,
-    identityStatus: 'Verified',
-    tokenVersion: 0,
-    isEmailVerified: true,
-  });
-
-  // Assign managers without any
+  // Assign managers to branches
   branchDAD.managerId = userManagerDAD._id as mongoose.Types.ObjectId;
   await branchDAD.save();
   branchMK.managerId = userManagerMK._id as mongoose.Types.ObjectId;
   await branchMK.save();
-  branchCR.managerId = userManagerCR._id as mongoose.Types.ObjectId;
-  await branchCR.save();
 
   const userStaffDAD = await User.create({
     username: 'staff_dad',
@@ -251,20 +221,6 @@ const seedDatabase = async (): Promise<void> => {
     isEmailVerified: true,
   });
 
-  const userStaffCR = await User.create({
-    username: 'staff_cr',
-    email: 'staff.cr@motorent.vn',
-    passwordHash: staffPass,
-    firstName: 'Phạm Hồng',
-    lastName: 'Nhân Viên Cầu Rồng',
-    phoneNumber: '0917555777',
-    roles: 'Staff',
-    status: 'Active',
-    branchId: branchCR._id,
-    identityStatus: 'Verified',
-    tokenVersion: 0,
-    isEmailVerified: true,
-  });
 
   const userCustomer1 = await User.create({
     username: 'customer_hoang',
@@ -320,11 +276,43 @@ const seedDatabase = async (): Promise<void> => {
     phoneNumber: '0977889900',
     roles: 'Customer',
     status: 'Active',
-    identityStatus: 'Pending',
+    identityStatus: 'Verified',
     loyaltyPoints: 0,
     tokenVersion: 0,
     isEmailVerified: true,
   });
+
+  // Ensure real customer account with actual uploaded eKYC documents is available for review
+  await User.findOneAndUpdate(
+    { email: 'ht20041975@gmail.com' },
+    {
+      $setOnInsert: {
+        username: 'ht20041975',
+        email: 'ht20041975@gmail.com',
+        firstName: 'Hoàng',
+        lastName: 'Nguyễn',
+        phoneNumber: '0905123456',
+        roles: 'Customer',
+        status: 'Active',
+        isEmailVerified: true,
+        passwordHash: customerPass,
+        },
+      $set: {
+        avatarUrl: '/uploads/avatar-1791966576733-300583633.png',
+        identityStatus: 'Pending',
+        idCardFrontFile: 'idCardFront-1791970550085-630193774.png',
+        idCardBackFile: 'idCardBack-1791970550092-14746793.png',
+        drivingLicenseFile: 'drivingLicense-1791970550094-268328059.png',
+        idCardFrontUrl: '/api/auth/ekyc/document/me/idCardFront',
+        idCardBackUrl: '/api/auth/ekyc/document/me/idCardBack',
+        drivingLicenseUrl: '/api/auth/ekyc/document/me/drivingLicense',
+        ekycConsentAgreed: true,
+        ekycConsentDate: new Date('2026-10-14T16:35:50'),
+        ekycWatermarked: true,
+      }
+    },
+    { upsert: true, new: true }
+  );
 
   console.log(`🏍️ Khởi tạo ${VEHICLE_CATALOG_34.length} Phương tiện chính hãng (Vehicles) chuẩn 6 phân khúc, mỗi xe có đủ 3 góc chụp...`);
 
@@ -337,7 +325,7 @@ const seedDatabase = async (): Promise<void> => {
     'xe-phan-khoi-lon': catBigBike._id as mongoose.Types.ObjectId,
   };
 
-  const branches = [branchDAD, branchMK, branchCR];
+  const branches = [branchDAD, branchMK];
 
   const platePrefixes: Record<string, string> = {
     'xe-tay-ga': '43-B1',
@@ -462,7 +450,7 @@ const seedDatabase = async (): Promise<void> => {
     bookingCode: 'MV-100203',
     userId: userCustomer3._id,
     vehicleId: vehicles[6]._id,
-    pickupBranchId: branchCR._id,
+    pickupBranchId: branchMK._id,
     returnBranchId: branchDAD._id,
     pickupDateTime: completedStartDate,
     returnDateTime: completedEndDate,

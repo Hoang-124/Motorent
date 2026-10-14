@@ -165,17 +165,6 @@ export const Footer: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-                  <p className="font-bold text-white text-xs">Trạm 3: Trung tâm Cầu Rồng</p>
-                  <p className="text-[11px] text-slate-400 flex items-center mt-0.5">
-                    <MapPin className="w-3 h-3 text-emerald-400 mr-1 flex-shrink-0" />
-                    <span>15 Trần Phú, Hải Châu</span>
-                  </p>
-                  <p className="text-[11px] text-emerald-400/90 flex items-center mt-0.5">
-                    <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
-                    <span>06:30 - 23:00 hàng ngày</span>
-                  </p>
-                </div>
 
                 <a
                   href="tel:02363822101"

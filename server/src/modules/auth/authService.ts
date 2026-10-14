@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import path from 'path';
+import fs from 'fs';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
@@ -7,6 +9,7 @@ import { AuditLog } from '../../models/AuditLog';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer';
 import { env } from '../../config/env';
 import { AppError } from '../../core/errorHandler';
+import { uploadDir, privateEkycDir } from '../../core/uploadMiddleware';
 
 /**
  * Generate JWT token for user including tokenVersion
@@ -314,10 +317,15 @@ export const verifyEmail = async (token: string, email?: string) => {
 export const login = async (identifier: string, password: string) => {
   const normalized = identifier.trim().toLowerCase();
   const invalidCredentialsMsg = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
+  const isGoogleEmail = /@(gmail\.com|googlemail\.com)$/i.test(normalized);
 
   const user = await User.findOne({
     $or: [{ username: normalized }, { email: normalized }],
   });
+
+  if (isGoogleEmail && (!user || (user.googleId && !user.passwordHash))) {
+    throw new AppError(400, 'Tài khoản Gmail vui lòng chọn "Đăng nhập bằng Google".');
+  }
 
   if (!user) {
     throw new AppError(401, invalidCredentialsMsg);
@@ -485,19 +493,23 @@ export const forgotPassword = async (email: string) => {
   const normalizedEmail = email.trim().toLowerCase();
   const isGoogleDomain = /@(gmail\.com|googlemail\.com)$/i.test(normalizedEmail);
 
-  const user = await User.findOne({ email: normalizedEmail });
-
-  if (isGoogleDomain || (user && user.googleId && !user.passwordHash)) {
+  if (isGoogleDomain) {
     return {
       isGoogleAccount: true,
       message: 'Tài khoản này sử dụng liên kết Google. Bạn không cần đặt lại mật khẩu, vui lòng đăng nhập trực tiếp bằng Google.',
     };
   }
 
+  const user = await User.findOne({ email: normalizedEmail });
+
   if (!user) {
+    throw new AppError(404, 'Email này chưa được đăng ký trong hệ thống.');
+  }
+
+  if (user.googleId && !user.passwordHash) {
     return {
-      isGoogleAccount: false,
-      message: 'Nếu địa chỉ email tồn tại trong hệ thống, hướng dẫn đặt lại mật khẩu đã được gửi tới hòm thư của bạn.',
+      isGoogleAccount: true,
+      message: 'Tài khoản này sử dụng liên kết Google. Bạn không cần đặt lại mật khẩu, vui lòng đăng nhập trực tiếp bằng Google.',
     };
   }
 
@@ -682,14 +694,19 @@ export const updateAvatar = async (
 };
 
 /**
- * Submit eKYC Identity Documents
+ * Submit eKYC Identity Documents (Decree 13/2023/ND-CP Compliant)
  */
 export const submitEkyc = async (
   userId: string,
-  docs: {
+  data: {
+    idCardFrontFile?: string;
+    idCardBackFile?: string;
+    drivingLicenseFile?: string;
     idCardFrontUrl?: string;
     idCardBackUrl?: string;
     drivingLicenseUrl?: string;
+    consentAgreed?: boolean;
+    watermarked?: boolean;
   },
   meta?: { ipAddress?: string; userAgent?: string }
 ) => {
@@ -698,13 +715,48 @@ export const submitEkyc = async (
     throw new AppError(404, 'Tài khoản không tồn tại.');
   }
 
-  if (!docs.idCardFrontUrl && !docs.idCardBackUrl && !docs.drivingLicenseUrl) {
+  const hasAnyDoc =
+    data.idCardFrontFile ||
+    data.idCardBackFile ||
+    data.drivingLicenseFile ||
+    data.idCardFrontUrl ||
+    data.idCardBackUrl ||
+    data.drivingLicenseUrl;
+
+  if (!hasAnyDoc) {
     throw new AppError(400, 'Vui lòng tải lên ít nhất một ảnh giấy tờ tùy thân (CCCD hoặc GPLX) để tiếp tục.');
   }
 
-  if (docs.idCardFrontUrl) user.idCardFrontUrl = docs.idCardFrontUrl;
-  if (docs.idCardBackUrl) user.idCardBackUrl = docs.idCardBackUrl;
-  if (docs.drivingLicenseUrl) user.drivingLicenseUrl = docs.drivingLicenseUrl;
+  // Update private files and protected streaming endpoints
+  if (data.idCardFrontFile) {
+    user.idCardFrontFile = data.idCardFrontFile;
+    user.idCardFrontUrl = `/api/auth/ekyc/document/me/idCardFront`;
+  } else if (data.idCardFrontUrl) {
+    user.idCardFrontUrl = data.idCardFrontUrl;
+  }
+
+  if (data.idCardBackFile) {
+    user.idCardBackFile = data.idCardBackFile;
+    user.idCardBackUrl = `/api/auth/ekyc/document/me/idCardBack`;
+  } else if (data.idCardBackUrl) {
+    user.idCardBackUrl = data.idCardBackUrl;
+  }
+
+  if (data.drivingLicenseFile) {
+    user.drivingLicenseFile = data.drivingLicenseFile;
+    user.drivingLicenseUrl = `/api/auth/ekyc/document/me/drivingLicense`;
+  } else if (data.drivingLicenseUrl) {
+    user.drivingLicenseUrl = data.drivingLicenseUrl;
+  }
+
+  if (data.consentAgreed !== undefined) {
+    user.ekycConsentAgreed = Boolean(data.consentAgreed);
+    user.ekycConsentDate = new Date();
+  }
+
+  if (data.watermarked !== undefined) {
+    user.ekycWatermarked = Boolean(data.watermarked);
+  }
 
   user.identityStatus = 'Pending';
   await user.save();
@@ -715,9 +767,12 @@ export const submitEkyc = async (
     entity: 'User',
     entityId: user._id.toString(),
     details: {
-      hasIdCardFront: Boolean(docs.idCardFrontUrl),
-      hasIdCardBack: Boolean(docs.idCardBackUrl),
-      hasDrivingLicense: Boolean(docs.drivingLicenseUrl),
+      hasIdCardFront: Boolean(user.idCardFrontFile || user.idCardFrontUrl),
+      hasIdCardBack: Boolean(user.idCardBackFile || user.idCardBackUrl),
+      hasDrivingLicense: Boolean(user.drivingLicenseFile || user.drivingLicenseUrl),
+      consentAgreed: user.ekycConsentAgreed,
+      consentDate: user.ekycConsentDate,
+      watermarked: user.ekycWatermarked,
       identityStatus: 'Pending',
     },
     ipAddress: meta?.ipAddress || '',
@@ -727,3 +782,102 @@ export const submitEkyc = async (
 
   return sanitizeUser(user);
 };
+
+/**
+ * Safely retrieve private eKYC document file with path verification
+ */
+export const getEkycDocumentFile = async (
+  userId: string,
+  docType: 'idCardFront' | 'idCardBack' | 'drivingLicense'
+): Promise<{ filePath: string; mimeType: string; filename: string }> => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError(404, 'Tài khoản không tồn tại.');
+  }
+
+  let filename: string | undefined;
+  if (docType === 'idCardFront') {
+    filename = user.idCardFrontFile || (user.idCardFrontUrl?.startsWith('/uploads/') ? user.idCardFrontUrl.replace('/uploads/', '') : undefined);
+  } else if (docType === 'idCardBack') {
+    filename = user.idCardBackFile || (user.idCardBackUrl?.startsWith('/uploads/') ? user.idCardBackUrl.replace('/uploads/', '') : undefined);
+  } else if (docType === 'drivingLicense') {
+    filename = user.drivingLicenseFile || (user.drivingLicenseUrl?.startsWith('/uploads/') ? user.drivingLicenseUrl.replace('/uploads/', '') : undefined);
+  }
+
+  if (!filename) {
+    throw new AppError(404, 'Không tìm thấy tài liệu giấy tờ được yêu cầu.');
+  }
+
+  // Prevent directory traversal
+  const safeFilename = path.basename(filename);
+  
+  // Check private uploads directory first
+  let targetPath = path.join(privateEkycDir, safeFilename);
+  if (!fs.existsSync(targetPath)) {
+    // Fallback to legacy uploads directory if uploaded previously
+    const fallbackPath = path.join(uploadDir, safeFilename);
+    if (fs.existsSync(fallbackPath)) {
+      targetPath = fallbackPath;
+    } else {
+      throw new AppError(404, 'Tập tin giấy tờ không tồn tại trên hệ thống lưu trữ.');
+    }
+  }
+
+  const ext = path.extname(safeFilename).toLowerCase();
+  let mimeType = 'image/jpeg';
+  if (ext === '.png') mimeType = 'image/png';
+  else if (ext === '.webp') mimeType = 'image/webp';
+
+  return { filePath: targetPath, mimeType, filename: safeFilename };
+};
+
+/**
+ * Get list of pending eKYC requests for Staff/Admin review
+ */
+export const getPendingEkycList = async () => {
+  const users = await User.find({ identityStatus: 'Pending' })
+    .select(
+      'username email firstName lastName phoneNumber avatarUrl identityStatus idCardFrontUrl idCardBackUrl drivingLicenseUrl ekycConsentAgreed ekycConsentDate updatedAt createdAt'
+    )
+    .sort({ updatedAt: -1 });
+
+  return users;
+};
+
+/**
+ * Staff / BranchManager / SystemAdmin review and approve/reject user eKYC
+ */
+export const reviewEkyc = async (
+  targetUserId: string,
+  reviewerId: string,
+  decision: { status: 'Verified' | 'Rejected'; note?: string },
+  meta?: { ipAddress?: string; userAgent?: string }
+) => {
+  const targetUser = await User.findById(targetUserId);
+  if (!targetUser) {
+    throw new AppError(404, 'Không tìm thấy tài khoản người dùng.');
+  }
+
+  targetUser.identityStatus = decision.status;
+  await targetUser.save();
+
+  await AuditLog.create({
+    userId: reviewerId,
+    action: decision.status === 'Verified' ? 'APPROVE_EKYC' : 'REJECT_EKYC',
+    entity: 'User',
+    entityId: targetUser._id.toString(),
+    details: {
+      newStatus: decision.status,
+      note: decision.note || '',
+      targetUsername: targetUser.username,
+      targetEmail: targetUser.email,
+    },
+    ipAddress: meta?.ipAddress || '',
+    userAgent: meta?.userAgent || '',
+    timestamp: new Date(),
+  }).catch((err) => console.error('Error logging ekyc review audit:', err));
+
+  return sanitizeUser(targetUser);
+};
+
+

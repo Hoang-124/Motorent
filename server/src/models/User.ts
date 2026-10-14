@@ -25,6 +25,13 @@ export interface IUser extends Document {
   drivingLicenseUrl?: string;
   idCardFrontUrl?: string;
   idCardBackUrl?: string;
+  // Decree 13/2023/ND-CP Private document storage & consent tracking
+  idCardFrontFile?: string;
+  idCardBackFile?: string;
+  drivingLicenseFile?: string;
+  ekycConsentAgreed?: boolean;
+  ekycConsentDate?: Date;
+  ekycWatermarked?: boolean;
   isEmailVerified: boolean;
   emailVerificationToken?: string;
   emailVerificationExpires?: Date;
@@ -73,6 +80,12 @@ const UserSchema = new Schema<IUser>(
     drivingLicenseUrl: { type: String, default: '' },
     idCardFrontUrl: { type: String, default: '' },
     idCardBackUrl: { type: String, default: '' },
+    idCardFrontFile: { type: String, default: '' },
+    idCardBackFile: { type: String, default: '' },
+    drivingLicenseFile: { type: String, default: '' },
+    ekycConsentAgreed: { type: Boolean, default: false },
+    ekycConsentDate: { type: Date },
+    ekycWatermarked: { type: Boolean, default: false },
     isEmailVerified: { type: Boolean, default: false },
     emailVerificationToken: { type: String, index: true },
     emailVerificationExpires: { type: Date },

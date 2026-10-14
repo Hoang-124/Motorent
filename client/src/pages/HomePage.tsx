@@ -274,14 +274,15 @@ export const HomePage: React.FC = () => {
                 Nhận Ga Sân Bay — Trả Biển Mỹ Khê phụ phí 0đ
               </h3>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Hạ cánh nhận xe ngay tại cổng Ga T2 sau 3 phút. Thoải mái trả xe tại phố biển Mỹ Khê hoặc Cầu Rồng mà không mất thêm bất kỳ đồng phí chuyển trạm nào.
+                Hạ cánh nhận xe ngay tại cổng Ga T2 sau 3 phút. Thoải mái trả xe tại phố biển Mỹ Khê mà không mất thêm bất kỳ đồng phí chuyển trạm nào.
               </p>
             </div>
 
             <div className="mt-6 pt-5 border-t border-white/10 flex items-center justify-between text-xs sm:text-sm text-emerald-300">
-              <span className="font-semibold text-emerald-300">Sân Bay → Cầu Rồng → Mỹ Khê</span>
+              <span className="font-semibold text-emerald-300">Sân Bay ⇆ Bãi Biển Mỹ Khê</span>
               <span className="font-bold text-white px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30">0đ phụ phí</span>
             </div>
+
           </div>
 
           {/* Bento 3: 6 Cols */}

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticateJWT } from '../../core/authMiddleware';
+import { authorize } from '../../core/rbacMiddleware';
 import { avatarUpload, ekycUpload } from '../../core/uploadMiddleware';
 import * as authController from './authController';
 
@@ -54,7 +55,7 @@ router.put('/me/avatar', authenticateJWT, avatarUpload.single('avatar'), authCon
 router.put('/avatar', authenticateJWT, avatarUpload.single('avatar'), authController.uploadAvatar);
 router.post('/avatar', authenticateJWT, avatarUpload.single('avatar'), authController.uploadAvatar);
 
-// eKYC Upload
+// eKYC Upload (Stored in private_uploads/ekyc, blocked from public static HTTP access)
 router.post(
   '/ekyc',
   authenticateJWT,
@@ -76,4 +77,32 @@ router.post(
   authController.uploadEkyc
 );
 
+// Protected eKYC document retrieval (Customer access)
+router.get('/ekyc/document/me/:docType', authenticateJWT, authController.getEkycDocumentMe);
+
+// Protected eKYC document retrieval for Staff / BranchManager / SystemAdmin with audit logging
+router.get(
+  '/ekyc/document/view/:userId/:docType',
+  authenticateJWT,
+  authorize('SystemAdmin', 'BranchManager', 'Staff'),
+  authController.getEkycDocumentAdmin
+);
+
+// Protected eKYC review endpoints for Staff / BranchManager / SystemAdmin
+router.get(
+  '/ekyc/pending',
+  authenticateJWT,
+  authorize('SystemAdmin', 'BranchManager', 'Staff'),
+  authController.getPendingEkycQueue
+);
+
+router.put(
+  '/ekyc/review/:userId',
+  authenticateJWT,
+  authorize('SystemAdmin', 'BranchManager', 'Staff'),
+  authController.reviewUserEkyc
+);
+
 export default router;
+
+

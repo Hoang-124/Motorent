@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Compass, 
@@ -12,17 +12,45 @@ import {
   User as UserIcon, 
   Flame, 
   FileText,
-  ChevronDown
+  ChevronDown,
+  Camera,
+  FileCheck2,
+  Lock
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { getUserAvatarUrl } from '../utils/imageHelper';
+import { api } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [bookingCount, setBookingCount] = useState<number>(0);
+
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+
+  const avatarSrc = getUserAvatarUrl(user?.avatarUrl);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [user?.avatarUrl]);
+
+  // Fetch user's booking count
+  useEffect(() => {
+    if (isAuthenticated) {
+      api.get('/bookings/my')
+        .then((res) => {
+          if (res.data && res.data.success && Array.isArray(res.data.data)) {
+            setBookingCount(res.data.data.length);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated, location.pathname]);
 
   const handleConfirmLogout = () => {
     setShowLogoutConfirm(false);
@@ -42,6 +70,21 @@ export const Navbar: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Click outside to close user dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setUserDropdownOpen(false);
+      }
+    };
+    if (userDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [userDropdownOpen]);
 
   const isStaffOrAdmin = Boolean(
     isAuthenticated && user && (user.roles === 'Staff' || user.roles === 'BranchManager' || user.roles === 'SystemAdmin')
@@ -121,58 +164,151 @@ export const Navbar: React.FC = () => {
 
             {/* User Profile or Login CTA */}
             {isAuthenticated && user ? (
-              <div className="relative">
+              <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center space-x-2 pl-2.5 pr-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 transition-all text-xs font-bold"
+                  className="flex items-center space-x-2 pl-1.5 pr-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 transition-all text-xs font-bold"
                 >
-                  <div className="w-6 h-6 rounded-full bg-emerald-500 text-[#060D0B] flex items-center justify-center font-black text-[10px]">
-                    {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
-                  </div>
+                  {avatarSrc && !avatarLoadFailed ? (
+                    <img
+                      src={avatarSrc}
+                      alt="Avatar"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      onError={() => setAvatarLoadFailed(true)}
+                      className="w-6 h-6 rounded-full object-cover border border-emerald-400/40 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-emerald-500 text-[#060D0B] flex items-center justify-center font-black text-[10px] shrink-0">
+                      {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
+                    </div>
+                  )}
                   <span className="max-w-[90px] truncate">{user.firstName || user.username}</span>
-                  <ChevronDown className="w-3 h-3 text-emerald-400" />
+                  <ChevronDown className={`w-3 h-3 text-emerald-400 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* Dropdown Menu */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-3 w-56 rounded-2xl bg-[#091512] border border-white/10 shadow-2xl shadow-black p-2 text-xs space-y-1">
-                    <div className="px-3 py-2 border-b border-white/10 mb-1">
-                      <p className="font-bold text-white truncate">{user.firstName ? `${user.firstName} ${user.lastName || ''}` : user.username}</p>
-                      <p className="text-[10px] text-emerald-400 font-mono">{user.roles}</p>
+                  <div className="absolute right-0 mt-3 w-72 rounded-2xl bg-[#091512]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black p-2 text-xs space-y-1 z-50 animate-in fade-in duration-150">
+                    <div className="px-3 py-2.5 border-b border-white/10 mb-1 flex items-center space-x-2.5">
+                      {avatarSrc && !avatarLoadFailed ? (
+                        <img
+                          src={avatarSrc}
+                          alt="Avatar"
+                          referrerPolicy="no-referrer"
+                          crossOrigin="anonymous"
+                          className="w-8 h-8 rounded-full object-cover border border-emerald-400/40 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-emerald-500 text-[#060D0B] flex items-center justify-center font-black text-xs shrink-0">
+                          {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold text-white truncate">{user.firstName ? `${user.firstName} ${user.lastName || ''}` : user.username}</p>
+                        <p className="text-[10px] text-emerald-400 font-mono">{user.roles}</p>
+                      </div>
                     </div>
 
+                    {/* 1. Chuyến xe của tôi */}
                     <Link
-                      to="/profile"
+                      to="/profile?tab=bookings"
                       onClick={() => setUserDropdownOpen(false)}
-                      className="flex items-center space-x-2 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors group"
                     >
-                      <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Hồ sơ & eKYC</span>
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <Compass className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">Chuyến xe của tôi</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-medium shrink-0 ml-2">
+                        {bookingCount} chuyến
+                      </span>
+                    </Link>
+
+                    {/* 2. Thông tin cá nhân & Chỉnh sửa */}
+                    <Link
+                      to="/profile?tab=info"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <UserIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">Thông tin cá nhân & Chỉnh sửa</span>
+                      </div>
+                    </Link>
+
+                    {/* 3. Đổi ảnh đại diện */}
+                    <Link
+                      to="/profile?tab=avatar"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <Camera className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">Đổi ảnh đại diện</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">5MB</span>
+                    </Link>
+
+                    {/* 4. Định danh điện tử (eKYC) */}
+                    <Link
+                      to="/profile?tab=ekyc"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <FileCheck2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">Định danh điện tử (eKYC)</span>
+                      </div>
+                      {user.identityStatus === 'Verified' ? (
+                        <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] shrink-0 ml-2">
+                          Đã duyệt
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold text-[10px] shrink-0 ml-2">
+                          Cần làm
+                        </span>
+                      )}
+                    </Link>
+
+                    {/* 5. Đổi mật khẩu bảo mật */}
+                    <Link
+                      to="/profile?tab=password"
+                      onClick={() => setUserDropdownOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                    >
+                      <div className="flex items-center space-x-2.5 min-w-0">
+                        <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="truncate">Đổi mật khẩu bảo mật</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">≥ 8 ký tự</span>
                     </Link>
 
                     {isStaffOrAdmin && (
                       <Link
                         to="/counter"
                         onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center space-x-2 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                        className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5 pt-2"
                       >
-                        <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400" />
+                        <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                         <span>Bàn giao quầy</span>
                       </Link>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        setShowLogoutConfirm(true);
-                      }}
-                      className="w-full flex items-center space-x-2 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>Đăng xuất</span>
-                    </button>
+                    <div className="pt-1 border-t border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          setShowLogoutConfirm(true);
+                        }}
+                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <LogOut className="w-3.5 h-3.5 shrink-0" />
+                        <span>Đăng xuất</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -226,6 +362,98 @@ export const Navbar: React.FC = () => {
               <PhoneCall className="w-4 h-4 text-emerald-400" />
               <span>Hotline cứu hộ: 1900 6868 (24/7)</span>
             </a>
+
+            {isAuthenticated && user && (
+              <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 mb-2 space-y-3">
+                <div className="flex items-center space-x-3">
+                  {avatarSrc && !avatarLoadFailed ? (
+                    <img
+                      src={avatarSrc}
+                      alt="Avatar"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                      className="w-10 h-10 rounded-full object-cover border border-emerald-400/40 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-emerald-500 text-[#060D0B] flex items-center justify-center font-black text-sm shrink-0">
+                      {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="font-bold text-white truncate text-xs">{user.firstName ? `${user.firstName} ${user.lastName || ''}` : user.username}</p>
+                    <p className="text-[10px] text-emerald-400 font-mono">{user.roles}</p>
+                  </div>
+                </div>
+
+                {/* Profile quick links in mobile */}
+                <div className="grid grid-cols-1 gap-1 pt-2 border-t border-white/10 text-xs">
+                  <Link
+                    to="/profile?tab=bookings"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Compass className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Chuyến xe của tôi</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium">{bookingCount} chuyến</span>
+                  </Link>
+
+                  <Link
+                    to="/profile?tab=info"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-2 p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
+                  >
+                    <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Thông tin cá nhân & Chỉnh sửa</span>
+                  </Link>
+
+                  <Link
+                    to="/profile?tab=avatar"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Đổi ảnh đại diện</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium">5MB</span>
+                  </Link>
+
+                  <Link
+                    to="/profile?tab=ekyc"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Định danh điện tử (eKYC)</span>
+                    </div>
+                    {user.identityStatus === 'Verified' ? (
+                      <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">
+                        Đã duyệt
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold text-[10px]">
+                        Cần làm
+                      </span>
+                    )}
+                  </Link>
+
+                  <Link
+                    to="/profile?tab=password"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Đổi mật khẩu bảo mật</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-medium">≥ 8 ký tự</span>
+                  </Link>
+                </div>
+              </div>
+            )}
 
             {isAuthenticated ? (
               <button

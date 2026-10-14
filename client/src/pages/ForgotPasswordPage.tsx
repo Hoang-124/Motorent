@@ -96,9 +96,22 @@ export const ForgotPasswordPage: React.FC = () => {
 
         <div className="bg-[#0B1513] rounded-3xl p-7 sm:p-8 border border-white/10 shadow-2xl shadow-black/50 space-y-5">
           {errorMsg && (
-            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-              <span>{errorMsg}</span>
+            <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-start space-x-2.5">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium">{errorMsg}</p>
+                {errorMsg.toLowerCase().includes('chưa được đăng ký') && (
+                  <div className="mt-2 pt-2 border-t border-red-500/20">
+                    <Link
+                      to="/register"
+                      className="inline-flex items-center space-x-1.5 text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-2 transition-colors"
+                    >
+                      <span>Bấm vào đây để đăng ký tài khoản mới</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

@@ -24,6 +24,8 @@ yarn-error.log*
 # Uploads & local bike images (All vehicle images served via Cloudinary CDN)
 uploads/
 server/uploads/
+private_uploads/
+server/private_uploads/
 client/public/uploads/bikes/*.png
 client/public/uploads/bikes/*.jpg
 client/public/uploads/bikes/*.jpeg

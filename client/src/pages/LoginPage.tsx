@@ -9,7 +9,8 @@ import {
   CheckCircle2, 
   Eye, 
   EyeOff,
-  Mail
+  Mail,
+  Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -117,10 +118,13 @@ export const LoginPage: React.FC = () => {
 
         const btnContainer = document.getElementById('google-official-btn');
         if (btnContainer) {
+          const parentWidth = btnContainer.parentElement?.clientWidth || 380;
+          const targetWidth = Math.min(Math.max(parentWidth, 240), 400);
+
           window.google.accounts.id.renderButton(btnContainer, {
             theme: 'outline',
             size: 'large',
-            width: '100%',
+            width: targetWidth,
             text: 'signin_with',
             shape: 'rectangular',
             logo_alignment: 'center',
@@ -134,10 +138,17 @@ export const LoginPage: React.FC = () => {
     }
   }, [googleClientId]);
 
+  const isGmail = /@(gmail\.com|googlemail\.com)$/i.test(identifier.trim());
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password) {
       setErrorMsg('Vui lòng nhập đầy đủ tên đăng nhập/email và mật khẩu.');
+      return;
+    }
+
+    if (isGmail) {
+      setErrorMsg('Tài khoản Gmail sử dụng phương thức đăng nhập bằng Google. Vui lòng bấm vào nút "Đăng nhập bằng Google" bên dưới.');
       return;
     }
 
@@ -233,8 +244,25 @@ export const LoginPage: React.FC = () => {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="VD: admin hoặc yourname@outlook.com.vn"
-                className="w-full px-3.5 py-2.5 bg-[#060B0A] border border-white/10 rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-all"
+                className={`w-full px-3.5 py-2.5 bg-[#060B0A] border rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all ${
+                  isGmail
+                    ? 'border-amber-500/70 focus:border-amber-400 bg-amber-500/[0.04]'
+                    : 'border-white/10 focus:border-emerald-500'
+                }`}
               />
+
+              {/* Real-time Gmail Alert */}
+              {isGmail && (
+                <div className="mt-2.5 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200 flex items-start space-x-2.5 animate-in fade-in duration-200">
+                  <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-bold text-amber-300">Phát hiện tài khoản Gmail</p>
+                    <p className="text-[11px] text-amber-200/90 mt-1 leading-relaxed">
+                      Tài khoản Gmail được hỗ trợ đăng nhập 1 chạm an toàn. Vui lòng bấm vào nút <strong className="text-white underline underline-offset-2">"Đăng nhập bằng Google"</strong> ở bên dưới.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

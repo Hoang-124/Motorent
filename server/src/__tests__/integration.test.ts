@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import { app } from '../server';
-import { connectDatabase } from '../config/database';
+import { setupTestEnvironment, teardownTestEnvironment } from './testHelper';
 import { Vehicle } from '../models/Vehicle';
 import { Branch } from '../models/Branch';
 import { Booking } from '../models/Booking';
@@ -16,7 +16,7 @@ let pickupBranchId: string;
 let returnBranchId: string;
 
 beforeAll(async () => {
-  await connectDatabase();
+  await setupTestEnvironment();
 
   // Login as Customer
   const customerRes = await request(app)
@@ -293,5 +293,9 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
 
     const updatedVehicle = await Vehicle.findById(testVehicleId);
     expect(updatedVehicle?.status).toBe('Available');
+  });
+
+  afterAll(async () => {
+    await teardownTestEnvironment();
   });
 });

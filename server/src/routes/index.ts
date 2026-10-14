@@ -1,9 +1,10 @@
-import { Router, Request, Response, NextFunction } from 'express';
+﻿import { Router, Request, Response, NextFunction } from 'express';
 import authRoutes from '../modules/auth/authRoutes';
 import branchRoutes from '../modules/branch/branchRoutes';
 import vehicleRoutes from '../modules/vehicle/vehicleRoutes';
 import bookingRoutes from '../modules/booking/bookingRoutes';
 import feedbackRoutes from '../modules/support/feedbackRoutes';
+import paymentRoutes from '../modules/payment/paymentRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
 import {
   Branch,
@@ -71,5 +72,6 @@ router.use('/branches', branchRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/feedbacks', feedbackRoutes);
+router.use('/payments', paymentRoutes);
 
 export default router;

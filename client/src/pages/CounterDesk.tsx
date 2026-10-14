@@ -9,18 +9,48 @@ import {
   PenTool, 
   DollarSign, 
   Clock, 
-  RefreshCw,
-  ShieldCheck,
-  RotateCcw,
-  Sparkles
+  RefreshCw, 
+  ShieldCheck, 
+  RotateCcw, 
+  Sparkles,
+  UserCheck,
+  XCircle,
+  Eye,
+  X,
+  FileText,
+  User as UserIcon,
+  Phone,
+  Mail,
+  Calendar
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
+import { getUserAvatarUrl } from '../utils/imageHelper';
 
 type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
+type MainDeskMode = 'bookings' | 'ekyc';
+
+interface PendingEkycUser {
+  _id: string;
+  username: string;
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  avatarUrl?: string;
+  identityStatus: string;
+  idCardFrontUrl?: string;
+  idCardBackUrl?: string;
+  drivingLicenseUrl?: string;
+  ekycConsentAgreed?: boolean;
+  ekycConsentDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export const CounterDesk: React.FC = () => {
+  const [deskMode, setDeskMode] = useState<MainDeskMode>('bookings');
   const [searchCode, setSearchCode] = useState<string>('');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
@@ -30,6 +60,14 @@ export const CounterDesk: React.FC = () => {
 
   // Notification banners (replacing alert())
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // eKYC Management states
+  const [pendingEkycList, setPendingEkycList] = useState<PendingEkycUser[]>([]);
+  const [selectedEkycUser, setSelectedEkycUser] = useState<PendingEkycUser | null>(null);
+  const [ekycLoading, setEkycLoading] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [rejectNote, setRejectNote] = useState('');
+  const [previewDocModal, setPreviewDocModal] = useState<{ title: string; url: string } | null>(null);
 
   // Check-in form states
   const [startOdo, setStartOdo] = useState<number>(0);
@@ -53,6 +91,7 @@ export const CounterDesk: React.FC = () => {
 
   const fetchBookings = async () => {
     setLoading(true);
+
     setStatusMessage(null);
     try {
       const res = await api.get('/bookings/branch');
@@ -74,9 +113,68 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const fetchPendingEkyc = async () => {
+    setEkycLoading(true);
+    try {
+      const res = await api.get('/auth/ekyc/pending');
+      if (res.data?.data) {
+        setPendingEkycList(res.data.data);
+        if (res.data.data.length > 0) {
+          setSelectedEkycUser((prev) => prev ? (res.data.data.find((u: PendingEkycUser) => u._id === prev._id) || res.data.data[0]) : res.data.data[0]);
+        } else {
+          setSelectedEkycUser(null);
+        }
+      }
+    } catch (err) {
+      console.error('Không thể tải hàng đợi eKYC:', err);
+    } finally {
+      setEkycLoading(false);
+    }
+  };
+
+  const handleReviewEkyc = async (status: 'Verified' | 'Rejected') => {
+    if (!selectedEkycUser) return;
+    setReviewLoading(true);
+    setStatusMessage(null);
+    try {
+      const res = await api.put(`/auth/ekyc/review/${selectedEkycUser._id}`, {
+        status,
+        note: status === 'Rejected' ? rejectNote.trim() : undefined,
+      });
+      if (res.data?.success) {
+        setStatusMessage({
+          type: 'success',
+          text: status === 'Verified' 
+            ? `Đã phê duyệt eKYC thành công cho khách hàng ${selectedEkycUser.firstName || selectedEkycUser.username}!`
+            : `Đã từ chối và gửi yêu cầu chụp lại giấy tờ tới khách hàng ${selectedEkycUser.firstName || selectedEkycUser.username}.`,
+        });
+        setRejectNote('');
+        await fetchPendingEkyc();
+        await fetchBookings();
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setStatusMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Có lỗi xảy ra khi xét duyệt eKYC.',
+        });
+      }
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
+  const formatAdminDocUrl = (userId: string, docType: string) => {
+    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') as string;
+    const token = localStorage.getItem('motorent_token') || localStorage.getItem('token') || '';
+    return `${apiBase}/auth/ekyc/document/view/${userId}/${docType}?token=${encodeURIComponent(token)}`;
+  };
+
   useEffect(() => {
     fetchBookings();
+    fetchPendingEkyc();
   }, []);
+
 
   const handleSelectBooking = (b: Booking) => {
     setSelectedBooking(b);
@@ -275,15 +373,55 @@ export const CounterDesk: React.FC = () => {
             <p className="text-xs text-slate-400 mt-1">
               Xử lý quy trình Check-in giao xe eKYC và Check-out thu hồi xe, đối soát ODO và tất toán 70% còn lại.
             </p>
+
+            {/* Mode Switcher */}
+            <div className="flex flex-wrap items-center gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setDeskMode('bookings')}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
+                  deskMode === 'bookings'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'bg-[#0B1513] text-slate-400 hover:text-white border border-white/10'
+                }`}
+              >
+                <FileCheck className="w-4 h-4" />
+                <span>Bàn giao nhận xe ({bookings.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDeskMode('ekyc');
+                  fetchPendingEkyc();
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
+                  deskMode === 'ekyc'
+                    ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                    : 'bg-[#0B1513] text-slate-400 hover:text-white border border-white/10'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>Đối soát & Duyệt eKYC</span>
+                {pendingEkycList.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
+                    {pendingEkycList.length}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           <button
-            onClick={fetchBookings}
-            disabled={loading}
+            onClick={() => {
+              if (deskMode === 'bookings') fetchBookings();
+              else fetchPendingEkyc();
+            }}
+            disabled={loading || ekycLoading}
             className="self-start md:self-auto inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-slate-300 bg-[#0B1513] border border-white/10 hover:border-emerald-500/40 hover:text-white transition-colors"
           >
-            <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${loading ? 'animate-spin' : ''}`} />
-            <span>Đồng bộ đơn chi nhánh</span>
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-400 ${loading || ekycLoading ? 'animate-spin' : ''}`} />
+            <span>{deskMode === 'bookings' ? 'Đồng bộ đơn chi nhánh' : 'Làm mới hàng đợi eKYC'}</span>
           </button>
         </div>
 
@@ -308,9 +446,11 @@ export const CounterDesk: React.FC = () => {
         )}
 
         {/* Main 2-column desk */}
+        {deskMode === 'bookings' ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column: Booking lookup and Queue (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
+
             {/* Quick Search */}
             <form onSubmit={handleSearch} className="bg-[#0B1513] p-4 rounded-2xl border border-white/10">
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -765,7 +905,321 @@ export const CounterDesk: React.FC = () => {
             )}
           </div>
         </div>
+
+        ) : (
+          /* eKYC Dedicated Station */
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Col (4 cols): Queue of pending eKYC users */}
+            <div className="lg:col-span-4 space-y-3">
+              <div className="bg-[#0B1513] rounded-2xl border border-white/10 overflow-hidden">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
+                      Hồ sơ chờ đối soát ({pendingEkycList.length})
+                    </h3>
+                  </div>
+                  <button
+                    onClick={fetchPendingEkyc}
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                    title="Làm mới hàng đợi"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${ekycLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                <div className="divide-y divide-white/5 max-h-[600px] overflow-y-auto">
+                  {ekycLoading && pendingEkycList.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-500">
+                      <RefreshCw className="w-5 h-5 animate-spin mx-auto text-emerald-400 mb-2" />
+                      Đang tải danh sách chờ duyệt...
+                    </div>
+                  ) : pendingEkycList.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400 space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                      <p className="font-semibold text-white">Tuyệt vời!</p>
+                      <p className="text-[11px] text-slate-500">
+                        Hiện không có hồ sơ eKYC nào đang chờ duyệt tại 2 chi nhánh.
+                      </p>
+                    </div>
+                  ) : (
+                    pendingEkycList.map((customer) => {
+                      const isSelected = selectedEkycUser?._id === customer._id;
+                      const displayName = customer.firstName ? `${customer.firstName} ${customer.lastName || ''}`.trim() : customer.username;
+                      const customerAvatar = getUserAvatarUrl(customer.avatarUrl);
+                      return (
+                        <div
+                          key={customer._id}
+                          onClick={() => setSelectedEkycUser(customer)}
+                          className={`p-4 cursor-pointer transition-all flex items-start space-x-3 ${
+                            isSelected
+                              ? 'bg-emerald-500/10 border-l-4 border-emerald-400 pl-3'
+                              : 'hover:bg-white/[0.02]'
+                          }`}
+                        >
+                          <div className="w-9 h-9 rounded-full overflow-hidden bg-emerald-950 border border-emerald-500/30 flex-shrink-0 flex items-center justify-center font-bold text-emerald-300 text-xs">
+                            {customerAvatar ? (
+                              <img
+                                src={customerAvatar}
+                                alt={displayName}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              (customer.firstName || customer.username || 'U').charAt(0).toUpperCase()
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-white text-xs truncate">
+                                {displayName}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/20">
+                                Chờ duyệt
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">
+                              {customer.phoneNumber || customer.email || `@${customer.username}`}
+                            </p>
+                            <div className="flex items-center justify-between text-[10px] text-slate-500 mt-2">
+                              <span>Gửi: {new Date(customer.updatedAt || customer.createdAt || Date.now()).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+                              <span className="text-emerald-400 font-medium">NĐ 13/2023</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Col (8 cols): Document viewer and decision controls */}
+            <div className="lg:col-span-8">
+              {selectedEkycUser ? (
+                <div className="bg-[#0B1513] rounded-2xl border border-white/10 p-6 space-y-6">
+                  {/* Customer Banner Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-5 border-b border-white/10 gap-3">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-12 h-12 rounded-full overflow-hidden bg-emerald-950 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-300 text-lg flex-shrink-0 shadow-md">
+                        {getUserAvatarUrl(selectedEkycUser.avatarUrl) ? (
+                          <img
+                            src={getUserAvatarUrl(selectedEkycUser.avatarUrl)!}
+                            alt={selectedEkycUser.firstName || selectedEkycUser.username}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          (selectedEkycUser.firstName || selectedEkycUser.username || 'U').charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <div>
+                        <h2 className="text-base font-bold text-white">
+                          {selectedEkycUser.firstName ? `${selectedEkycUser.firstName} ${selectedEkycUser.lastName || ''}`.trim() : selectedEkycUser.username}
+                        </h2>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 mt-0.5">
+                          <span>@{selectedEkycUser.username}</span>
+                          <span>•</span>
+                          <span>{selectedEkycUser.phoneNumber || 'Chưa cập nhật SĐT'}</span>
+                          <span>•</span>
+                          <span>{selectedEkycUser.email || 'Email chưa cung cấp'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs self-start sm:self-auto">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Đã xác nhận NĐ 13/2023/NĐ-CP</span>
+                    </div>
+                  </div>
+
+                  {/* 3 Documents Grid */}
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">
+                      Tài liệu định danh tải lên (Đã đóng dấu chống mạo danh)
+                    </h3>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Doc 1: CCCD Front */}
+                      <div className="p-3 bg-white/[0.02] rounded-xl border border-white/10 flex flex-col justify-between">
+                        <span className="text-xs font-semibold text-slate-300 mb-2">1. Mặt trước CCCD</span>
+                        <div className="w-full h-36 bg-[#060B0A] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
+                          <img
+                            src={formatAdminDocUrl(selectedEkycUser._id, 'idCardFront')}
+                            alt="CCCD Front"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              if (target.parentElement) {
+                                target.parentElement.innerHTML = '<span class="text-xs text-slate-500">Chưa có ảnh</span>';
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocModal({
+                              title: 'Mặt trước Căn cước công dân',
+                              url: formatAdminDocUrl(selectedEkycUser._id, 'idCardFront')
+                            })}
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-1.5 text-xs font-bold text-white"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span>Phóng to</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Doc 2: CCCD Back */}
+                      <div className="p-3 bg-white/[0.02] rounded-xl border border-white/10 flex flex-col justify-between">
+                        <span className="text-xs font-semibold text-slate-300 mb-2">2. Mặt sau CCCD</span>
+                        <div className="w-full h-36 bg-[#060B0A] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
+                          <img
+                            src={formatAdminDocUrl(selectedEkycUser._id, 'idCardBack')}
+                            alt="CCCD Back"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              if (target.parentElement) {
+                                target.parentElement.innerHTML = '<span class="text-xs text-slate-500">Chưa có ảnh</span>';
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocModal({
+                              title: 'Mặt sau Căn cước công dân',
+                              url: formatAdminDocUrl(selectedEkycUser._id, 'idCardBack')
+                            })}
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-1.5 text-xs font-bold text-white"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span>Phóng to</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Doc 3: Driving License */}
+                      <div className="p-3 bg-white/[0.02] rounded-xl border border-white/10 flex flex-col justify-between">
+                        <span className="text-xs font-semibold text-slate-300 mb-2">3. Giấy phép lái xe</span>
+                        <div className="w-full h-36 bg-[#060B0A] rounded-lg overflow-hidden relative group border border-white/10 flex items-center justify-center">
+                          <img
+                            src={formatAdminDocUrl(selectedEkycUser._id, 'drivingLicense')}
+                            alt="Driving License"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              if (target.parentElement) {
+                                target.parentElement.innerHTML = '<span class="text-xs text-slate-500">Chưa có ảnh</span>';
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDocModal({
+                              title: 'Giấy phép lái xe (GPLX)',
+                              url: formatAdminDocUrl(selectedEkycUser._id, 'drivingLicense')
+                            })}
+                            className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-1.5 text-xs font-bold text-white"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span>Phóng to</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Decision Actions Bar */}
+                  <div className="pt-5 border-t border-white/10 space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                        Ghi chú đối soát (Tùy chọn khi duyệt, bắt buộc nếu từ chối):
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="VD: Ảnh CCCD mặt sau bị mờ góc mã QR, đề nghị khách chụp lại..."
+                        value={rejectNote}
+                        onChange={(e) => setRejectNote(e.target.value)}
+                        className="w-full bg-[#060B0A] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center justify-end gap-3">
+                      <button
+                        type="button"
+                        disabled={reviewLoading}
+                        onClick={() => handleReviewEkyc('Rejected')}
+                        className="w-full sm:w-auto px-5 py-2.5 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 hover:text-red-300 font-bold rounded-xl text-xs transition-all flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        <XCircle className="w-4 h-4" />
+                        <span>Từ chối & Yêu cầu chụp lại</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={reviewLoading}
+                        onClick={() => handleReviewEkyc('Verified')}
+                        className="w-full sm:w-auto px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow-md shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
+                      >
+                        {reviewLoading ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Đang xử lý...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Phê duyệt eKYC hợp lệ (Verified)</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-[#0B1513] rounded-2xl border border-white/10 p-12 text-center text-xs text-slate-400">
+                  Vui lòng chọn một hồ sơ khách hàng từ danh sách bên trái để đối soát.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal preview high-res doc */}
+        {previewDocModal && (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-[#0B1513] border border-white/15 rounded-2xl max-w-3xl w-full overflow-hidden shadow-2xl">
+              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                <span className="font-bold text-sm text-white">{previewDocModal.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setPreviewDocModal(null)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 bg-[#060B0A] flex items-center justify-center max-h-[75vh] overflow-auto">
+                <img
+                  src={previewDocModal.url}
+                  alt={previewDocModal.title}
+                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
+

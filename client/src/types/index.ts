@@ -86,6 +86,9 @@ export interface Booking {
   eSignatureUrl?: string;
   startOdometer: number;
   endOdometer?: number;
+  cancelReason?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Notification {
