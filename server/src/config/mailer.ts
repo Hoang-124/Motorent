@@ -67,10 +67,10 @@ export const sendVerificationEmail = async (
   // Log only in development
   if (env.NODE_ENV === 'development') {
     console.log('----------------------------------------------------');
-    console.log(`📧 [EMAIL OTP VERIFICATION] To: ${toEmail}`);
-    console.log(`🔢 6-Digit OTP Code: ${otpCode}`);
-    console.log(`🔗 Verification Link: ${verifyUrl}`);
-    console.log(`🌐 Real SMTP Configured: ${realSmtp ? 'YES' : 'NO (Dev console mode)'}`);
+    console.log(`[EMAIL OTP VERIFICATION] To: ${toEmail}`);
+    console.log(`[OTP] 6-Digit Code: ${otpCode}`);
+    console.log(`[LINK] Verification Link: ${verifyUrl}`);
+    console.log(`[SMTP] Real SMTP Configured: ${realSmtp ? 'YES' : 'NO (Dev console mode)'}`);
     console.log('----------------------------------------------------');
   }
 
@@ -152,7 +152,7 @@ export const sendVerificationEmail = async (
       });
       return true;
     } catch (error) {
-      console.error('❌ Lỗi khi gửi email xác thực qua SMTP:', error);
+      console.error('[SMTP ERROR] Lỗi khi gửi email xác thực qua SMTP:', error);
       throw new Error('Không thể gửi email xác thực qua máy chủ SMTP. Vui lòng thử lại sau.');
     }
   }
@@ -174,9 +174,9 @@ export const sendPasswordResetEmail = async (
 
   if (env.NODE_ENV === 'development') {
     console.log('----------------------------------------------------');
-    console.log(`🔑 [PASSWORD RESET] To: ${toEmail}`);
-    console.log(`🔗 Reset Password Link: ${resetUrl}`);
-    console.log(`🌐 Real SMTP Configured: ${realSmtp ? 'YES' : 'NO (Dev console mode)'}`);
+    console.log(`[PASSWORD RESET] To: ${toEmail}`);
+    console.log(`[LINK] Reset Password Link: ${resetUrl}`);
+    console.log(`[SMTP] Real SMTP Configured: ${realSmtp ? 'YES' : 'NO (Dev console mode)'}`);
     console.log('----------------------------------------------------');
   }
 
@@ -246,7 +246,7 @@ export const sendPasswordResetEmail = async (
       });
       return true;
     } catch (error) {
-      console.error('❌ Lỗi khi gửi email reset mật khẩu qua SMTP:', error);
+      console.error('[SMTP ERROR] Lỗi khi gửi email reset mật khẩu qua SMTP:', error);
       throw new Error('Không thể gửi email đặt lại mật khẩu qua máy chủ SMTP. Vui lòng thử lại sau.');
     }
   }

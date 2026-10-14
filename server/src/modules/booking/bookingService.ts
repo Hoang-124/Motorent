@@ -8,7 +8,10 @@ import { Discount } from '../../models/Discount';
 import { Notification } from '../../models/Notification';
 import { BookingReminder } from '../../models/BookingReminder';
 import { AuditLog } from '../../models/AuditLog';
+import { Payment } from '../../models/Payment';
 import { AppError } from '../../core/errorHandler';
+import { assertBranchAccess } from '../../core/permissions';
+import { emitBookingStatus } from './bookingEvents';
 
 export interface CreateBookingDto {
   vehicleId: string;
@@ -436,14 +439,7 @@ export const checkinBooking = async (
   }
 
   // Verify staff branch assignment
-  if (staffUser.roles === 'Staff' || staffUser.roles === 'BranchManager') {
-    if (!staffUser.branchId) {
-      throw new AppError(403, 'Tài khoản nhân sự chưa được gán chi nhánh công tác.');
-    }
-    if (booking.pickupBranchId.toString() !== staffUser.branchId.toString()) {
-      throw new AppError(403, 'Nhân viên chỉ được thực hiện Check-in tại chi nhánh nhận xe của đơn.');
-    }
-  }
+  assertBranchAccess(staffUser, booking.pickupBranchId);
 
   // Verify customer eKYC identity status
   const customer = await User.findById(booking.userId);
@@ -473,6 +469,7 @@ export const checkinBooking = async (
   vehicle.odometer = input.startOdometer;
   await vehicle.save();
 
+  emitBookingStatus(booking);
   return booking;
 };
 
@@ -498,14 +495,7 @@ export const checkoutBooking = async (
   }
 
   // Verify branch ownership
-  if (staffUser.roles === 'Staff' || staffUser.roles === 'BranchManager') {
-    if (!staffUser.branchId) {
-      throw new AppError(403, 'Tài khoản nhân sự chưa được gán chi nhánh công tác.');
-    }
-    if (booking.returnBranchId.toString() !== staffUser.branchId.toString()) {
-      throw new AppError(403, 'Nhân viên chỉ được thực hiện Check-out tại chi nhánh trả xe đã chỉ định.');
-    }
-  }
+  assertBranchAccess(staffUser, booking.returnBranchId);
 
   if (input.endOdometer < booking.startOdometer) {
     throw new AppError(
@@ -565,6 +555,7 @@ export const checkoutBooking = async (
     await vehicle.save();
   }
 
+  emitBookingStatus(booking);
   return booking;
 };
 
@@ -585,6 +576,9 @@ export const recordCounterPayment = async (
   if (!booking) {
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
+
+  // Verify staff branch assignment (staff at pickup branch or return branch can accept counter payment)
+  assertBranchAccess(staffUser, [booking.pickupBranchId, booking.returnBranchId]);
 
   if (amount <= 0) {
     throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0 VNĐ.');
@@ -613,6 +607,16 @@ export const recordCounterPayment = async (
     timestamp: new Date(),
   }).catch(() => {});
 
+  // Record counter transaction in Payment collection
+  await Payment.create({
+    bookingId: booking._id,
+    txnRef: `COUNTER-${booking.bookingCode}-${Date.now()}`,
+    amount,
+    type: 'COUNTER',
+    status: 'SUCCESS',
+  }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+
+  emitBookingStatus(booking);
   return booking;
 };
 
@@ -652,5 +656,6 @@ export const cancelBooking = async (
     await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
   }
 
+  emitBookingStatus(booking);
   return booking;
 };

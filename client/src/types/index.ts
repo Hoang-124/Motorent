@@ -51,6 +51,7 @@ export interface User {
   status: 'Active' | 'Suspended' | 'Unverified';
   branchId?: string | Branch;
   identityStatus: 'Unverified' | 'Pending' | 'Verified' | 'Rejected';
+  ekycRejectionReason?: string;
   loyaltyPoints: number;
   referralCode?: string;
   drivingLicenseUrl?: string;
@@ -83,6 +84,8 @@ export interface Booking {
   status: 'Pending' | 'Approved' | 'Confirmed' | 'Ongoing' | 'Completed' | 'Cancelled' | 'Rejected';
   paymentMethod: 'Banking' | 'Cash';
   isPaid: boolean;
+  depositPaid?: boolean;
+  paidAmount?: number;
   eSignatureUrl?: string;
   startOdometer: number;
   endOdometer?: number;

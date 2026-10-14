@@ -176,7 +176,7 @@ export const ProfilePage: React.FC = () => {
     setErrorMsg('');
 
     try {
-      const res = await api.put('/auth/profile', {
+      const res = await api.put('/auth/me', {
         firstName,
         lastName,
         phoneNumber,
@@ -1340,8 +1340,13 @@ export const ProfilePage: React.FC = () => {
                       <div className="flex items-start space-x-2.5">
                         <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
                         <div>
-                          <strong className="block font-bold">Hình ảnh giấy tờ chưa đạt yêu cầu</strong>
-                          <span>Vui lòng kiểm tra lại ảnh chụp: chụp đủ 4 góc của thẻ CCCD, không bị lóa sáng và GPLX còn hạn sử dụng.</span>
+                          <strong className="block font-bold">Hình ảnh giấy tờ chưa đạt yêu cầu kiểm duyệt</strong>
+                          {user.ekycRejectionReason && (
+                            <p className="mt-1 font-semibold text-red-200 bg-red-950/60 p-2.5 rounded-lg border border-red-500/30">
+                              Lý do từ chối: {user.ekycRejectionReason}
+                            </p>
+                          )}
+                          <span className="block mt-1">Vui lòng kiểm tra lại ảnh chụp: chụp rõ đủ 4 góc của thẻ CCCD, không bị lóa sáng và GPLX còn hạn sử dụng rồi gửi lại hồ sơ bên dưới.</span>
                         </div>
                       </div>
                     ) : (
@@ -1550,7 +1555,11 @@ export const ProfilePage: React.FC = () => {
 
                     <div className="pt-4 border-t border-white/[0.08] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <span className="text-[11px] text-slate-400">
-                        {(!idCardFrontFile && !idCardBackFile && !licenseFile)
+                        {user.identityStatus === 'Pending'
+                          ? 'Hồ sơ đang được nhân viên kiểm duyệt, vui lòng không gửi lại.'
+                          : user.identityStatus === 'Verified'
+                          ? 'Tài khoản đã hoàn tất xác thực eKYC thành công.'
+                          : (!idCardFrontFile && !idCardBackFile && !licenseFile)
                           ? 'Vui lòng chọn ảnh giấy tờ để tiếp tục.'
                           : !ekycConsent
                           ? 'Vui lòng tích đồng ý điều khoản bảo vệ dữ liệu để gửi.'
@@ -1559,9 +1568,19 @@ export const ProfilePage: React.FC = () => {
 
                       <button
                         type="submit"
-                        disabled={loading || (!idCardFrontFile && !idCardBackFile && !licenseFile) || !ekycConsent}
+                        disabled={
+                          loading ||
+                          user.identityStatus === 'Pending' ||
+                          user.identityStatus === 'Verified' ||
+                          (!idCardFrontFile && !idCardBackFile && !licenseFile) ||
+                          !ekycConsent
+                        }
                         className={`inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                          (idCardFrontFile || idCardBackFile || licenseFile) && ekycConsent && !loading
+                          (idCardFrontFile || idCardBackFile || licenseFile) &&
+                          ekycConsent &&
+                          !loading &&
+                          user.identityStatus !== 'Pending' &&
+                          user.identityStatus !== 'Verified'
                             ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md shadow-emerald-500/15 active:scale-95 cursor-pointer'
                             : 'bg-white/5 text-slate-500 cursor-not-allowed opacity-60'
                         }`}
@@ -1570,6 +1589,16 @@ export const ProfilePage: React.FC = () => {
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                             <span>Đang lưu trữ bảo mật...</span>
+                          </>
+                        ) : user.identityStatus === 'Pending' ? (
+                          <>
+                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Hồ sơ đang chờ duyệt</span>
+                          </>
+                        ) : user.identityStatus === 'Verified' ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Đã xác thực</span>
                           </>
                         ) : (
                           <>

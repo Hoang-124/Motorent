@@ -1,14 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
+import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import { app } from '../server';
 import { setupTestEnvironment, teardownTestEnvironment } from './testHelper';
 import { Vehicle } from '../models/Vehicle';
 import { Branch } from '../models/Branch';
 import { Booking } from '../models/Booking';
 import { User } from '../models/User';
+import { Conversation } from '../models/Conversation';
+import { Message } from '../models/Message';
+import { AuditLog } from '../models/AuditLog';
 
+let adminToken: string;
 let customerToken: string;
+let customerUserId: string;
 let staffDadToken: string;
 let staffMkToken: string;
 let testVehicleId: string;
@@ -18,11 +25,18 @@ let returnBranchId: string;
 beforeAll(async () => {
   await setupTestEnvironment();
 
+  // Login as Admin
+  const adminRes = await request(app)
+    .post('/api/auth/login')
+    .send({ identifier: 'admin', password: 'Admin@123456' });
+  adminToken = adminRes.body?.data?.token;
+
   // Login as Customer
   const customerRes = await request(app)
     .post('/api/auth/login')
     .send({ identifier: 'customer_hoang', password: 'Customer@123456' });
   customerToken = customerRes.body?.data?.token;
+  customerUserId = customerRes.body?.data?.user?._id;
 
   // Login as Staff DAD
   const staffDadRes = await request(app)
@@ -105,6 +119,31 @@ describe('Phase A & F: Security and Authentication Verifications', () => {
     expect(res.body.data?.token).toBeUndefined();
   });
 
+  it('A2: GET /api/auth/verify-email with expired token returns 410 Gone with resend hint', async () => {
+    const expiredUser = await User.create({
+      username: `exp_${Date.now()}`,
+      email: `exp_${Date.now()}@motorent.vn`,
+      passwordHash: 'hashed',
+      status: 'Unverified',
+      isEmailVerified: false,
+      emailVerificationToken: crypto.createHash('sha256').update('expired_link_token').digest('hex'),
+      emailVerificationExpires: new Date(Date.now() - 3600000), // Expired 1 hour ago
+      roles: 'Customer',
+      tokenVersion: 0,
+    });
+
+    const res = await request(app)
+      .get(`/api/auth/verify-email?token=expired_link_token&email=${expiredUser.email}`);
+    expect(res.status).toBe(410);
+    expect(res.body.message).toContain('hết hạn');
+    expect(res.body.message).toContain('resend-otp');
+
+    // Also test the alias route GET /api/auth/verify-email/:token
+    const resAlias = await request(app)
+      .get(`/api/auth/verify-email/expired_link_token?email=${expiredUser.email}`);
+    expect(resAlias.status).toBe(410);
+  });
+
   it('A5: Logout invalidates token through tokenVersion check', async () => {
     const tempLogin = await request(app)
       .post('/api/auth/login')
@@ -160,6 +199,75 @@ describe('Phase A & F: Security and Authentication Verifications', () => {
 
     expect(lockedRes.status).toBe(403);
     expect(lockedRes.body.message).toContain('Tài khoản đang tạm thời bị khóa');
+  });
+
+  it('UC-22: eKYC lifecycle - blocked when Pending, rejected with reason, customer notified, re-upload allowed', async () => {
+    const ekycUser = await User.create({
+      username: `ekyc_user_${Date.now()}`,
+      email: `ekyc_${Date.now()}@motorent.vn`,
+      passwordHash: await bcrypt.hash('Customer@123456', 10),
+      roles: 'Customer',
+      status: 'Active',
+      identityStatus: 'Unverified',
+      isEmailVerified: true,
+      tokenVersion: 0,
+    });
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: ekycUser.username, password: 'Customer@123456' });
+    const ekycToken = loginRes.body?.data?.token;
+
+    // 1. Submit eKYC
+    const submitRes = await request(app)
+      .post('/api/auth/ekyc')
+      .set('Authorization', `Bearer ${ekycToken}`)
+      .send({
+        idCardFrontUrl: 'https://example.com/front.png',
+        consentAgreed: true,
+      });
+    expect(submitRes.status).toBe(200);
+    expect(submitRes.body.data.identityStatus).toBe('Pending');
+
+    // 2. Block duplicate upload while Pending
+    const blockRes = await request(app)
+      .post('/api/auth/ekyc')
+      .set('Authorization', `Bearer ${ekycToken}`)
+      .send({
+        idCardFrontUrl: 'https://example.com/front2.png',
+        consentAgreed: true,
+      });
+    expect(blockRes.status).toBe(400);
+    expect(blockRes.body.message).toContain('chờ xét duyệt');
+
+    // 3. Staff rejects with specific reason
+    const rejectRes = await request(app)
+      .put(`/api/auth/ekyc/review/${ekycUser._id}`)
+      .set('Authorization', `Bearer ${staffDadToken}`)
+      .send({
+        status: 'Rejected',
+        note: 'Ảnh chụp CCCD bị lóa sáng, không đọc được số CCCD.',
+      });
+    expect(rejectRes.status).toBe(200);
+
+    // 4. Verify customer profile contains the rejection reason
+    const profileRes = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${ekycToken}`);
+    expect(profileRes.status).toBe(200);
+    expect(profileRes.body.data.identityStatus).toBe('Rejected');
+    expect(profileRes.body.data.ekycRejectionReason).toBe('Ảnh chụp CCCD bị lóa sáng, không đọc được số CCCD.');
+
+    // 5. Re-upload is now permitted because status is Rejected
+    const retryRes = await request(app)
+      .post('/api/auth/ekyc')
+      .set('Authorization', `Bearer ${ekycToken}`)
+      .send({
+        idCardFrontUrl: 'https://example.com/front_fixed.png',
+        consentAgreed: true,
+      });
+    expect(retryRes.status).toBe(200);
+    expect(retryRes.body.data.identityStatus).toBe('Pending');
   });
 });
 
@@ -367,6 +475,299 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
     expect(res.body.data.remainingAmount).toBe(0);
 
     await Booking.findByIdAndDelete(tempB._id);
+  });
+
+  describe('Phase 4: RBAC Matrix and Access Control (UC-99)', () => {
+    it('Staff can inspect RBAC matrix at GET /api/system/permissions', async () => {
+      const res = await request(app)
+        .get('/api/system/permissions')
+        .set('Authorization', `Bearer ${staffDadToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.role).toBe('Staff');
+      expect(Array.isArray(res.body.data.permissions)).toBe(true);
+      expect(res.body.data.permissions).toContain('BOOKING_CHECKIN');
+      expect(res.body.data.permissions).not.toContain('USER_MANAGE');
+    });
+
+    it('SystemAdmin can inspect full permissions at GET /api/system/permissions', async () => {
+      const res = await request(app)
+        .get('/api/system/permissions')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.role).toBe('SystemAdmin');
+      expect(res.body.data.permissions).toContain('USER_MANAGE');
+      expect(res.body.data.permissions).toContain('AUDIT_VIEW');
+      expect(res.body.data.permissions).toContain('FINANCE_TAX_REPORT');
+    });
+
+    it('Customer is rejected with 403 on GET /api/system/permissions', async () => {
+      const res = await request(app)
+        .get('/api/system/permissions')
+        .set('Authorization', `Bearer ${customerToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('Unauthenticated request is rejected with 401', async () => {
+      const res = await request(app).get('/api/system/permissions');
+      expect(res.status).toBe(401);
+    });
+  });
+
+  describe('Phase 4: Audit Log Viewer (UC-102)', () => {
+    it('SystemAdmin can view paginated audit logs at GET /api/audit', async () => {
+      const res = await request(app)
+        .get('/api/audit?page=1&limit=10')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data.items)).toBe(true);
+      expect(typeof res.body.data.total).toBe('number');
+      expect(res.body.data.page).toBe(1);
+    });
+
+    it('Staff and Customer are blocked from GET /api/audit with 403 Forbidden', async () => {
+      const staffRes = await request(app)
+        .get('/api/audit')
+        .set('Authorization', `Bearer ${staffDadToken}`);
+      expect(staffRes.status).toBe(403);
+
+      const customerRes = await request(app)
+        .get('/api/audit')
+        .set('Authorization', `Bearer ${customerToken}`);
+      expect(customerRes.status).toBe(403);
+    });
+
+    it('Audit query filters by action successfully', async () => {
+      const res = await request(app)
+        .get('/api/audit?action=RECORD_COUNTER_PAYMENT')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      if (res.body.data.items.length > 0) {
+        expect(res.body.data.items[0].action).toBe('RECORD_COUNTER_PAYMENT');
+      }
+    });
+  });
+
+  describe('Phase 4: Customer Live Chat and Staff Chat Console (UC-44 & UC-66)', () => {
+    let convId: string;
+    const testClientMsgId = `cmsg_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+    it('Customer can open or get active conversation via GET /api/chat/my', async () => {
+      const res = await request(app)
+        .get('/api/chat/my')
+        .set('Authorization', `Bearer ${customerToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('Open');
+      expect(res.body.data.customerId).toBe(customerUserId);
+      convId = res.body.data._id;
+    });
+
+    it('Customer sends message with clientMsgId and receives sanitized response', async () => {
+      const res = await request(app)
+        .post(`/api/chat/${convId}/messages`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          clientMsgId: testClientMsgId,
+          content: '<script>alert("xss")</script>Xin chào hỗ trợ xe máy!',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.content).not.toContain('<script>');
+      expect(res.body.data.content).toContain('Xin chào hỗ trợ xe máy!');
+      expect(res.body.data.senderId.roles).toBe('Customer');
+    });
+
+    it('Idempotent check: Resending same clientMsgId returns existing message without duplication', async () => {
+      const res = await request(app)
+        .post(`/api/chat/${convId}/messages`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          clientMsgId: testClientMsgId,
+          content: 'Nội dung gửi lại với cùng clientMsgId',
+        });
+
+      expect([200, 201]).toContain(res.status);
+      expect(res.body.success).toBe(true);
+
+      // Verify DB contains exactly one record with testClientMsgId
+      const count = await Message.countDocuments({ clientMsgId: testClientMsgId });
+      expect(count).toBe(1);
+    });
+
+    it('Empty or whitespace message is rejected with 400', async () => {
+      const res = await request(app)
+        .post(`/api/chat/${convId}/messages`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          content: '     ',
+        });
+
+      expect(res.status).toBe(400);
+    });
+
+    it('Staff can list branch conversations at GET /api/chat/staff/conversations', async () => {
+      const res = await request(app)
+        .get('/api/chat/staff/conversations')
+        .set('Authorization', `Bearer ${staffDadToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data.items)).toBe(true);
+    });
+
+    it('Staff can close conversation at PUT /api/chat/:id/close', async () => {
+      const res = await request(app)
+        .put(`/api/chat/${convId}/close`)
+        .set('Authorization', `Bearer ${staffDadToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('Closed');
+    });
+
+    afterAll(async () => {
+      if (convId) {
+        await Message.deleteMany({ conversationId: convId });
+        await Conversation.findByIdAndDelete(convId);
+      }
+    });
+  });
+
+  describe('Phase 4: VNPay Reconciliation and Tax Report (UC-120 & UC-121)', () => {
+    it('SystemAdmin can run financial reconciliation at GET /api/finance/reconcile', async () => {
+      const res = await request(app)
+        .get('/api/finance/reconcile')
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.summary).toBeDefined();
+      expect(typeof res.body.data.summary.totalBookingsChecked).toBe('number');
+      expect(Array.isArray(res.body.data.discrepancies)).toBe(true);
+    });
+
+    it('Customer is rejected from financial reconciliation with 403 Forbidden', async () => {
+      const res = await request(app)
+        .get('/api/finance/reconcile')
+        .set('Authorization', `Bearer ${customerToken}`);
+
+      expect(res.status).toBe(403);
+    });
+
+    it('SystemAdmin can stream tax report excel workbook at GET /api/finance/tax-report', async () => {
+      const res = await request(app)
+        .get('/api/finance/tax-report?period=month&year=2026&n=10')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .responseType('blob');
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(res.headers['content-disposition']).toContain('Bao_Cao_Thue_Motorent');
+      expect(res.body.length).toBeGreaterThan(0);
+    });
+
+    it('Staff and Customer are blocked from tax report with 403 Forbidden', async () => {
+      const staffRes = await request(app)
+        .get('/api/finance/tax-report')
+        .set('Authorization', `Bearer ${staffDadToken}`);
+      expect(staffRes.status).toBe(403);
+
+      const customerRes = await request(app)
+        .get('/api/finance/tax-report')
+        .set('Authorization', `Bearer ${customerToken}`);
+      expect(customerRes.status).toBe(403);
+    });
+  });
+
+  describe('Phase 4: Booking Cancellation Workflow and IDOR Prevention (UC-37)', () => {
+    let cancelBookingId: string;
+    let otherCustomerToken: string;
+
+    beforeAll(async () => {
+      // Login as customer_tuan
+      const tuanRes = await request(app)
+        .post('/api/auth/login')
+        .send({ identifier: 'customer_tuan', password: 'Customer@123456' });
+      otherCustomerToken = tuanRes.body?.data?.token;
+
+      // Create a pending booking for customer_hoang
+      const booking = await Booking.create({
+        bookingCode: `MV-CANCEL-${Date.now().toString().slice(-4)}`,
+        userId: customerUserId,
+        vehicleId: testVehicleId,
+        pickupBranchId,
+        returnBranchId,
+        pickupDateTime: new Date(Date.now() + 86400000),
+        returnDateTime: new Date(Date.now() + 2 * 86400000),
+        totalAmount: 300000,
+        depositAmount: 90000,
+        remainingAmount: 210000,
+        status: 'Pending',
+        isPaid: false,
+      });
+      cancelBookingId = booking._id.toString();
+    });
+
+    it('Customer cannot cancel another customer booking (IDOR guard) -> 403', async () => {
+      const res = await request(app)
+        .put(`/api/bookings/${cancelBookingId}/cancel`)
+        .set('Authorization', `Bearer ${otherCustomerToken}`)
+        .send({ cancelReason: 'Cố ý hủy đơn người khác' });
+
+      expect(res.status).toBe(403);
+    });
+
+    it('Customer can cancel their own pending booking -> 200 and status Cancelled', async () => {
+      const res = await request(app)
+        .put(`/api/bookings/${cancelBookingId}/cancel`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ cancelReason: 'Khách đổi kế hoạch lịch trình' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.status).toBe('Cancelled');
+      expect(res.body.data.cancelReason).toBe('Khách đổi kế hoạch lịch trình');
+    });
+
+    it('Cannot cancel an Ongoing booking -> 400', async () => {
+      const ongoingBooking = await Booking.create({
+        bookingCode: `MV-ONGOING-${Date.now().toString().slice(-4)}`,
+        userId: customerUserId,
+        vehicleId: testVehicleId,
+        pickupBranchId,
+        returnBranchId,
+        pickupDateTime: new Date(Date.now() - 3600000),
+        returnDateTime: new Date(Date.now() + 86400000),
+        totalAmount: 300000,
+        depositAmount: 90000,
+        remainingAmount: 210000,
+        status: 'Ongoing',
+        isPaid: false,
+      });
+
+      const res = await request(app)
+        .put(`/api/bookings/${ongoingBooking._id}/cancel`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ cancelReason: 'Hủy đơn đang đi xe' });
+
+      expect(res.status).toBe(400);
+
+      await Booking.findByIdAndDelete(ongoingBooking._id);
+    });
+
+    afterAll(async () => {
+      if (cancelBookingId) {
+        await Booking.findByIdAndDelete(cancelBookingId);
+      }
+    });
   });
 
   afterAll(async () => {

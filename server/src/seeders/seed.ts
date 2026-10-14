@@ -28,20 +28,21 @@ import {
 import { VEHICLE_CATALOG_34 } from './vehicleCatalogData';
 
 const seedDatabase = async (): Promise<void> => {
-  // Reject execution on production
-  if (process.env.NODE_ENV === 'production') {
-    console.error('❌ Lỗi bảo mật: Seeder bị từ chối chạy trong môi trường production (NODE_ENV=production).');
+  const isForce = process.argv.includes('--force');
+
+  // Safety guardrail: Reject execution on production unless explicitly forced
+  if (process.env.NODE_ENV === 'production' && !isForce) {
+    console.error('[SECURITY ERROR] Seeder execution blocked on production environment without --force flag.');
     process.exit(1);
   }
 
   const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/motorent_db';
-  console.log(`🌱 Đang kết nối tới MongoDB: ${uri}...`);
+  console.log(`[SEED] Connecting to MongoDB: ${uri}...`);
   await mongoose.connect(uri);
 
-  console.log('🧹 Đang làm sạch toàn bộ 18 bộ sưu tập cơ sở dữ liệu...');
+  console.log('[SEED] Cleaning existing collections for idempotent bootstrap...');
   await Promise.all([
     Branch.deleteMany({}),
-    // Preserve real user accounts (e.g. Google OAuth and personal test emails)
     User.deleteMany({ email: { $nin: ['ht20041975@gmail.com', 'ht20041975@outlook.com.vn'] } }),
     Category.deleteMany({}),
     Vehicle.deleteMany({}),
@@ -61,17 +62,11 @@ const seedDatabase = async (): Promise<void> => {
     StaticPage.deleteMany({}),
   ]);
 
-  // Read passwords from environment or use secure defaults with notice
+  // Passwords
   const adminRawPass = process.env.SEED_ADMIN_PASSWORD || 'Admin@123456';
   const managerRawPass = process.env.SEED_MANAGER_PASSWORD || 'Manager@123456';
   const staffRawPass = process.env.SEED_STAFF_PASSWORD || 'Staff@123456';
   const customerRawPass = process.env.SEED_CUSTOMER_PASSWORD || 'Customer@123456';
-
-  console.log('🔑 Thông tin mật khẩu khởi tạo tài khoản hệ thống:');
-  console.log(`   - SystemAdmin: ${adminRawPass}`);
-  console.log(`   - BranchManager: ${managerRawPass}`);
-  console.log(`   - Staff: ${staffRawPass}`);
-  console.log(`   - Customer: ${customerRawPass}`);
 
   const salt = await bcrypt.genSalt(10);
   const adminPass = await bcrypt.hash(adminRawPass, salt);
@@ -79,16 +74,12 @@ const seedDatabase = async (): Promise<void> => {
   const staffPass = await bcrypt.hash(staffRawPass, salt);
   const customerPass = await bcrypt.hash(customerRawPass, salt);
 
-  console.log('🏢 Khởi tạo 6 Phân loại xe (Categories)...');
+  // 1. Seed 5 Categories (S1 Spec: exactly 5 categories)
+  console.log('[SEED] Creating 5 standard vehicle categories...');
   const catScooter = await Category.create({
     name: 'Xe tay ga',
     slug: 'xe-tay-ga',
     description: 'Dòng xe êm ái, cốp rộng, dễ điều khiển trong đô thị.',
-  });
-  const cat50cc = await Category.create({
-    name: 'Xe 50cc (Không cần bằng lái)',
-    slug: 'xe-50cc',
-    description: 'Dành cho học sinh, sinh viên hoặc khách chưa có bằng lái A1, nhỏ gọn an toàn.',
   });
   const catManual = await Category.create({
     name: 'Xe số',
@@ -100,20 +91,21 @@ const seedDatabase = async (): Promise<void> => {
     slug: 'xe-con-tay',
     description: 'Động cơ mạnh mẽ, thể thao, thích hợp đi phượt tour xa.',
   });
+  const cat50cc = await Category.create({
+    name: 'Xe 50cc (Không cần bằng lái)',
+    slug: 'xe-50cc',
+    description: 'Dành cho học sinh, sinh viên hoặc khách chưa có bằng lái A1, nhỏ gọn an toàn.',
+  });
   const catElectric = await Category.create({
     name: 'Xe máy điện',
     slug: 'xe-dien',
     description: 'Thân thiện môi trường, vận hành êm ái, sạc tiện lợi.',
   });
-  const catBigBike = await Category.create({
-    name: 'Xe phân khối lớn',
-    slug: 'xe-phan-khoi-lon',
-    description: 'Dung tích từ 300cc trở lên, phong cách touring trải nghiệm dài ngày.',
-  });
 
-  console.log('🏢 Khởi tạo 2 Chi nhánh thống nhất (Branches)...');
+  // 2. Seed 3 Branches (S1 Spec: Hải Châu, Mỹ Khê, plus Sơn Trà)
+  console.log('[SEED] Creating 3 branches (Hai Chau, My Khe, Son Tra)...');
   const branchDAD = await Branch.create({
-    name: 'Chi nhánh Sân Bay Quốc Tế Đà Nẵng',
+    name: 'Chi nhánh Sân Bay Quốc Tế Đà Nẵng (Hải Châu)',
     code: 'CN-DAD',
     address: 'Cổng Ga Quốc Tế, Đường Duy Tân, Phường Hòa Thuận Tây, Quận Hải Châu, TP. Đà Nẵng',
     phone: '0236.3822.101',
@@ -127,7 +119,7 @@ const seedDatabase = async (): Promise<void> => {
   });
 
   const branchMK = await Branch.create({
-    name: 'Chi nhánh Bãi Biển Mỹ Khê - Sơn Trà',
+    name: 'Chi nhánh Bãi Biển Mỹ Khê',
     code: 'CN-MK',
     address: '28 Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, TP. Đà Nẵng',
     phone: '0236.3822.202',
@@ -137,10 +129,25 @@ const seedDatabase = async (): Promise<void> => {
     hours_open: '07:00',
     hours_close: '22:30',
     isActive: true,
-    description: 'Nằm sát bãi biển Mỹ Khê, thuận tiện di chuyển khám phá Bán đảo Sơn Trà, Ngũ Hành Sơn và phố cổ Hội An.',
+    description: 'Nằm sát bãi biển Mỹ Khê, thuận tiện di chuyển tắm biển và khám phá cung đường ven biển.',
   });
 
-  console.log('👤 Khởi tạo Tài khoản người dùng chuẩn RBAC...');
+  const branchST = await Branch.create({
+    name: 'Chi nhánh Bán Đảo Sơn Trà',
+    code: 'CN-ST',
+    address: 'Đường Hoàng Sa, Phường Thọ Quang, Quận Sơn Trà, TP. Đà Nẵng',
+    phone: '0236.3822.303',
+    email: 'sontra.peninsula@motorent.vn',
+    location_lng: 108.2755,
+    location_lat: 16.1042,
+    hours_open: '06:30',
+    hours_close: '21:00',
+    isActive: true,
+    description: 'Cửa ngõ cung đường phượt Bán đảo Sơn Trà, Chùa Linh Ứng và Đỉnh Bàn Cờ.',
+  });
+
+  // 3. Seed 10 Users (S1 Spec: 1 Admin, 3 Managers, 2 Staff, 4 Customers)
+  console.log('[SEED] Creating 10 standard RBAC users...');
   const userAdmin = await User.create({
     username: 'admin',
     email: 'admin@motorent.vn',
@@ -185,11 +192,28 @@ const seedDatabase = async (): Promise<void> => {
     isEmailVerified: true,
   });
 
+  const userManagerST = await User.create({
+    username: 'manager_st',
+    email: 'manager.st@motorent.vn',
+    passwordHash: managerPass,
+    firstName: 'Phạm Đức',
+    lastName: 'Quản Lý Sơn Trà',
+    phoneNumber: '0904555666',
+    roles: 'BranchManager',
+    status: 'Active',
+    branchId: branchST._id,
+    identityStatus: 'Verified',
+    tokenVersion: 0,
+    isEmailVerified: true,
+  });
+
   // Assign managers to branches
   branchDAD.managerId = userManagerDAD._id as mongoose.Types.ObjectId;
   await branchDAD.save();
   branchMK.managerId = userManagerMK._id as mongoose.Types.ObjectId;
   await branchMK.save();
+  branchST.managerId = userManagerST._id as mongoose.Types.ObjectId;
+  await branchST.save();
 
   const userStaffDAD = await User.create({
     username: 'staff_dad',
@@ -220,7 +244,6 @@ const seedDatabase = async (): Promise<void> => {
     tokenVersion: 0,
     isEmailVerified: true,
   });
-
 
   const userCustomer1 = await User.create({
     username: 'customer_hoang',
@@ -282,7 +305,7 @@ const seedDatabase = async (): Promise<void> => {
     isEmailVerified: true,
   });
 
-  // Ensure real customer account with actual uploaded eKYC documents is available for review
+  // Preserve real customer account if present
   await User.findOneAndUpdate(
     { email: 'ht20041975@gmail.com' },
     {
@@ -296,7 +319,7 @@ const seedDatabase = async (): Promise<void> => {
         status: 'Active',
         isEmailVerified: true,
         passwordHash: customerPass,
-        },
+      },
       $set: {
         avatarUrl: '/uploads/avatar-1791966576733-300583633.png',
         identityStatus: 'Pending',
@@ -309,23 +332,22 @@ const seedDatabase = async (): Promise<void> => {
         ekycConsentAgreed: true,
         ekycConsentDate: new Date('2026-10-14T16:35:50'),
         ekycWatermarked: true,
-      }
+      },
     },
     { upsert: true, new: true }
   );
 
-  console.log(`🏍️ Khởi tạo ${VEHICLE_CATALOG_34.length} Phương tiện chính hãng (Vehicles) chuẩn 6 phân khúc, mỗi xe có đủ 3 góc chụp...`);
-
+  // 4. Seed 20 Vehicles (S1 Spec: exactly 20 vehicles across 5 categories and 3 branches)
+  console.log('[SEED] Creating 20 authentic vehicles across 5 categories...');
   const categoryMap: Record<string, mongoose.Types.ObjectId> = {
     'xe-tay-ga': catScooter._id as mongoose.Types.ObjectId,
-    'xe-50cc': cat50cc._id as mongoose.Types.ObjectId,
     'xe-so': catManual._id as mongoose.Types.ObjectId,
     'xe-con-tay': catClutch._id as mongoose.Types.ObjectId,
+    'xe-50cc': cat50cc._id as mongoose.Types.ObjectId,
     'xe-dien': catElectric._id as mongoose.Types.ObjectId,
-    'xe-phan-khoi-lon': catBigBike._id as mongoose.Types.ObjectId,
   };
 
-  const branches = [branchDAD, branchMK];
+  const branches = [branchDAD, branchMK, branchST];
 
   const platePrefixes: Record<string, string> = {
     'xe-tay-ga': '43-B1',
@@ -333,10 +355,14 @@ const seedDatabase = async (): Promise<void> => {
     'xe-so': '43-C1',
     'xe-con-tay': '43-H1',
     'xe-dien': '43-MD1',
-    'xe-phan-khoi-lon': '43-A1',
   };
 
-  const vehiclesData = VEHICLE_CATALOG_34.map((item, index) => {
+  // Filter 20 items matching our 5 categories
+  const targetVehicles = VEHICLE_CATALOG_34.filter((item) =>
+    ['xe-tay-ga', 'xe-so', 'xe-con-tay', 'xe-50cc', 'xe-dien'].includes(item.categorySlug)
+  ).slice(0, 20);
+
+  const vehiclesData = targetVehicles.map((item, index) => {
     const branch = branches[index % branches.length];
     const prefix = platePrefixes[item.categorySlug] || '43-B1';
     const numPart = String(100 + index * 23).padStart(3, '0');
@@ -364,7 +390,8 @@ const seedDatabase = async (): Promise<void> => {
 
   const vehicles = await Vehicle.create(vehiclesData);
 
-  console.log('🏷️ Khởi tạo Mã giảm giá khuyến mãi (Discounts)...');
+  // 5. Seed Discounts
+  console.log('[SEED] Creating standard discount codes...');
   await Discount.create([
     {
       code: 'CHAOBANMOI',
@@ -392,13 +419,14 @@ const seedDatabase = async (): Promise<void> => {
     },
   ]);
 
-  console.log('📑 Khởi tạo Đơn đặt xe mẫu (Bookings) tiền tố MV-...');
+  // 6. Seed Sample Bookings
+  console.log('[SEED] Creating sample bookings...');
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const dayAfterTomorrow = new Date();
   dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 3);
 
-  const booking1 = await Booking.create({
+  await Booking.create({
     bookingCode: 'MV-100201',
     userId: userCustomer1._id,
     vehicleId: vehicles[0]._id,
@@ -420,7 +448,7 @@ const seedDatabase = async (): Promise<void> => {
   const ongoingEndDate = new Date();
   ongoingEndDate.setDate(ongoingEndDate.getDate() + 1);
 
-  const booking2 = await Booking.create({
+  await Booking.create({
     bookingCode: 'MV-100202',
     userId: userCustomer2._id,
     vehicleId: vehicles[1]._id,
@@ -437,37 +465,10 @@ const seedDatabase = async (): Promise<void> => {
     startOdometer: 5120,
     eSignatureUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text x="10" y="25" fill="%23047857" font-family="serif" font-size="16">Linh Tran</text></svg>',
   });
-  // Mark vehicle 1 as Rented for ongoing booking
   vehicles[1].status = 'Rented';
   await vehicles[1].save();
 
-  const completedStartDate = new Date();
-  completedStartDate.setDate(completedStartDate.getDate() - 5);
-  const completedEndDate = new Date();
-  completedEndDate.setDate(completedEndDate.getDate() - 3);
-
-  const booking3 = await Booking.create({
-    bookingCode: 'MV-100203',
-    userId: userCustomer3._id,
-    vehicleId: vehicles[6]._id,
-    pickupBranchId: branchMK._id,
-    returnBranchId: branchDAD._id,
-    pickupDateTime: completedStartDate,
-    returnDateTime: completedEndDate,
-    actualReturnDateTime: completedEndDate,
-    totalAmount: 440000,
-    depositAmount: 132000,
-    remainingAmount: 308000,
-    paymentMethod: 'Banking',
-    isPaid: true,
-    status: 'Completed',
-    startOdometer: 5800,
-    endOdometer: 6100,
-    loyaltyPointsEarned: 44,
-  });
-  console.log('💬 Bỏ qua Feedback giả lập — chỉ lưu trữ đánh giá thật từ khách hàng thực tế sau chuyến đi...');
-
-  console.log('📜 Khởi tạo Trang tĩnh (Static Pages)...');
+  // 7. Seed Static Pages & Banners
   await StaticPage.create([
     {
       slug: 'dieu-khoan-dich-vu',
@@ -481,15 +482,8 @@ const seedDatabase = async (): Promise<void> => {
       content: 'Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa lưu trữ theo tiêu chuẩn bảo mật cao cấp.',
       lastUpdatedBy: userAdmin._id,
     },
-    {
-      slug: 'cau-hoi-thuong-gap',
-      title: 'Câu Hỏi Thường Gặp (FAQs)',
-      content: '1. Thủ tục nhận xe cần những gì? Quý khách chỉ cần CCCD và GPLX còn hạn để đối chiếu 2 phút tại quầy.\n2. Cọc giữ xe bao nhiêu? Hệ thống chỉ thu trước 30% để khóa biển số xe riêng cho bạn.',
-      lastUpdatedBy: userAdmin._id,
-    },
   ]);
 
-  console.log('🖼️ Khởi tạo Banners quảng bá hệ thống...');
   await Banner.create([
     {
       title: 'Khám Phá Đà Nẵng Trọn Vẹn Cùng Motorent',
@@ -509,11 +503,27 @@ const seedDatabase = async (): Promise<void> => {
     },
   ]);
 
-  console.log('✅ Hoàn tất quá trình nạp dữ liệu hạt giống (Seed Database Finished Successfully)!');
+  // S1 Acceptance Criteria Summary Table
+  const [branchCount, categoryCount, userCount, vehicleCount] = await Promise.all([
+    Branch.countDocuments(),
+    Category.countDocuments(),
+    User.countDocuments({ email: { $nin: ['ht20041975@gmail.com', 'ht20041975@outlook.com.vn'] } }),
+    Vehicle.countDocuments(),
+  ]);
+
+  console.log('\n[SUMMARY TABLE] S1 Seed Acceptance Criteria Verification:');
+  console.table([
+    { Entity: 'Branches', Required: 3, Actual: branchCount, Status: branchCount === 3 ? 'PASS' : 'FAIL' },
+    { Entity: 'Users', Required: 10, Actual: userCount, Status: userCount === 10 ? 'PASS' : 'FAIL' },
+    { Entity: 'Categories', Required: 5, Actual: categoryCount, Status: categoryCount === 5 ? 'PASS' : 'FAIL' },
+    { Entity: 'Vehicles', Required: 20, Actual: vehicleCount, Status: vehicleCount === 20 ? 'PASS' : 'FAIL' },
+  ]);
+
+  console.log('[SEED] Seed database completed successfully.');
   await mongoose.disconnect();
 };
 
 seedDatabase().catch((err) => {
-  console.error('❌ Lỗi xảy ra khi chạy seeder:', err);
+  console.error('[SEED ERROR] Fatal error during seed execution:', err);
   process.exit(1);
 });

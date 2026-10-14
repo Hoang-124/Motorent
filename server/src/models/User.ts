@@ -32,6 +32,7 @@ export interface IUser extends Document {
   ekycConsentAgreed?: boolean;
   ekycConsentDate?: Date;
   ekycWatermarked?: boolean;
+  ekycRejectionReason?: string;
   isEmailVerified: boolean;
   emailVerificationToken?: string;
   emailVerificationExpires?: Date;
@@ -86,6 +87,7 @@ const UserSchema = new Schema<IUser>(
     ekycConsentAgreed: { type: Boolean, default: false },
     ekycConsentDate: { type: Date },
     ekycWatermarked: { type: Boolean, default: false },
+    ekycRejectionReason: { type: String, default: '' },
     isEmailVerified: { type: Boolean, default: false },
     emailVerificationToken: { type: String, index: true },
     emailVerificationExpires: { type: Date },

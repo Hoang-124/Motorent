@@ -38,18 +38,45 @@ const redactSensitiveData = (data: unknown): unknown => {
   return result;
 };
 
+/**
+ * Audit Logger Middleware.
+ * Automatically logs both successful mutations and sensitive failed actions (401/403).
+ * Truncates details to 10KB to prevent audit log bloat.
+ */
 export const auditLogger = (action: string, entity: string) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     const originalSend = res.send.bind(res);
 
     res.send = (body?: unknown): Response => {
-      // Log only on successful 2xx responses and when user is authenticated
-      if (res.statusCode >= 200 && res.statusCode < 300 && req.user) {
-        const entityId = req.params.id || (req.body && typeof req.body === 'object' ? (req.body as Record<string, unknown>).id || (req.body as Record<string, unknown>)._id : '') || '';
+      const isSuccess = res.statusCode >= 200 && res.statusCode < 300;
+      const isAuthFailure = res.statusCode === 401 || res.statusCode === 403;
+
+      // Log successful operations OR unauthorized attempts on sensitive entities
+      if (req.user && (isSuccess || isAuthFailure)) {
+        const entityId =
+          req.params.id ||
+          (req.body && typeof req.body === 'object'
+            ? (req.body as Record<string, unknown>).id || (req.body as Record<string, unknown>)._id
+            : '') ||
+          '';
+
         const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
         const userAgent = req.headers['user-agent'] || '';
 
-        const sanitizedDetails = redactSensitiveData(req.body);
+        let sanitizedDetails = redactSensitiveData(req.body) as Record<string, unknown>;
+
+        // Cap details payload size to 10KB
+        try {
+          const serialized = JSON.stringify(sanitizedDetails);
+          if (serialized.length > 10240) {
+            sanitizedDetails = {
+              truncated: true,
+              preview: serialized.slice(0, 10240),
+            };
+          }
+        } catch {
+          sanitizedDetails = { error: 'Non-serializable payload' };
+        }
 
         AuditLog.create({
           userId: req.user._id,
@@ -57,11 +84,13 @@ export const auditLogger = (action: string, entity: string) => {
           entity,
           entityId: String(entityId),
           details: sanitizedDetails,
+          status: isSuccess ? 'SUCCESS' : 'FAILED',
+          statusCode: res.statusCode,
           ipAddress,
           userAgent,
           timestamp: new Date(),
         }).catch((err: unknown) => {
-          console.error('❌ Lỗi ghi AuditLog:', err);
+          console.error('[AUDIT LOG ERROR] Failed to persist audit log entry:', err);
         });
       }
 

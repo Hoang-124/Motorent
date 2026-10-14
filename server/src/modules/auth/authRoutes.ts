@@ -66,32 +66,17 @@ router.post('/reset-password', authLimiter, authController.resetPassword);
 // Protected routes (require JWT)
 router.post('/logout', authenticateJWT, authController.logout);
 router.get('/me', authenticateJWT, authController.getProfile);
-router.put('/profile', authenticateJWT, authController.updateProfile);
 router.put('/me', authenticateJWT, authController.updateProfile);
 
 // Change password
 router.put('/change-password', authenticateJWT, authController.changePassword);
-router.post('/change-password', authenticateJWT, authController.changePassword);
 
 // Upload avatar
 router.put('/me/avatar', authenticateJWT, avatarUpload.single('avatar'), authController.uploadAvatar);
-router.put('/avatar', authenticateJWT, avatarUpload.single('avatar'), authController.uploadAvatar);
-router.post('/avatar', authenticateJWT, avatarUpload.single('avatar'), authController.uploadAvatar);
 
 // eKYC Upload (Stored in private_uploads/ekyc, blocked from public static HTTP access)
 router.post(
   '/ekyc',
-  authenticateJWT,
-  ekycLimiter,
-  ekycUpload.fields([
-    { name: 'idCardFront', maxCount: 1 },
-    { name: 'idCardBack', maxCount: 1 },
-    { name: 'drivingLicense', maxCount: 1 },
-  ]),
-  authController.uploadEkyc
-);
-router.post(
-  '/me/ekyc',
   authenticateJWT,
   ekycLimiter,
   ekycUpload.fields([

@@ -9,6 +9,9 @@ import { Booking } from '../models/Booking';
 import { BookingReminder } from '../models/BookingReminder';
 import { AuditLog } from '../models/AuditLog';
 import { Notification } from '../models/Notification';
+import { Payment } from '../models/Payment';
+import { Conversation } from '../models/Conversation';
+import { Message } from '../models/Message';
 
 export const setupTestEnvironment = async (): Promise<void> => {
   await connectDatabase();
@@ -18,6 +21,9 @@ export const setupTestEnvironment = async (): Promise<void> => {
   await BookingReminder.deleteMany({});
   await AuditLog.deleteMany({});
   await Notification.deleteMany({});
+  await Payment.deleteMany({});
+  await Conversation.deleteMany({});
+  await Message.deleteMany({});
 
   // Find or create category
   let cat = await Category.findOne({ slug: 'xe-tay-ga' });
@@ -63,8 +69,32 @@ export const setupTestEnvironment = async (): Promise<void> => {
     });
   }
 
+  const adminPass = await bcrypt.hash('Admin@123456', 10);
   const staffPass = await bcrypt.hash('Staff@123456', 10);
   const customerPass = await bcrypt.hash('Customer@123456', 10);
+
+  // Find or create admin
+  let admin = await User.findOne({ username: 'admin' });
+  if (!admin) {
+    admin = await User.create({
+      username: 'admin',
+      email: 'admin@motorent.vn',
+      passwordHash: adminPass,
+      firstName: 'Quản trị',
+      lastName: 'Hệ Thống',
+      phoneNumber: '0901888999',
+      roles: 'SystemAdmin',
+      status: 'Active',
+      identityStatus: 'Verified',
+      tokenVersion: 0,
+      isEmailVerified: true,
+    });
+  } else {
+    admin.passwordHash = adminPass;
+    admin.status = 'Active';
+    admin.roles = 'SystemAdmin';
+    await admin.save();
+  }
 
   // Find or create staff_dad
   let staffDad = await User.findOne({ username: 'staff_dad' });

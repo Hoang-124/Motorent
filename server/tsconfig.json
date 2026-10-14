@@ -6,6 +6,7 @@
     "rootDir": "./src",
     "noEmit": true,
     "strict": true,
+    "noImplicitAny": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true

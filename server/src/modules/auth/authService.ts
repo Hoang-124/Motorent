@@ -6,6 +6,7 @@ import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { User, IUser } from '../../models/User';
 import { AuditLog } from '../../models/AuditLog';
+import { Notification } from '../../models/Notification';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer';
 import { env } from '../../config/env';
 import { AppError } from '../../core/errorHandler';
@@ -114,7 +115,7 @@ export const register = async (data: {
   // Generate 6-digit OTP code using crypto.randomInt
   const verificationOtp = crypto.randomInt(100000, 1000000).toString();
   const hashedOtp = hashToken(verificationOtp);
-  const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+  const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry for link token
 
   const newUser = await User.create({
     username: normalizedUsername,
@@ -290,7 +291,7 @@ export const verifyEmail = async (token: string, email?: string) => {
   }
 
   if (user.emailVerificationExpires < new Date()) {
-    throw new AppError(400, 'Liên kết xác thực đã hết hạn (15 phút). Vui lòng yêu cầu gửi lại mã mới.');
+    throw new AppError(410, 'Liên kết xác thực đã hết hạn (24 giờ). Vui lòng yêu cầu gửi lại mã xác thực mới qua chức năng gửi lại mã (resend-otp).');
   }
 
   const isMatch = timingSafeEqualHashes(user.emailVerificationToken, hashedInput);
@@ -727,8 +728,20 @@ export const submitEkyc = async (
     throw new AppError(400, 'Vui lòng tải lên ít nhất một ảnh giấy tờ tùy thân (CCCD hoặc GPLX) để tiếp tục.');
   }
 
-  // Update private files and protected streaming endpoints
+  // Enforce upload permission: Only allowed if Unverified or Rejected
+  if (user.identityStatus === 'Pending') {
+    throw new AppError(400, 'Hồ sơ eKYC của bạn đang trong quá trình chờ xét duyệt. Vui lòng đợi kết quả kiểm tra.');
+  }
+  if (user.identityStatus === 'Verified') {
+    throw new AppError(400, 'Tài khoản của bạn đã hoàn tất xác thực eKYC. Không thể tải lại trừ khi bị từ chối.');
+  }
+
+  // Update private files and delete replaced old files
   if (data.idCardFrontFile) {
+    if (user.idCardFrontFile && user.idCardFrontFile !== data.idCardFrontFile) {
+      const oldPath = path.join(privateEkycDir, path.basename(user.idCardFrontFile));
+      fs.promises.unlink(oldPath).catch(() => {});
+    }
     user.idCardFrontFile = data.idCardFrontFile;
     user.idCardFrontUrl = `/api/auth/ekyc/document/me/idCardFront`;
   } else if (data.idCardFrontUrl) {
@@ -736,6 +749,10 @@ export const submitEkyc = async (
   }
 
   if (data.idCardBackFile) {
+    if (user.idCardBackFile && user.idCardBackFile !== data.idCardBackFile) {
+      const oldPath = path.join(privateEkycDir, path.basename(user.idCardBackFile));
+      fs.promises.unlink(oldPath).catch(() => {});
+    }
     user.idCardBackFile = data.idCardBackFile;
     user.idCardBackUrl = `/api/auth/ekyc/document/me/idCardBack`;
   } else if (data.idCardBackUrl) {
@@ -743,6 +760,10 @@ export const submitEkyc = async (
   }
 
   if (data.drivingLicenseFile) {
+    if (user.drivingLicenseFile && user.drivingLicenseFile !== data.drivingLicenseFile) {
+      const oldPath = path.join(privateEkycDir, path.basename(user.drivingLicenseFile));
+      fs.promises.unlink(oldPath).catch(() => {});
+    }
     user.drivingLicenseFile = data.drivingLicenseFile;
     user.drivingLicenseUrl = `/api/auth/ekyc/document/me/drivingLicense`;
   } else if (data.drivingLicenseUrl) {
@@ -759,6 +780,7 @@ export const submitEkyc = async (
   }
 
   user.identityStatus = 'Pending';
+  user.ekycRejectionReason = '';
   await user.save();
 
   AuditLog.create({
@@ -859,7 +881,24 @@ export const reviewEkyc = async (
   }
 
   targetUser.identityStatus = decision.status;
+  if (decision.status === 'Rejected') {
+    targetUser.ekycRejectionReason = decision.note || 'Giấy tờ tùy thân không đạt yêu cầu.';
+  } else {
+    targetUser.ekycRejectionReason = '';
+  }
   await targetUser.save();
+
+  // Create notification for customer
+  await Notification.create({
+    userId: targetUser._id,
+    title: decision.status === 'Verified' ? 'Xác thực eKYC thành công' : 'Yêu cầu cập nhật hồ sơ eKYC',
+    body:
+      decision.status === 'Verified'
+        ? 'Hồ sơ định danh eKYC của bạn đã được kiểm duyệt và chấp thuận. Bạn đã có thể thuê xe ngay bây giờ!'
+        : `Hồ sơ eKYC của bạn bị từ chối với lý do: ${decision.note || 'Ảnh chụp không rõ ràng hoặc thông tin không khớp'}. Vui lòng tải lại hồ sơ.`,
+    type: 'SYSTEM',
+    isRead: false,
+  }).catch((err) => console.error('[NOTIFICATION ERROR] Failed to send eKYC review notification:', err));
 
   await AuditLog.create({
     userId: reviewerId,

@@ -13,10 +13,14 @@ import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
 import { User } from './models/User';
 import { Booking } from './models/Booking';
 import { Conversation } from './models/Conversation';
+import * as chatService from './modules/chat/chatService';
 import apiRouter from './routes';
 
 export const app = express();
 export const server = http.createServer(app);
+
+// In-memory socket rate limiter tracker (10 msg / 10s per socket)
+const socketMessageTimestamps = new Map<string, number[]>();
 
 // CORS origin configuration
 const allowedOrigins = [env.CLIENT_URL, 'http://localhost:5173', 'http://127.0.0.1:5173'];
@@ -145,7 +149,62 @@ io.on('connection', (socket) => {
     socket.leave(`conversation:${conversationId}`);
   });
 
+  // Socket rate limiter map per connection: 10 msg / 10s
+  socket.on(
+    'chat:send',
+    async (
+      data: { conversationId: string; content: string; clientMsgId?: string },
+      ack?: (res: { success: boolean; messageId?: unknown; clientMsgId?: string; error?: string }) => void
+    ) => {
+      if (!user) {
+        if (ack) ack({ success: false, error: 'Chưa xác thực người dùng.' });
+        return;
+      }
+
+      const now = Date.now();
+      const timestamps = (socketMessageTimestamps.get(socket.id) || []).filter((t) => now - t < 10000);
+      if (timestamps.length >= 10) {
+        if (ack) ack({ success: false, error: 'Bạn đang gửi tin nhắn quá nhanh. Vui lòng chậm lại (tối đa 10 tin/10 giây).' });
+        return;
+      }
+      timestamps.push(now);
+      socketMessageTimestamps.set(socket.id, timestamps);
+
+      try {
+        const message = await chatService.sendMessage(
+          data.conversationId,
+          user._id.toString(),
+          data.content,
+          data.clientMsgId
+        );
+        if (ack) ack({ success: true, messageId: message._id, clientMsgId: data.clientMsgId });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Không thể gửi tin nhắn';
+        if (ack) ack({ success: false, error: msg });
+      }
+    }
+  );
+
+  socket.on('chat:typing', (data: { conversationId: string; isTyping: boolean }) => {
+    if (!user || !data?.conversationId) return;
+    socket.to(`conversation:${data.conversationId}`).emit('chat:typing', {
+      userId: user._id.toString(),
+      username: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+      isTyping: Boolean(data.isTyping),
+    });
+  });
+
+  socket.on('chat:read', async (data: { conversationId: string }) => {
+    if (!user || !data?.conversationId) return;
+    try {
+      await chatService.markMessagesAsRead(data.conversationId, user._id.toString());
+    } catch {
+      // Ignore read receipt error
+    }
+  });
+
   socket.on('disconnect', () => {
+    socketMessageTimestamps.delete(socket.id);
     if (env.NODE_ENV === 'development') {
       console.log(`[SOCKET] Disconnected: ${socket.id}`);
     }

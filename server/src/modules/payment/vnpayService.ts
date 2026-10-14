@@ -1,9 +1,11 @@
 import crypto from 'crypto';
 import { Booking, IBooking } from '../../models/Booking';
+import { Payment } from '../../models/Payment';
 import { Notification } from '../../models/Notification';
 import { AuditLog } from '../../models/AuditLog';
 import { AppError } from '../../core/errorHandler';
 import { env } from '../../config/env';
+import { emitBookingStatus } from '../booking/bookingEvents';
 
 export type VnpParams = Record<string, string | number | undefined>;
 
@@ -287,6 +289,17 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
         paidAmount: expectedAmount,
       });
 
+      // Record transaction row in Payment collection
+      await Payment.create({
+        bookingId: booking._id,
+        txnRef: String(txnRef),
+        vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+        amount: expectedAmount,
+        type: booking.paymentType === 'Full100' ? 'FULL' : 'DEPOSIT',
+        status: 'SUCCESS',
+        rawIpn: queryParams,
+      }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+
       await AuditLog.create({
         userId: booking.userId,
         action: 'VNPAY_PAID_AFTER_CANCEL_REFUND_NEEDED',
@@ -336,6 +349,20 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
       return { RspCode: '02', Message: 'Order already confirmed' };
     }
 
+    // Record transaction row in Payment collection
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: String(txnRef),
+      vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+      amount: expectedAmount,
+      type: isFullPay ? 'FULL' : 'DEPOSIT',
+      status: 'SUCCESS',
+      rawIpn: queryParams,
+    }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+
+    // Emit real-time status update to socket rooms (UC-37)
+    emitBookingStatus(updatedBooking);
+
     // Notify user
     await Notification.create({
       userId: booking.userId,
@@ -367,6 +394,16 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
     return { RspCode: '00', Message: 'Confirm Success' };
   } else {
     // Payment Failed or Cancelled by customer on gateway
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: String(txnRef),
+      vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+      amount: expectedAmount,
+      type: booking.paymentType === 'Full100' ? 'FULL' : 'DEPOSIT',
+      status: 'FAILED',
+      rawIpn: queryParams,
+    }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+
     await AuditLog.create({
       userId: booking.userId,
       action: 'VNPAY_PAYMENT_FAILED',

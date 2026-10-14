@@ -96,7 +96,10 @@ export const verifyEmail = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const token = typeof req.query.token === 'string' ? req.query.token : req.body?.token;
+    const token =
+      (typeof req.params.token === 'string' ? req.params.token : undefined) ||
+      (typeof req.query.token === 'string' ? req.query.token : undefined) ||
+      req.body?.token;
     const email = typeof req.query.email === 'string' ? req.query.email : req.body?.email;
 
     if (!token) {

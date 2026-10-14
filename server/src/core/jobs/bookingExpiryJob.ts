@@ -3,6 +3,7 @@ import { Booking } from '../../models/Booking';
 import { Discount } from '../../models/Discount';
 import { BookingReminder } from '../../models/BookingReminder';
 import { AuditLog } from '../../models/AuditLog';
+import { emitBookingStatus } from '../../modules/booking/bookingEvents';
 
 let isJobRunning = false;
 let cronTask: cron.ScheduledTask | null = null;
@@ -66,6 +67,18 @@ export const runBookingExpirySweep = async (): Promise<number> => {
       },
       timestamp: new Date(),
     }).catch(() => {});
+
+    // Emit real-time status update to socket rooms (UC-37)
+    emitBookingStatus({
+      _id: b._id,
+      bookingCode: b.bookingCode,
+      status: 'Cancelled',
+      userId: b.userId,
+      isPaid: false,
+      depositPaid: false,
+      remainingAmount: 0,
+      updatedAt: new Date(),
+    } as unknown as import('../../models/Booking').IBooking);
   }
 
   return updateResult.modifiedCount;
