@@ -5,48 +5,41 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: {
+        copper: {
           50: '#fff7ed',
           100: '#ffedd5',
           200: '#fed7aa',
           300: '#fdba74',
           400: '#fb923c',
-          500: '#f97316', // Core KTM / Moto Blaze Orange
-          600: '#ea580c',
-          700: '#c2410c',
-          800: '#9a3412',
-          900: '#7c2d12',
-          950: '#431407',
+          500: '#e28743',
+          600: '#d97706',
+          700: '#b45309',
+          800: '#92400e',
+          900: '#78350f',
+          950: '#451a03',
         },
-        moto: {
-          flame: '#ff5500',
-          amber: '#f59e0b',
-          sun: '#fbbf24',
-          cyan: '#06b6d4',
+        twilight: {
+          abyss: '#070A11',
+          card: '#0D131F',
+          surface: '#121A2A',
+          elevated: '#172237',
+          border: 'rgba(255, 255, 255, 0.08)',
+          glow: 'rgba(226, 135, 67, 0.15)',
         },
-        asphalt: {
-          950: '#070B12',
-          900: '#0B0F17', // Main deep road asphalt
-          850: '#0F1624',
-          800: '#141D2D', // Card surface
-          750: '#1A2438', // Card hover
-          700: '#222E45', // Border & divider
+        ocean: {
+          deep: '#060913',
+          mist: '#38BDF8',
+          cyan: '#0EA5E9',
         },
-        dark: {
-          base: '#0B0F17',
-          card: '#111827',
-          cardHover: '#172236',
-          border: '#233048',
-          input: '#0F1726',
-        }
       },
       fontFamily: {
-        sans: ['"Be Vietnam Pro"', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Be Vietnam Pro"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'brand-glow': '0 0 25px -5px rgba(249, 115, 22, 0.35)',
-        'moto-glow': '0 0 35px -5px rgba(255, 85, 0, 0.45)',
-        'card-soft': '0 4px 20px -2px rgba(0, 0, 0, 0.25)',
+        'copper-glow': '0 0 35px -5px rgba(226, 135, 67, 0.3)',
+        'copper-soft': '0 10px 30px -10px rgba(226, 135, 67, 0.25)',
+        'ocean-mist': '0 0 30px -5px rgba(56, 189, 248, 0.2)',
+        'gallery-card': '0 20px 40px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
       }
     },
   },

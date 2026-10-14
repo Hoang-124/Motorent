@@ -15,7 +15,7 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
   if (isLoading) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
       </div>
     );
   }
@@ -26,7 +26,7 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
 
   if (!roles.includes(user.roles)) {
     return (
-      <div className="max-w-md mx-auto my-16 p-8 bg-[#111827] border border-red-500/30 rounded-3xl text-center shadow-2xl shadow-black/50">
+      <div className="max-w-md mx-auto my-16 p-8 bg-[#0D131F] border border-red-500/30 rounded-3xl text-center shadow-2xl shadow-black/50">
         <div className="w-12 h-12 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-red-500/20">
           <ShieldAlert className="w-6 h-6" />
         </div>
@@ -36,7 +36,7 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
         </p>
         <a
           href="/"
-          className="inline-block px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-orange-500/25"
+          className="inline-block px-5 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl text-xs font-bold transition-colors"
         >
           Trở về Trang chủ
         </a>

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  MapPin, 
-  PhoneCall, 
-  Clock, 
-  ShieldCheck, 
-  ArrowRight, 
+import {
+  MapPin,
+  PhoneCall,
+  Clock,
+  ShieldCheck,
+  ArrowRight,
   Navigation,
   Sparkles,
   Building2,
@@ -46,12 +46,12 @@ export const BranchesPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-100 py-10">
+    <div className="min-h-screen bg-[#070A11] text-slate-100 py-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="max-w-3xl mb-10">
-          <div className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-orange-500/15 text-orange-300 border border-orange-500/30 mb-3">
-            <Building2 className="w-3.5 h-3.5 text-orange-400" />
+          <div className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-500/15 text-amber-200 border border-amber-500/30 mb-3">
+            <Building2 className="w-3.5 h-3.5 text-amber-400" />
             <span>Mạng lưới {branches.length > 0 ? `${branches.length} cơ sở tự doanh` : 'chuỗi cơ sở'} tại TP. Đà Nẵng</span>
           </div>
           <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
@@ -69,15 +69,15 @@ export const BranchesPage: React.FC = () => {
             return (
               <div
                 key={branch._id}
-                className="bg-[#111827] rounded-[2rem] border border-white/10 hover:border-orange-500/50 shadow-xl transition-all p-7 flex flex-col justify-between"
+                className="bg-[#0D131F] rounded-[2rem] border border-white/10 hover:border-amber-500/50 shadow-xl transition-all p-7 flex flex-col justify-between"
               >
                 <div>
                   {/* Top Branch ID chip */}
                   <div className="flex items-center justify-between mb-4">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-300 border border-orange-500/30">
+                    <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-200 border border-amber-500/30">
                       Cơ sở 0{idx + 1} • {branch.code}
                     </span>
-                    <span className="text-[11px] font-bold text-orange-400 bg-orange-950/60 border border-orange-500/30 px-2.5 py-0.5 rounded-full">
+                    <span className="text-[11px] font-bold text-amber-400 bg-amber-950/60 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
                       {count > 0 ? `${count} xe tại trạm` : 'Đang tiếp nhận'}
                     </span>
                   </div>
@@ -89,18 +89,18 @@ export const BranchesPage: React.FC = () => {
                   {/* Address */}
                   <div className="space-y-3 text-xs text-slate-300">
                     <div className="flex items-start space-x-2">
-                      <MapPin className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
+                      <MapPin className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                       <span className="leading-relaxed">{branch.address}</span>
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <Clock className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                      <Clock className="w-4 h-4 text-amber-400 flex-shrink-0" />
                       <span>Mở cửa: {branch.hours_open} - {branch.hours_close} (Hàng ngày kể cả Lễ)</span>
                     </div>
 
                     <div className="flex items-center space-x-2">
-                      <PhoneCall className="w-4 h-4 text-orange-400 flex-shrink-0" />
-                      <a href={`tel:${branch.phone}`} className="font-bold text-white hover:text-orange-400 transition-colors">
+                      <PhoneCall className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                      <a href={`tel:${branch.phone}`} className="font-bold text-white hover:text-amber-400 transition-colors">
                         {branch.phone}
                       </a>
                     </div>
@@ -109,19 +109,19 @@ export const BranchesPage: React.FC = () => {
                   {/* Perks at branch */}
                   <div className="mt-5 p-3.5 bg-white/[0.03] rounded-2xl border border-white/5 text-xs text-slate-300 space-y-1.5">
                     <p className="font-bold text-white flex items-center">
-                      <Sparkles className="w-3.5 h-3.5 text-orange-400 mr-1.5" />
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 mr-1.5" />
                       Tiện ích sẵn có tại trạm:
                     </p>
                     <p className="flex items-center space-x-1.5 text-[11px]">
-                      <CheckCircle2 className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                      <CheckCircle2 className="w-3 h-3 text-amber-400 flex-shrink-0" />
                       <span>Khu vực chờ máy lạnh & nước khoáng miễn phí</span>
                     </p>
                     <p className="flex items-center space-x-1.5 text-[11px]">
-                      <CheckCircle2 className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                      <CheckCircle2 className="w-3 h-3 text-amber-400 flex-shrink-0" />
                       <span>Kỹ thuật viên đối chiếu eKYC bàn giao xe trong 3 phút</span>
                     </p>
                     <p className="flex items-center space-x-1.5 text-[11px]">
-                      <CheckCircle2 className="w-3 h-3 text-orange-400 flex-shrink-0" />
+                      <CheckCircle2 className="w-3 h-3 text-amber-400 flex-shrink-0" />
                       <span>Hỗ trợ giữ hành lý cồng kềnh miễn phí cho khách</span>
                     </p>
                   </div>
@@ -139,7 +139,7 @@ export const BranchesPage: React.FC = () => {
 
                   <Link
                     to={`/bikes?pickup=${branch._id}`}
-                    className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-md shadow-orange-500/25 transition-all text-center flex items-center justify-center space-x-1.5 active:scale-95"
+                    className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 shadow-md shadow-orange-500/30 transition-all text-center flex items-center justify-center space-x-1.5 active:scale-95"
                   >
                     <span>Đặt xe tại trạm này</span>
                     <ArrowRight className="w-3.5 h-3.5" />
@@ -151,9 +151,9 @@ export const BranchesPage: React.FC = () => {
         </div>
 
         {/* One-Way Transfer Explainer Banner */}
-        <div className="bg-gradient-to-r from-[#111827] via-[#1f293d] to-[#0d1527] rounded-[2.5rem] p-8 md:p-12 text-white border border-orange-500/30 relative overflow-hidden shadow-2xl">
+        <div className="bg-gradient-to-r from-[#0B1513] via-[#0D1D18] to-[#040C0A] rounded-[2.5rem] p-8 md:p-12 text-white border border-amber-500/30 relative overflow-hidden shadow-2xl">
           <div className="max-w-2xl relative z-10 space-y-3">
-            <span className="px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-400/30 inline-block">
+            <span className="px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-200 border border-amber-500/30 inline-block">
               Chính sách di chuyển linh hoạt
             </span>
             <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
@@ -165,7 +165,7 @@ export const BranchesPage: React.FC = () => {
             <div className="pt-2">
               <Link
                 to="/bikes"
-                className="inline-flex items-center space-x-2 px-6 py-3 rounded-full text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 transition-all shadow-lg shadow-orange-500/25 active:scale-95"
+                className="inline-flex items-center space-x-2 px-6 py-3 rounded-full text-xs font-black text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 transition-all shadow-lg shadow-orange-500/25 active:scale-95"
               >
                 <span>Trải nghiệm dịch vụ ngay</span>
                 <ArrowRight className="w-4 h-4" />

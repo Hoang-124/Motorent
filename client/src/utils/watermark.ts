@@ -80,7 +80,7 @@ export const applyEkycWatermark = async (file: File, options?: WatermarkOptions)
               ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
               ctx.fillText(line1, 0, -fontSize * 0.8);
 
-              ctx.fillStyle = 'rgba(249, 115, 22, 0.95)'; // orange accent for Motorent date
+              ctx.fillStyle = 'rgba(52, 211, 153, 0.95)'; // emerald accent for Motorent date
               ctx.fillText(line2, 0, fontSize * 0.2);
 
               ctx.fillStyle = 'rgba(251, 191, 36, 0.95)'; // amber warning for no-loan clause

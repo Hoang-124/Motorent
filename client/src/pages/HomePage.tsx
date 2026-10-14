@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  ShieldCheck, 
-  MapPin, 
-  Clock, 
-  Sparkles, 
-  CheckCircle2, 
-  ArrowRight, 
-  PhoneCall, 
-  FileCheck2, 
-  Wallet, 
+import {
+  ShieldCheck,
+  MapPin,
+  Clock,
+  Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  PhoneCall,
+  FileCheck2,
+  Wallet,
   ChevronRight,
   AlertCircle,
   RefreshCw,
@@ -89,21 +89,21 @@ export const HomePage: React.FC = () => {
   const heroSpotlightBike = vehicles.find((v) => v.vehicleModel.includes('160') || v.vehicleModel.includes('SH') || v.status === 'Available') || vehicles[0];
 
   return (
-    <div className="min-h-screen bg-[#0B0F17] text-slate-100 antialiased selection:bg-orange-500 selection:text-white">
-      
+    <div className="min-h-screen bg-[#070A11] text-slate-100 antialiased selection:bg-amber-600 selection:text-white">
+
       {/* 1. HERO SECTION: GỌN GÀNG, SẮC NÉT, KHÔNG HỞ TRỐNG DƯ THỪA */}
       <section className="relative pt-6 pb-12 md:pt-10 md:pb-16 overflow-hidden">
         {/* Ambient Glows */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[450px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.22),transparent_70%)] pointer-events-none" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[450px] bg-golden-hour-ambient pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          
+
           {/* Real-time Status Pill */}
           <div className="flex justify-center lg:justify-start mb-5">
-            <div className="inline-flex items-center space-x-2.5 px-4 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-orange-300 text-xs sm:text-sm font-bold tracking-wide backdrop-blur-xl shadow-lg">
+            <div className="inline-flex items-center space-x-2.5 px-4 py-1.5 rounded-full bg-white/[0.04] border border-white/10 text-amber-200 text-xs sm:text-sm font-bold tracking-wide backdrop-blur-xl shadow-lg">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-400" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400" />
               </span>
               <span>ĐÀ NẴNG: {vehicles.length > 0 ? `${vehicles.length} XE CHÍNH HÃNG SẴN SÀNG` : 'HỆ THỐNG SẴN SÀNG'} • GA T2 & BIỂN MỸ KHÊ</span>
             </div>
@@ -111,34 +111,34 @@ export const HomePage: React.FC = () => {
 
           {/* 2-Column Hero */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            
+
             {/* Left Column */}
             <div className="lg:col-span-7 space-y-4 text-center lg:text-left">
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight text-white leading-tight">
                 Đà Nẵng trên từng vòng tua.
                 <br />
-                <span className="bg-gradient-to-r from-orange-400 via-amber-300 to-yellow-200 bg-clip-text text-transparent">
-                  Thuê xe tự lái thế hệ mới.
+                <span className="bg-gradient-to-r from-amber-200 via-orange-300 to-amber-400 bg-clip-text text-transparent">
+                  Khởi đầu hải trình tự do bên vịnh biển.
                 </span>
               </h1>
 
               <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto lg:mx-0 font-normal leading-relaxed">
-                Đội xe chính hãng đời mới 2023 - 2024. Cọc 30% khóa đúng biển số riêng trên hệ thống. 
+                Đội xe chính hãng đời mới 2023 - 2024. Cọc 30% khóa đúng biển số riêng trên hệ thống.
                 Hợp đồng điện tử eKYC <strong>100% không giữ CCCD gốc</strong>. Nhận xe tại Sân bay Đà Nẵng, trả xe tự do tại Bãi biển Mỹ Khê phụ phí 0đ.
               </p>
 
               {/* Three Authentic Value Badges (Dữ liệu thật 100%) */}
               <div className="pt-1 flex flex-wrap justify-center lg:justify-start items-center gap-2.5 text-xs sm:text-sm font-bold text-slate-200">
                 <span className="flex items-center space-x-2 bg-white/[0.04] border border-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-sm">
-                  <CheckCircle2 className="w-4 h-4 text-orange-400" />
+                  <CheckCircle2 className="w-4 h-4 text-amber-400" />
                   <span>100% Xe chính hãng đời 2023 - 2024</span>
                 </span>
                 <span className="flex items-center space-x-2 bg-white/[0.04] border border-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-sm">
-                  <FileCheck2 className="w-4 h-4 text-orange-400" />
+                  <FileCheck2 className="w-4 h-4 text-amber-400" />
                   <span>Không giữ CCCD bản gốc</span>
                 </span>
                 <span className="flex items-center space-x-2 bg-white/[0.04] border border-white/10 px-3.5 py-1.5 rounded-full backdrop-blur-sm">
-                  <MapPin className="w-4 h-4 text-amber-400" />
+                  <MapPin className="w-4 h-4 text-sky-400" />
                   <span>Giao xe Sân Bay Quốc Tế 0đ</span>
                 </span>
               </div>
@@ -147,13 +147,13 @@ export const HomePage: React.FC = () => {
             {/* Right Column: Hero Spotlight Bike */}
             {heroSpotlightBike && (
               <div className="lg:col-span-5 flex justify-center">
-                <div className="w-full max-w-md bg-[#111827] rounded-3xl border border-white/15 p-5 shadow-2xl space-y-4">
+                <div className="w-full max-w-md bg-[#0D131F] rounded-3xl border border-white/15 p-5 shadow-2xl space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-orange-500/20 text-orange-300 border border-orange-500/30">
+                    <span className="px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-500/15 text-amber-200 border border-amber-500/30">
                       Mẫu xe nổi bật hôm nay
                     </span>
                     <span className="text-xs text-slate-300 font-semibold flex items-center">
-                      <MapPin className="w-3.5 h-3.5 text-orange-400 mr-1" />
+                      <MapPin className="w-3.5 h-3.5 text-amber-400 mr-1" />
                       {typeof heroSpotlightBike.branchId === 'object' ? heroSpotlightBike.branchId.name : 'Chi nhánh Sân Bay'}
                     </span>
                   </div>
@@ -180,7 +180,7 @@ export const HomePage: React.FC = () => {
 
                     <button
                       onClick={() => handleBookVehicle(heroSpotlightBike)}
-                      className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-xs sm:text-sm transition-all active:scale-95 shadow-md shadow-orange-500/30 cursor-pointer"
+                      className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-xs sm:text-sm transition-all active:scale-95 shadow-md shadow-orange-500/30 cursor-pointer"
                     >
                       <span>Đặt xe này ngay</span>
                       <ArrowRight className="w-4 h-4" />
@@ -224,8 +224,8 @@ export const HomePage: React.FC = () => {
       {/* 2. THE MOTORENT STANDARD — 4 CAM KẾT VĂN MINH (SPACING TIGHTENED) */}
       <section className="py-12 md:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
         <div className="max-w-3xl mb-8">
-          <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-orange-400 bg-orange-950/60 border border-orange-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
-            <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+          <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
             <span>Tiêu chuẩn Motorent</span>
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
@@ -239,9 +239,9 @@ export const HomePage: React.FC = () => {
         {/* Bento Grid */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
           {/* Bento 1: 7 Cols */}
-          <div className="md:col-span-7 p-6 sm:p-8 rounded-[2rem] bg-[#111827] border border-white/10 hover:border-orange-500/50 shadow-xl transition-all flex flex-col justify-between">
+          <div className="md:col-span-7 p-6 sm:p-8 rounded-[2rem] bg-[#0D131F] border border-white/10 hover:border-amber-500/50 shadow-xl transition-all flex flex-col justify-between">
             <div className="space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-orange-500/15 border border-orange-500/30 text-orange-400 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center">
                 <FileCheck2 className="w-6 h-6" />
               </div>
               <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
@@ -252,22 +252,22 @@ export const HomePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-bold text-orange-300">
+            <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center gap-2.5 text-xs sm:text-sm font-bold text-amber-200">
               <span className="flex items-center space-x-1.5 bg-white/[0.04] px-3 py-1.5 rounded-xl border border-white/5">
-                <Check className="w-3.5 h-3.5 text-orange-400" />
+                <Check className="w-3.5 h-3.5 text-amber-400" />
                 <span>Bảo mật dữ liệu cá nhân</span>
               </span>
               <span className="flex items-center space-x-1.5 bg-white/[0.04] px-3 py-1.5 rounded-xl border border-white/5">
-                <Check className="w-3.5 h-3.5 text-orange-400" />
+                <Check className="w-3.5 h-3.5 text-amber-400" />
                 <span>Hợp đồng số hóa SMS/Email</span>
               </span>
             </div>
           </div>
 
           {/* Bento 2: 5 Cols */}
-          <div className="md:col-span-5 p-6 sm:p-8 rounded-[2rem] bg-gradient-to-br from-[#111827] to-[#090E17] border border-white/10 hover:border-orange-500/50 text-white flex flex-col justify-between shadow-xl">
+          <div className="md:col-span-5 p-6 sm:p-8 rounded-[2rem] bg-gradient-to-br from-[#0D131F] to-[#080D17] border border-white/10 hover:border-amber-500/50 text-white flex flex-col justify-between shadow-xl">
             <div className="space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-orange-500/15 text-orange-400 border border-orange-500/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-sky-500/15 text-sky-300 border border-sky-500/30 flex items-center justify-center">
                 <MapPin className="w-6 h-6" />
               </div>
               <h3 className="text-xl font-black text-white tracking-tight">
@@ -278,15 +278,15 @@ export const HomePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="mt-6 pt-5 border-t border-white/10 flex items-center justify-between text-xs sm:text-sm text-orange-300">
-              <span className="font-semibold text-orange-300">Sân Bay ⇆ Bãi Biển Mỹ Khê</span>
-              <span className="font-bold text-white px-3 py-1 rounded-full bg-orange-500/20 border border-orange-500/30">0đ phụ phí</span>
+            <div className="mt-6 pt-5 border-t border-white/10 flex items-center justify-between text-xs sm:text-sm text-sky-200">
+              <span className="font-semibold text-sky-200">Sân Bay ⇆ Bãi Biển Mỹ Khê</span>
+              <span className="font-bold text-white px-3 py-1 rounded-full bg-sky-500/20 border border-sky-500/30">0đ phụ phí</span>
             </div>
 
           </div>
 
           {/* Bento 3: 6 Cols */}
-          <div className="md:col-span-6 p-6 sm:p-8 rounded-[2rem] bg-[#111827] border border-white/10 hover:border-orange-500/50 shadow-xl transition-all flex flex-col justify-between">
+          <div className="md:col-span-6 p-6 sm:p-8 rounded-[2rem] bg-[#0D131F] border border-white/10 hover:border-amber-500/50 shadow-xl transition-all flex flex-col justify-between">
             <div className="space-y-3">
               <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center">
                 <Wallet className="w-6 h-6" />
@@ -300,15 +300,15 @@ export const HomePage: React.FC = () => {
             </div>
 
             <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs sm:text-sm">
-              <span className="font-bold text-orange-400">70% còn lại tất toán khi nhận bàn giao xe</span>
+              <span className="font-bold text-amber-300">70% còn lại tất toán khi nhận bàn giao xe</span>
               <span className="font-semibold text-slate-300">Hoàn cọc 24h</span>
             </div>
           </div>
 
           {/* Bento 4: 6 Cols */}
-          <div className="md:col-span-6 p-6 sm:p-8 rounded-[2rem] bg-[#111827] border border-white/10 hover:border-orange-500/50 shadow-xl transition-all flex flex-col justify-between">
+          <div className="md:col-span-6 p-6 sm:p-8 rounded-[2rem] bg-[#0D131F] border border-white/10 hover:border-amber-500/50 shadow-xl transition-all flex flex-col justify-between">
             <div className="space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-orange-500/15 text-orange-400 border border-orange-500/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <h3 className="text-xl font-black text-white tracking-tight">
@@ -319,13 +319,13 @@ export const HomePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="mt-6 pt-4 border-t border-white/10 flex items-center space-x-4 text-xs sm:text-sm text-orange-300 font-bold">
+            <div className="mt-6 pt-4 border-t border-white/10 flex items-center space-x-4 text-xs sm:text-sm text-amber-200 font-bold">
               <span className="flex items-center">
-                <CheckCircle2 className="w-4 h-4 mr-1 text-orange-400" />
+                <CheckCircle2 className="w-4 h-4 mr-1 text-amber-400" />
                 Mũ 3/4 UV & Áo mưa
               </span>
               <span className="flex items-center">
-                <CheckCircle2 className="w-4 h-4 mr-1 text-orange-400" />
+                <CheckCircle2 className="w-4 h-4 mr-1 text-amber-400" />
                 Giá nhôm OIS & Cứu hộ 24/7
               </span>
             </div>
@@ -337,8 +337,8 @@ export const HomePage: React.FC = () => {
       <section className="py-12 md:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
           <div>
-            <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-orange-400 bg-orange-950/60 border border-orange-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
-              <Gauge className="w-3.5 h-3.5 text-orange-400" />
+            <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
+              <Gauge className="w-3.5 h-3.5 text-amber-400" />
               <span>Dòng xe được yêu thích nhất</span>
             </span>
             <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
@@ -348,10 +348,10 @@ export const HomePage: React.FC = () => {
 
           <Link
             to="/bikes"
-            className="group inline-flex items-center space-x-2 pl-5 pr-2 py-2 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-xs sm:text-sm transition-all active:scale-95 shadow-md shadow-orange-500/30 self-start md:self-auto"
+            className="group inline-flex items-center space-x-2 pl-5 pr-2 py-2 rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-xs sm:text-sm transition-all active:scale-95 shadow-md shadow-orange-500/30 self-start md:self-auto"
           >
             <span>Xem toàn bộ {vehicles.length > 0 ? `${vehicles.length} xe trong đội xe` : 'đội xe'}</span>
-            <div className="w-7 h-7 rounded-full bg-black/30 text-white flex items-center justify-center transition-transform group-hover:translate-x-0.5">
+            <div className="w-7 h-7 rounded-full bg-black/30 text-amber-200 flex items-center justify-center transition-transform group-hover:translate-x-0.5">
               <ArrowRight className="w-3.5 h-3.5" />
             </div>
           </Link>
@@ -361,11 +361,10 @@ export const HomePage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 mb-8">
           <button
             onClick={() => setSelectedCategoryTab('all')}
-            className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-              selectedCategoryTab === 'all'
-                ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25'
+            className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${selectedCategoryTab === 'all'
+                ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/30'
                 : 'bg-white/[0.04] text-slate-300 border border-white/10 hover:bg-white/[0.08]'
-            }`}
+              }`}
           >
             Tất cả mẫu ({vehicles.length})
           </button>
@@ -379,11 +378,10 @@ export const HomePage: React.FC = () => {
               <button
                 key={cat._id}
                 onClick={() => setSelectedCategoryTab(cat.slug)}
-                className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${
-                  selectedCategoryTab === cat.slug
-                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/25'
+                className={`px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer ${selectedCategoryTab === cat.slug
+                    ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/30'
                     : 'bg-white/[0.04] text-slate-300 border border-white/10 hover:bg-white/[0.08]'
-                }`}
+                  }`}
               >
                 {cat.name} ({count})
               </button>
@@ -417,7 +415,7 @@ export const HomePage: React.FC = () => {
           <div className="mt-10 text-center">
             <Link
               to="/bikes"
-              className="inline-flex items-center space-x-2 px-8 py-3.5 rounded-full bg-white/[0.05] hover:bg-gradient-to-r hover:from-orange-500 hover:to-amber-500 hover:text-white text-white border border-white/15 hover:border-orange-500/50 font-black text-sm transition-all shadow-xl group"
+              className="inline-flex items-center space-x-2 px-8 py-3.5 rounded-full bg-white/[0.05] hover:bg-gradient-to-r hover:from-amber-500 hover:to-orange-500 hover:text-white text-white border border-white/15 hover:border-amber-500 font-black text-sm transition-all shadow-xl group"
             >
               <span>Khám phá toàn bộ {vehicles.length} mẫu xe & bộ lọc chi tiết</span>
               <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
@@ -429,8 +427,8 @@ export const HomePage: React.FC = () => {
       {/* 4. DA NANG SCENIC ROUTES */}
       <section className="py-12 md:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
         <div className="text-center max-w-2xl mx-auto mb-10">
-          <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-orange-400 bg-orange-950/60 border border-orange-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
-            <Compass className="w-3.5 h-3.5 text-orange-400" />
+          <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
+            <Compass className="w-3.5 h-3.5 text-amber-400" />
             <span>Cẩm nang hải trình</span>
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
@@ -443,11 +441,11 @@ export const HomePage: React.FC = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Route 1: Hải Vân Pass */}
-          <div className="p-6 sm:p-7 rounded-[2rem] bg-[#111827] border border-white/10 hover:border-orange-500/50 shadow-xl transition-all flex flex-col justify-between">
+          <div className="p-6 sm:p-7 rounded-[2rem] bg-[#0D131F] border border-white/10 hover:border-amber-500/50 shadow-xl transition-all flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
                 <span>Cung đường đèo dốc</span>
-                <span className="px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 text-xs font-bold">21 km • 8-10% dốc</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-bold">21 km • 8-10% dốc</span>
               </div>
               <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
                 Đèo Hải Vân & Vịnh Lăng Cô
@@ -456,18 +454,18 @@ export const HomePage: React.FC = () => {
                 Mệnh danh "Thiên hạ đệ nhất hùng quan". Chinh phục 21km đèo uốn lượn ôm trọn bờ biển, săn mây tại Hải Vân Quan và thưởng thức hải sản tại đầm Lập An.
               </p>
             </div>
-            <div className="mt-6 pt-4 border-t border-white/10 text-xs sm:text-sm text-orange-400 font-bold flex items-center justify-between">
+            <div className="mt-6 pt-4 border-t border-white/10 text-xs sm:text-sm text-amber-400 font-bold flex items-center justify-between">
               <span>Gợi ý: Air Blade 160 hoặc Exciter</span>
               <Navigation className="w-4 h-4" />
             </div>
           </div>
 
           {/* Route 2: Bán đảo Sơn Trà */}
-          <div className="p-6 sm:p-7 rounded-[2rem] bg-[#111827] border border-white/10 hover:border-orange-500/50 shadow-xl transition-all flex flex-col justify-between">
+          <div className="p-6 sm:p-7 rounded-[2rem] bg-[#0D131F] border border-white/10 hover:border-amber-500/50 shadow-xl transition-all flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
                 <span>Rừng nguyên sinh ven biển</span>
-                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-bold">35 km • Cảnh quan đẹp</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-200 border border-amber-500/30 text-xs font-bold">35 km • Cảnh quan đẹp</span>
               </div>
               <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
                 Bán Đảo Sơn Trà & Đỉnh Bàn Cờ
@@ -476,18 +474,18 @@ export const HomePage: React.FC = () => {
                 Cung đường vi vu đón gió đại dương, ngắm chùa Linh Ứng uy nghiêm, cây đa ngàn năm tuổi và cơ hội ngắm nhìn voọc chà vá chân nâu quý hiếm.
               </p>
             </div>
-            <div className="mt-6 pt-4 border-t border-white/10 text-xs sm:text-sm text-orange-400 font-bold flex items-center justify-between">
+            <div className="mt-6 pt-4 border-t border-white/10 text-xs sm:text-sm text-amber-400 font-bold flex items-center justify-between">
               <span>Gợi ý: Dòng xe số hoặc xe ga bánh lớn</span>
               <Navigation className="w-4 h-4" />
             </div>
           </div>
 
           {/* Route 3: Mỹ Khê - Hội An */}
-          <div className="p-6 sm:p-7 rounded-[2rem] bg-[#111827] border border-white/10 hover:border-orange-500/50 shadow-xl transition-all flex flex-col justify-between">
+          <div className="p-6 sm:p-7 rounded-[2rem] bg-[#0D131F] border border-white/10 hover:border-amber-500/50 shadow-xl transition-all flex flex-col justify-between">
             <div className="space-y-3">
               <div className="flex items-center justify-between text-xs text-slate-300 font-semibold">
                 <span>Đường biển thẳng tắp</span>
-                <span className="px-2.5 py-0.5 rounded-full bg-orange-500/15 text-orange-300 border border-orange-500/30 text-xs font-bold">30 km • Cực kỳ êm ái</span>
+                <span className="px-2.5 py-0.5 rounded-full bg-teal-500/15 text-teal-300 border border-teal-500/30 text-xs font-bold">30 km • Cực kỳ êm ái</span>
               </div>
               <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
                 Biển Mỹ Khê — Phố Cổ Hội An
@@ -496,7 +494,7 @@ export const HomePage: React.FC = () => {
                 Đường bờ biển nối liền Đà Nẵng và Quảng Nam. Dễ dàng ghé thăm danh thắng Ngũ Hành Sơn, đón hoàng hôn trên sông Hoài và dạo chơi chợ đêm lồng đèn.
               </p>
             </div>
-            <div className="mt-6 pt-4 border-t border-white/10 text-xs sm:text-sm text-orange-400 font-bold flex items-center justify-between">
+            <div className="mt-6 pt-4 border-t border-white/10 text-xs sm:text-sm text-amber-400 font-bold flex items-center justify-between">
               <span>Gợi ý: Vision, Lead hoặc Grande</span>
               <Navigation className="w-4 h-4" />
             </div>
@@ -507,8 +505,8 @@ export const HomePage: React.FC = () => {
       {/* 5. MẠNG LƯỚI CHI NHÁNH THỰC TẾ (3 TRẠM TẠI ĐÀ NẴNG) */}
       <section className="py-12 md:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
         <div className="text-center max-w-2xl mx-auto mb-10">
-          <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-orange-400 bg-orange-950/60 border border-orange-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
-            <MapPin className="w-3.5 h-3.5 text-orange-400" />
+          <span className="inline-flex items-center space-x-2 text-xs font-bold tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/30 px-3.5 py-1.5 rounded-full mb-2.5">
+            <MapPin className="w-3.5 h-3.5 text-amber-400" />
             <span>Hạ tầng trực thuộc</span>
           </span>
           <h2 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
@@ -523,14 +521,14 @@ export const HomePage: React.FC = () => {
           {branches.map((branch, index) => (
             <div
               key={branch._id}
-              className="bg-[#111827] rounded-[2rem] border border-white/10 p-6 sm:p-7 flex flex-col justify-between hover:border-orange-500/50 transition-colors shadow-xl"
+              className="bg-[#0D131F] rounded-[2rem] border border-white/10 p-6 sm:p-7 flex flex-col justify-between hover:border-amber-500/50 transition-colors shadow-xl"
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-orange-500/15 text-orange-300 border border-orange-500/30">
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/15 text-amber-200 border border-amber-500/30">
                     Trạm cơ sở 0{index + 1}
                   </span>
-                  <span className="text-xs sm:text-sm text-orange-400 font-semibold flex items-center">
+                  <span className="text-xs sm:text-sm text-amber-400 font-semibold flex items-center">
                     <Clock className="w-4 h-4 mr-1" />
                     {branch.hours_open} - {branch.hours_close}
                   </span>
@@ -541,7 +539,7 @@ export const HomePage: React.FC = () => {
                 </h3>
 
                 <p className="text-xs sm:text-sm text-slate-300 mb-3 flex items-start space-x-2 leading-relaxed">
-                  <MapPin className="w-4 h-4 text-orange-400 mt-0.5 flex-shrink-0" />
+                  <MapPin className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                   <span>{branch.address}</span>
                 </p>
 
@@ -553,7 +551,7 @@ export const HomePage: React.FC = () => {
               <div className="pt-4 border-t border-white/10 flex items-center justify-between">
                 <a
                   href={`tel:${branch.phone}`}
-                  className="inline-flex items-center space-x-1.5 text-xs sm:text-sm font-bold text-orange-400 hover:text-orange-300 transition-colors"
+                  className="inline-flex items-center space-x-1.5 text-xs sm:text-sm font-bold text-amber-400 hover:text-amber-200 transition-colors"
                 >
                   <PhoneCall className="w-4 h-4" />
                   <span>{branch.phone}</span>
@@ -574,10 +572,10 @@ export const HomePage: React.FC = () => {
 
       {/* 6. QUY TRÌNH 3 BƯỚC SIÊU TỐC (DẢI BĂNG NGANG TINH GỌN, KHÔNG CHIẾM DỌC) */}
       <section id="procedure" className="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
-        <div className="p-6 sm:p-7 rounded-[2rem] bg-[#111827] border border-white/10">
+        <div className="p-6 sm:p-7 rounded-[2rem] bg-[#0D131F] border border-white/10">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
             <div className="flex items-center space-x-2.5">
-              <div className="w-8 h-8 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
                 <Clock className="w-4 h-4" />
               </div>
               <div>
@@ -590,7 +588,7 @@ export const HomePage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Step 1 */}
             <div className="flex items-start space-x-3 p-3.5 rounded-xl bg-white/[0.02] border border-white/5">
-              <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 text-xs font-black flex items-center justify-center">
+              <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-amber-500/15 text-amber-200 border border-amber-500/30 text-xs font-black flex items-center justify-center">
                 1
               </span>
               <div>
@@ -603,7 +601,7 @@ export const HomePage: React.FC = () => {
 
             {/* Step 2 */}
             <div className="flex items-start space-x-3 p-3.5 rounded-xl bg-white/[0.02] border border-white/5">
-              <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 text-xs font-black flex items-center justify-center">
+              <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-amber-500/15 text-amber-200 border border-amber-500/30 text-xs font-black flex items-center justify-center">
                 2
               </span>
               <div>
@@ -616,7 +614,7 @@ export const HomePage: React.FC = () => {
 
             {/* Step 3 */}
             <div className="flex items-start space-x-3 p-3.5 rounded-xl bg-white/[0.02] border border-white/5">
-              <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 text-xs font-black flex items-center justify-center">
+              <span className="flex-shrink-0 w-6 h-6 rounded-lg bg-amber-500/15 text-amber-200 border border-amber-500/30 text-xs font-black flex items-center justify-center">
                 3
               </span>
               <div>
@@ -632,7 +630,7 @@ export const HomePage: React.FC = () => {
 
       {/* 7. PRE-FOOTER CONVERSION CTA BANNER (LIỀN MẠCH, GỌN GÀNG) */}
       <section className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-6 md:p-8 rounded-[2rem] bg-gradient-to-r from-[#111827] via-[#1f293d] to-[#0d1527] text-white border border-orange-500/30 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+        <div className="p-6 md:p-8 rounded-[2rem] bg-gradient-to-r from-[#0D131F] via-[#151E30] to-[#070A11] text-white border border-amber-500/30 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
           <div className="max-w-xl space-y-1.5 text-center md:text-left">
             <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
               Sẵn sàng cho chuyến du ngoạn Đà Nẵng?
@@ -647,16 +645,16 @@ export const HomePage: React.FC = () => {
               href="tel:02363822101"
               className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full border border-white/20 bg-white/5 hover:bg-white/10 text-white font-bold text-xs sm:text-sm transition-colors"
             >
-              <PhoneCall className="w-4 h-4 text-orange-400" />
+              <PhoneCall className="w-4 h-4 text-amber-400" />
               <span>Hotline 0236.3822.101</span>
             </a>
 
             <Link
               to="/bikes"
-              className="group inline-flex items-center space-x-2 pl-5 pr-2 py-2 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-xs sm:text-sm transition-all active:scale-95 shadow-lg shadow-orange-500/30"
+              className="group inline-flex items-center space-x-2 pl-5 pr-2 py-2 rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-xs sm:text-sm transition-all active:scale-95 shadow-lg shadow-orange-500/30"
             >
               <span>Xem toàn bộ đội xe</span>
-              <div className="w-7 h-7 rounded-full bg-black/30 text-white flex items-center justify-center transition-transform group-hover:translate-x-0.5">
+              <div className="w-7 h-7 rounded-full bg-black/30 text-amber-200 flex items-center justify-center transition-transform group-hover:translate-x-0.5">
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
             </Link>

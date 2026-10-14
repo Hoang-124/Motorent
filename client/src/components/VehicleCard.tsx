@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Fuel, 
-  Gauge, 
-  MapPin, 
+import {
+  Fuel,
+  Gauge,
+  MapPin,
   ArrowRight,
   Zap,
   CheckCircle2,
@@ -36,8 +36,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
   }, [vehicle._id, activeAngle]);
 
   const isAvailable = vehicle.status === 'Available';
-  const branchName = typeof vehicle.branchId === 'object' && vehicle.branchId !== null 
-    ? vehicle.branchId.name 
+  const branchName = typeof vehicle.branchId === 'object' && vehicle.branchId !== null
+    ? vehicle.branchId.name
     : 'Chi nhánh Trung tâm';
 
   // Calculate 30% deposit preview
@@ -53,39 +53,37 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
     navigate(`/booking/${vehicle._id}`);
   };
 
-  const currentImageUrl = vehicle.images && vehicle.images[activeAngle] 
+  const currentImageUrl = vehicle.images && vehicle.images[activeAngle]
     ? getOptimizedVehicleImageUrl(vehicle.images[activeAngle])
     : '';
 
   return (
-    <div 
+    <div
       onClick={handleCardClick}
-      className="group bg-[#111827] rounded-[2rem] border border-white/10 hover:border-orange-500/60 shadow-lg hover:shadow-[0_0_35px_-5px_rgba(249,115,22,0.3)] transition-all duration-300 flex flex-col overflow-hidden relative cursor-pointer"
+      className="group bg-[#0D131F] rounded-[2rem] border border-white/10 hover:border-amber-500/50 shadow-xl hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.8),0_0_30px_-5px_rgba(226,135,67,0.25)] transition-all duration-300 flex flex-col overflow-hidden relative cursor-pointer"
     >
       {/* Top Image Stage: Phóng Full tràn khung hình, chân thực 100% */}
       <div className="relative w-full h-52 sm:h-56 bg-white overflow-hidden flex items-center justify-center">
-        
+
         {/* Top Floating Badges */}
         <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
           <span
-            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wide shadow-md ${
-              isAvailable
+            className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wide shadow-md ${isAvailable
                 ? 'bg-emerald-950/85 text-emerald-300 border border-emerald-500/40 backdrop-blur-md'
                 : vehicle.status === 'Rented'
-                ? 'bg-amber-950/85 text-amber-300 border border-amber-500/40 backdrop-blur-md'
-                : 'bg-black/80 text-slate-300 border border-white/20 backdrop-blur-md'
-            }`}
+                  ? 'bg-amber-950/85 text-amber-300 border border-amber-500/40 backdrop-blur-md'
+                  : 'bg-black/80 text-slate-300 border border-white/20 backdrop-blur-md'
+              }`}
           >
             <span
-              className={`w-2 h-2 rounded-full mr-2 ${
-                isAvailable ? 'bg-emerald-400' : vehicle.status === 'Rented' ? 'bg-amber-400' : 'bg-slate-400'
-              }`}
+              className={`w-2 h-2 rounded-full mr-2 ${isAvailable ? 'bg-emerald-400' : vehicle.status === 'Rented' ? 'bg-amber-400' : 'bg-slate-400'
+                }`}
             />
             {isAvailable ? 'Sẵn sàng giao ngay' : vehicle.status === 'Rented' ? 'Đang có khách' : 'Bảo dưỡng'}
           </span>
 
           <span className="text-xs text-slate-200 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 flex items-center font-semibold shadow-md truncate max-w-[190px]">
-            <MapPin className="w-3.5 h-3.5 text-orange-400 mr-1.5 flex-shrink-0" />
+            <MapPin className="w-3.5 h-3.5 text-amber-400 mr-1.5 flex-shrink-0" />
             <span className="truncate">{branchName}</span>
           </span>
         </div>
@@ -100,7 +98,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
             setActiveAngle(ANGLE_VIEWS[nextIndex].id);
             setImgError(false);
           }}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/75 hover:bg-orange-500 hover:text-white text-white border border-white/20 flex items-center justify-center opacity-80 md:opacity-0 group-hover:opacity-100 transition-all shadow-lg active:scale-90"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/75 hover:bg-amber-500 hover:text-white text-white border border-white/20 flex items-center justify-center opacity-80 md:opacity-0 group-hover:opacity-100 transition-all shadow-lg active:scale-90"
           aria-label="Góc trước đó"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -115,7 +113,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
             setActiveAngle(ANGLE_VIEWS[nextIndex].id);
             setImgError(false);
           }}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/75 hover:bg-orange-500 hover:text-white text-white border border-white/20 flex items-center justify-center opacity-80 md:opacity-0 group-hover:opacity-100 transition-all shadow-lg active:scale-90"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/75 hover:bg-amber-500 hover:text-white text-white border border-white/20 flex items-center justify-center opacity-80 md:opacity-0 group-hover:opacity-100 transition-all shadow-lg active:scale-90"
           aria-label="Góc tiếp theo"
         >
           <ChevronRight className="w-4 h-4" />
@@ -136,9 +134,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
           ) : (
             <div className="py-2 flex flex-col items-center justify-center">
               <svg
-                className={`w-40 h-24 ${
-                  isElectric ? 'text-teal-600' : isManual ? 'text-slate-600' : 'text-orange-500'
-                }`}
+                className={`w-40 h-24 ${isElectric ? 'text-teal-600' : isManual ? 'text-slate-600' : 'text-amber-600'
+                  }`}
                 viewBox="0 0 64 48"
                 fill="none"
                 stroke="currentColor"
@@ -153,7 +150,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
                 <path d="M15 34 L25 22 L38 22 L49 34" />
                 <path d="M25 22 L20 12 L28 10" />
                 <path d="M38 22 L42 15 L48 15" />
-                <path d="M24 20 C28 16 35 16 40 20 Z" className="fill-orange-500/20 stroke-orange-500" />
+                <path d="M24 20 C28 16 35 16 40 20 Z" className="fill-amber-500/20 stroke-amber-600" />
                 <circle cx="32" cy="30" r="4" className="stroke-slate-500 fill-white" />
               </svg>
               <span className="mt-1 text-xs font-bold text-slate-700 uppercase tracking-widest bg-white/80 px-3 py-0.5 rounded-full border border-slate-300 shadow-xs">
@@ -164,7 +161,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
         </div>
 
         {/* Bottom Floating Angle Switcher Pills */}
-        <div className="absolute bottom-2.5 left-3 z-20 flex items-center bg-[#0B0F17]/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 shadow-md space-x-1.5">
+        <div className="absolute bottom-2.5 left-3 z-20 flex items-center bg-[#070A11]/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 shadow-md space-x-1.5">
           {ANGLE_VIEWS.map((ang) => (
             <button
               key={ang.id}
@@ -174,11 +171,10 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
                 setActiveAngle(ang.id);
                 setImgError(false);
               }}
-              className={`px-3 py-1 rounded-full text-xs font-bold tracking-tight transition-all cursor-pointer ${
-                activeAngle === ang.id
-                  ? 'bg-orange-500 text-white shadow-sm font-black'
+              className={`px-3 py-1 rounded-full text-xs font-bold tracking-tight transition-all cursor-pointer ${activeAngle === ang.id
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm font-black'
                   : 'text-slate-300 hover:text-white hover:bg-white/10'
-              }`}
+                }`}
               title={ang.title}
             >
               {ang.label}
@@ -191,7 +187,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
       <div className="p-5 pt-4 flex-1 flex flex-col justify-between">
         <div>
           <div className="flex items-start justify-between gap-2 mb-3">
-            <h3 className="text-lg sm:text-xl font-black text-white group-hover:text-orange-400 transition-colors leading-snug">
+            <h3 className="text-lg sm:text-xl font-black text-white group-hover:text-amber-300 transition-colors leading-snug">
               {vehicle.vehicleModel}
             </h3>
             {vehicle.color && (
@@ -204,7 +200,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
           {/* Quick Specs Pills - Larger Fonts */}
           <div className="grid grid-cols-2 gap-2.5 my-3 text-xs sm:text-sm text-slate-300">
             <div className="flex items-center space-x-2 bg-white/[0.04] p-3 rounded-xl border border-white/5">
-              <Gauge className="w-4 h-4 text-orange-400 flex-shrink-0" />
+              <Gauge className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span className="font-bold text-slate-200 truncate">ODO: {vehicle.odometer.toLocaleString('vi-VN')} km</span>
             </div>
 
@@ -216,7 +212,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
                 </>
               ) : (
                 <>
-                  <Fuel className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                  <Fuel className="w-4 h-4 text-amber-400 flex-shrink-0" />
                   <span className="font-bold text-slate-200 truncate">Xăng ~1.8L/100km</span>
                 </>
               )}
@@ -226,11 +222,11 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
           {/* Perks Included - Clear, Readable Text */}
           <div className="space-y-2 text-xs sm:text-sm text-slate-300 pt-2 pb-3.5 border-b border-white/10">
             <div className="flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-orange-400 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span>Kèm 2 mũ 3/4 tiệt trùng UV + 2 áo mưa</span>
             </div>
             <div className="flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-orange-400 flex-shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-amber-400 flex-shrink-0" />
               <span>Giá đỡ nhôm chống rung OIS + cứu hộ 24/7</span>
             </div>
           </div>
@@ -248,7 +244,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
               </span>
               <span className="text-sm font-bold text-slate-400">đ/ngày</span>
             </div>
-            <span className="text-xs font-black text-orange-300 bg-orange-500/15 px-2.5 py-1 rounded-full border border-orange-500/25 inline-block mt-1">
+            <span className="text-xs font-black text-amber-200 bg-amber-500/15 px-2.5 py-1 rounded-full border border-amber-500/30 inline-block mt-1">
               Cọc 30%: {depositPreview.toLocaleString('vi-VN')} đ
             </span>
           </div>
@@ -260,15 +256,14 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
               e.stopPropagation();
               handleCardClick();
             }}
-            className={`pl-5 pr-2 py-2 rounded-full text-xs sm:text-sm font-black transition-all flex items-center space-x-2 shadow-sm ${
-              isAvailable
-                ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer'
+            className={`pl-5 pr-2 py-2 rounded-full text-xs sm:text-sm font-black transition-all flex items-center space-x-2 shadow-sm ${isAvailable
+                ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white shadow-lg shadow-orange-500/25 active:scale-95 cursor-pointer'
                 : 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/5'
-            }`}
+              }`}
           >
             <span>{isAvailable ? 'Chọn xe' : 'Đã có khách'}</span>
             {isAvailable && (
-              <div className="w-7 h-7 rounded-full bg-black/25 text-white flex items-center justify-center transition-transform group-hover:translate-x-0.5">
+              <div className="w-7 h-7 rounded-full bg-[#060D0B] text-amber-400 flex items-center justify-center transition-transform group-hover:translate-x-0.5">
                 <ArrowRight className="w-3.5 h-3.5" />
               </div>
             )}

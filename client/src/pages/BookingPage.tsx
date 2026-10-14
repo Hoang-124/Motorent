@@ -294,7 +294,7 @@ export const BookingPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-[#0B0F17] flex items-center justify-center text-slate-300">
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-10 h-10 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-10 h-10 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
           <p className="text-xs font-bold uppercase tracking-wider text-slate-400">
             Đang tải thông tin xe & cấu hình đặt chỗ...
           </p>
@@ -306,7 +306,7 @@ export const BookingPage: React.FC = () => {
   if (!vehicle) {
     return (
       <div className="min-h-screen bg-[#0B0F17] flex items-center justify-center p-4">
-        <div className="bg-[#111827] p-8 rounded-[2rem] border border-white/10 text-center max-w-md w-full space-y-4">
+        <div className="bg-[#0D131F] p-8 rounded-[2rem] border border-white/10 text-center max-w-md w-full space-y-4">
           <AlertCircle className="w-12 h-12 text-amber-400 mx-auto" />
           <h2 className="text-xl font-black text-white">Không tìm thấy xe</h2>
           <p className="text-xs text-slate-400">
@@ -314,7 +314,7 @@ export const BookingPage: React.FC = () => {
           </p>
           <Link
             to="/bikes"
-            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-xs transition-colors"
+            className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-xs transition-colors"
           >
             <span>Khám phá đội xe sẵn sàng</span>
             <ArrowRight className="w-4 h-4" />
@@ -330,15 +330,15 @@ export const BookingPage: React.FC = () => {
         
         {/* Breadcrumb Navigation */}
         <nav className="flex items-center space-x-2 text-xs text-slate-400 mb-6">
-          <Link to="/" className="hover:text-orange-400 transition-colors">Trang chủ</Link>
+          <Link to="/" className="hover:text-amber-400 transition-colors">Trang chủ</Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
-          <Link to="/bikes" className="hover:text-orange-400 transition-colors">Đội xe chính hãng</Link>
+          <Link to="/bikes" className="hover:text-amber-400 transition-colors">Đội xe chính hãng</Link>
           <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
           <span className="text-white font-semibold truncate max-w-xs">{vehicle.vehicleModel}</span>
         </nav>
 
         {/* Dynamic Stepper Header */}
-        <div className="bg-[#111827] rounded-3xl p-5 border border-white/10 shadow-xl mb-8">
+        <div className="bg-[#0D131F] rounded-3xl p-5 border border-white/10 shadow-xl mb-8">
           <div className="flex items-center justify-between max-w-3xl mx-auto relative">
             {/* Progress line */}
             <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/10 -translate-y-1/2 z-0" />
@@ -359,14 +359,14 @@ export const BookingPage: React.FC = () => {
                 <div 
                   className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black transition-all ${
                     currentStep >= st.num 
-                      ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/30' 
-                      : 'bg-[#0D1524] border border-white/20 text-slate-400'
+                      ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/30' 
+                      : 'bg-[#0B101D] border border-white/20 text-slate-400'
                   }`}
                 >
                   {currentStep > st.num ? <Check className="w-4 h-4 stroke-[3]" /> : st.num}
                 </div>
                 <span className={`text-[11px] font-bold mt-2 whitespace-nowrap hidden sm:block ${
-                  currentStep >= st.num ? 'text-orange-400' : 'text-slate-500'
+                  currentStep >= st.num ? 'text-amber-400' : 'text-slate-500'
                 }`}>
                   {st.label}
                 </span>
@@ -398,7 +398,7 @@ export const BookingPage: React.FC = () => {
                 </div>
                 <Link
                   to={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
-                  className="px-3 py-1.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white text-xs font-black rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0 ml-3"
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white text-xs font-black rounded-lg transition-colors flex items-center space-x-1 flex-shrink-0 ml-3"
                 >
                   <LogIn className="w-3.5 h-3.5" />
                   <span>Đăng nhập</span>
@@ -408,9 +408,9 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 1: Schedule & Branches */}
             {currentStep === 1 && (
-              <div className="bg-[#111827] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
+              <div className="bg-[#0D131F] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
                 <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-orange-400 block mb-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 block mb-1">
                     Bước 1 / 4
                   </span>
                   <h2 className="text-xl sm:text-2xl font-black text-white">
@@ -425,16 +425,16 @@ export const BookingPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-orange-400" />
+                      <MapPin className="w-3.5 h-3.5 text-amber-400" />
                       <span>Chi nhánh nhận xe</span>
                     </label>
                     <select
                       value={pickupBranchId}
                       onChange={(e) => setPickupBranchId(e.target.value)}
-                      className="w-full bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs font-semibold text-white focus:border-orange-500 outline-none cursor-pointer"
+                      className="w-full bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs font-semibold text-white focus:border-amber-500 outline-none cursor-pointer"
                     >
                       {branches.map((b) => (
-                        <option key={b._id} value={b._id} className="bg-[#111827] text-white">
+                        <option key={b._id} value={b._id} className="bg-[#0D131F] text-white">
                           {b.name}
                         </option>
                       ))}
@@ -454,10 +454,10 @@ export const BookingPage: React.FC = () => {
                     <select
                       value={returnBranchId}
                       onChange={(e) => setReturnBranchId(e.target.value)}
-                      className="w-full bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs font-semibold text-white focus:border-orange-500 outline-none cursor-pointer"
+                      className="w-full bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs font-semibold text-white focus:border-amber-500 outline-none cursor-pointer"
                     >
                       {branches.map((b) => (
-                        <option key={b._id} value={b._id} className="bg-[#111827] text-white">
+                        <option key={b._id} value={b._id} className="bg-[#0D131F] text-white">
                           {b.name}
                         </option>
                       ))}
@@ -473,7 +473,7 @@ export const BookingPage: React.FC = () => {
                 {/* Dates & Times */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-white/10">
                   <div className="space-y-2">
-                    <span className="text-xs font-bold text-orange-400 flex items-center space-x-1.5">
+                    <span className="text-xs font-bold text-amber-400 flex items-center space-x-1.5">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>Thời điểm nhận xe</span>
                     </span>
@@ -483,13 +483,13 @@ export const BookingPage: React.FC = () => {
                         value={pickupDate}
                         min={formatLocalDate(new Date())}
                         onChange={(e) => setPickupDate(e.target.value)}
-                        className="bg-[#0D1524] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500"
+                        className="bg-[#0B101D] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-amber-500"
                       />
                       <input
                         type="time"
                         value={pickupTime}
                         onChange={(e) => setPickupTime(e.target.value)}
-                        className="bg-[#0D1524] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500"
+                        className="bg-[#0B101D] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-amber-500"
                       />
                     </div>
                   </div>
@@ -505,21 +505,21 @@ export const BookingPage: React.FC = () => {
                         value={returnDate}
                         min={pickupDate}
                         onChange={(e) => setReturnDate(e.target.value)}
-                        className="bg-[#0D1524] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500"
+                        className="bg-[#0B101D] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-amber-500"
                       />
                       <input
                         type="time"
                         value={returnTime}
                         onChange={(e) => setReturnTime(e.target.value)}
-                        className="bg-[#0D1524] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-orange-500"
+                        className="bg-[#0B101D] border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-amber-500"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 bg-orange-500/10 border border-orange-500/20 rounded-2xl flex items-center justify-between text-xs">
+                <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-between text-xs">
                   <span className="text-slate-300">Tổng thời gian dự kiến:</span>
-                  <span className="font-black text-orange-400 text-sm">
+                  <span className="font-black text-amber-400 text-sm">
                     {durationDays} ngày ({Math.round(durationMs / 3600000)} giờ)
                   </span>
                 </div>
@@ -527,7 +527,7 @@ export const BookingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/25 active:scale-98 cursor-pointer"
+                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/30 active:scale-98 cursor-pointer"
                 >
                   <span>Tiếp tục: Thông tin người thuê</span>
                   <ArrowRight className="w-4 h-4" />
@@ -537,9 +537,9 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 2: Customer Identity & eKYC */}
             {currentStep === 2 && (
-              <div className="bg-[#111827] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
+              <div className="bg-[#0D131F] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
                 <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-orange-400 block mb-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 block mb-1">
                     Bước 2 / 4
                   </span>
                   <h2 className="text-xl sm:text-2xl font-black text-white">
@@ -553,7 +553,7 @@ export const BookingPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                      <User className="w-3.5 h-3.5 text-orange-400" />
+                      <User className="w-3.5 h-3.5 text-amber-400" />
                       <span>Họ và tên người thuê *</span>
                     </label>
                     <input
@@ -561,13 +561,13 @@ export const BookingPage: React.FC = () => {
                       placeholder="Nguyễn Văn A"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-orange-500"
+                      className="w-full bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                      <Phone className="w-3.5 h-3.5 text-orange-400" />
+                      <Phone className="w-3.5 h-3.5 text-amber-400" />
                       <span>Số điện thoại (Nhận SMS mã xe) *</span>
                     </label>
                     <input
@@ -575,13 +575,13 @@ export const BookingPage: React.FC = () => {
                       placeholder="0905 123 456"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-orange-500"
+                      className="w-full bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                      <Mail className="w-3.5 h-3.5 text-orange-400" />
+                      <Mail className="w-3.5 h-3.5 text-amber-400" />
                       <span>Email nhận hợp đồng điện tử</span>
                     </label>
                     <input
@@ -589,13 +589,13 @@ export const BookingPage: React.FC = () => {
                       placeholder="email@example.com"
                       value={customerEmail}
                       onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="w-full bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-orange-500"
+                      className="w-full bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-500"
                     />
                   </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                      <FileText className="w-3.5 h-3.5 text-orange-400" />
+                      <FileText className="w-3.5 h-3.5 text-amber-400" />
                       <span>Số CCCD / Hộ chiếu (Tùy chọn)</span>
                     </label>
                     <input
@@ -603,7 +603,7 @@ export const BookingPage: React.FC = () => {
                       placeholder="04809..."
                       value={idCardNumber}
                       onChange={(e) => setIdCardNumber(e.target.value)}
-                      className="w-full bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-orange-500"
+                      className="w-full bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-500"
                     />
                   </div>
                 </div>
@@ -617,7 +617,7 @@ export const BookingPage: React.FC = () => {
                     placeholder="VD: Chuyến bay VJ628 hạ cánh lúc 09:15, nhờ giao xe tại sảnh Ga đến T2..."
                     value={customerNotes}
                     onChange={(e) => setCustomerNotes(e.target.value)}
-                    className="w-full bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-orange-500 resize-none"
+                    className="w-full bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs text-white outline-none focus:border-amber-500 resize-none"
                   />
                 </div>
 
@@ -634,7 +634,7 @@ export const BookingPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/25 active:scale-98 cursor-pointer"
+                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/30 active:scale-98 cursor-pointer"
                   >
                     <span>Tiếp tục: Dịch vụ & Ưu đãi</span>
                     <ArrowRight className="w-4 h-4" />
@@ -645,9 +645,9 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 3: Included Perks & Voucher Promo */}
             {currentStep === 3 && (
-              <div className="bg-[#111827] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
+              <div className="bg-[#0D131F] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
                 <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-orange-400 block mb-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 block mb-1">
                     Bước 3 / 4
                   </span>
                   <h2 className="text-xl sm:text-2xl font-black text-white">
@@ -662,7 +662,7 @@ export const BookingPage: React.FC = () => {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3.5 bg-white/[0.03] border border-white/5 rounded-2xl">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -670,12 +670,12 @@ export const BookingPage: React.FC = () => {
                         <p className="text-[11px] text-slate-400">Đã khử khuẩn tia cực tím UV và thay lớp lót mới</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-orange-400">Miễn phí 0đ</span>
+                    <span className="text-xs font-bold text-amber-400">Miễn phí 0đ</span>
                   </div>
 
                   <div className="flex items-center justify-between p-3.5 bg-white/[0.03] border border-white/5 rounded-2xl">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -683,12 +683,12 @@ export const BookingPage: React.FC = () => {
                         <p className="text-[11px] text-slate-400">Chất liệu PVC dày dặn, an toàn khi trời mưa đèo</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-orange-400">Miễn phí 0đ</span>
+                    <span className="text-xs font-bold text-amber-400">Miễn phí 0đ</span>
                   </div>
 
                   <div className="flex items-center justify-between p-3.5 bg-white/[0.03] border border-white/5 rounded-2xl">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -696,12 +696,12 @@ export const BookingPage: React.FC = () => {
                         <p className="text-[11px] text-slate-400">Chống hỏng cảm biến camera điện thoại khi xem bản đồ</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-orange-400">Miễn phí 0đ</span>
+                    <span className="text-xs font-bold text-amber-400">Miễn phí 0đ</span>
                   </div>
 
                   <div className="flex items-center justify-between p-3.5 bg-white/[0.03] border border-white/5 rounded-2xl">
                     <div className="flex items-center space-x-3">
-                      <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-400 flex items-center justify-center">
+                      <div className="w-8 h-8 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -709,14 +709,14 @@ export const BookingPage: React.FC = () => {
                         <p className="text-[11px] text-slate-400">Đổi xe tận nơi trong vòng 30 phút nếu gặp sự cố thủng lốp, hỏng hóc</p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-orange-400">Miễn phí 0đ</span>
+                    <span className="text-xs font-bold text-amber-400">Miễn phí 0đ</span>
                   </div>
                 </div>
 
                 {/* Promo Voucher Input */}
                 <div className="pt-2 border-t border-white/10 space-y-2">
                   <label className="text-xs font-bold text-slate-300 flex items-center space-x-1.5">
-                    <Tag className="w-3.5 h-3.5 text-orange-400" />
+                    <Tag className="w-3.5 h-3.5 text-amber-400" />
                     <span>Mã giảm giá / Voucher ưu đãi</span>
                   </label>
                   <div className="flex items-center space-x-2">
@@ -725,7 +725,7 @@ export const BookingPage: React.FC = () => {
                       placeholder="Nhập mã (VD: CHAOBANMOI)"
                       value={discountCodeInput}
                       onChange={(e) => setDiscountCodeInput(e.target.value.toUpperCase())}
-                      className="flex-1 bg-[#0D1524] border border-white/10 rounded-xl p-3 text-xs font-mono font-bold text-orange-400 uppercase outline-none focus:border-orange-500"
+                      className="flex-1 bg-[#0B101D] border border-white/10 rounded-xl p-3 text-xs font-mono font-bold text-amber-400 uppercase outline-none focus:border-amber-500"
                     />
                     <button
                       type="button"
@@ -736,7 +736,7 @@ export const BookingPage: React.FC = () => {
                     </button>
                   </div>
                   {discountFeedback && (
-                    <p className={`text-[11px] font-medium ${appliedDiscount ? 'text-orange-400' : 'text-amber-400'}`}>
+                    <p className={`text-[11px] font-medium ${appliedDiscount ? 'text-amber-400' : 'text-amber-400'}`}>
                       {discountFeedback}
                     </p>
                   )}
@@ -755,7 +755,7 @@ export const BookingPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleNextStep}
-                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/25 active:scale-98 cursor-pointer"
+                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/30 active:scale-98 cursor-pointer"
                   >
                     <span>Tiếp tục: Thanh toán Cọc 30%</span>
                     <ArrowRight className="w-4 h-4" />
@@ -766,16 +766,16 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 4: Deposit Payment (VNPay / VietQR) */}
             {currentStep === 4 && (
-              <div className="bg-[#111827] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
+              <div className="bg-[#0D131F] rounded-[2rem] p-6 sm:p-8 border border-white/10 shadow-xl space-y-6">
                 <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-orange-400 block mb-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 block mb-1">
                     Bước 4 / 4
                   </span>
                   <h2 className="text-xl sm:text-2xl font-black text-white">
                     Phương thức thanh toán Cọc 30%
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
-                    Số tiền cọc khóa giữ xe: <strong className="text-orange-400 text-sm">{depositAmount.toLocaleString('vi-VN')} đ</strong>. 70% còn lại thanh toán khi nhận xe.
+                    Số tiền cọc khóa giữ xe: <strong className="text-amber-400 text-sm">{depositAmount.toLocaleString('vi-VN')} đ</strong>. 70% còn lại thanh toán khi nhận xe.
                   </p>
                 </div>
 
@@ -785,13 +785,13 @@ export const BookingPage: React.FC = () => {
                     onClick={() => setPaymentOption('VietQR')}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                       paymentOption === 'VietQR'
-                        ? 'bg-orange-500/10 border-orange-500 shadow-md'
+                        ? 'bg-amber-500/10 border-amber-500 shadow-md'
                         : 'bg-white/[0.02] border-white/10 hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <QrCode className="w-5 h-5 text-orange-400" />
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded-full">
+                      <QrCode className="w-5 h-5 text-amber-400" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-full">
                         Khuyên dùng
                       </span>
                     </div>
@@ -805,7 +805,7 @@ export const BookingPage: React.FC = () => {
                     onClick={() => setPaymentOption('VNPay')}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                       paymentOption === 'VNPay'
-                        ? 'bg-orange-500/10 border-orange-500 shadow-md'
+                        ? 'bg-amber-500/10 border-amber-500 shadow-md'
                         : 'bg-white/[0.02] border-white/10 hover:border-white/20'
                     }`}
                   >
@@ -822,7 +822,7 @@ export const BookingPage: React.FC = () => {
                     onClick={() => setPaymentOption('Cash')}
                     className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between ${
                       paymentOption === 'Cash'
-                        ? 'bg-orange-500/10 border-orange-500 shadow-md'
+                        ? 'bg-amber-500/10 border-amber-500 shadow-md'
                         : 'bg-white/[0.02] border-white/10 hover:border-white/20'
                     }`}
                   >
@@ -838,7 +838,7 @@ export const BookingPage: React.FC = () => {
 
                 {/* VietQR Dynamic Preview Box */}
                 {paymentOption === 'VietQR' && (
-                  <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0B0F17] via-[#161F30] to-[#0D1524] border border-orange-500/30 space-y-4">
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-[#0B0F17] via-[#161F30] to-[#0D1524] border border-amber-500/30 space-y-4">
                     <div className="flex flex-col sm:flex-row items-center gap-5">
                       <div className="bg-white p-3 rounded-2xl shadow-xl flex flex-col items-center">
                         <img
@@ -858,7 +858,7 @@ export const BookingPage: React.FC = () => {
                         </div>
                         <div className="flex items-center justify-between py-1 border-b border-white/10">
                           <span className="text-slate-400">Số tài khoản:</span>
-                          <span className="font-mono font-bold text-orange-400">0905 123 456</span>
+                          <span className="font-mono font-bold text-amber-400">0905 123 456</span>
                         </div>
                         <div className="flex items-center justify-between py-1 border-b border-white/10">
                           <span className="text-slate-400">Chủ tài khoản:</span>
@@ -866,7 +866,7 @@ export const BookingPage: React.FC = () => {
                         </div>
                         <div className="flex items-center justify-between py-1 border-b border-white/10">
                           <span className="text-slate-400">Số tiền cọc:</span>
-                          <span className="font-mono font-black text-orange-300 text-sm">
+                          <span className="font-mono font-black text-amber-200 text-sm">
                             {depositAmount.toLocaleString('vi-VN')} đ
                           </span>
                         </div>
@@ -895,7 +895,7 @@ export const BookingPage: React.FC = () => {
 
                 {/* Refund & Guarantee Notice */}
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 text-[11px] text-slate-400 space-y-1.5">
-                  <div className="flex items-center space-x-2 text-orange-400 font-bold">
+                  <div className="flex items-center space-x-2 text-amber-400 font-bold">
                     <ShieldCheck className="w-4 h-4" />
                     <span>Chính sách bảo vệ quyền lợi người thuê</span>
                   </div>
@@ -921,7 +921,7 @@ export const BookingPage: React.FC = () => {
                     type="button"
                     disabled={submitting}
                     onClick={handleConfirmBooking}
-                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-50 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/25 active:scale-98 cursor-pointer"
+                    className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-50 text-white font-black text-sm transition-all flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/30 active:scale-98 cursor-pointer"
                   >
                     {submitting ? (
                       <div className="flex items-center space-x-2">
@@ -941,13 +941,13 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 5: Success & Confirmation Ticket */}
             {currentStep === 5 && (
-              <div className="bg-[#111827] rounded-[2rem] p-6 sm:p-8 border border-orange-500/40 shadow-2xl text-center space-y-6">
-                <div className="w-16 h-16 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center mx-auto border border-orange-500/30">
+              <div className="bg-[#0D131F] rounded-[2rem] p-6 sm:p-8 border border-amber-500/40 shadow-2xl text-center space-y-6">
+                <div className="w-16 h-16 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
                   <CheckCircle2 className="w-10 h-10" />
                 </div>
 
                 <div>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-orange-400 block mb-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-amber-400 block mb-1">
                     Đã xác nhận đặt xe thành công
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-white">
@@ -959,12 +959,12 @@ export const BookingPage: React.FC = () => {
                 </div>
 
                 {/* Booking Code Card */}
-                <div className="max-w-md mx-auto p-4 bg-gradient-to-r from-[#0B0F17] via-[#161F30] to-[#0D1524] border border-orange-500/40 rounded-2xl space-y-2">
+                <div className="max-w-md mx-auto p-4 bg-gradient-to-r from-[#0B0F17] via-[#161F30] to-[#0D1524] border border-amber-500/40 rounded-2xl space-y-2">
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">
                     Mã đặt xe điện tử (Check-in Code)
                   </span>
                   <div className="flex items-center justify-center space-x-3">
-                    <span className="font-mono text-2xl font-black text-orange-400 tracking-wider">
+                    <span className="font-mono text-2xl font-black text-amber-400 tracking-wider">
                       {createdBooking?.bookingCode || 'MV-88692'}
                     </span>
                     <button
@@ -973,7 +973,7 @@ export const BookingPage: React.FC = () => {
                       className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 transition-colors"
                       title="Sao chép mã"
                     >
-                      {copiedCode ? <Check className="w-4 h-4 text-orange-400" /> : <Copy className="w-4 h-4" />}
+                      {copiedCode ? <Check className="w-4 h-4 text-amber-400" /> : <Copy className="w-4 h-4" />}
                     </button>
                   </div>
                 </div>
@@ -986,7 +986,7 @@ export const BookingPage: React.FC = () => {
                   </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-slate-400">Thời gian nhận:</span>
-                    <span className="font-semibold text-orange-300">{pickupTime} ngày {pickupDate}</span>
+                    <span className="font-semibold text-amber-200">{pickupTime} ngày {pickupDate}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-slate-400">Điểm nhận xe:</span>
@@ -994,7 +994,7 @@ export const BookingPage: React.FC = () => {
                   </div>
                   <div className="flex justify-between py-1 border-b border-white/5">
                     <span className="text-slate-400">Tiền cọc giữ xe (30%):</span>
-                    <span className="font-mono font-bold text-orange-400">{depositAmount.toLocaleString('vi-VN')} đ (Đã xác nhận)</span>
+                    <span className="font-mono font-bold text-amber-400">{depositAmount.toLocaleString('vi-VN')} đ (Đã xác nhận)</span>
                   </div>
                   <div className="flex justify-between py-1">
                     <span className="text-slate-400">Thanh toán khi nhận xe (70%):</span>
@@ -1006,7 +1006,7 @@ export const BookingPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                   <Link
                     to="/profile"
-                    className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-xs transition-all shadow-lg shadow-orange-500/25"
+                    className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-black text-xs transition-all shadow-lg shadow-orange-500/30"
                   >
                     Quản lý lịch trình trong Hồ sơ
                   </Link>
@@ -1026,7 +1026,7 @@ export const BookingPage: React.FC = () => {
           <div className="lg:col-span-5 space-y-6 lg:sticky lg:top-24">
             
             {/* 3-Angle Studio Showcase Stage */}
-            <div className="bg-[#111827] rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl">
+            <div className="bg-[#0D131F] rounded-[2rem] border border-white/10 overflow-hidden shadow-2xl">
               <div className="p-5 pb-3 flex items-center justify-between border-b border-white/5">
                 <div>
                   <h3 className="text-base font-black text-white">
@@ -1047,8 +1047,8 @@ export const BookingPage: React.FC = () => {
               <div className="relative w-full h-56 bg-white overflow-hidden flex items-center justify-center">
                 
                 {/* Angle Title Pill */}
-                <div className="absolute top-3 left-4 z-20 flex items-center space-x-1.5 bg-[#0D1524]/90 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20 text-[10px] font-semibold text-orange-300 shadow-md">
-                  <Camera className="w-3 h-3 text-orange-400" />
+                <div className="absolute top-3 left-4 z-20 flex items-center space-x-1.5 bg-[#0B101D]/90 backdrop-blur-md px-2.5 py-0.5 rounded-full border border-white/20 text-[10px] font-semibold text-amber-200 shadow-md">
+                  <Camera className="w-3 h-3 text-amber-400" />
                   <span>{ANGLE_VIEWS.find(a => a.id === activeAngle)?.title}</span>
                 </div>
 
@@ -1088,7 +1088,7 @@ export const BookingPage: React.FC = () => {
                 </div>
 
                 {/* 3-Angle Switcher Buttons */}
-                <div className="absolute bottom-2.5 left-4 z-20 flex items-center bg-[#0D1524]/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 shadow-md space-x-1.5">
+                <div className="absolute bottom-2.5 left-4 z-20 flex items-center bg-[#0B101D]/90 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/20 shadow-md space-x-1.5">
                   {ANGLE_VIEWS.map((ang) => (
                     <button
                       key={ang.id}
@@ -1099,7 +1099,7 @@ export const BookingPage: React.FC = () => {
                       }}
                       className={`px-3 py-1 rounded-full text-[11px] font-bold tracking-tight transition-all cursor-pointer ${
                         activeAngle === ang.id
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm font-black'
+                          ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-sm font-black'
                           : 'text-slate-300 hover:text-white hover:bg-white/10'
                       }`}
                     >
@@ -1112,7 +1112,7 @@ export const BookingPage: React.FC = () => {
               {/* Specs Pills */}
               <div className="px-5 pb-5 grid grid-cols-2 gap-2 text-xs">
                 <div className="flex items-center space-x-2 bg-white/[0.02] p-2.5 rounded-xl border border-white/5">
-                  <Gauge className="w-4 h-4 text-orange-400" />
+                  <Gauge className="w-4 h-4 text-amber-400" />
                   <div>
                     <span className="text-[10px] text-slate-500 block">Đã vận hành</span>
                     <span className="font-bold text-slate-200">{vehicle.odometer.toLocaleString('vi-VN')} km</span>
@@ -1130,7 +1130,7 @@ export const BookingPage: React.FC = () => {
                     </>
                   ) : (
                     <>
-                      <Fuel className="w-4 h-4 text-orange-400" />
+                      <Fuel className="w-4 h-4 text-amber-400" />
                       <div>
                         <span className="text-[10px] text-slate-500 block">Nhiên liệu</span>
                         <span className="font-bold text-slate-200">Xăng ~1.8L/100km</span>
@@ -1142,9 +1142,9 @@ export const BookingPage: React.FC = () => {
             </div>
 
             {/* Transparent Pricing Breakdown Card */}
-            <div className="bg-[#111827] rounded-[2rem] p-6 border border-white/10 shadow-xl space-y-4">
+            <div className="bg-[#0D131F] rounded-[2rem] p-6 border border-white/10 shadow-xl space-y-4">
               <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center space-x-2">
-                <Sparkles className="w-3.5 h-3.5 text-orange-400" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                 <span>Bảng kê chi phí minh bạch</span>
               </h4>
 
@@ -1155,21 +1155,21 @@ export const BookingPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-slate-400">Thời gian thuê:</span>
-                  <span className="font-bold text-orange-400">{durationDays} ngày</span>
+                  <span className="font-bold text-amber-400">{durationDays} ngày</span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-slate-400">Tạm tính tiền xe:</span>
                   <span className="font-mono font-bold text-white">{baseRentalFee.toLocaleString('vi-VN')} đ</span>
                 </div>
                 {appliedDiscount && (
-                  <div className="flex justify-between py-1 text-orange-400 font-bold">
+                  <div className="flex justify-between py-1 text-amber-400 font-bold">
                     <span>Ưu đãi voucher ({appliedDiscount.code}):</span>
                     <span>- {appliedDiscount.amount.toLocaleString('vi-VN')} đ</span>
                   </div>
                 )}
                 <div className="flex justify-between py-1 text-slate-400">
                   <span>Phụ phí giao xe tận nơi:</span>
-                  <span className="text-orange-400 font-bold">0 đ (Miễn phí)</span>
+                  <span className="text-amber-400 font-bold">0 đ (Miễn phí)</span>
                 </div>
               </div>
 
@@ -1182,10 +1182,10 @@ export const BookingPage: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl space-y-1">
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1">
                   <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-orange-300">Tiền cọc giữ xe (30%):</span>
-                    <span className="font-mono font-black text-orange-400 text-sm">
+                    <span className="font-bold text-amber-200">Tiền cọc giữ xe (30%):</span>
+                    <span className="font-mono font-black text-amber-400 text-sm">
                       {depositAmount.toLocaleString('vi-VN')} đ
                     </span>
                   </div>
