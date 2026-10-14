@@ -16,12 +16,20 @@ import {
   Check,
   Calendar,
   Clock,
-  Navigation
+  Navigation,
+  Gauge,
+  Fuel,
+  Zap,
+  ChevronLeft,
+  Camera,
+  Layers,
+  Sparkles,
+  ArrowUpRight
 } from 'lucide-react';
 import { BookingWidget } from '../components/BookingWidget';
-import { VehicleCard } from '../components/VehicleCard';
 import type { Vehicle, Branch, Category } from '../types';
 import { api } from '../services/api';
+import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 
 interface BookingSearchCriteria {
   pickupBranchId: string;
@@ -30,6 +38,12 @@ interface BookingSearchCriteria {
   returnDate: string;
 }
 
+const ANGLE_VIEWS = [
+  { id: 1, label: 'Thân xe ngang', title: 'Góc ngang thân xe' },
+  { id: 0, label: '3/4 Mặt trước', title: 'Góc 3/4 mặt trước' },
+  { id: 2, label: 'Đuôi & Khoang lái', title: 'Góc đuôi xe & khoang lái' },
+];
+
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -37,7 +51,14 @@ export const HomePage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedCategoryTab, setSelectedCategoryTab] = useState<string>('all');
+
+  // Gallery Showcase State
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>('');
+  const [activeAngle, setActiveAngle] = useState<number>(1);
+  const [imgError, setImgError] = useState<boolean>(false);
+
+  // Scenic Route Tab State
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState<number>(0);
 
   const fetchData = async () => {
     setLoading(true);
@@ -53,7 +74,17 @@ export const HomePage: React.FC = () => {
         setBranches(branchesRes.data.data);
       }
       if (vehiclesRes.data?.data) {
-        setVehicles(vehiclesRes.data.data);
+        const bikeList = vehiclesRes.data.data;
+        setVehicles(bikeList);
+        if (bikeList.length > 0) {
+          // Prefer an adventure/high-power bike if available
+          const preferred = bikeList.find((b: Vehicle) => 
+            b.vehicleModel.includes('160') || 
+            b.vehicleModel.includes('Winner') || 
+            b.vehicleModel.includes('SH')
+          ) || bikeList[0];
+          setSelectedVehicleId(preferred._id);
+        }
       }
       if (categoriesRes.data?.data) {
         setCategories(categoriesRes.data.data);
@@ -69,15 +100,6 @@ export const HomePage: React.FC = () => {
     fetchData();
   }, []);
 
-  const filteredVehicles = vehicles.filter((v) => {
-    if (selectedCategoryTab === 'all') return true;
-    const catSlug = typeof v.category === 'object' && v.category !== null ? v.category.slug : v.category;
-    return catSlug === selectedCategoryTab;
-  });
-
-  // Giới hạn 6 xe tiêu biểu
-  const featuredVehicles = filteredVehicles.slice(0, 6);
-
   const handleBookingSearch = (criteria: BookingSearchCriteria) => {
     navigate(`/bikes?pickup=${criteria.pickupBranchId}&return=${criteria.returnBranchId}`);
   };
@@ -86,79 +108,166 @@ export const HomePage: React.FC = () => {
     navigate(`/booking/${v._id}`);
   };
 
+  const activeVehicle = vehicles.find(v => v._id === selectedVehicleId) || vehicles[0];
+
+  // Route Profiles Data (Monocle / National Geographic Specimen Style)
+  const SCENIC_ROUTES = [
+    {
+      id: 'hai-van',
+      code: 'ROUTE 01',
+      title: 'Đèo Hải Vân & Vịnh Lăng Cô',
+      subtitle: 'Thiên hạ đệ nhất hùng quan nối liền biển và đại ngàn',
+      distance: '21 km',
+      duration: '2.5 - 3 Giờ',
+      elevation: '496m (Hải Vân Quan)',
+      grade: '8% - 10%',
+      hairpins: '21 khúc cua tay áo',
+      recommendedType: 'Xe Côn Tay / ADV 160 / Air Blade 160',
+      description: 'Cung đèo lịch sử uốn lượn lưng chừng mây giữa vách núi đá dựng đứng và biển Nam Ô xanh ngọc bích. Những dải mây trắng bảng lảng luồn qua từng rặng thông vi vu.',
+      safetyNote: 'Về số thấp (số 2 hoặc số 3) khi xuống dốc, không rà phanh liên tục để tránh cháy má phanh đĩa.',
+      highlights: ['Hải Vân Quan di tích quốc gia', 'Khúc cua cùi chỏ vịnh Lăng Cô', 'Quán cà phê mây ngắm toàn cảnh Đà Nẵng']
+    },
+    {
+      id: 'son-tra',
+      code: 'ROUTE 02',
+      title: 'Bán Đảo Sơn Trà & Đỉnh Bàn Cờ',
+      subtitle: 'Rừng nguyên sinh nhiệt đới & vương quốc Voọc Chà Vá',
+      distance: '18 km',
+      duration: '2 Giờ',
+      elevation: '696m (Đỉnh Bàn Cờ)',
+      grade: '15% - 20% (Dốc đứng)',
+      hairpins: '14 khúc quanh rừng già',
+      recommendedType: 'Xe Số Bền Bỉ (Wave/Future) / Xe Côn Tay',
+      description: 'Chạy xe dưới vòm tán cây cổ thụ hàng trăm năm tuổi mát rượi, hít thở bầu không khí đại ngàn nguyên sơ và chiêm ngưỡng toàn cảnh thành phố Đà Nẵng từ độ cao 696m.',
+      safetyNote: 'Theo quy định của BQL Sơn Trà, xe tay ga tự động bị cấm lên Đỉnh Bàn Cờ. Quý khách vui lòng chọn xe số hoặc xe côn tay.',
+      highlights: ['Tượng Phật Bà Chùa Linh Ứng', 'Cây Đa Di Sản 800 năm', 'Đỉnh Bàn Cờ tiên cảnh']
+    },
+    {
+      id: 'hoi-an',
+      code: 'ROUTE 03',
+      title: 'Duyên Hải Đà Nẵng — Phố Cổ Hội An',
+      subtitle: 'Hành trình êm ái dọc theo một trong những bãi biển đẹp nhất hành tinh',
+      distance: '30 km',
+      duration: '45 Phút',
+      elevation: '0m - 15m (Bằng phẳng)',
+      grade: '0%',
+      hairpins: 'Đại lộ ven biển thẳng tắp',
+      recommendedType: 'Tất cả các dòng xe tay ga & xe điện',
+      description: 'Cung đường đại lộ ven biển Võ Nguyên Giáp và Lạc Long Quân. Đón gió biển mát lành, ghé thăm làng đá mỹ nghệ Non Nước dưới chân Ngũ Hành Sơn trước khi đến với phố đèn lồng Hội An.',
+      safetyNote: 'Đường bằng phẳng dễ lái, nên khởi hành lúc 15:30 chiều để vừa kịp ngắm hoàng hôn biển vừa vào Hội An khi phố cổ lên đèn.',
+      highlights: ['Bãi biển Mỹ Khê & Non Nước', 'Quần thể danh thắng Ngũ Hành Sơn', 'Phố cổ Hội An về đêm']
+    }
+  ];
+
+  const currentRoute = SCENIC_ROUTES[selectedRouteIndex];
+
   return (
-    <div className="min-h-screen bg-[#07100D] text-slate-100 antialiased selection:bg-emerald-500 selection:text-[#07100D]">
+    <div className="min-h-screen bg-[#040D08] text-[#F5F9F6] antialiased selection:bg-emerald-500 selection:text-[#040D08]">
 
       {/* =========================================================================
-          1. HERO SECTION: ĐĨNH ĐẠC, CHUẨN MỰC, TẬP TRUNG TRẢI NGHIỆM ĐẶT XE
+          1. HERO PANORAMIC CANVAS: TỔNG QUAN HÀNH TRÌNH ĐẠI NGÀN ĐÀ NẴNG
           ========================================================================= */}
-      <section className="relative pt-10 pb-16 md:pt-16 md:pb-24 border-b border-white/[0.06]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="relative pt-8 pb-16 md:pt-14 md:pb-20 border-b border-emerald-500/10 overflow-hidden">
+        
+        {/* Subtle Topographical Vector Ambient Texture */}
+        <div className="absolute inset-0 opacity-[0.035] pointer-events-none bg-[radial-gradient(#34D399_1px,transparent_1px)] [background-size:24px_24px]" />
 
-          {/* Editorial Kicker & Title */}
-          <div className="max-w-3xl space-y-4 mb-10">
-            <div className="flex items-center space-x-2 text-xs font-semibold uppercase tracking-wider text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>MOTORENT • CHUỖI CHO THUÊ XE MÁY ĐÀ NẴNG</span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+
+          {/* Top Line Meta / Coordinates Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-6 mb-8 border-b border-white/[0.08] text-xs font-mono text-[#8CA899]">
+            <div className="flex items-center space-x-3">
+              <span className="text-emerald-400 font-bold tracking-widest uppercase">MOTORENT EXPEDITION</span>
+              <span>/</span>
+              <span>16°04′N 108°13′E</span>
+              <span>/</span>
+              <span className="text-slate-300">ĐÀ NẴNG, VIỆT NAM</span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.12]">
-              Thuê xe máy tại Đà Nẵng.
-              <br />
-              <span className="text-emerald-400">
-                Tự do khám phá từng cung đèo đại ngàn.
+            <div className="flex items-center space-x-4">
+              <span className="flex items-center space-x-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                <span className="text-slate-200">Ga T1/T2 & Trung tâm sẵn sàng</span>
               </span>
-            </h1>
-
-            <p className="text-base sm:text-lg text-slate-300 font-normal leading-relaxed max-w-2xl">
-              100% xe chính hãng đời 2023 - 2024 được kiểm định kỹ thuật khắt khe. Giao nhận xe tận nơi 
-              tại Sân bay Quốc tế Đà Nẵng (Ga T1 & T2), bãi biển Mỹ Khê và khách sạn trung tâm. 
-              Hợp đồng số hóa eKYC — <strong className="text-white font-semibold">100% không giữ CCCD bản gốc</strong>.
-            </p>
+              <span>•</span>
+              <span>0đ Giữ CCCD gốc</span>
+            </div>
           </div>
 
-          {/* High-Utility Booking Widget */}
-          <div className="max-w-5xl">
-            <BookingWidget branches={branches} onSearch={handleBookingSearch} />
-          </div>
+          {/* Asymmetric Master Composition: Editorial Heading & Dispatch Console */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            
+            {/* Left 7 Columns: Evocative Editorial Manifesto */}
+            <div className="lg:col-span-7 space-y-6">
+              
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 block font-mono">
+                  KHÁM PHÁ THIÊN NHIÊN HOANG SƠ BẰNG XE MÁY
+                </span>
+                
+                <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.05]">
+                  GIỮA ĐẠI NGÀN
+                  <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-200 to-moss-400">
+                    & BIỂN CẢ.
+                  </span>
+                </h1>
+              </div>
 
-          {/* Minimalist Trust Metrics Bar */}
-          <div className="mt-12 pt-8 border-t border-white/[0.06] grid grid-cols-2 md:grid-cols-4 gap-6 text-xs text-slate-300">
-            <div className="space-y-1">
-              <div className="text-slate-400 font-medium">Mạng lưới cơ sở</div>
-              <div className="text-sm font-bold text-white">3 Chi nhánh tại Đà Nẵng</div>
-              <p className="text-[11px] text-slate-400">Sân bay, Sơn Trà & Mỹ Khê</p>
+              <p className="text-base sm:text-lg text-[#8CA899] font-normal leading-relaxed max-w-xl">
+                Từ chân đèo Hải Vân uốn lượn mây bay, xuyên qua vòm rừng già Sơn Trà rợp bóng cây nghìn năm, 
+                đến những bãi cát trắng trải dài Non Nước. Đội xe chính hãng đời mới 2023 - 2024, bảo dưỡng ODO khắt khe, 
+                giao tận tay tại Sân bay Đà Nẵng với hợp đồng số hóa eKYC.
+              </p>
+
+              {/* Curated Elevation Waypoints Strip */}
+              <div className="pt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs border-t border-white/[0.08]">
+                <div className="space-y-0.5">
+                  <div className="text-[10px] text-[#8CA899] uppercase font-mono">Đỉnh Đèo</div>
+                  <div className="font-bold text-white">Hải Vân Quan</div>
+                  <div className="text-emerald-400 font-mono text-[11px]">Cao 496m</div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="text-[10px] text-[#8CA899] uppercase font-mono">Rừng Nguyên Sinh</div>
+                  <div className="font-bold text-white">Đỉnh Bàn Cờ</div>
+                  <div className="text-emerald-400 font-mono text-[11px]">Cao 696m</div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="text-[10px] text-[#8CA899] uppercase font-mono">Cửa Ngõ Bàn Giao</div>
+                  <div className="font-bold text-white">Sân Bay Quốc Tế</div>
+                  <div className="text-emerald-400 font-mono text-[11px]">Ga T1 & T2</div>
+                </div>
+
+                <div className="space-y-0.5">
+                  <div className="text-[10px] text-[#8CA899] uppercase font-mono">Cứu Hộ Đèo</div>
+                  <div className="font-bold text-white">24/7 Cơ Động</div>
+                  <div className="text-emerald-400 font-mono text-[11px]">Toàn TP. Đà Nẵng</div>
+                </div>
+              </div>
+
             </div>
 
-            <div className="space-y-1">
-              <div className="text-slate-400 font-medium">Chất lượng đội xe</div>
-              <div className="text-sm font-bold text-white">100% Xe đời 2023 - 2024</div>
-              <p className="text-[11px] text-slate-400">Bảo dưỡng sau mỗi 1.500 km</p>
+            {/* Right 5 Columns: The Dispatch Command Dock */}
+            <div className="lg:col-span-5">
+              <div className="relative">
+                <BookingWidget branches={branches} onSearch={handleBookingSearch} />
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <div className="text-slate-400 font-medium">Thủ tục văn minh</div>
-              <div className="text-sm font-bold text-white">Không giữ CCCD gốc</div>
-              <p className="text-[11px] text-slate-400">Đối soát số hóa eKYC trong 30s</p>
-            </div>
-
-            <div className="space-y-1">
-              <div className="text-slate-400 font-medium">Bảo chứng hành trình</div>
-              <div className="text-sm font-bold text-white">Cứu hộ tận nơi 24/7</div>
-              <p className="text-[11px] text-slate-400">Đổi xe trong 30-45 phút nếu sự cố</p>
-            </div>
           </div>
 
         </div>
       </section>
 
-      {/* Error Notice */}
+      {/* Error Alert Notice */}
       {error && (
         <section className="max-w-4xl mx-auto my-6 px-4">
-          <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs sm:text-sm text-emerald-200">
+          <div className="p-4 bg-emerald-950/60 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs sm:text-sm text-emerald-200">
             <div className="flex items-center space-x-3">
               <AlertCircle className="w-5 h-5 flex-shrink-0 text-emerald-400" />
-              <span className="font-medium">{error}</span>
+              <span>{error}</span>
             </div>
             <button
               onClick={fetchData}
@@ -172,398 +281,503 @@ export const HomePage: React.FC = () => {
       )}
 
       {/* =========================================================================
-          2. SECTION: BẢNG GIÁ & ĐỘI XE TUYỂN CHỌN
+          2. THE MASTER VEHICLE SHOWROOM: PHÒNG TRIỂN LÃM ĐỘI XE TƯƠNG TÁC
+          (HOÀN TOÀN XÓA BỎ LƯỚI CARD 3x2 ĐẠI TRÀ - THAY BẰNG SHOWCASE ĐẲNG CẤP)
           ========================================================================= */}
-      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-emerald-500/10">
+        
+        {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
           <div>
-            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block mb-2">
-              ĐỘI XE CHÍNH HÃNG
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              Chọn xe phù hợp với lộ trình của bạn
+            <div className="flex items-center space-x-2 text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest mb-2">
+              <span>02 / ĐỘI NGŨ CỖ MÁY CHÍNH HÃNG</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+              Phòng Triển Lãm Đội Xe
             </h2>
-            <p className="mt-2 text-xs sm:text-sm text-slate-400 max-w-xl">
-              Từ xe tay ga êm ái dạo phố biển Mỹ Khê đến xe côn tay thể thao chuyên vượt dốc đèo Hải Vân và đỉnh Bàn Cờ.
+            <p className="mt-2 text-xs sm:text-sm text-[#8CA899] max-w-xl">
+              Chọn cỗ máy trong danh sách để tương tác góc nhìn 360°, đối soát thông số cơ học và đặt xe trực tiếp.
             </p>
           </div>
 
           <Link
             to="/bikes"
-            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+            className="inline-flex items-center space-x-2 text-xs font-bold text-emerald-400 hover:text-emerald-300 font-mono transition-colors"
           >
-            <span>Xem tất cả {vehicles.length} xe</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>XEM TẤT CẢ {vehicles.length} XE TRONG ĐỘI</span>
+            <ArrowUpRight className="w-4 h-4" />
           </Link>
         </div>
 
-        {/* Category Filter Tabs */}
-        <div className="flex items-center gap-2 mb-8 pb-2 overflow-x-auto">
-          <button
-            onClick={() => setSelectedCategoryTab('all')}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-              selectedCategoryTab === 'all'
-                ? 'bg-emerald-500 text-[#07100D] font-bold shadow-sm'
-                : 'bg-[#0D1C16] text-slate-300 border border-white/10 hover:border-emerald-500/30 hover:text-white'
-            }`}
-          >
-            Tất cả xe ({vehicles.length})
-          </button>
+        {/* Master Showcase Layout: Big Interactive Canvas (7 Cols) + Curated Roster (5 Cols) */}
+        {activeVehicle ? (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+            
+            {/* Left 7 Columns: Giant Interactive Studio Stage */}
+            <div className="lg:col-span-7 rounded-3xl bg-[#091810] border border-white/[0.08] p-6 sm:p-8 flex flex-col justify-between relative shadow-2xl">
+              
+              <div>
+                {/* Top Bar on Stage */}
+                <div className="flex items-center justify-between pb-4 border-b border-white/[0.06] text-xs">
+                  <div className="flex items-center space-x-2">
+                    <span className="px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 font-mono font-bold text-[11px] border border-emerald-500/30">
+                      {activeVehicle.licensePlate}
+                    </span>
+                    <span className="text-[#8CA899] font-medium">
+                      Đời {activeVehicle.yearManufactured || 2024}
+                    </span>
+                  </div>
 
-          {categories.map((cat) => {
-            const active = selectedCategoryTab === cat.slug;
-            return (
-              <button
-                key={cat._id}
-                onClick={() => setSelectedCategoryTab(cat.slug)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap ${
-                  active
-                    ? 'bg-emerald-500 text-[#07100D] font-bold shadow-sm'
-                    : 'bg-[#0D1C16] text-slate-300 border border-white/10 hover:border-emerald-500/30 hover:text-white'
-                }`}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
-        </div>
+                  <span className="inline-flex items-center text-emerald-400 font-medium text-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5" />
+                    Sẵn sàng bàn giao
+                  </span>
+                </div>
 
-        {/* Vehicles Grid */}
-        {loading ? (
-          <div className="py-20 text-center">
-            <div className="inline-block animate-spin rounded-full h-7 w-7 border-b-2 border-emerald-400 mb-3" />
-            <p className="text-xs text-slate-400 font-medium">Đang tải danh sách xe sẵn sàng...</p>
-          </div>
-        ) : featuredVehicles.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredVehicles.map((vehicle) => (
-              <VehicleCard
-                key={vehicle._id}
-                vehicle={vehicle}
-                onBookNow={handleBookVehicle}
-              />
-            ))}
+                {/* Big Vehicle Photo Presentation Stage */}
+                <div className="relative w-full h-64 sm:h-80 my-4 bg-white rounded-2xl overflow-hidden flex items-center justify-center p-4">
+                  {activeVehicle.images && activeVehicle.images[activeAngle] && !imgError ? (
+                    <img
+                      src={getOptimizedVehicleImageUrl(activeVehicle.images[activeAngle])}
+                      alt={activeVehicle.vehicleModel}
+                      onError={() => setImgError(true)}
+                      className="w-full h-full object-contain scale-[1.3] transition-all duration-300"
+                    />
+                  ) : (
+                    <div className="text-center text-slate-400 py-8">
+                      <p className="font-semibold text-sm">Hình ảnh nguyên bản độ phân giải cao</p>
+                      <p className="text-xs text-slate-500">Motorent chụp trực tiếp tại trạm</p>
+                    </div>
+                  )}
+
+                  {/* Multi-angle pill switcher */}
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center space-x-1.5 bg-[#040D08]/90 p-1.5 rounded-xl border border-white/10 z-10">
+                    {ANGLE_VIEWS.map((ang) => (
+                      <button
+                        key={ang.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveAngle(ang.id);
+                          setImgError(false);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                          activeAngle === ang.id
+                            ? 'bg-emerald-500 text-[#040D08] font-bold shadow-sm'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {ang.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Vehicle Model & Descriptive Headline */}
+                <div className="flex flex-col sm:flex-row sm:items-baseline justify-between gap-2 mt-4">
+                  <div>
+                    <h3 className="text-2xl sm:text-3xl font-black text-white">
+                      {activeVehicle.vehicleModel}
+                    </h3>
+                    <p className="text-xs text-[#8CA899] mt-0.5">
+                      Hãng sản xuất: <strong className="text-slate-200">{activeVehicle.brand}</strong> • Màu: <strong className="text-slate-200">{activeVehicle.color || 'Nguyên bản'}</strong>
+                    </p>
+                  </div>
+
+                  <div className="text-left sm:text-right">
+                    <span className="text-xs text-[#8CA899] block font-mono">Giá thuê niêm yết</span>
+                    <div className="flex items-baseline sm:justify-end space-x-1">
+                      <span className="text-2xl sm:text-3xl font-black text-white font-mono">
+                        {activeVehicle.dailyPrice.toLocaleString('vi-VN')}
+                      </span>
+                      <span className="text-xs text-[#8CA899] font-medium">đ/ngày</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4 Mechanical Specimen Metrics */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-6 border-t border-white/[0.06] text-xs">
+                  <div className="p-3 rounded-xl bg-[#040D08] border border-white/5 space-y-1">
+                    <div className="text-[10px] text-[#8CA899] font-mono uppercase flex items-center">
+                      <Gauge className="w-3 h-3 text-emerald-400 mr-1" />
+                      ODO Hiện Tại
+                    </div>
+                    <div className="font-bold text-white font-mono text-sm">
+                      {activeVehicle.odometer.toLocaleString('vi-VN')} km
+                    </div>
+                    <div className="text-[10px] text-emerald-400">Bảo dưỡng chuẩn</div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#040D08] border border-white/5 space-y-1">
+                    <div className="text-[10px] text-[#8CA899] font-mono uppercase flex items-center">
+                      <Fuel className="w-3 h-3 text-emerald-400 mr-1" />
+                      Nhiên Liệu
+                    </div>
+                    <div className="font-bold text-white font-mono text-sm">
+                      {activeVehicle.fuelType === 'Electric' ? 'Điện 100%' : 'Xăng ~1.8L'}
+                    </div>
+                    <div className="text-[10px] text-[#8CA899]">Chuẩn Euro 4/5</div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#040D08] border border-white/5 space-y-1">
+                    <div className="text-[10px] text-[#8CA899] font-mono uppercase flex items-center">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400 mr-1" />
+                      Hộp Số
+                    </div>
+                    <div className="font-bold text-white text-sm">
+                      {activeVehicle.transmissionType === 'Manual' ? 'Côn Tay Thể Thao' : activeVehicle.transmissionType === 'Automatic' ? 'Tay Ga Tự Động' : 'Xe Số Tròn'}
+                    </div>
+                    <div className="text-[10px] text-emerald-400">Leo dốc đèo tốt</div>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#040D08] border border-white/5 space-y-1">
+                    <div className="text-[10px] text-[#8CA899] font-mono uppercase flex items-center">
+                      <Layers className="w-3 h-3 text-emerald-400 mr-1" />
+                      Cọc Trực Tuyến
+                    </div>
+                    <div className="font-bold text-emerald-300 font-mono text-sm">
+                      {(activeVehicle.dailyPrice * 0.3).toLocaleString('vi-VN')} đ
+                    </div>
+                    <div className="text-[10px] text-[#8CA899]">Khóa đúng biển xe</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Bar On Showcase */}
+              <div className="mt-8 pt-6 border-t border-white/[0.08] flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-xs text-[#8CA899] flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  <span>Kèm 2 mũ 3/4 tiệt trùng UV + áo mưa + giá đỡ điện thoại OIS</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleBookVehicle(activeVehicle)}
+                  className="w-full sm:w-auto px-7 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#040D08] font-bold text-xs sm:text-sm transition-all active:scale-[0.99] flex items-center justify-center space-x-2 shadow-lg shadow-emerald-500/20 cursor-pointer"
+                >
+                  <span>Khóa cỗ máy này ngay (Cọc 30%)</span>
+                  <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+                </button>
+              </div>
+
+            </div>
+
+            {/* Right 5 Columns: The Curated Machine Roster */}
+            <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between pb-2 text-xs font-mono text-[#8CA899]">
+                <span>DANH SÁCH TUYỂN CHỌN ({vehicles.length} XE)</span>
+                <span>CHỌN ĐỂ XEM CHI TIẾT</span>
+              </div>
+
+              {/* Scrollable / Stacked List of Bikes */}
+              <div className="space-y-2.5 max-h-[580px] overflow-y-auto pr-1">
+                {vehicles.slice(0, 7).map((bike) => {
+                  const isSelected = bike._id === activeVehicle._id;
+                  return (
+                    <div
+                      key={bike._id}
+                      onClick={() => {
+                        setSelectedVehicleId(bike._id);
+                        setActiveAngle(1);
+                        setImgError(false);
+                      }}
+                      className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-[#0E2317] border-emerald-400/50 shadow-md shadow-emerald-950'
+                          : 'bg-[#091810] border-white/[0.06] hover:border-emerald-500/30 hover:bg-[#0C1F14]'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3.5 min-w-0">
+                        {/* Thumbnail */}
+                        <div className="w-14 h-12 rounded-lg bg-white overflow-hidden p-1 flex-shrink-0 flex items-center justify-center">
+                          <img
+                            src={getOptimizedVehicleImageUrl(bike.images?.[1] || bike.images?.[0] || '')}
+                            alt={bike.vehicleModel}
+                            className="w-full h-full object-contain scale-[1.2]"
+                          />
+                        </div>
+
+                        <div className="min-w-0">
+                          <h4 className={`text-sm font-bold truncate ${isSelected ? 'text-emerald-300' : 'text-white'}`}>
+                            {bike.vehicleModel}
+                          </h4>
+                          <p className="text-[11px] text-[#8CA899] truncate">
+                            {bike.transmissionType === 'Manual' ? 'Côn tay' : bike.transmissionType === 'Automatic' ? 'Tay ga' : 'Xe số'} • ODO {bike.odometer.toLocaleString('vi-VN')} km
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="text-right flex-shrink-0">
+                        <div className="font-mono font-bold text-white text-sm">
+                          {bike.dailyPrice.toLocaleString('vi-VN')}đ
+                        </div>
+                        <span className="text-[10px] text-[#8CA899]">/ ngày</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Catalog Link */}
+              <div className="pt-3 border-t border-white/[0.08]">
+                <Link
+                  to="/bikes"
+                  className="w-full py-3 rounded-xl bg-[#091810] hover:bg-[#0D2216] border border-white/[0.08] hover:border-emerald-500/30 text-emerald-400 font-semibold text-xs flex items-center justify-center space-x-2 transition-all"
+                >
+                  <Compass className="w-4 h-4" />
+                  <span>Xem toàn bộ danh mục xe & bảng giá đầy đủ</span>
+                </Link>
+              </div>
+
+            </div>
+
           </div>
         ) : (
-          <div className="py-16 text-center rounded-2xl bg-[#0D1C16] border border-white/10 p-8">
-            <p className="text-slate-300 font-medium text-sm">Chưa có xe thuộc danh mục này tại Đà Nẵng.</p>
-            <button
-              onClick={() => setSelectedCategoryTab('all')}
-              className="mt-3 px-4 py-2 rounded-xl bg-emerald-500/20 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/30 transition-colors"
-            >
-              Xem tất cả xe
-            </button>
+          <div className="py-20 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400 mb-3" />
+            <p className="text-xs text-slate-400">Đang chuẩn bị phòng trưng bày...</p>
           </div>
         )}
 
-        {/* View All CTA */}
-        <div className="mt-10 text-center">
-          <Link
-            to="/bikes"
-            className="inline-flex items-center space-x-2 px-6 py-3 rounded-xl bg-[#0D1C16] hover:bg-[#12241D] border border-emerald-500/20 hover:border-emerald-500/40 text-emerald-300 font-semibold text-xs sm:text-sm transition-all"
-          >
-            <span>Khám phá toàn bộ {vehicles.length} xe & bảng giá chi tiết</span>
-            <ArrowRight className="w-4 h-4 stroke-[2]" />
-          </Link>
-        </div>
       </section>
 
       {/* =========================================================================
-          3. SECTION: SỰ KHÁC BIỆT CỦA MOTORENT (4 CAM KẾT VĂN MINH)
+          3. SCENIC NATURE EXPEDITION PROFILES: BẢN ĐỒ CẮT LỚP ĐỊA HÌNH ĐÈO DỐC
+          (THIẾT KẾ ĐỘC BẢN DÀNH RIÊNG CHO ĐỊA HÌNH ĐÀ NẴNG - KHÔNG ĐẠI TRÀ)
           ========================================================================= */}
-      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
-        <div className="max-w-3xl mb-12">
-          <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block mb-2">
-            TIÊU CHUẨN DỊCH VỤ
-          </span>
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Vì sao khách hàng tin chọn Motorent tại Đà Nẵng?
-          </h2>
-          <p className="mt-2 text-xs sm:text-sm text-slate-400">
-            Chúng tôi loại bỏ hoàn toàn các phiền toái kinh điển của dịch vụ thuê xe truyền thống: 
-            giữ giấy tờ gốc, tráo đổi biển số xe, và thiếu hỗ trợ khi gặp sự cố trên đường.
-          </p>
-        </div>
-
-        {/* 4-Column Structured Index */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-          <div className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between space-y-4">
-            <div>
-              <div className="text-emerald-400 font-mono text-sm font-bold mb-3">01</div>
-              <h3 className="text-base font-bold text-white mb-2">
-                Không giữ CCCD bản gốc
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Đối soát danh tính số hóa qua eKYC trên điện thoại chỉ trong 30 giây. Bạn giữ trọn vẹn giấy tờ tùy thân để tự do làm thủ tục khách sạn và vé máy bay.
-              </p>
-            </div>
-            <div className="pt-3 border-t border-white/[0.06] text-[11px] text-emerald-400 font-medium flex items-center">
-              <Check className="w-3.5 h-3.5 mr-1" />
-              <span>Bảo mật dữ liệu cá nhân</span>
-            </div>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between space-y-4">
-            <div>
-              <div className="text-emerald-400 font-mono text-sm font-bold mb-3">02</div>
-              <h3 className="text-base font-bold text-white mb-2">
-                Khóa đúng biển số riêng
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Khi thanh toán cọc 30% trực tuyến, hệ thống tự động khóa chính xác biển số xe bạn chọn. Cam kết không tráo xe, không tăng giá vào mùa cao điểm.
-              </p>
-            </div>
-            <div className="pt-3 border-t border-white/[0.06] text-[11px] text-emerald-400 font-medium flex items-center">
-              <Check className="w-3.5 h-3.5 mr-1" />
-              <span>Chính xác 100% theo hợp đồng</span>
-            </div>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between space-y-4">
-            <div>
-              <div className="text-emerald-400 font-mono text-sm font-bold mb-3">03</div>
-              <h3 className="text-base font-bold text-white mb-2">
-                Giao xe tại Ga Sân bay T1/T2
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Nhân viên Motorent đón bạn tại cửa ra ga đến Sân bay Quốc tế Đà Nẵng. Bàn giao xe kèm 2 mũ bảo hiểm 3/4 tiệt trùng UV và lên đường chỉ trong 3 phút.
-              </p>
-            </div>
-            <div className="pt-3 border-t border-white/[0.06] text-[11px] text-emerald-400 font-medium flex items-center">
-              <Check className="w-3.5 h-3.5 mr-1" />
-              <span>Theo dõi chuyến bay theo thời gian thực</span>
-            </div>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between space-y-4">
-            <div>
-              <div className="text-emerald-400 font-mono text-sm font-bold mb-3">04</div>
-              <h3 className="text-base font-bold text-white mb-2">
-                Cứu hộ cơ động 24/7
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Đội kỹ thuật túc trực tại chân đèo Hải Vân, bán đảo Sơn Trà và trung tâm. Có mặt xử lý trong 30-45 phút, đổi xe tương đương nếu phát sinh sự cố kỹ thuật.
-              </p>
-            </div>
-            <div className="pt-3 border-t border-white/[0.06] text-[11px] text-emerald-400 font-medium flex items-center">
-              <Check className="w-3.5 h-3.5 mr-1" />
-              <span>Hotline kỹ thuật: 1900 6868</span>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* =========================================================================
-          4. SECTION: CẨM NANG CUNG ĐƯỜNG ĐÀ NẴNG (FIELD GUIDE)
-          ========================================================================= */}
-      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
-        <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
-          <div>
-            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block mb-2">
-              CẨM NANG ĐỊA PHƯƠNG
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              3 Cung đường trải nghiệm đẹp nhất Đà Nẵng
-            </h2>
-            <p className="mt-2 text-xs sm:text-sm text-slate-400 max-w-xl">
-              Gợi ý hành trình, cự ly và dòng xe tối ưu để bạn có chuyến đi an toàn và trọn vẹn nhất.
-            </p>
-          </div>
-
-          <Link
-            to="/bikes"
-            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
-          >
-            <span>Tìm xe theo cung đường</span>
-            <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        {/* 3 Editorial Field Guide Cards */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* Guide 1 */}
-          <div className="p-6 sm:p-7 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-mono font-bold text-emerald-400">CUNG ĐƯỜNG 01</span>
-                <span className="text-slate-400 font-medium">Cự ly: 21 km</span>
-              </div>
-              <h3 className="text-lg font-bold text-white leading-snug">
-                Đèo Hải Vân & Vịnh Lăng Cô
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Cung đèo uốn lượn lưng chừng mây nối liền Đà Nẵng và Huế. Tầm nhìn mở rộng ngắm trọn biển Nam Ô và vịnh Lăng Cô xanh ngọc bích.
-              </p>
-
-              <div className="pt-2 space-y-1.5 text-[11px] text-slate-400">
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Thời gian khám phá:</span>
-                  <span className="text-slate-200 font-medium">2.5 - 3 Giờ</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Độ cao / Địa hình:</span>
-                  <span className="text-slate-200 font-medium">500m • Cua tay áo dốc 8-10%</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Dòng xe tối ưu:</span>
-                  <span className="text-emerald-300 font-medium">Xe côn tay / ADV 160</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-white/[0.06] text-xs text-slate-400">
-              <strong className="text-slate-200">Lưu ý an toàn:</strong> Về số thấp khi xuống đèo, không rà phanh liên tục để tránh cháy má phanh.
-            </div>
-          </div>
-
-          {/* Guide 2 */}
-          <div className="p-6 sm:p-7 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-mono font-bold text-emerald-400">CUNG ĐƯỜNG 02</span>
-                <span className="text-slate-400 font-medium">Cự ly: 18 km</span>
-              </div>
-              <h3 className="text-lg font-bold text-white leading-snug">
-                Bán Đảo Sơn Trà & Đỉnh Bàn Cờ
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Đường uốn quanh rừng nguyên sinh Sơn Trà, ngắm loài Voọc Chà Vá Chân Nâu quý hiếm và ngắm toàn cảnh thành phố Đà Nẵng từ độ cao 696m.
-              </p>
-
-              <div className="pt-2 space-y-1.5 text-[11px] text-slate-400">
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Thời gian khám phá:</span>
-                  <span className="text-slate-200 font-medium">2 Giờ</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Độ cao / Địa hình:</span>
-                  <span className="text-slate-200 font-medium">696m • Dốc đứng quanh co</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Dòng xe tối ưu:</span>
-                  <span className="text-emerald-300 font-medium">Xe số Wave / Future / Côn tay</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-white/[0.06] text-xs text-slate-400">
-              <strong className="text-slate-200">Khuyến nghị:</strong> Quy định địa phương hạn chế xe tay ga lên đỉnh Bàn Cờ, nên chọn xe số hoặc côn tay.
-            </div>
-          </div>
-
-          {/* Guide 3 */}
-          <div className="p-6 sm:p-7 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between space-y-6">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-mono font-bold text-emerald-400">CUNG ĐƯỜNG 03</span>
-                <span className="text-slate-400 font-medium">Cự ly: 30 km</span>
-              </div>
-              <h3 className="text-lg font-bold text-white leading-snug">
-                Duyên Hải Đà Nẵng — Phố Cổ Hội An
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Cung đường biển bằng phẳng dọc đường Võ Nguyên Giáp và Lạc Long Quân. Đón gió biển mát lành, ghé thăm làng đá Non Nước và phố cổ đèn lồng.
-              </p>
-
-              <div className="pt-2 space-y-1.5 text-[11px] text-slate-400">
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Thời gian di chuyển:</span>
-                  <span className="text-slate-200 font-medium">45 Phút</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Địa hình:</span>
-                  <span className="text-slate-200 font-medium">Đường đại lộ ven biển êm ái</span>
-                </div>
-                <div className="flex items-center justify-between py-1 border-b border-white/[0.04]">
-                  <span>Dòng xe tối ưu:</span>
-                  <span className="text-emerald-300 font-medium">Tất cả các dòng xe tay ga</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-white/[0.06] text-xs text-slate-400">
-              <strong className="text-slate-200">Gợi ý:</strong> Khởi hành vào khoảng 15:30 chiều để kịp ngắm hoàng hôn biển và vào Hội An khi phố lên đèn.
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      {/* =========================================================================
-          5. SECTION: QUY TRÌNH THUÊ XE 3 BƯỚC ĐƠN GIẢN
-          ========================================================================= */}
-      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
-        <div className="max-w-2xl mx-auto text-center mb-12">
-          <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block mb-2">
-            THỦ TỤC NHANH GỌN
-          </span>
-          <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Nhận xe sẵn sàng chỉ trong 3 bước
-          </h2>
-          <p className="mt-2 text-xs sm:text-sm text-slate-400">
-            Tối giản mọi thủ tục giấy tờ rườm rà để bạn tận hưởng chuyến đi trọn vẹn.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] relative">
-            <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center border border-emerald-500/20 mb-4">
-              01
-            </span>
-            <h3 className="text-base font-bold text-white mb-2">Chọn xe & cọc 30% trực tuyến</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Chọn mẫu xe yêu thích, xem ảnh thật 3 góc chụp và bảng giá niêm yết. Thanh toán cọc 30% qua QR Pay để hệ thống khóa chính xác biển số xe riêng cho bạn.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] relative">
-            <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center border border-emerald-500/20 mb-4">
-              02
-            </span>
-            <h3 className="text-base font-bold text-white mb-2">Đối soát eKYC trong 30 giây</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Chụp ảnh CCCD và GPLX trực tiếp trên điện thoại của bạn. Hệ thống tự động xác thực và lập hợp đồng số hóa. Hoàn toàn không giữ bất kỳ giấy tờ gốc nào.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] relative">
-            <span className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center border border-emerald-500/20 mb-4">
-              03
-            </span>
-            <h3 className="text-base font-bold text-white mb-2">Nhận xe tại Sân bay hoặc Trạm</h3>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Nhân viên giao xe tận tay tại cửa Ga T1/T2 hoặc khách sạn. Bạn kiểm tra xe, nhận 2 nón bảo hiểm 3/4 tiệt trùng UV, ký biên bản điện tử và lên đường.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* =========================================================================
-          6. SECTION: MẠNG LƯỚI CHI NHÁNH TẠI ĐÀ NẴNG
-          ========================================================================= */}
-      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
+      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-emerald-500/10">
+        
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
           <div>
-            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider block mb-2">
-              HỆ THỐNG TRẠM XE
-            </span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
-              3 Chi nhánh phục vụ khắp Đà Nẵng
+            <div className="flex items-center space-x-2 text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest mb-2">
+              <Mountain className="w-3.5 h-3.5" />
+              <span>03 / HỒ SƠ ĐỊA HÌNH & CUNG ĐƯỜNG</span>
+            </div>
+            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+              Cẩm Nang Cung Đèo Hải Vân & Sơn Trà
             </h2>
-            <p className="mt-2 text-xs sm:text-sm text-slate-400">
-              Vị trí chiến lược kết nối trực tiếp Sân bay, bờ biển Mỹ Khê và cửa ngõ phượt đèo Hải Vân.
+            <p className="mt-2 text-xs sm:text-sm text-[#8CA899] max-w-xl">
+              Cắt lớp độ cao, cự ly và lưu ý kỹ thuật lái xe an toàn trên từng cung đường đặc thù tại Đà Nẵng.
+            </p>
+          </div>
+
+          {/* Route Tabs */}
+          <div className="flex items-center space-x-2 bg-[#091810] p-1.5 rounded-xl border border-white/[0.08]">
+            {SCENIC_ROUTES.map((rt, idx) => (
+              <button
+                key={rt.id}
+                onClick={() => setSelectedRouteIndex(idx)}
+                className={`px-3.5 py-1.5 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                  selectedRouteIndex === idx
+                    ? 'bg-emerald-500 text-[#040D08] font-bold shadow-sm'
+                    : 'text-[#8CA899] hover:text-white'
+                }`}
+              >
+                {rt.code}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Selected Route Elevation & Geological Profile Card */}
+        <div className="rounded-3xl bg-[#091810] border border-white/[0.08] p-6 sm:p-10 shadow-2xl relative overflow-hidden">
+          
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            {/* Left 7 Columns: Narrative & Terrain Specifications */}
+            <div className="lg:col-span-7 space-y-5">
+              
+              <div>
+                <span className="text-xs font-mono text-emerald-400 uppercase font-bold">
+                  {currentRoute.code} • {currentRoute.distance} • THỜI GIAN {currentRoute.duration}
+                </span>
+                <h3 className="text-2xl sm:text-4xl font-black text-white mt-1">
+                  {currentRoute.title}
+                </h3>
+                <p className="text-sm text-emerald-300 font-medium mt-1">
+                  {currentRoute.subtitle}
+                </p>
+              </div>
+
+              <p className="text-xs sm:text-sm text-[#8CA899] leading-relaxed">
+                {currentRoute.description}
+              </p>
+
+              {/* Terrain Data Matrix */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 text-xs font-mono">
+                <div className="p-3 rounded-xl bg-[#040D08] border border-white/5">
+                  <div className="text-[10px] text-[#8CA899]">Đỉnh Cao Nhất</div>
+                  <div className="font-bold text-white text-sm mt-0.5">{currentRoute.elevation}</div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#040D08] border border-white/5">
+                  <div className="text-[10px] text-[#8CA899]">Độ Dốc Khắt Khe</div>
+                  <div className="font-bold text-white text-sm mt-0.5">{currentRoute.grade}</div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#040D08] border border-white/5 col-span-2 sm:col-span-1">
+                  <div className="text-[10px] text-[#8CA899]">Cua Uốn Lượn</div>
+                  <div className="font-bold text-emerald-400 text-sm mt-0.5">{currentRoute.hairpins}</div>
+                </div>
+              </div>
+
+              {/* Safety Guidance Box */}
+              <div className="p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/25 text-xs text-emerald-200 space-y-1">
+                <div className="font-bold text-emerald-300 flex items-center">
+                  <ShieldCheck className="w-4 h-4 mr-1.5 text-emerald-400" />
+                  <span>Kinh nghiệm phượt địa phương an toàn</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-300">
+                  {currentRoute.safetyNote}
+                </p>
+              </div>
+
+            </div>
+
+            {/* Right 5 Columns: Vehicle Recommendation & Waypoint Highlights */}
+            <div className="lg:col-span-5 flex flex-col justify-between space-y-6 lg:border-l lg:border-white/[0.08] lg:pl-8">
+              
+              <div>
+                <h4 className="text-xs font-mono uppercase text-[#8CA899] font-bold mb-3">
+                  DÒNG XE KHUYÊN DÙNG
+                </h4>
+                <div className="p-4 rounded-2xl bg-[#040D08] border border-emerald-500/30">
+                  <div className="text-emerald-300 font-bold text-sm">
+                    {currentRoute.recommendedType}
+                  </div>
+                  <p className="text-[11px] text-[#8CA899] mt-1 leading-relaxed">
+                    Động cơ tối ưu mô-men xoắn, phanh an toàn đĩa đôi / ABS, bám đường ẩm lá thông sương mù.
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-mono uppercase text-[#8CA899] font-bold mb-3">
+                  TỌA ĐỘ DỪNG CHÂN ĐẶC SẮC
+                </h4>
+                <ul className="space-y-2 text-xs text-slate-300">
+                  {currentRoute.highlights.map((hl, i) => (
+                    <li key={i} className="flex items-center space-x-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
+                      <span>{hl}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="pt-4 border-t border-white/[0.08]">
+                <button
+                  type="button"
+                  onClick={() => navigate('/bikes')}
+                  className="w-full py-3 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                >
+                  <Navigation className="w-4 h-4" />
+                  <span>Chọn xe phù hợp cho {currentRoute.title}</span>
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* =========================================================================
+          4. THE CIVILIZED MOBILITY MANIFESTO: BẢN TUYÊN NGÔN VĂN HÓA DỊCH VỤ
+          (THIẾT KẾ DẠNG ESSAY TẠP CHÍ - LOẠI BỎ 4 HỘP BENTO BOXES CLICHÉ)
+          ========================================================================= */}
+      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-emerald-500/10">
+        
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          
+          {/* Left 5 Columns: Bold Provocative Statement */}
+          <div className="lg:col-span-5 space-y-4">
+            <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest block">
+              04 / TIÊU CHUẨN VĂN MINH
+            </span>
+            <h2 className="text-3xl sm:text-5xl font-black text-white leading-tight">
+              Chúng tôi từ chối giữ giấy tờ gốc của bạn.
+            </h2>
+            <p className="text-sm text-[#8CA899] leading-relaxed">
+              Dịch vụ thuê xe truyền thống thường làm phiền lòng du khách bằng việc giữ lại CCCD/Hộ chiếu gốc, 
+              tráo đổi biển số xe vào phút chót, hoặc bỏ mặc khi xe gặp sự cố hỏng hóc giữa đường. 
+              Motorent thiết lập chuẩn mực dịch vụ hoàn toàn khác biệt.
+            </p>
+          </div>
+
+          {/* Right 7 Columns: 4 Detailed Operational Principles */}
+          <div className="lg:col-span-7 space-y-6">
+            
+            <div className="p-6 rounded-2xl bg-[#091810] border border-white/[0.08] flex items-start space-x-4">
+              <span className="font-mono font-bold text-emerald-400 text-lg">01</span>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white">Đối soát số hóa eKYC trong 30 giây</h4>
+                <p className="text-xs text-[#8CA899] leading-relaxed">
+                  Chụp ảnh CCCD và GPLX trực tiếp trên điện thoại của bạn qua giao thức bảo mật. Bạn giữ trọn vẹn giấy tờ tùy thân để làm thủ tục nhận phòng resort, khách sạn và xuất trình hàng không.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-[#091810] border border-white/[0.08] flex items-start space-x-4">
+              <span className="font-mono font-bold text-emerald-400 text-lg">02</span>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white">Khóa chính xác biển số xe riêng</h4>
+                <p className="text-xs text-[#8CA899] leading-relaxed">
+                  Khi cọc 30% trực tuyến, hệ thống khóa đúng biển số xe bạn chọn vào hợp đồng số. Cam kết không tráo đổi mẫu xe, không dời lịch và không tăng giá vào dịp lễ hội hay mùa cao điểm du lịch.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-[#091810] border border-white/[0.08] flex items-start space-x-4">
+              <span className="font-mono font-bold text-emerald-400 text-lg">03</span>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white">Bàn giao tại cửa Ga T1 & T2 Sân bay Quốc tế</h4>
+                <p className="text-xs text-[#8CA899] leading-relaxed">
+                  Motorent theo dõi số hiệu chuyến bay của bạn theo thời gian thực. Nhân viên đón bạn tại cửa ra ga đến, bàn giao xe kèm 2 mũ bảo hiểm 3/4 tiệt trùng UV và bắt đầu chuyến đi trong 3 phút.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 rounded-2xl bg-[#091810] border border-white/[0.08] flex items-start space-x-4">
+              <span className="font-mono font-bold text-emerald-400 text-lg">04</span>
+              <div className="space-y-1">
+                <h4 className="text-base font-bold text-white">Đội cứu hộ cơ động 24/7 xuyên suốt đèo dốc</h4>
+                <p className="text-xs text-[#8CA899] leading-relaxed">
+                  Duy trì đội kỹ thuật trực chiến tại 3 cửa ngõ: Chân đèo Hải Vân, bán đảo Sơn Trà và trung tâm thành phố. Hỗ trợ xử lý sự cố trong 30-45 phút, đổi xe tương đương tận nơi nếu phát sinh lỗi kỹ thuật.
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* =========================================================================
+          5. EXPEDITION BASECAMPS: 3 TRẠM TIẾP NHIÊN LIỆU & BÀN GIAO TẠI ĐÀ NẴNG
+          ========================================================================= */}
+      <section className="py-16 md:py-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-emerald-500/10">
+        
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+          <div>
+            <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest block mb-2">
+              05 / MẠNG LƯỚI TRẠM GIAO NHẬN
+            </span>
+            <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
+              3 Trạm Căn Cứ Xuất Phát
+            </h2>
+            <p className="mt-2 text-xs sm:text-sm text-[#8CA899] max-w-xl">
+              Phủ sóng toàn diện từ cửa ngõ hàng không đến bờ biển Mỹ Khê và chân đèo Hải Vân.
             </p>
           </div>
 
           <Link
             to="/branches"
-            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
+            className="inline-flex items-center space-x-1.5 text-xs font-mono font-bold text-emerald-400 hover:text-emerald-300"
           >
-            <span>Chi tiết bản đồ & giờ mở cửa</span>
-            <ChevronRight className="w-4 h-4" />
+            <span>XEM BẢN ĐỒ CHI TIẾT</span>
+            <ArrowUpRight className="w-4 h-4" />
           </Link>
         </div>
 
@@ -571,27 +785,27 @@ export const HomePage: React.FC = () => {
           {branches.map((branch, idx) => (
             <div
               key={branch._id}
-              className="p-6 rounded-2xl bg-[#0D1C16] border border-white/[0.08] flex flex-col justify-between"
+              className="p-6 sm:p-7 rounded-3xl bg-[#091810] border border-white/[0.08] flex flex-col justify-between space-y-6"
             >
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-mono font-bold text-emerald-400">TRẠM 0{idx + 1}</span>
-                  <span className="text-[11px] text-emerald-300 font-medium">Mở cửa: 06:00 - 23:00</span>
+                <div className="flex items-center justify-between text-xs font-mono">
+                  <span className="text-emerald-400 font-bold">CĂN CỨ 0{idx + 1}</span>
+                  <span className="text-[#8CA899]">06:00 — 23:00</span>
                 </div>
 
-                <h3 className="text-base font-bold text-white">{branch.name}</h3>
+                <h3 className="text-lg font-bold text-white leading-snug">{branch.name}</h3>
 
-                <p className="text-xs text-slate-400 flex items-start space-x-2">
+                <p className="text-xs text-[#8CA899] flex items-start space-x-2">
                   <MapPin className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
                   <span className="leading-relaxed">{branch.address}</span>
                 </p>
               </div>
 
-              <div className="pt-4 mt-4 border-t border-white/[0.06] flex items-center justify-between text-xs">
-                <span className="text-slate-400 font-mono">{branch.phone}</span>
+              <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between text-xs">
+                <span className="text-slate-300 font-mono">{branch.phone}</span>
                 <Link
                   to="/branches"
-                  className="text-emerald-400 font-medium hover:underline"
+                  className="text-emerald-400 font-bold hover:underline"
                 >
                   Chỉ đường
                 </Link>
@@ -599,31 +813,33 @@ export const HomePage: React.FC = () => {
             </div>
           ))}
         </div>
+
       </section>
 
       {/* =========================================================================
-          7. SECTION: CAM KẾT VÌ MÔI TRƯỜNG & AN TOÀN
+          6. NATURE CONSERVATION PLEDGE: DU LỊCH CÓ TRÁCH NHIỆM
           ========================================================================= */}
-      <section className="py-12 md:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-white/[0.06]">
-        <div className="p-8 sm:p-10 rounded-2xl bg-[#0D1C16] border border-white/[0.08] text-center max-w-3xl mx-auto space-y-4">
-          <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">
-            DU LỊCH CÓ TRÁCH NHIỆM
-          </div>
-          <h3 className="text-xl sm:text-2xl font-bold text-white">
-            Giữ gìn vẻ đẹp nguyên sơ của Đà Nẵng
-          </h3>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            Rừng già Sơn Trà và đèo Hải Vân là di sản thiên nhiên vô giá. Motorent cùng bạn chung tay giữ gìn sự nguyên sơ: 
-            Không để lại rác thải trên đèo, không cho thú rừng ăn, và lái xe với tốc độ an toàn có trách nhiệm.
-          </p>
-          <div className="pt-2 flex flex-wrap justify-center gap-4 text-xs text-slate-400">
-            <span className="flex items-center">
-              <Check className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
-              100% Xe đạt chuẩn khí thải Euro 4/5
+      <section className="py-12 md:py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="p-8 sm:p-10 rounded-3xl bg-[#091810] border border-white/[0.08] flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="space-y-2 max-w-2xl">
+            <span className="text-xs font-mono text-emerald-400 uppercase font-bold">
+              BẢO TỒN THIÊN NHIÊN SƠN TRÀ & HẢI VÂN
             </span>
-            <span className="flex items-center">
-              <Check className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
-              Phát triển đội xe điện du lịch xanh
+            <h3 className="text-xl sm:text-2xl font-black text-white">
+              Cùng Motorent giữ trọn sự nguyên sơ của đại ngàn
+            </h3>
+            <p className="text-xs text-[#8CA899] leading-relaxed">
+              Mỗi cung đường bạn đi qua xin vui lòng không xả rác, không cho thú hoang ăn, 
+              và tuân thủ quy tắc an toàn giao thông đường đèo dốc.
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-3 text-xs font-mono flex-shrink-0">
+            <span className="px-3.5 py-2 rounded-xl bg-[#040D08] border border-white/10 text-emerald-300">
+              Euro 4/5 Khí Thải
+            </span>
+            <span className="px-3.5 py-2 rounded-xl bg-[#040D08] border border-white/10 text-emerald-300">
+              Phát Triển Xe Điện Eco
             </span>
           </div>
         </div>
