@@ -22,9 +22,9 @@ export const WelcomeToast: React.FC = () => {
 
   return (
     <div className="fixed top-[72px] right-3 sm:right-6 lg:right-8 z-50 pointer-events-auto animate-in fade-in slide-in-from-top-2 duration-200">
-      <div className="bg-[#0D131F]/95 backdrop-blur-md rounded-xl py-2 px-3 sm:px-3.5 border border-white/10 shadow-2xl shadow-black/80 flex items-center space-x-2.5 max-w-[calc(100vw-24px)]">
+      <div className="bg-[#0A1813]/95 backdrop-blur-md rounded-xl py-2 px-3 sm:px-3.5 border border-emerald-500/20 shadow-2xl shadow-black/80 flex items-center space-x-2.5 max-w-[calc(100vw-24px)]">
         {/* Subtle green vector icon badge */}
-        <div className="w-6 h-6 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
+        <div className="w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shrink-0">
           <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
         </div>
 
@@ -35,7 +35,7 @@ export const WelcomeToast: React.FC = () => {
           </div>
           {welcomeNotice.name && (
             <div className="text-[11px] text-slate-400 truncate mt-0.5">
-              Xin chào <span className="font-semibold text-amber-400">{welcomeNotice.name}</span>
+              Xin chào <span className="font-semibold text-emerald-400">{welcomeNotice.name}</span>
             </div>
           )}
         </div>

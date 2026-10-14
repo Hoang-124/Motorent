@@ -88,12 +88,12 @@ export const FleetPage: React.FC = () => {
     });
 
   return (
-    <div className="min-h-screen bg-[#070A11] text-slate-100 py-10">
+    <div className="min-h-screen bg-[#050D0A] text-slate-100 py-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header Title */}
         <div className="mb-8">
-          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-200 border border-amber-500/30 mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-200 border border-emerald-500/30 mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
             <span>100% Xe tự doanh chính hãng • Bảo dưỡng định kỳ</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-tight">
@@ -105,7 +105,7 @@ export const FleetPage: React.FC = () => {
         </div>
 
         {/* Filter Bar */}
-        <div className="bg-[#0D131F] rounded-[2rem] p-5 md:p-6 border border-white/10 shadow-xl mb-8 space-y-4">
+        <div className="bg-[#0A1813] rounded-[2rem] p-5 md:p-6 border border-white/10 shadow-xl mb-8 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {/* Search Box */}
             <div className="relative md:col-span-2">
@@ -115,7 +115,7 @@ export const FleetPage: React.FC = () => {
                 placeholder="Tìm kiếm theo tên xe (Vision, Air Blade, Exciter, VinFast...)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 bg-[#070A11] border border-white/10 rounded-xl text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-amber-500 transition-all"
+                className="w-full pl-10 pr-4 py-2.5 bg-[#050D0A] border border-white/10 rounded-xl text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-all"
               />
             </div>
 
@@ -124,11 +124,11 @@ export const FleetPage: React.FC = () => {
               <select
                 value={selectedBranch}
                 onChange={(e) => setSelectedBranch(e.target.value)}
-                className="w-full py-2.5 px-3 bg-[#070A11] border border-white/10 rounded-xl text-xs font-semibold text-white outline-none focus:border-amber-500 cursor-pointer"
+                className="w-full py-2.5 px-3 bg-[#050D0A] border border-white/10 rounded-xl text-xs font-semibold text-white outline-none focus:border-emerald-500 cursor-pointer"
               >
-                <option value="" className="bg-[#0D131F] text-white">Tất cả các chi nhánh</option>
+                <option value="" className="bg-[#0A1813] text-white">Tất cả các chi nhánh</option>
                 {branches.map((b) => (
-                  <option key={b._id} value={b._id} className="bg-[#0D131F] text-white">
+                  <option key={b._id} value={b._id} className="bg-[#0A1813] text-white">
                     {b.name}
                   </option>
                 ))}
@@ -145,11 +145,11 @@ export const FleetPage: React.FC = () => {
                     setPriceSort(val);
                   }
                 }}
-                className="w-full py-2.5 px-3 bg-[#070A11] border border-white/10 rounded-xl text-xs font-semibold text-white outline-none focus:border-amber-500 cursor-pointer"
+                className="w-full py-2.5 px-3 bg-[#050D0A] border border-white/10 rounded-xl text-xs font-semibold text-white outline-none focus:border-emerald-500 cursor-pointer"
               >
-                <option value="default" className="bg-[#0D131F] text-white">Sắp xếp theo giá</option>
-                <option value="asc" className="bg-[#0D131F] text-white">Giá thuê: Thấp đến Cao</option>
-                <option value="desc" className="bg-[#0D131F] text-white">Giá thuê: Cao đến Thấp</option>
+                <option value="default" className="bg-[#0A1813] text-white">Sắp xếp theo giá</option>
+                <option value="asc" className="bg-[#0A1813] text-white">Giá thuê: Thấp đến Cao</option>
+                <option value="desc" className="bg-[#0A1813] text-white">Giá thuê: Cao đến Thấp</option>
               </select>
             </div>
           </div>
@@ -160,7 +160,7 @@ export const FleetPage: React.FC = () => {
             <button
               onClick={() => setSelectedCategory('all')}
               className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${selectedCategory === 'all'
-                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/30'
+                  ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30'
                   : 'bg-white/[0.04] text-slate-300 border border-white/10 hover:bg-white/[0.08]'
                 }`}
             >
@@ -171,7 +171,7 @@ export const FleetPage: React.FC = () => {
                 key={cat._id}
                 onClick={() => setSelectedCategory(cat.slug)}
                 className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all ${selectedCategory === cat.slug
-                    ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/30'
+                    ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30'
                     : 'bg-white/[0.04] text-slate-300 border border-white/10 hover:bg-white/[0.08]'
                   }`}
               >
@@ -184,7 +184,7 @@ export const FleetPage: React.FC = () => {
         {/* Results Info */}
         <div className="flex items-center justify-between mb-6 text-xs text-slate-400">
           <span>Tìm thấy <strong className="text-white font-bold">{filteredVehicles.length}</strong> phương tiện sẵn sàng bàn giao</span>
-          <span className="text-amber-400 font-semibold flex items-center">
+          <span className="text-emerald-400 font-semibold flex items-center">
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
             Cọc 30% giữ xe trực tuyến tức thì
           </span>
@@ -196,7 +196,7 @@ export const FleetPage: React.FC = () => {
             Đang tải dữ liệu đội xe...
           </div>
         ) : filteredVehicles.length === 0 ? (
-          <div className="py-16 text-center bg-[#0D131F] rounded-[2rem] border border-white/10 p-8 shadow-xl">
+          <div className="py-16 text-center bg-[#0A1813] rounded-[2rem] border border-white/10 p-8 shadow-xl">
             <AlertCircle className="w-10 h-10 text-slate-400 mx-auto mb-3" />
             <p className="text-base font-bold text-white">Không tìm thấy xe phù hợp tiêu chí</p>
             <p className="text-xs text-slate-400 mt-1">Vui lòng thử bỏ bớt bộ lọc hoặc chọn chi nhánh khác.</p>
@@ -207,7 +207,7 @@ export const FleetPage: React.FC = () => {
                 setSelectedCategory('all');
                 setPriceSort('default');
               }}
-              className="mt-4 px-4 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 rounded-xl text-xs font-bold text-white transition-colors"
+              className="mt-4 px-4 py-2 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 rounded-xl text-xs font-bold text-white transition-colors"
             >
               Đặt lại tất cả bộ lọc
             </button>
@@ -242,8 +242,8 @@ export const FleetPage: React.FC = () => {
         {/* Success Modal */}
         {successBookingCode && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div className="bg-[#0D131F] rounded-[2rem] max-w-md w-full p-8 text-center space-y-4 border border-amber-500/40 shadow-2xl">
-              <div className="w-14 h-14 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+            <div className="bg-[#0A1813] rounded-[2rem] max-w-md w-full p-8 text-center space-y-4 border border-emerald-500/40 shadow-2xl">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto border border-emerald-500/30">
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-black text-white">
@@ -252,7 +252,7 @@ export const FleetPage: React.FC = () => {
               <p className="text-xs text-slate-300 leading-relaxed">
                 Mã đặt xe của bạn là:
               </p>
-              <div className="p-3 bg-black/60 border border-amber-500/40 rounded-xl font-mono text-lg font-black text-amber-400 tracking-wider">
+              <div className="p-3 bg-black/60 border border-emerald-500/40 rounded-xl font-mono text-lg font-black text-emerald-400 tracking-wider">
                 {successBookingCode}
               </div>
               <p className="text-[11px] text-slate-400">
@@ -260,7 +260,7 @@ export const FleetPage: React.FC = () => {
               </p>
               <button
                 onClick={() => setSuccessBookingCode(null)}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold text-xs transition-colors shadow-lg shadow-orange-500/30"
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white font-bold text-xs transition-colors shadow-lg shadow-emerald-500/30"
               >
                 Đã hiểu & Tiếp tục
               </button>

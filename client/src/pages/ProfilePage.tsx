@@ -428,7 +428,7 @@ export const ProfilePage: React.FC = () => {
           <p className="text-sm text-slate-400">Vui lòng đăng nhập để xem thông tin hồ sơ cá nhân.</p>
           <button
             onClick={() => navigate('/login')}
-            className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-orange-500/20 hover:from-orange-400 hover:to-amber-400 transition-colors"
+            className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 transition-colors"
           >
             Đến trang Đăng nhập
           </button>
@@ -463,11 +463,11 @@ export const ProfilePage: React.FC = () => {
         {/* Top Header & Breadcrumb */}
         <div className="mb-8">
           <nav className="flex items-center space-x-2 text-xs text-slate-400 mb-2">
-            <Link to="/" className="hover:text-orange-400 transition-colors">Trang chủ</Link>
+            <Link to="/" className="hover:text-emerald-400 transition-colors">Trang chủ</Link>
             <span>/</span>
             <span className="text-slate-200">Tài khoản</span>
             <span>/</span>
-            <span className="text-orange-400 font-medium">Hồ sơ cá nhân</span>
+            <span className="text-emerald-400 font-medium">Hồ sơ cá nhân</span>
           </nav>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
@@ -479,7 +479,7 @@ export const ProfilePage: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center space-x-2 text-xs">
-              <span className="px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 font-medium">
+              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium">
                 {user.roles === 'SystemAdmin' ? 'Quản trị viên' : user.roles === 'Staff' ? 'Nhân viên quầy' : user.roles === 'BranchManager' ? 'Quản lý trạm' : 'Khách hàng cá nhân'}
               </span>
             </div>
@@ -506,12 +506,12 @@ export const ProfilePage: React.FC = () => {
                           const target = e.currentTarget;
                           target.style.display = 'none';
                           if (target.parentElement) {
-                            target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-orange-950 text-orange-300 font-bold text-lg">${(user.firstName || user.username || 'U').charAt(0).toUpperCase()}</div>`;
+                            target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#050D0A] text-emerald-300 font-bold text-lg">${(user.firstName || user.username || 'U').charAt(0).toUpperCase()}</div>`;
                           }
                         }}
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-orange-950 text-orange-300 font-bold text-lg">
+                      <div className="w-full h-full flex items-center justify-center bg-[#050D0A] text-emerald-300 font-bold text-lg">
                         {(user.firstName || user.username || 'U').charAt(0).toUpperCase()}
                       </div>
                     )}
@@ -519,7 +519,7 @@ export const ProfilePage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleTabChange('avatar')}
-                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white shadow-md transition-all active:scale-90"
+                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md transition-all active:scale-90"
                     title="Đổi ảnh đại diện"
                   >
                     <Camera className="w-3 h-3" />
@@ -540,7 +540,7 @@ export const ProfilePage: React.FC = () => {
                         Đã xác thực eKYC
                       </span>
                     ) : user.identityStatus === 'Pending' ? (
-                      <span className="inline-flex items-center text-[10px] font-semibold text-amber-400">
+                      <span className="inline-flex items-center text-[10px] font-semibold text-emerald-400">
                         <Clock className="w-3 h-3 mr-1" />
                         Chờ duyệt eKYC
                       </span>
@@ -560,7 +560,7 @@ export const ProfilePage: React.FC = () => {
                   <Award className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
                   Điểm tích lũy thành viên
                 </span>
-                <span className="font-bold text-orange-400">
+                <span className="font-bold text-emerald-400">
                   {user.loyaltyPoints || 0} pts
                 </span>
               </div>
@@ -573,16 +573,16 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('bookings')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'bookings'
-                      ? 'bg-orange-500/10 text-orange-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <Compass className={`w-4 h-4 shrink-0 ${activeTab === 'bookings' ? 'text-orange-400' : 'text-slate-400'}`} />
+                    <Compass className={`w-4 h-4 shrink-0 ${activeTab === 'bookings' ? 'text-emerald-400' : 'text-slate-400'}`} />
                     <span className="truncate">Chuyến xe của tôi</span>
                   </div>
                   {bookings.filter(b => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length > 0 ? (
-                    <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300 font-bold text-[10px] shrink-0">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] shrink-0">
                       {bookings.filter(b => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length} đơn
                     </span>
                   ) : (
@@ -598,12 +598,12 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('info')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'info'
-                      ? 'bg-orange-500/10 text-orange-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <UserIcon className={`w-4 h-4 shrink-0 ${activeTab === 'info' ? 'text-orange-400' : 'text-slate-400'}`} />
+                    <UserIcon className={`w-4 h-4 shrink-0 ${activeTab === 'info' ? 'text-emerald-400' : 'text-slate-400'}`} />
                     <span className="truncate">Thông tin cá nhân & Chỉnh sửa</span>
                   </div>
                 </button>
@@ -614,12 +614,12 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('avatar')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'avatar'
-                      ? 'bg-orange-500/10 text-orange-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <Camera className={`w-4 h-4 shrink-0 ${activeTab === 'avatar' ? 'text-orange-400' : 'text-slate-400'}`} />
+                    <Camera className={`w-4 h-4 shrink-0 ${activeTab === 'avatar' ? 'text-emerald-400' : 'text-slate-400'}`} />
                     <span className="truncate">Đổi ảnh đại diện</span>
                   </div>
                   <span className="text-[10px] text-slate-500 font-medium shrink-0">5MB</span>
@@ -631,12 +631,12 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('ekyc')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'ekyc'
-                      ? 'bg-orange-500/10 text-orange-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <FileCheck2 className={`w-4 h-4 shrink-0 ${activeTab === 'ekyc' ? 'text-orange-400' : 'text-slate-400'}`} />
+                    <FileCheck2 className={`w-4 h-4 shrink-0 ${activeTab === 'ekyc' ? 'text-emerald-400' : 'text-slate-400'}`} />
                     <span className="truncate">Định danh điện tử (eKYC)</span>
                   </div>
                   {user.identityStatus === 'Verified' ? (
@@ -644,7 +644,7 @@ export const ProfilePage: React.FC = () => {
                       Đã duyệt
                     </span>
                   ) : (
-                    <span className="px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold text-[10px] shrink-0">
+                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] shrink-0">
                       Cần làm
                     </span>
                   )}
@@ -656,12 +656,12 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => handleTabChange('password')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
                     activeTab === 'password'
-                      ? 'bg-orange-500/10 text-orange-300 font-semibold border-l-2 border-orange-400 pl-3'
+                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-orange-400 pl-3'
                       : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5 min-w-0">
-                    <Lock className={`w-4 h-4 shrink-0 ${activeTab === 'password' ? 'text-orange-400' : 'text-slate-400'}`} />
+                    <Lock className={`w-4 h-4 shrink-0 ${activeTab === 'password' ? 'text-emerald-400' : 'text-slate-400'}`} />
                     <span className="truncate">Đổi mật khẩu bảo mật</span>
                   </div>
                   <span className="text-[10px] text-slate-500 font-medium shrink-0">≥ 8 ký tự</span>
@@ -674,10 +674,10 @@ export const ProfilePage: React.FC = () => {
                   href="tel:19006868"
                   className="flex items-center space-x-2.5 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
                 >
-                  <PhoneCall className="w-4 h-4 text-orange-400 shrink-0" />
+                  <PhoneCall className="w-4 h-4 text-emerald-400 shrink-0" />
                   <div className="min-w-0 flex-1 leading-snug">
                     <p className="text-[11px] text-slate-400">Hỗ trợ khách hàng 24/7</p>
-                    <p className="font-bold text-orange-400">1900 6868</p>
+                    <p className="font-bold text-emerald-400">1900 6868</p>
                   </div>
                 </a>
               </div>
@@ -709,7 +709,7 @@ export const ProfilePage: React.FC = () => {
                   <div className="pb-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
                       <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-                        <Compass className="w-5 h-5 text-orange-400" />
+                        <Compass className="w-5 h-5 text-emerald-400" />
                         <span>Chuyến xe của tôi</span>
                       </h2>
                       <p className="text-xs text-slate-400 mt-0.5">
@@ -719,7 +719,7 @@ export const ProfilePage: React.FC = () => {
 
                     <Link
                       to="/bikes"
-                      className="inline-flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-orange-500/20 shrink-0 self-start sm:self-auto"
+                      className="inline-flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-emerald-500/20 shrink-0 self-start sm:self-auto"
                     >
                       <span>Thuê xe mới</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -733,7 +733,7 @@ export const ProfilePage: React.FC = () => {
                       onClick={() => setBookingFilter('all')}
                       className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
                         bookingFilter === 'all'
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                           : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
                       }`}
                     >
@@ -744,7 +744,7 @@ export const ProfilePage: React.FC = () => {
                       onClick={() => setBookingFilter('active')}
                       className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
                         bookingFilter === 'active'
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                           : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
                       }`}
                     >
@@ -755,7 +755,7 @@ export const ProfilePage: React.FC = () => {
                       onClick={() => setBookingFilter('completed')}
                       className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
                         bookingFilter === 'completed'
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                           : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
                       }`}
                     >
@@ -766,7 +766,7 @@ export const ProfilePage: React.FC = () => {
                       onClick={() => setBookingFilter('cancelled')}
                       className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
                         bookingFilter === 'cancelled'
-                          ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                           : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
                       }`}
                     >
@@ -791,7 +791,7 @@ export const ProfilePage: React.FC = () => {
                     if (filteredBookings.length === 0) {
                       return (
                         <div className="p-10 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-4">
-                          <div className="w-14 h-14 rounded-2xl bg-orange-500/10 text-orange-400 border border-orange-500/20 flex items-center justify-center mx-auto">
+                          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto">
                             <Compass className="w-7 h-7" />
                           </div>
                           <div>
@@ -804,7 +804,7 @@ export const ProfilePage: React.FC = () => {
                           </div>
                           <Link
                             to="/bikes"
-                            className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-orange-500/20"
+                            className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-500/20"
                           >
                             <span>Khám phá bảng giá & Đặt xe</span>
                             <ArrowRight className="w-3.5 h-3.5" />
@@ -830,7 +830,7 @@ export const ProfilePage: React.FC = () => {
                           return (
                             <div
                               key={b._id}
-                              className="p-5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 hover:border-orange-500/30 transition-all space-y-4"
+                              className="p-5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 hover:border-emerald-500/30 transition-all space-y-4"
                             >
                               {/* Header Card: Code & Status */}
                               <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/5">
@@ -859,8 +859,8 @@ export const ProfilePage: React.FC = () => {
 
                                 <div>
                                   {b.status === 'Pending' && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse mr-1.5" />
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1.5" />
                                       Chờ xác nhận cọc
                                     </span>
                                   )}
@@ -920,7 +920,7 @@ export const ProfilePage: React.FC = () => {
                                 {/* Schedule & Branch (5 cols) */}
                                 <div className="md:col-span-5 space-y-2 text-xs border-y md:border-y-0 md:border-l md:border-r border-white/5 py-3 md:py-0 md:px-4">
                                   <div className="flex items-start space-x-2">
-                                    <MapPin className="w-3.5 h-3.5 text-orange-400 shrink-0 mt-0.5" />
+                                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                                     <div>
                                       <p className="text-[11px] text-slate-400">
                                         Nhận: <span className="font-bold text-white">{new Date(b.pickupDateTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
@@ -929,7 +929,7 @@ export const ProfilePage: React.FC = () => {
                                     </div>
                                   </div>
                                   <div className="flex items-start space-x-2">
-                                    <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                                     <div>
                                       <p className="text-[11px] text-slate-400">
                                         Trả: <span className="font-bold text-white">{new Date(b.returnDateTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
@@ -980,7 +980,7 @@ export const ProfilePage: React.FC = () => {
                                       to={`/booking/${v._id}`}
                                       className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white text-xs font-semibold transition-colors flex items-center space-x-1"
                                     >
-                                      <RotateCcw className="w-3 h-3 text-orange-400" />
+                                      <RotateCcw className="w-3 h-3 text-emerald-400" />
                                       <span>Thuê lại xe này</span>
                                     </Link>
                                   )}
@@ -989,7 +989,7 @@ export const ProfilePage: React.FC = () => {
                                     className="p-1.5 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white transition-colors"
                                     title="Liên hệ hotline chi nhánh 1900 6868"
                                   >
-                                    <PhoneCall className="w-3.5 h-3.5 text-orange-400" />
+                                    <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
                                   </a>
                                 </div>
                               </div>
@@ -1068,7 +1068,7 @@ export const ProfilePage: React.FC = () => {
                     {/* Fieldset 2: Legal identification info */}
                     <div className="space-y-3 pt-4 border-t border-white/[0.06]">
                       <div className="flex items-center space-x-2 text-xs font-semibold text-slate-300">
-                        <UserIcon className="w-3.5 h-3.5 text-orange-400" />
+                        <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
                         <span>2. Thông tin pháp lý người thuê xe</span>
                       </div>
 
@@ -1082,7 +1082,7 @@ export const ProfilePage: React.FC = () => {
                             placeholder="VD: Nguyễn Văn"
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                           />
                         </div>
 
@@ -1095,7 +1095,7 @@ export const ProfilePage: React.FC = () => {
                             placeholder="VD: An"
                             value={firstName}
                             onChange={(e) => setFirstName(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                           />
                         </div>
                       </div>
@@ -1114,7 +1114,7 @@ export const ProfilePage: React.FC = () => {
                                   setGender(val);
                                 }
                               }}
-                              className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none appearance-none cursor-pointer transition-all"
+                              className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none appearance-none cursor-pointer transition-all"
                             >
                               <option value="Male" className="bg-[#111715] text-white">Nam</option>
                               <option value="Female" className="bg-[#111715] text-white">Nữ</option>
@@ -1132,7 +1132,7 @@ export const ProfilePage: React.FC = () => {
                             type="date"
                             value={dob}
                             onChange={(e) => setDob(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all [color-scheme:dark]"
+                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all [color-scheme:dark]"
                           />
                         </div>
                       </div>
@@ -1141,7 +1141,7 @@ export const ProfilePage: React.FC = () => {
                     {/* Fieldset 3: Contact information */}
                     <div className="space-y-3 pt-4 border-t border-white/[0.06]">
                       <div className="flex items-center space-x-2 text-xs font-semibold text-slate-300">
-                        <Phone className="w-3.5 h-3.5 text-orange-400" />
+                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
                         <span>3. Thông tin liên hệ nhận xe</span>
                       </div>
 
@@ -1154,7 +1154,7 @@ export const ProfilePage: React.FC = () => {
                           placeholder="VD: 0912 345 678"
                           value={phoneNumber}
                           onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="w-full sm:w-1/2 bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full sm:w-1/2 bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <p className="text-[11px] text-slate-400 mt-1.5">
                           Dùng để nhận tin nhắn SMS xác nhận lịch bàn giao xe và mã PIN mở khóa phương tiện.
@@ -1172,7 +1172,7 @@ export const ProfilePage: React.FC = () => {
                       <button
                         type="submit"
                         disabled={loading}
-                        className="inline-flex items-center justify-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-bold rounded-xl text-xs transition-all active:scale-95 shadow-md shadow-orange-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold rounded-xl text-xs transition-all active:scale-95 shadow-md shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {loading ? (
                           <>
@@ -1227,7 +1227,7 @@ export const ProfilePage: React.FC = () => {
 
                       <div className="space-y-2 text-center sm:text-left flex-1">
                         <label className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 rounded-xl text-xs font-semibold text-slate-200 cursor-pointer transition-colors active:scale-95">
-                          <UploadCloud className="w-4 h-4 text-orange-400" />
+                          <UploadCloud className="w-4 h-4 text-emerald-400" />
                           <span>Chọn file ảnh mới từ thiết bị</span>
                           <input
                             type="file"
@@ -1250,7 +1250,7 @@ export const ProfilePage: React.FC = () => {
                         disabled={loading || !selectedFile}
                         className={`inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
                           selectedFile && !loading
-                            ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white shadow-md shadow-orange-500/20 active:scale-95'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md shadow-emerald-500/20 active:scale-95'
                             : 'bg-white/5 text-slate-500 cursor-not-allowed'
                         }`}
                       >
@@ -1292,8 +1292,8 @@ export const ProfilePage: React.FC = () => {
                           <span>Đã xác thực hợp lệ</span>
                         </div>
                       ) : user.identityStatus === 'Pending' ? (
-                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                          <Clock className="w-4 h-4 mr-1.5 text-amber-400 animate-spin" />
+                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          <Clock className="w-4 h-4 mr-1.5 text-emerald-400 animate-spin" />
                           <span>Đang chờ kiểm duyệt</span>
                         </div>
                       ) : user.identityStatus === 'Rejected' ? (
@@ -1315,7 +1315,7 @@ export const ProfilePage: React.FC = () => {
                     user.identityStatus === 'Verified'
                       ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
                       : user.identityStatus === 'Pending'
-                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-300'
+                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
                       : user.identityStatus === 'Rejected'
                       ? 'bg-red-500/10 border-red-500/20 text-red-300'
                       : 'bg-white/[0.02] border-white/10 text-slate-300'
@@ -1330,7 +1330,7 @@ export const ProfilePage: React.FC = () => {
                       </div>
                     ) : user.identityStatus === 'Pending' ? (
                       <div className="flex items-start space-x-2.5">
-                        <Clock className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+                        <Clock className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
                         <div>
                           <strong className="block font-bold">Hồ sơ đang trong hàng đợi đối soát</strong>
                           <span>Nhân viên điều phối sẽ đối chiếu thông tin trong vòng 15-30 phút. Bạn vẫn có thể đặt trước phương tiện bình thường.</span>
@@ -1521,8 +1521,8 @@ export const ProfilePage: React.FC = () => {
                     </div>
 
                     {/* Security Notice: Decree 13/2023/ND-CP & C06/A05 recommendations */}
-                    <div className="p-4 bg-orange-500/[0.04] rounded-xl border border-orange-500/20 text-xs text-slate-300 space-y-2">
-                      <div className="font-semibold text-orange-400 flex items-center space-x-2">
+                    <div className="p-4 bg-emerald-500/[0.04] rounded-xl border border-emerald-500/20 text-xs text-slate-300 space-y-2">
+                      <div className="font-semibold text-emerald-400 flex items-center space-x-2">
                         <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                         <span>Bảo mật dữ liệu cá nhân theo Nghị định 13/2023/NĐ-CP & Khuyến nghị C06/A05:</span>
                       </div>
@@ -1539,7 +1539,7 @@ export const ProfilePage: React.FC = () => {
                     </div>
 
                     {/* Decree 13 Explicit Consent Agreement Checkbox */}
-                    <div className="p-3.5 bg-white/[0.02] rounded-xl border border-white/10 hover:border-orange-500/30 transition-colors">
+                    <div className="p-3.5 bg-white/[0.02] rounded-xl border border-white/10 hover:border-emerald-500/30 transition-colors">
                       <label className="flex items-start space-x-3 cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -1581,7 +1581,7 @@ export const ProfilePage: React.FC = () => {
                           !loading &&
                           user.identityStatus !== 'Pending' &&
                           user.identityStatus !== 'Verified'
-                            ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white shadow-md shadow-orange-500/20 active:scale-95 cursor-pointer'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer'
                             : 'bg-white/5 text-slate-500 cursor-not-allowed opacity-60'
                         }`}
                       >
@@ -1592,7 +1592,7 @@ export const ProfilePage: React.FC = () => {
                           </>
                         ) : user.identityStatus === 'Pending' ? (
                           <>
-                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                            <Clock className="w-3.5 h-3.5 text-emerald-400" />
                             <span>Hồ sơ đang chờ duyệt</span>
                           </>
                         ) : user.identityStatus === 'Verified' ? (
@@ -1645,7 +1645,7 @@ export const ProfilePage: React.FC = () => {
                           value={currentPassword}
                           onChange={(e) => setCurrentPassword(e.target.value)}
                           required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -1660,7 +1660,7 @@ export const ProfilePage: React.FC = () => {
                     {/* New Password */}
                     <div>
                       <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center">
-                        <KeyRound className="w-3.5 h-3.5 text-orange-400 mr-1.5" />
+                        <KeyRound className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
                         <span>Mật khẩu mới</span>
                         <span className="text-red-400 ml-1">*</span>
                       </label>
@@ -1671,7 +1671,7 @@ export const ProfilePage: React.FC = () => {
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -1702,7 +1702,7 @@ export const ProfilePage: React.FC = () => {
                             ))}
                           </div>
                           {newPassword.length < 8 && (
-                            <p className="text-[11px] text-amber-400 font-medium">
+                            <p className="text-[11px] text-emerald-400 font-medium">
                               • Cần thêm ít nhất {8 - newPassword.length} ký tự nữa để đạt chuẩn tối thiểu 8 ký tự.
                             </p>
                           )}
@@ -1724,7 +1724,7 @@ export const ProfilePage: React.FC = () => {
                           value={confirmPassword}
                           onChange={(e) => setConfirmPassword(e.target.value)}
                           required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-orange-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
+                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-orange-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
                         />
                         <button
                           type="button"
@@ -1754,7 +1754,7 @@ export const ProfilePage: React.FC = () => {
                         disabled={loading || newPassword.length < 8 || newPassword !== confirmPassword}
                         className={`inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
                           newPassword.length >= 8 && newPassword === confirmPassword && !loading
-                            ? 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white shadow-md shadow-orange-500/20 active:scale-95'
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md shadow-emerald-500/20 active:scale-95'
                             : 'bg-white/5 text-slate-500 cursor-not-allowed'
                         }`}
                       >
@@ -1822,7 +1822,7 @@ export const ProfilePage: React.FC = () => {
                     onClick={() => setCancelReasonInput(reason)}
                     className={`p-2 rounded-xl text-[11px] text-left border transition-all ${
                       cancelReasonInput === reason
-                        ? 'bg-orange-500/20 border-orange-500 text-orange-300'
+                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
                         : 'bg-white/[0.03] border-white/5 text-slate-400 hover:bg-white/[0.06]'
                     }`}
                   >
@@ -1835,7 +1835,7 @@ export const ProfilePage: React.FC = () => {
                 value={cancelReasonInput}
                 onChange={(e) => setCancelReasonInput(e.target.value)}
                 placeholder="Hoặc nhập lý do khác..."
-                className="w-full px-3 py-2 bg-[#0B0F17] border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-500 outline-none focus:border-orange-500"
+                className="w-full px-3 py-2 bg-[#0B0F17] border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
               />
             </div>
 

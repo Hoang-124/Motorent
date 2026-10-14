@@ -302,7 +302,7 @@ export const RegisterPage: React.FC = () => {
         {/* Brand Header */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center space-x-2.5 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shadow-lg shadow-orange-500/20">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                 <circle cx="5.5" cy="17.5" r="3.5" />
                 <circle cx="18.5" cy="17.5" r="3.5" />
@@ -324,14 +324,14 @@ export const RegisterPage: React.FC = () => {
         </div>
 
         {/* Card Body */}
-        <div className="bg-[#111827] rounded-[2rem] p-7 sm:p-8 border border-white/10 shadow-2xl space-y-5 text-white">
+        <div className="bg-[#0A1813] rounded-[2rem] p-7 sm:p-8 border border-white/10 shadow-2xl space-y-5 text-white">
           {successData ? (
             /* Success Verification State / OTP Form */
             <div className="text-center space-y-5 py-2">
               {otpSuccess ? (
                 /* Success State */
                 <div className="py-6 space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center mx-auto shadow-sm">
+                  <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-sm">
                     <CheckCircle2 className="w-9 h-9" />
                   </div>
                   <h3 className="text-2xl font-black text-white tracking-tight">
@@ -341,13 +341,13 @@ export const RegisterPage: React.FC = () => {
                     Chào mừng bạn đến với Motorent. Hệ thống đang tự động đăng nhập và chuyển hướng...
                   </p>
                   <div className="pt-2">
-                    <RefreshCw className="w-5 h-5 text-orange-400 animate-spin mx-auto" />
+                    <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin mx-auto" />
                   </div>
                 </div>
               ) : (
                 /* OTP Input Form */
                 <>
-                  <div className="w-14 h-14 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center mx-auto shadow-sm">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-sm">
                     <KeyRound className="w-7 h-7" />
                   </div>
 
@@ -357,24 +357,24 @@ export const RegisterPage: React.FC = () => {
                     </h3>
                     <p className="text-xs text-slate-300 leading-relaxed mt-1 max-w-sm mx-auto">
                       Mã xác thực 6 chữ số đã được gửi tới địa chỉ{' '}
-                      <strong className="text-orange-400 font-bold">{successData.email}</strong>.
+                      <strong className="text-emerald-400 font-bold">{successData.email}</strong>.
                     </p>
                   </div>
 
                   {/* Dev Helper Notice (Chỉ xuất hiện khi chưa cấu hình SMTP thật) */}
                   {!successData.hasRealSmtp && (
-                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-left space-y-2 text-xs">
-                      <div className="flex items-center space-x-1.5 font-bold text-amber-300">
-                        <Sparkles className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                    <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-left space-y-2 text-xs">
+                      <div className="flex items-center space-x-1.5 font-bold text-emerald-300">
+                        <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                         <span>Chưa cấu hình dịch vụ gửi mail (Môi trường Dev)</span>
                       </div>
                       <p className="text-[11px] text-slate-300 leading-relaxed">
-                        Máy chủ chưa kích hoạt SMTP thực tế trong file <code className="bg-white/10 px-1 py-0.5 rounded text-amber-300 font-mono">.env</code>. Bạn có thể dùng mã OTP dưới đây để kích hoạt tức thì:
+                        Máy chủ chưa kích hoạt SMTP thực tế trong file <code className="bg-white/10 px-1 py-0.5 rounded text-emerald-300 font-mono">.env</code>. Bạn có thể dùng mã OTP dưới đây để kích hoạt tức thì:
                       </p>
                       <div className="flex items-center justify-between bg-black/40 px-3.5 py-2 rounded-xl border border-white/10 shadow-xs">
                         <div className="flex items-center space-x-2">
                           <span className="text-[11px] text-slate-400 font-medium">Mã OTP:</span>
-                          <span className="font-mono font-black text-base text-orange-400 tracking-wider">
+                          <span className="font-mono font-black text-base text-emerald-400 tracking-wider">
                             {successData.devOtp || '123456'}
                           </span>
                         </div>
@@ -385,7 +385,7 @@ export const RegisterPage: React.FC = () => {
                             setOtpCode(code);
                             handleVerifyOtp(code);
                           }}
-                          className="px-3 py-1.5 text-[11px] font-black bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white rounded-lg transition-colors flex items-center space-x-1 active:scale-95 shadow-xs"
+                          className="px-3 py-1.5 text-[11px] font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-lg transition-colors flex items-center space-x-1 active:scale-95 shadow-xs"
                         >
                           <span>Điền & Kích hoạt ngay</span>
                           <ArrowRight className="w-3 h-3" />
@@ -403,8 +403,8 @@ export const RegisterPage: React.FC = () => {
                   )}
 
                   {resendMessage && (
-                    <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl text-xs text-orange-300 flex items-center space-x-2 text-left">
-                      <CheckCircle2 className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center space-x-2 text-left">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
                       <span>{resendMessage}</span>
                     </div>
                   )}
@@ -430,7 +430,7 @@ export const RegisterPage: React.FC = () => {
                       }}
                       placeholder="------"
                       autoFocus
-                      className="w-full text-center font-mono font-black text-2xl tracking-[0.5em] py-3.5 bg-[#0B0F17] border border-white/15 focus:border-orange-500 rounded-2xl outline-none transition-all placeholder:text-slate-600 placeholder:tracking-[0.5em] text-orange-400"
+                      className="w-full text-center font-mono font-black text-2xl tracking-[0.5em] py-3.5 bg-[#0B0F17] border border-white/15 focus:border-emerald-500 rounded-2xl outline-none transition-all placeholder:text-slate-600 placeholder:tracking-[0.5em] text-emerald-400"
                     />
                     <p className="text-[11px] text-slate-400">
                       Mã OTP có hiệu lực trong vòng 15 phút
@@ -443,7 +443,7 @@ export const RegisterPage: React.FC = () => {
                       type="button"
                       onClick={() => handleVerifyOtp()}
                       disabled={verifyingOtp || otpCode.length !== 6}
-                      className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:bg-white/5 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
+                      className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:bg-white/5 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
                     >
                       {verifyingOtp ? (
                         <>
@@ -463,7 +463,7 @@ export const RegisterPage: React.FC = () => {
                         type="button"
                         onClick={handleResendOtp}
                         disabled={resendCooldown > 0 || resendingOtp}
-                        className="font-bold text-orange-400 hover:text-orange-300 disabled:text-slate-500 transition-colors flex items-center space-x-1"
+                        className="font-bold text-emerald-400 hover:text-emerald-300 disabled:text-slate-500 transition-colors flex items-center space-x-1"
                       >
                         {resendingOtp ? (
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -494,7 +494,7 @@ export const RegisterPage: React.FC = () => {
                     <div className="pt-2 border-t border-white/10">
                       <Link
                         to="/login"
-                        className="text-xs font-bold text-slate-300 hover:text-orange-400 transition-colors inline-flex items-center space-x-1"
+                        className="text-xs font-bold text-slate-300 hover:text-emerald-400 transition-colors inline-flex items-center space-x-1"
                       >
                         <span>Đã có tài khoản hoặc kích hoạt xong? Đăng nhập ngay</span>
                         <ArrowRight className="w-3 h-3" />
@@ -537,12 +537,12 @@ export const RegisterPage: React.FC = () => {
                         usernameError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isUsernameValid && touched.username
-                          ? 'bg-[#0B0F17] border border-orange-500/50 focus:border-orange-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-orange-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     {isUsernameValid && touched.username && !usernameError && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-orange-400 absolute right-3 top-3" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 absolute right-3 top-3" />
                     )}
                   </div>
                   {usernameError && (
@@ -572,12 +572,12 @@ export const RegisterPage: React.FC = () => {
                       onBlur={() => handleBlur('email')}
                       className={`w-full rounded-xl pl-9 pr-8 py-2 text-xs font-medium outline-none transition-all ${
                         isGoogleEmail
-                          ? 'bg-amber-500/10 border border-amber-500/40 focus:border-amber-400 text-white placeholder:text-slate-600'
+                          ? 'bg-emerald-500/10 border border-emerald-500/40 focus:border-emerald-400 text-white placeholder:text-slate-600'
                           : emailError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isEmailValid && touched.email
-                          ? 'bg-[#0B0F17] border border-orange-500/50 focus:border-orange-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-orange-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     {isGoogleEmail ? (
@@ -602,7 +602,7 @@ export const RegisterPage: React.FC = () => {
                         </svg>
                       </div>
                     ) : isEmailValid && touched.email && !emailError ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-orange-400 absolute right-3 top-3" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 absolute right-3 top-3" />
                     ) : null}
                   </div>
 
@@ -610,7 +610,7 @@ export const RegisterPage: React.FC = () => {
                   {emailError && (
                     <div
                       className={`flex items-center space-x-1 mt-1 text-[11px] font-medium ${
-                        isGoogleEmail ? 'text-amber-400' : 'text-red-400'
+                        isGoogleEmail ? 'text-emerald-400' : 'text-red-400'
                       }`}
                     >
                       <AlertCircle className="w-3 h-3 flex-shrink-0" />
@@ -620,13 +620,13 @@ export const RegisterPage: React.FC = () => {
 
                   {/* Google Login Action Box */}
                   {isGoogleEmail && (
-                    <div className="mt-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2 text-left">
-                      <p className="text-[11px] text-amber-300 leading-relaxed">
+                    <div className="mt-2 p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl space-y-2 text-left">
+                      <p className="text-[11px] text-emerald-300 leading-relaxed">
                         Địa chỉ này thuộc Google. Bạn có thể đăng nhập tức thì không cần đặt mật khẩu:
                       </p>
                       <Link
                         to="/login"
-                        className="w-full py-1.5 px-3 bg-[#0B0F17] hover:bg-white/5 border border-amber-500/30 rounded-lg text-[11px] font-semibold text-amber-200 transition-colors flex items-center justify-center space-x-1.5"
+                        className="w-full py-1.5 px-3 bg-[#0B0F17] hover:bg-white/5 border border-emerald-500/30 rounded-lg text-[11px] font-semibold text-emerald-200 transition-colors flex items-center justify-center space-x-1.5"
                       >
                         <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24">
                           <path
@@ -647,7 +647,7 @@ export const RegisterPage: React.FC = () => {
                           />
                         </svg>
                         <span>Đăng nhập bằng Google</span>
-                        <ArrowRight className="w-3 h-3 text-amber-300" />
+                        <ArrowRight className="w-3 h-3 text-emerald-300" />
                       </Link>
                     </div>
                   )}
@@ -673,7 +673,7 @@ export const RegisterPage: React.FC = () => {
                     className={`w-full rounded-xl px-3 py-2 text-xs font-medium outline-none transition-all ${
                       lastNameError
                         ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
-                        : 'bg-[#0B0F17] border border-white/10 focus:border-orange-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                        : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                     }`}
                   />
                   {lastNameError && (
@@ -701,7 +701,7 @@ export const RegisterPage: React.FC = () => {
                     className={`w-full rounded-xl px-3 py-2 text-xs font-medium outline-none transition-all ${
                       firstNameError
                         ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
-                        : 'bg-[#0B0F17] border border-white/10 focus:border-orange-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                        : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                     }`}
                   />
                   {firstNameError && (
@@ -734,12 +734,12 @@ export const RegisterPage: React.FC = () => {
                       phoneError
                         ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                         : isPhoneValid && touched.phoneNumber
-                        ? 'bg-[#0B0F17] border border-orange-500/50 focus:border-orange-500 text-white placeholder:text-slate-600'
-                        : 'bg-[#0B0F17] border border-white/10 focus:border-orange-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                        ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                        : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                     }`}
                   />
                   {isPhoneValid && touched.phoneNumber && !phoneError && (
-                    <CheckCircle2 className="w-3.5 h-3.5 text-orange-400 absolute right-3 top-3" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 absolute right-3 top-3" />
                   )}
                 </div>
                 {phoneError && (
@@ -773,8 +773,8 @@ export const RegisterPage: React.FC = () => {
                         passwordError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isPasswordValid && touched.password
-                          ? 'bg-[#0B0F17] border border-orange-500/50 focus:border-orange-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-orange-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     <button
@@ -843,8 +843,8 @@ export const RegisterPage: React.FC = () => {
                         confirmPasswordError
                           ? 'bg-red-500/10 border border-red-500/40 focus:border-red-400 text-white placeholder:text-slate-600'
                           : isConfirmPasswordValid && touched.confirmPassword
-                          ? 'bg-[#0B0F17] border border-orange-500/50 focus:border-orange-500 text-white placeholder:text-slate-600'
-                          : 'bg-[#0B0F17] border border-white/10 focus:border-orange-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
+                          ? 'bg-[#0B0F17] border border-emerald-500/50 focus:border-emerald-500 text-white placeholder:text-slate-600'
+                          : 'bg-[#0B0F17] border border-white/10 focus:border-emerald-500 focus:bg-[#07110E] text-white placeholder:text-slate-600'
                       }`}
                     />
                     <button
@@ -864,7 +864,7 @@ export const RegisterPage: React.FC = () => {
                     </div>
                   )}
                   {isConfirmPasswordValid && touched.confirmPassword && !confirmPasswordError && (
-                    <div className="flex items-center space-x-1 mt-1 text-[11px] font-medium text-orange-400">
+                    <div className="flex items-center space-x-1 mt-1 text-[11px] font-medium text-emerald-400">
                       <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
                       <span>Mật khẩu xác nhận trùng khớp</span>
                     </div>
@@ -874,14 +874,14 @@ export const RegisterPage: React.FC = () => {
 
               {/* Security note */}
               <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5 text-[11px] text-slate-400 flex items-start space-x-2">
-                <ShieldCheck className="w-3.5 h-3.5 text-orange-400 mt-0.5 flex-shrink-0" />
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 mt-0.5 flex-shrink-0" />
                 <span>Mật khẩu của bạn được mã hóa một chiều qua thuật toán bcryptjs an toàn.</span>
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
               >
                 {loading ? (
                   <>
@@ -898,7 +898,7 @@ export const RegisterPage: React.FC = () => {
 
               <div className="pt-2 text-center text-xs text-slate-400 border-t border-white/5">
                 Đã có tài khoản Motorent?{' '}
-                <Link to="/login" className="font-semibold text-orange-400 hover:text-orange-300">
+                <Link to="/login" className="font-semibold text-emerald-400 hover:text-emerald-300">
                   Đăng nhập
                 </Link>
               </div>

@@ -202,8 +202,8 @@ export const calculatePasswordStrength = (password: string): PasswordStrength =>
       return {
         score: 2,
         label: 'Trung bình',
-        color: 'text-amber-500',
-        bgClass: 'bg-amber-500',
+        color: 'text-emerald-400',
+        bgClass: 'bg-emerald-500',
         widthPercent: 50,
         suggestions,
       };

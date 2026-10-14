@@ -15,7 +15,7 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
   if (isLoading) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
       </div>
     );
   }
@@ -36,7 +36,7 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
         </p>
         <a
           href="/"
-          className="inline-block px-5 py-2.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white rounded-xl text-xs font-bold transition-colors"
+          className="inline-block px-5 py-2.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-white rounded-xl text-xs font-bold transition-colors"
         >
           Trở về Trang chủ
         </a>

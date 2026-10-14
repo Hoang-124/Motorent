@@ -75,7 +75,7 @@ export const ForgotPasswordPage: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center space-x-2.5 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
               <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                 <circle cx="5.5" cy="17.5" r="3.5" />
                 <circle cx="18.5" cy="17.5" r="3.5" />
@@ -94,7 +94,7 @@ export const ForgotPasswordPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-[#111827] rounded-3xl p-7 sm:p-8 border border-white/10 shadow-2xl shadow-black/50 space-y-5">
+        <div className="bg-[#0A1813] rounded-3xl p-7 sm:p-8 border border-white/10 shadow-2xl shadow-black/50 space-y-5">
           {errorMsg && (
             <div className="p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-start space-x-2.5">
               <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
@@ -104,7 +104,7 @@ export const ForgotPasswordPage: React.FC = () => {
                   <div className="mt-2 pt-2 border-t border-red-500/20">
                     <Link
                       to="/register"
-                      className="inline-flex items-center space-x-1.5 text-orange-400 hover:text-orange-300 font-bold underline underline-offset-2 transition-colors"
+                      className="inline-flex items-center space-x-1.5 text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-2 transition-colors"
                     >
                       <span>Bấm vào đây để đăng ký tài khoản mới</span>
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -117,8 +117,8 @@ export const ForgotPasswordPage: React.FC = () => {
 
           {/* Case 1: Google Email Account Detected */}
           {isGoogleAccount && (
-            <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center space-y-4 animate-in fade-in zoom-in duration-200">
-              <div className="w-12 h-12 rounded-full bg-[#0B0F17] border border-amber-500/30 shadow-2xs flex items-center justify-center mx-auto">
+            <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center space-y-4 animate-in fade-in zoom-in duration-200">
+              <div className="w-12 h-12 rounded-full bg-[#0B0F17] border border-emerald-500/30 shadow-2xs flex items-center justify-center mx-auto">
                 <svg className="w-6 h-6" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
@@ -140,41 +140,41 @@ export const ForgotPasswordPage: React.FC = () => {
               </div>
 
               <div>
-                <h4 className="text-sm font-bold text-amber-300">
+                <h4 className="text-sm font-bold text-emerald-300">
                   Phát hiện tài khoản Google
                 </h4>
-                <p className="text-xs text-amber-200/90 mt-1 leading-relaxed">
+                <p className="text-xs text-emerald-200/90 mt-1 leading-relaxed">
                   Địa chỉ email <strong className="font-bold text-white">{email}</strong> sử dụng phương thức đăng nhập qua Google. Bạn không cần đặt lại mật khẩu, vui lòng đăng nhập trực tiếp bằng Google.
                 </p>
               </div>
 
               <Link
                 to="/login"
-                className="w-full py-3 bg-[#0B0F17] hover:bg-white/5 border border-amber-500/30 rounded-xl text-xs font-semibold text-amber-200 transition-all flex items-center justify-center space-x-2"
+                className="w-full py-3 bg-[#0B0F17] hover:bg-white/5 border border-emerald-500/30 rounded-xl text-xs font-semibold text-emerald-200 transition-all flex items-center justify-center space-x-2"
               >
                 <span>Chuyển sang Đăng nhập bằng Google</span>
-                <ArrowRight className="w-4 h-4 text-amber-300" />
+                <ArrowRight className="w-4 h-4 text-emerald-300" />
               </Link>
             </div>
           )}
 
           {/* Case 2: Other Emails (Outlook, Yahoo, Custom) - Sent Reset Email */}
           {successMsg && !isGoogleAccount && (
-            <div className="p-5 rounded-2xl bg-orange-500/10 border border-orange-500/30 text-center space-y-4">
-              <div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-400 flex items-center justify-center mx-auto">
+            <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h4 className="text-sm font-bold text-orange-300">
+              <h4 className="text-sm font-bold text-emerald-300">
                 Đã gửi liên kết đặt lại mật khẩu!
               </h4>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Vui lòng kiểm tra hộp thư của <strong className="text-orange-400">{email}</strong>. Liên kết có hiệu lực trong 60 phút.
+                Vui lòng kiểm tra hộp thư của <strong className="text-emerald-400">{email}</strong>. Liên kết có hiệu lực trong 60 phút.
               </p>
 
               <div className="pt-2">
                 <Link
                   to="/login"
-                  className="inline-flex items-center space-x-1 text-xs font-semibold text-orange-400 hover:text-orange-300"
+                  className="inline-flex items-center space-x-1 text-xs font-semibold text-emerald-400 hover:text-emerald-300"
                 >
                   <ArrowRight className="w-3.5 h-3.5 rotate-180" />
                   <span>Quay lại trang Đăng nhập</span>
@@ -188,7 +188,7 @@ export const ForgotPasswordPage: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center">
-                  <Mail className="w-3.5 h-3.5 text-orange-400 mr-1.5" />
+                  <Mail className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
                   Địa chỉ Email tài khoản
                 </label>
                 <input
@@ -197,7 +197,7 @@ export const ForgotPasswordPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-orange-500 focus:bg-[#07110E] transition-colors"
+                  className="w-full bg-[#0B0F17] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-medium text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:bg-[#07110E] transition-colors"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
                   Hệ thống hỗ trợ Outlook, Yahoo, email doanh nghiệp hoặc tài khoản cá nhân.
@@ -207,7 +207,7 @@ export const ForgotPasswordPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-bold rounded-xl text-xs shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
+                className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
               >
                 {loading ? (
                   <span>Đang kiểm tra tài khoản...</span>

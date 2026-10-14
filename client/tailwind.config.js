@@ -5,41 +5,44 @@ export default {
   theme: {
     extend: {
       colors: {
-        copper: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          200: '#fed7aa',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#e28743',
-          600: '#d97706',
-          700: '#b45309',
-          800: '#92400e',
-          900: '#78350f',
-          950: '#451a03',
+        forest: {
+          50: '#f0fdf4',
+          100: '#dcfce7',
+          200: '#bbf7d0',
+          300: '#86efac',
+          400: '#34d399',
+          500: '#10b981',
+          600: '#059669',
+          700: '#047857',
+          800: '#065f46',
+          900: '#064e3b',
+          950: '#022c22',
         },
-        twilight: {
-          abyss: '#070A11',
-          card: '#0D131F',
-          surface: '#121A2A',
-          elevated: '#172237',
-          border: 'rgba(255, 255, 255, 0.08)',
-          glow: 'rgba(226, 135, 67, 0.15)',
+        pine: {
+          abyss: '#050D0A',
+          card: '#0A1813',
+          surface: '#0F241C',
+          elevated: '#153026',
+          border: 'rgba(52, 211, 153, 0.16)',
+          glow: 'rgba(16, 185, 129, 0.22)',
         },
-        ocean: {
-          deep: '#060913',
-          mist: '#38BDF8',
-          cyan: '#0EA5E9',
+        moss: {
+          300: '#bef264',
+          400: '#a3e635',
+          500: '#84cc16',
         },
+        gold: {
+          400: '#facc15',
+          500: '#eab308',
+        }
       },
       fontFamily: {
         sans: ['"Be Vietnam Pro"', '"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'copper-glow': '0 0 35px -5px rgba(226, 135, 67, 0.3)',
-        'copper-soft': '0 10px 30px -10px rgba(226, 135, 67, 0.25)',
-        'ocean-mist': '0 0 30px -5px rgba(56, 189, 248, 0.2)',
-        'gallery-card': '0 20px 40px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08)',
+        'forest-glow': '0 0 35px -5px rgba(16, 185, 129, 0.35)',
+        'forest-soft': '0 10px 30px -10px rgba(16, 185, 129, 0.25)',
+        'forest-card': '0 20px 40px -15px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(52, 211, 153, 0.12)',
       }
     },
   },

@@ -186,7 +186,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="flex items-center space-x-2 text-amber-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
             <Sparkles className="w-4 h-4" />
             <span>Xác nhận thông tin thuê xe tự lái</span>
           </div>
@@ -200,15 +200,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
         {/* Not Logged In Banner */}
         {!isAuthenticated && (
-          <div className="p-4 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-amber-300 text-xs">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+          <div className="p-4 bg-emerald-500/10 border-b border-emerald-500/30 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-emerald-300 text-xs">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-emerald-400" />
               <span>Bạn cần đăng nhập tài khoản khách hàng để đặt xe giữ chỗ.</span>
             </div>
             <button
               type="button"
               onClick={handleLoginRedirect}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-500 text-white text-xs font-black rounded-lg transition-colors flex items-center space-x-1"
+              className="px-3 py-1.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:from-emerald-400 hover:to-teal-400 text-[#050D0A] text-white text-xs font-black rounded-lg transition-colors flex items-center space-x-1"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span>Đăng nhập ngay</span>
@@ -220,8 +220,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         <div className="bg-[#081210] border-b border-white/10 p-5">
           <div className="relative rounded-2xl bg-gradient-to-b from-white/[0.02] to-orange-950/30 border border-white/5 p-4 flex flex-col items-center justify-center min-h-[190px] overflow-hidden">
             {/* Angle Indicator Badge */}
-            <div className="absolute top-3 left-3 z-10 flex items-center space-x-1.5 bg-[#0B101D]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-semibold text-amber-200">
-              <Camera className="w-3.5 h-3.5 text-amber-400" />
+            <div className="absolute top-3 left-3 z-10 flex items-center space-x-1.5 bg-[#0A1813]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-semibold text-emerald-200">
+              <Camera className="w-3.5 h-3.5 text-emerald-400" />
               <span>{ANGLE_LABELS[modalAngle]?.title} (Góc {modalAngle + 1}/3)</span>
             </div>
 
@@ -264,7 +264,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               ) : (
                 <div className="flex flex-col items-center justify-center py-2">
                   <svg
-                    className="w-36 h-24 text-amber-400"
+                    className="w-36 h-24 text-emerald-400"
                     viewBox="0 0 64 48"
                     fill="none"
                     stroke="currentColor"
@@ -300,7 +300,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   }}
                   className={`p-2 rounded-xl text-left transition-all flex items-center space-x-2 border cursor-pointer ${
                     modalAngle === ang.id
-                      ? 'bg-amber-500/15 border-amber-500/50 shadow-sm'
+                      ? 'bg-emerald-500/15 border-emerald-500/50 shadow-sm'
                       : 'bg-white/[0.02] border-white/5 hover:border-white/20'
                   }`}
                 >
@@ -312,7 +312,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <div className="truncate">
                     <span
                       className={`block text-[11px] font-bold truncate ${
-                        modalAngle === ang.id ? 'text-amber-200 font-black' : 'text-slate-300'
+                        modalAngle === ang.id ? 'text-emerald-200 font-black' : 'text-slate-300'
                       }`}
                     >
                       {ang.label}
@@ -351,11 +351,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               </span>
             </div>
             <div className="pt-3 grid grid-cols-2 gap-3 text-center">
-              <div className="p-2.5 bg-orange-950/40 rounded-xl border border-amber-500/30 shadow-sm">
-                <span className="block text-[11px] font-bold text-amber-200 uppercase">
+              <div className="p-2.5 bg-[#050D0A] rounded-xl border border-emerald-500/30 shadow-sm">
+                <span className="block text-[11px] font-bold text-emerald-200 uppercase">
                   Cọc giữ xe online (30%)
                 </span>
-                <span className="text-base font-black text-amber-400">
+                <span className="text-base font-black text-emerald-400">
                   {depositAmount.toLocaleString('vi-VN')} đ
                 </span>
                 <span className="block text-[10px] text-slate-400 mt-0.5">Hoàn 100% nếu báo trước 24h</span>
@@ -376,13 +376,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <MapPin className="w-3.5 h-3.5 text-amber-400 mr-1" />
+                <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1" />
                 Chi nhánh nhận xe
               </label>
               <select
                 value={pickupBranchId}
                 onChange={(e) => setPickupBranchId(e.target.value)}
-                className="w-full bg-[#0B101D] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-amber-500 cursor-pointer"
+                className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-emerald-500 cursor-pointer"
               >
                 {branches.map((b) => (
                   <option key={b._id} value={b._id} className="bg-[#0D131F] text-white">
@@ -394,13 +394,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <MapPin className="w-3.5 h-3.5 text-amber-400 mr-1" />
+                <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1" />
                 Chi nhánh trả xe (Khác trạm)
               </label>
               <select
                 value={returnBranchId}
                 onChange={(e) => setReturnBranchId(e.target.value)}
-                className="w-full bg-[#0B101D] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-amber-500 cursor-pointer"
+                className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-emerald-500 cursor-pointer"
               >
                 {branches.map((b) => (
                   <option key={b._id} value={b._id} className="bg-[#0D131F] text-white">
@@ -412,7 +412,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <Calendar className="w-3.5 h-3.5 text-amber-400 mr-1" />
+                <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1" />
                 Ngày & giờ nhận xe
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -420,14 +420,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   type="date"
                   value={pickupDate}
                   onChange={(e) => setPickupDate(e.target.value)}
-                  className="col-span-2 bg-[#0B101D] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-amber-500"
+                  className="col-span-2 bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
                 />
                 <div className="relative">
                   <input
                     type="time"
                     value={pickupTime}
                     onChange={(e) => setPickupTime(e.target.value)}
-                    className="w-full bg-[#0B101D] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-amber-500"
+                    className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
                   />
                   <Clock className="w-3 h-3 text-slate-400 absolute right-2 top-3 pointer-events-none" />
                 </div>
@@ -436,7 +436,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <Calendar className="w-3.5 h-3.5 text-amber-400 mr-1" />
+                <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1" />
                 Ngày & giờ trả xe
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -445,14 +445,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   value={returnDate}
                   min={pickupDate}
                   onChange={(e) => setReturnDate(e.target.value)}
-                  className="col-span-2 bg-[#0B101D] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-amber-500"
+                  className="col-span-2 bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
                 />
                 <div className="relative">
                   <input
                     type="time"
                     value={returnTime}
                     onChange={(e) => setReturnTime(e.target.value)}
-                    className="w-full bg-[#0B101D] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-amber-500"
+                    className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
                   />
                   <Clock className="w-3 h-3 text-slate-400 absolute right-2 top-3 pointer-events-none" />
                 </div>
@@ -464,7 +464,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 border-t border-white/10">
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <UserIcon className="w-3.5 h-3.5 text-amber-400 mr-1" />
+                <UserIcon className="w-3.5 h-3.5 text-emerald-400 mr-1" />
                 Họ và tên người thuê (theo hồ sơ)
               </label>
               <input
@@ -477,7 +477,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <Phone className="w-3.5 h-3.5 text-amber-400 mr-1" />
+                <Phone className="w-3.5 h-3.5 text-emerald-400 mr-1" />
                 Số điện thoại liên hệ (theo hồ sơ)
               </label>
               <input
@@ -492,7 +492,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {/* Payment selection */}
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center">
-              <CreditCard className="w-3.5 h-3.5 text-amber-400 mr-1" />
+              <CreditCard className="w-3.5 h-3.5 text-emerald-400 mr-1" />
               Hình thức cọc 30% ({depositAmount.toLocaleString('vi-VN')} đ)
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -501,11 +501,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 onClick={() => setPaymentMethod('Banking')}
                 className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all ${
                   paymentMethod === 'Banking'
-                    ? 'border-amber-500 bg-amber-500/15 text-white font-bold'
+                    ? 'border-emerald-500 bg-emerald-500/15 text-white font-bold'
                     : 'border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]'
                 }`}
               >
-                <QrCode className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <QrCode className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                 <div className="text-xs">
                   <p className="font-bold text-white">Quét mã QR / VNPay</p>
                   <p className="text-[11px] text-slate-400">Xác nhận tự động trong 30s</p>
@@ -517,11 +517,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 onClick={() => setPaymentMethod('Cash')}
                 className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all ${
                   paymentMethod === 'Cash'
-                    ? 'border-amber-500 bg-amber-500/15 text-white font-bold'
+                    ? 'border-emerald-500 bg-emerald-500/15 text-white font-bold'
                     : 'border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]'
                 }`}
               >
-                <CreditCard className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <CreditCard className="w-5 h-5 text-emerald-400 flex-shrink-0" />
                 <div className="text-xs">
                   <p className="font-bold text-white">Cọc tại quầy chi nhánh</p>
                   <p className="text-[11px] text-slate-400">Giữ chỗ trước tối đa 2 giờ</p>
@@ -532,7 +532,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
           {/* Guarantee notice */}
           <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 text-xs text-slate-300 flex items-start space-x-2">
-            <ShieldCheck className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
             <p className="leading-relaxed">
               <strong className="text-white">Cam kết minh bạch:</strong> Kiểm tra xe chụp ảnh 5 góc trước khi bàn giao. Miễn phí hủy cọc nếu báo trước 24 giờ nhận xe.
             </p>
@@ -551,7 +551,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-lg shadow-orange-500/30 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95"
+                className="px-6 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-[#050D0A] shadow-lg shadow-emerald-500/30 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95"
               >
                 {loading ? (
                   <span>Đang xử lý đặt xe...</span>
@@ -566,7 +566,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <button
                 type="button"
                 onClick={handleLoginRedirect}
-                className="px-6 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 shadow-lg shadow-orange-500/30 transition-all flex items-center space-x-2 active:scale-95"
+                className="px-6 py-3 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-[#050D0A] shadow-lg shadow-emerald-500/30 transition-all flex items-center space-x-2 active:scale-95"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Đăng nhập để đặt xe</span>
