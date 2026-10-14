@@ -1,4 +1,4 @@
-﻿import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema } from 'mongoose';
 
 export type BookingStatus =
   | 'Pending'
@@ -29,6 +29,13 @@ export interface IBooking extends Document {
   status: BookingStatus;
   paymentMethod: 'Banking' | 'Cash';
   isPaid: boolean;
+  depositPaid: boolean;
+  paidAmount: number;
+  lastTxnRef?: string;
+  settlementAmount?: number;
+  counterPaidBy?: mongoose.Types.ObjectId;
+  counterPaidAt?: Date;
+  loyaltyAwarded?: boolean;
   paymentType?: 'Deposit30' | 'Full100';
   paymentExpiresAt?: Date;
   vnpayTransactionNo?: string;
@@ -73,6 +80,13 @@ const BookingSchema = new Schema<IBooking>(
     },
     paymentMethod: { type: String, enum: ['Banking', 'Cash'], default: 'Banking' },
     isPaid: { type: Boolean, default: false },
+    depositPaid: { type: Boolean, default: false },
+    paidAmount: { type: Number, default: 0 },
+    lastTxnRef: { type: String, trim: true },
+    settlementAmount: { type: Number, default: 0 },
+    counterPaidBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    counterPaidAt: { type: Date },
+    loyaltyAwarded: { type: Boolean, default: false },
     paymentType: { type: String, enum: ['Deposit30', 'Full100'], default: 'Deposit30' },
     paymentExpiresAt: { type: Date },
     vnpayTransactionNo: { type: String, default: '' },

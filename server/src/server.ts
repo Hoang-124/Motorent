@@ -8,6 +8,7 @@ import path from 'path';
 import { env } from './config/env';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './core/errorHandler';
+import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
 import apiRouter from './routes';
 
 export const app = express();
@@ -26,6 +27,8 @@ export const io = new SocketIOServer(server, {
 });
 
 // Global Security & Parsers Middlewares
+app.set('trust proxy', env.TRUST_PROXY || 1);
+
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -46,10 +49,10 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-// Serve uploaded static files (avatars, eKYC licenses)
+// Serve uploaded static files (avatars)
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Mount Central Modular Monolith API
@@ -58,7 +61,7 @@ app.use('/api', apiRouter);
 // Socket.IO event handling
 io.on('connection', (socket) => {
   if (env.NODE_ENV === 'development') {
-    console.log(`⚡ Socket connected: ${socket.id}`);
+    console.log(`[SOCKET] Connected: ${socket.id}`);
   }
 
   socket.on('join_conversation', (conversationId: string) => {
@@ -71,7 +74,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     if (env.NODE_ENV === 'development') {
-      console.log(`🔌 Socket disconnected: ${socket.id}`);
+      console.log(`[SOCKET] Disconnected: ${socket.id}`);
     }
   });
 });
@@ -84,10 +87,11 @@ const PORT = env.PORT || 5000;
 
 export const startServer = async () => {
   await connectDatabase();
+  startBookingExpiryJob();
   server.listen(PORT, () => {
-    console.log(`🚀 MOTORENT Server running on http://localhost:${PORT}`);
-    console.log(`🔒 Security active: Helmet, Rate Limiter, CORS whitelist`);
-    console.log(`🩺 Health check endpoint: http://localhost:${PORT}/api/health`);
+    console.log(`[SERVER] MOTORENT Server running on http://localhost:${PORT}`);
+    console.log(`[SECURITY] Active: Helmet, Rate Limiter, CORS whitelist, Trust Proxy: ${env.TRUST_PROXY || 1}`);
+    console.log(`[HEALTH] Health check endpoint: http://localhost:${PORT}/api/health`);
   });
 };
 

@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
 import { AppError } from '../../core/errorHandler';
 import * as vnpayService from './vnpayService';
@@ -54,10 +54,11 @@ export const handleVnPayIpn = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const queryParams = Object.keys(req.query).length > 0 ? req.query : req.body;
+    const queryParams = (Object.keys(req.query).length > 0 ? req.query : req.body) as vnpayService.VnpParams;
     const result = await vnpayService.processVnPayIpn(queryParams);
     res.status(200).json(result);
   } catch (error) {
+    console.error('[IPN Catch Error]:', error);
     res.status(200).json({ RspCode: '99', Message: 'Unknown error' });
   }
 };
@@ -72,7 +73,7 @@ export const handleVnPayReturn = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const result = await vnpayService.verifyReturnUrlData(req.query);
+    const result = await vnpayService.verifyReturnUrlData(req.query as vnpayService.VnpParams);
     res.json({
       success: result.isValid && result.isSuccess,
       data: result,

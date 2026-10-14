@@ -47,6 +47,15 @@ router.put(
   bookingController.checkout
 );
 
+// UC-31: Record 70% or full payment at counter
+router.put(
+  '/:id/counter-pay',
+  authenticateJWT,
+  authorize('Staff', 'BranchManager', 'SystemAdmin'),
+  auditLogger('COUNTER_PAY_BOOKING', 'Booking'),
+  bookingController.counterPay
+);
+
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 

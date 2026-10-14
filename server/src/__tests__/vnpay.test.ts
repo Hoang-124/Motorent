@@ -163,9 +163,12 @@ describe('UC-29 & UC-30: VNPay Payment Integration & IPN Webhook', () => {
     expect(res.body.RspCode).toBe('00');
     expect(res.body.Message).toContain('Confirm Success');
 
-    // Verify DB updated
+    // Verify DB updated: Deposit 30% means depositPaid is true, isPaid is false (balance remaining)
     const updatedBooking = await Booking.findById(testBookingId);
-    expect(updatedBooking?.isPaid).toBe(true);
+    expect(updatedBooking?.depositPaid).toBe(true);
+    expect(updatedBooking?.isPaid).toBe(false);
+    expect(updatedBooking?.paidAmount).toBe(depositAmount);
+    expect(updatedBooking?.remainingAmount).toBe(totalAmount - depositAmount);
     expect(updatedBooking?.status).toBe('Confirmed');
     expect(updatedBooking?.vnpayTransactionNo).toBe('14889922');
   });

@@ -185,7 +185,9 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
   let createdBookingId: string;
   const randomOffsetDays = Math.floor(60 + Math.random() * 200);
   const pickupDate = new Date(Date.now() + randomOffsetDays * 86400000);
+  pickupDate.setUTCHours(2, 0, 0, 0); // 09:00 AM Vietnam time (GMT+7)
   const returnDate = new Date(pickupDate.getTime() + 2 * 86400000);
+  returnDate.setUTCHours(9, 0, 0, 0); // 16:00 PM Vietnam time (GMT+7)
 
   it('C1: Customer creates booking successfully with MV- code and 30% deposit calculation', async () => {
     const res = await request(app)
@@ -228,8 +230,50 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
     expect(res.body.success).toBe(false);
   });
 
+  it('C1: Concurrency guard - 5 parallel booking requests for same slot return exactly 1 success and 4 conflicts', async () => {
+    const concPickup = new Date(Date.now() + 400 * 86400000);
+    concPickup.setUTCHours(2, 0, 0, 0); // 09:00 AM GMT+7
+    const concReturn = new Date(concPickup.getTime() + 86400000);
+    concReturn.setUTCHours(9, 0, 0, 0); // 16:00 PM GMT+7
+
+    const requests = Array.from({ length: 5 }, () =>
+      request(app)
+        .post('/api/bookings')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          vehicleId: testVehicleId,
+          pickupBranchId,
+          returnBranchId,
+          pickupDateTime: concPickup.toISOString(),
+          returnDateTime: concReturn.toISOString(),
+          paymentMethod: 'Banking',
+        })
+    );
+
+    const responses = await Promise.all(requests);
+    const successCount = responses.filter((r) => r.status === 201).length;
+    const conflictCount = responses.filter((r) => r.status === 409).length;
+
+    expect(successCount).toBe(1);
+    expect(conflictCount).toBe(4);
+  });
+
+  it('C2: Attempting check-in on Pending booking returns 409 Conflict', async () => {
+    const res = await request(app)
+      .put(`/api/bookings/${createdBookingId}/checkin`)
+      .set('Authorization', `Bearer ${staffDadToken}`)
+      .send({
+        startOdometer: 3200,
+        startFuelLevel: '100%',
+        checklist: { tires: true, brakes: true, lights: true, fuel: true, helmets: true },
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('Đơn cần ở trạng thái Đã xác nhận');
+  });
+
   it('C2: Staff of branch MK trying to check-in booking of branch DAD must return 403 Forbidden', async () => {
-    // Set booking to Confirmed
+    // Set booking to Confirmed (e.g. after deposit)
     await Booking.findByIdAndUpdate(createdBookingId, { status: 'Confirmed' });
 
     const res = await request(app)
@@ -237,7 +281,7 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
       .set('Authorization', `Bearer ${staffMkToken}`)
       .send({
         startOdometer: 3200,
-        startFuelLevel: 100,
+        startFuelLevel: '100%',
         checklist: { tires: true, brakes: true, lights: true, fuel: true, helmets: true },
         eSignatureUrl: 'data:image/svg+xml;utf8,<svg></svg>',
       });
@@ -293,6 +337,36 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
 
     const updatedVehicle = await Vehicle.findById(testVehicleId);
     expect(updatedVehicle?.status).toBe('Available');
+  });
+
+  it('C3: Staff records 70% remaining balance at counter (UC-31)', async () => {
+    // Create temporary booking to test counter payment
+    const tempB = await Booking.create({
+      bookingCode: 'MV-COUNTERTEST',
+      userId: (await User.findOne({ username: 'customer_hoang' }))!._id,
+      vehicleId: testVehicleId,
+      pickupBranchId,
+      returnBranchId,
+      pickupDateTime: new Date(Date.now() + 86400000),
+      returnDateTime: new Date(Date.now() + 2 * 86400000),
+      totalAmount: 300000,
+      depositAmount: 90000,
+      remainingAmount: 210000,
+      status: 'Confirmed',
+      isPaid: false,
+    });
+
+    const res = await request(app)
+      .put(`/api/bookings/${tempB._id}/counter-pay`)
+      .set('Authorization', `Bearer ${staffDadToken}`)
+      .send({ amount: 210000, notes: 'Thanh toán tiền mặt tất toán 70%' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.isPaid).toBe(true);
+    expect(res.body.data.remainingAmount).toBe(0);
+
+    await Booking.findByIdAndDelete(tempB._id);
   });
 
   afterAll(async () => {

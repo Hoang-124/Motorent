@@ -209,3 +209,32 @@ export const cancel = async (
     next(error);
   }
 };
+
+const counterPaySchema = z.object({
+  amount: z.coerce.number().min(1, 'Số tiền thanh toán phải lớn hơn 0'),
+  notes: z.string().optional(),
+});
+
+export const counterPay = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập nhân sự.');
+    }
+
+    const data = counterPaySchema.parse(req.body);
+    const updated = await bookingService.recordCounterPayment(req.params.id, req.user, data.amount, data.notes);
+
+    res.json({
+      success: true,
+      message: 'Ghi nhận thanh toán tiền mặt/POS tại quầy thành công!',
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

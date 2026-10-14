@@ -19,6 +19,7 @@ export interface IVehicle extends Document {
   yearManufactured?: number;
   color?: string;
   requiresMaintenance: boolean;
+  lastMaintenanceBucket?: number;
   isDeleted: boolean;
   images: string[];
   createdAt: Date;
@@ -53,6 +54,7 @@ const VehicleSchema = new Schema<IVehicle>(
     yearManufactured: { type: Number },
     color: { type: String, trim: true },
     requiresMaintenance: { type: Boolean, default: false },
+    lastMaintenanceBucket: { type: Number, default: 0 },
     isDeleted: { type: Boolean, default: false },
     images: [{ type: String }],
   },
