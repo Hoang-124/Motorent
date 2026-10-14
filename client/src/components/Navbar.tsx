@@ -108,11 +108,11 @@ export const Navbar: React.FC = () => {
     <>
       {/* Floating Glass Island Navbar (Sticky in document flow so it never overlaps page content) */}
       <header className="sticky top-0 z-50 w-full pt-3 pb-3 px-3 sm:px-6 transition-all duration-300 pointer-events-none">
-        <div className="max-w-6xl mx-auto rounded-full px-4 sm:px-6 py-2.5 bg-[#081512]/90 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/80 flex items-center justify-between gap-4 pointer-events-auto">
+        <div className="max-w-6xl mx-auto rounded-full px-4 sm:px-6 py-2.5 bg-[#0D1524]/90 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/80 flex items-center justify-between gap-4 pointer-events-auto">
           
           {/* Brand Logo */}
           <Link to="/" className="flex items-center space-x-2.5 group shrink-0">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-[#060D0B] shadow-md shadow-emerald-500/20 group-hover:scale-105 transition-transform">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center text-white shadow-md shadow-orange-500/25 group-hover:scale-105 transition-transform">
               <svg className="w-4 h-4 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                 <circle cx="5.5" cy="17.5" r="3.5" />
                 <circle cx="18.5" cy="17.5" r="3.5" />
@@ -120,7 +120,7 @@ export const Navbar: React.FC = () => {
               </svg>
             </div>
             <span className="text-lg font-black tracking-tight text-white">
-              MOTO<span className="text-emerald-400">RENT</span>
+              MOTO<span className="text-orange-500">RENT</span>
             </span>
           </Link>
 
@@ -134,7 +134,7 @@ export const Navbar: React.FC = () => {
                   to={link.path}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center space-x-1.5 ${
                     active
-                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      ? 'bg-orange-500/20 text-orange-300 border border-orange-500/30 font-bold'
                       : 'text-slate-300 hover:text-white hover:bg-white/5'
                   }`}
                 >
@@ -155,10 +155,10 @@ export const Navbar: React.FC = () => {
               className="hidden sm:inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-200 text-xs font-semibold transition-colors"
             >
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
               </span>
-              <PhoneCall className="w-3 h-3 text-emerald-400" />
+              <PhoneCall className="w-3 h-3 text-orange-400" />
               <span className="font-bold">1900 6868</span>
             </a>
 
@@ -168,7 +168,7 @@ export const Navbar: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center space-x-2 pl-1.5 pr-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/25 transition-all text-xs font-bold"
+                  className="flex items-center space-x-2 pl-1.5 pr-3 py-1 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-300 hover:bg-orange-500/25 transition-all text-xs font-bold"
                 >
                   {avatarSrc && !avatarLoadFailed ? (
                     <img
@@ -177,20 +177,20 @@ export const Navbar: React.FC = () => {
                       referrerPolicy="no-referrer"
                       crossOrigin="anonymous"
                       onError={() => setAvatarLoadFailed(true)}
-                      className="w-6 h-6 rounded-full object-cover border border-emerald-400/40 shrink-0"
+                      className="w-6 h-6 rounded-full object-cover border border-orange-400/40 shrink-0"
                     />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-emerald-500 text-[#060D0B] flex items-center justify-center font-black text-[10px] shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center font-black text-[10px] shrink-0">
                       {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
                     </div>
                   )}
                   <span className="max-w-[90px] truncate">{user.firstName || user.username}</span>
-                  <ChevronDown className={`w-3 h-3 text-emerald-400 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3 h-3 text-orange-400 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* Dropdown Menu */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-3 w-72 rounded-2xl bg-[#091512]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black p-2 text-xs space-y-1 z-50 animate-in fade-in duration-150">
+                  <div className="absolute right-0 mt-3 w-72 rounded-2xl bg-[#0F172A]/95 backdrop-blur-xl border border-white/10 shadow-2xl shadow-black p-2 text-xs space-y-1 z-50 animate-in fade-in duration-150">
                     <div className="px-3 py-2.5 border-b border-white/10 mb-1 flex items-center space-x-2.5">
                       {avatarSrc && !avatarLoadFailed ? (
                         <img
@@ -198,16 +198,16 @@ export const Navbar: React.FC = () => {
                           alt="Avatar"
                           referrerPolicy="no-referrer"
                           crossOrigin="anonymous"
-                          className="w-8 h-8 rounded-full object-cover border border-emerald-400/40 shrink-0"
+                          className="w-8 h-8 rounded-full object-cover border border-orange-400/40 shrink-0"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-emerald-500 text-[#060D0B] flex items-center justify-center font-black text-xs shrink-0">
+                        <div className="w-8 h-8 rounded-full bg-orange-500 text-white flex items-center justify-center font-black text-xs shrink-0">
                           {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
                         <p className="font-bold text-white truncate">{user.firstName ? `${user.firstName} ${user.lastName || ''}` : user.username}</p>
-                        <p className="text-[10px] text-emerald-400 font-mono">{user.roles}</p>
+                        <p className="text-[10px] text-orange-400 font-mono">{user.roles}</p>
                       </div>
                     </div>
 
@@ -218,7 +218,7 @@ export const Navbar: React.FC = () => {
                       className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors group"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
-                        <Compass className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <Compass className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                         <span className="truncate">Chuyến xe của tôi</span>
                       </div>
                       <span className="text-[10px] text-slate-500 font-medium shrink-0 ml-2">
@@ -233,7 +233,7 @@ export const Navbar: React.FC = () => {
                       className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
-                        <UserIcon className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <UserIcon className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                         <span className="truncate">Thông tin cá nhân & Chỉnh sửa</span>
                       </div>
                     </Link>
@@ -245,7 +245,7 @@ export const Navbar: React.FC = () => {
                       className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
-                        <Camera className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <Camera className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                         <span className="truncate">Đổi ảnh đại diện</span>
                       </div>
                       <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">5MB</span>
@@ -258,7 +258,7 @@ export const Navbar: React.FC = () => {
                       className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
-                        <FileCheck2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <FileCheck2 className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                         <span className="truncate">Định danh điện tử (eKYC)</span>
                       </div>
                       {user.identityStatus === 'Verified' ? (
@@ -279,7 +279,7 @@ export const Navbar: React.FC = () => {
                       className="flex items-center justify-between px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
                     >
                       <div className="flex items-center space-x-2.5 min-w-0">
-                        <Lock className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <Lock className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                         <span className="truncate">Đổi mật khẩu bảo mật</span>
                       </div>
                       <span className="text-[10px] text-slate-400 font-medium shrink-0 ml-2">≥ 8 ký tự</span>
@@ -291,7 +291,7 @@ export const Navbar: React.FC = () => {
                         onClick={() => setUserDropdownOpen(false)}
                         className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors border-t border-white/5 pt-2"
                       >
-                        <LayoutDashboard className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <LayoutDashboard className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                         <span>Bàn giao quầy</span>
                       </Link>
                     )}
@@ -315,10 +315,10 @@ export const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className="group inline-flex items-center space-x-2 pl-4 pr-1.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-[#060D0B] font-black text-xs transition-all active:scale-95 shadow-md shadow-emerald-500/25"
+                className="group inline-flex items-center space-x-2 pl-4 pr-1.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-xs transition-all active:scale-95 shadow-md shadow-orange-500/25"
               >
                 <span>Đăng nhập</span>
-                <div className="w-6 h-6 rounded-full bg-[#060D0B] text-emerald-400 flex items-center justify-center transition-transform group-hover:translate-x-0.5">
+                <div className="w-6 h-6 rounded-full bg-black/25 text-white flex items-center justify-center transition-transform group-hover:translate-x-0.5">
                   <LogIn className="w-3 h-3" />
                 </div>
               </Link>
@@ -331,7 +331,7 @@ export const Navbar: React.FC = () => {
               className="lg:hidden p-2 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
               aria-label="Toggle mobile menu"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5 text-emerald-400" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 text-orange-400" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -339,17 +339,17 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-40 bg-[#060D0B]/95 backdrop-blur-3xl pt-24 px-6 flex flex-col justify-between pb-8 lg:hidden animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-40 bg-[#0B0F17]/95 backdrop-blur-3xl pt-24 px-6 flex flex-col justify-between pb-8 lg:hidden animate-in fade-in duration-200">
           <nav className="space-y-3">
             {navLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-sm font-bold text-white hover:border-emerald-500/40 transition-colors"
+                className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/10 text-sm font-bold text-white hover:border-orange-500/40 transition-colors"
               >
                 <span>{link.name}</span>
-                <link.icon className="w-4 h-4 text-emerald-400" />
+                <link.icon className="w-4 h-4 text-orange-400" />
               </Link>
             ))}
           </nav>
@@ -357,9 +357,9 @@ export const Navbar: React.FC = () => {
           <div className="space-y-4 pt-6 border-t border-white/10">
             <a
               href="tel:19006868"
-              className="w-full flex items-center justify-center space-x-2 p-3.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-xs"
+              className="w-full flex items-center justify-center space-x-2 p-3.5 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-300 font-bold text-xs"
             >
-              <PhoneCall className="w-4 h-4 text-emerald-400" />
+              <PhoneCall className="w-4 h-4 text-orange-400" />
               <span>Hotline cứu hộ: 1900 6868 (24/7)</span>
             </a>
 
@@ -372,16 +372,16 @@ export const Navbar: React.FC = () => {
                       alt="Avatar"
                       referrerPolicy="no-referrer"
                       crossOrigin="anonymous"
-                      className="w-10 h-10 rounded-full object-cover border border-emerald-400/40 shrink-0"
+                      className="w-10 h-10 rounded-full object-cover border border-orange-400/40 shrink-0"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-emerald-500 text-[#060D0B] flex items-center justify-center font-black text-sm shrink-0">
+                    <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-black text-sm shrink-0">
                       {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
                     </div>
                   )}
                   <div className="min-w-0 flex-1 text-left">
                     <p className="font-bold text-white truncate text-xs">{user.firstName ? `${user.firstName} ${user.lastName || ''}` : user.username}</p>
-                    <p className="text-[10px] text-emerald-400 font-mono">{user.roles}</p>
+                    <p className="text-[10px] text-orange-400 font-mono">{user.roles}</p>
                   </div>
                 </div>
 
@@ -393,7 +393,7 @@ export const Navbar: React.FC = () => {
                     className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
                   >
                     <div className="flex items-center space-x-2">
-                      <Compass className="w-3.5 h-3.5 text-emerald-400" />
+                      <Compass className="w-3.5 h-3.5 text-orange-400" />
                       <span>Chuyến xe của tôi</span>
                     </div>
                     <span className="text-[10px] text-slate-500 font-medium">{bookingCount} chuyến</span>
@@ -404,7 +404,7 @@ export const Navbar: React.FC = () => {
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center space-x-2 p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
                   >
-                    <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    <UserIcon className="w-3.5 h-3.5 text-orange-400" />
                     <span>Thông tin cá nhân & Chỉnh sửa</span>
                   </Link>
 
@@ -414,7 +414,7 @@ export const Navbar: React.FC = () => {
                     className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
                   >
                     <div className="flex items-center space-x-2">
-                      <Camera className="w-3.5 h-3.5 text-emerald-400" />
+                      <Camera className="w-3.5 h-3.5 text-orange-400" />
                       <span>Đổi ảnh đại diện</span>
                     </div>
                     <span className="text-[10px] text-slate-400 font-medium">5MB</span>
@@ -426,7 +426,7 @@ export const Navbar: React.FC = () => {
                     className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
                   >
                     <div className="flex items-center space-x-2">
-                      <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
+                      <FileCheck2 className="w-3.5 h-3.5 text-orange-400" />
                       <span>Định danh điện tử (eKYC)</span>
                     </div>
                     {user.identityStatus === 'Verified' ? (
@@ -446,7 +446,7 @@ export const Navbar: React.FC = () => {
                     className="flex items-center justify-between p-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5"
                   >
                     <div className="flex items-center space-x-2">
-                      <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                      <Lock className="w-3.5 h-3.5 text-orange-400" />
                       <span>Đổi mật khẩu bảo mật</span>
                     </div>
                     <span className="text-[10px] text-slate-400 font-medium">≥ 8 ký tự</span>
@@ -467,7 +467,7 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="w-full py-3.5 rounded-full bg-emerald-500 text-[#060D0B] font-black text-xs flex items-center justify-center space-x-2"
+                className="w-full py-3.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-orange-500/25"
               >
                 <span>Đăng nhập hệ thống</span>
               </Link>
@@ -479,7 +479,7 @@ export const Navbar: React.FC = () => {
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#091512] rounded-3xl max-w-sm w-full p-6 border border-white/10 shadow-2xl text-center space-y-4">
+          <div className="bg-[#111827] rounded-3xl max-w-sm w-full p-6 border border-white/10 shadow-2xl text-center space-y-4">
             <h3 className="text-base font-bold text-white">Xác nhận đăng xuất?</h3>
             <p className="text-xs text-slate-400">Phiên làm việc hiện tại sẽ kết thúc và token bảo mật sẽ được thu hồi an toàn.</p>
             <div className="flex items-center space-x-3 pt-2">

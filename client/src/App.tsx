@@ -22,7 +22,7 @@ export function App() {
     <AuthProvider>
       <BrowserRouter>
         <ScrollToTop />
-        <div className="min-h-screen flex flex-col bg-[#060B0A] font-sans text-slate-100 antialiased selection:bg-emerald-500 selection:text-[#060B0A]">
+        <div className="min-h-screen flex flex-col bg-[#0B0F17] font-sans text-slate-100 antialiased selection:bg-orange-500 selection:text-white">
           <Navbar />
           <WelcomeToast />
           <main className="flex-1">

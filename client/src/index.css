@@ -5,42 +5,42 @@
 @layer base {
   body {
     font-family: 'Be Vietnam Pro', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background-color: #060B0A;
+    background-color: #0B0F17;
     color: #F8FAFC;
     overflow-x: hidden;
   }
 }
 
-/* Custom modern scrollbar */
+/* Custom Moto Racing scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #060B0A;
+  background: #0B0F17;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(16, 185, 129, 0.25);
+  background: rgba(249, 115, 22, 0.35);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(16, 185, 129, 0.5);
+  background: rgba(249, 115, 22, 0.7);
 }
 
-/* Dark Luxury Glass Tokens */
+/* Dark Asphalt Luxury Glass Tokens */
 .glass-obsidian {
-  background: rgba(9, 19, 17, 0.8);
+  background: rgba(17, 24, 39, 0.85);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.glow-emerald-sm {
-  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.2);
+.glow-orange-sm {
+  box-shadow: 0 0 25px -5px rgba(249, 115, 22, 0.25);
 }
 
-.glow-emerald-lg {
-  box-shadow: 0 0 50px -10px rgba(16, 185, 129, 0.25);
+.glow-orange-lg {
+  box-shadow: 0 0 50px -10px rgba(249, 115, 22, 0.35);
 }
 
 .hairline-border {
@@ -48,5 +48,11 @@
 }
 
 .hairline-border-hover:hover {
-  border-color: rgba(16, 185, 129, 0.45);
+  border-color: rgba(249, 115, 22, 0.5);
+}
+
+.text-gradient-moto {
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 50%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }

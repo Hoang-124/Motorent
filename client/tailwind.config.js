@@ -6,45 +6,47 @@ export default {
     extend: {
       colors: {
         brand: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-          800: '#166534',
-          900: '#14532d',
-          950: '#052e16',
+          50: '#fff7ed',
+          100: '#ffedd5',
+          200: '#fed7aa',
+          300: '#fdba74',
+          400: '#fb923c',
+          500: '#f97316', // Core KTM / Moto Blaze Orange
+          600: '#ea580c',
+          700: '#c2410c',
+          800: '#9a3412',
+          900: '#7c2d12',
+          950: '#431407',
         },
-        forest: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
-          950: '#022c22',
+        moto: {
+          flame: '#ff5500',
+          amber: '#f59e0b',
+          sun: '#fbbf24',
+          cyan: '#06b6d4',
+        },
+        asphalt: {
+          950: '#070B12',
+          900: '#0B0F17', // Main deep road asphalt
+          850: '#0F1624',
+          800: '#141D2D', // Card surface
+          750: '#1A2438', // Card hover
+          700: '#222E45', // Border & divider
         },
         dark: {
-          base: '#0c121e',
-          card: '#131d2e',
-          cardHover: '#18253b',
-          border: '#1f2e47',
-          input: '#152238',
+          base: '#0B0F17',
+          card: '#111827',
+          cardHover: '#172236',
+          border: '#233048',
+          input: '#0F1726',
         }
       },
       fontFamily: {
         sans: ['"Be Vietnam Pro"', 'Inter', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        'brand-glow': '0 0 25px -5px rgba(16, 185, 129, 0.25)',
-        'card-soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+        'brand-glow': '0 0 25px -5px rgba(249, 115, 22, 0.35)',
+        'moto-glow': '0 0 35px -5px rgba(255, 85, 0, 0.45)',
+        'card-soft': '0 4px 20px -2px rgba(0, 0, 0, 0.25)',
       }
     },
   },

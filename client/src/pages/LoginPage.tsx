@@ -180,12 +180,12 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#060B0A] text-slate-100">
+    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#0B0F17] text-slate-100">
       <div className="max-w-md w-full space-y-6">
         {/* Brand Header */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center space-x-2.5 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shadow-lg shadow-orange-500/20">
               <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
                 <circle cx="5.5" cy="17.5" r="3.5" />
                 <circle cx="18.5" cy="17.5" r="3.5" />
@@ -193,7 +193,7 @@ export const LoginPage: React.FC = () => {
               </svg>
             </div>
             <span className="text-2xl font-black text-white tracking-tight">
-              MOTO<span className="text-emerald-400">RENT</span>
+              MOTO<span className="text-orange-500">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
@@ -206,8 +206,8 @@ export const LoginPage: React.FC = () => {
 
         {/* Notice Message */}
         {successNotice && (
-          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="p-3.5 bg-orange-500/10 border border-orange-500/30 text-orange-300 rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 text-orange-400 shrink-0" />
             <span>{successNotice}</span>
           </div>
         )}
@@ -224,18 +224,18 @@ export const LoginPage: React.FC = () => {
 
         {/* Success Alert */}
         {loginSuccessMsg && (
-          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="p-3.5 bg-orange-500/10 border border-orange-500/30 text-orange-300 rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 text-orange-400 shrink-0" />
             <span>{loginSuccessMsg}</span>
           </div>
         )}
 
         {/* Form Box */}
-        <div className="bg-[#0B1513] p-7 sm:p-8 rounded-[2rem] border border-white/10 shadow-2xl space-y-5 text-white">
+        <div className="bg-[#111827] p-7 sm:p-8 rounded-[2rem] border border-white/10 shadow-2xl space-y-5 text-white">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center">
-                <UserIcon className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
+                <UserIcon className="w-3.5 h-3.5 text-orange-400 mr-1.5" />
                 Tên đăng nhập hoặc Email
               </label>
               <input
@@ -244,10 +244,10 @@ export const LoginPage: React.FC = () => {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="VD: admin hoặc yourname@outlook.com.vn"
-                className={`w-full px-3.5 py-2.5 bg-[#060B0A] border rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all ${
+                className={`w-full px-3.5 py-2.5 bg-[#0B0F17] border rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all ${
                   isGmail
                     ? 'border-amber-500/70 focus:border-amber-400 bg-amber-500/[0.04]'
-                    : 'border-white/10 focus:border-emerald-500'
+                    : 'border-white/10 focus:border-orange-500'
                 }`}
               />
 
@@ -268,12 +268,12 @@ export const LoginPage: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-slate-300 flex items-center">
-                  <Lock className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
+                  <Lock className="w-3.5 h-3.5 text-orange-400 mr-1.5" />
                   Mật khẩu
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 hover:underline"
+                  className="text-[11px] font-semibold text-orange-400 hover:text-orange-300 hover:underline"
                 >
                   Quên mật khẩu?
                 </Link>
@@ -285,7 +285,7 @@ export const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 bg-[#060B0A] border border-white/10 rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-all pr-10"
+                  className="w-full px-3.5 py-2.5 bg-[#0B0F17] border border-white/10 rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none focus:border-orange-500 transition-all pr-10"
                 />
                 <button
                   type="button"
@@ -300,7 +300,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-[0.99] text-[#060D0B] rounded-xl text-xs font-black shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center space-x-2"
+              className="w-full py-3 px-4 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 active:scale-[0.99] text-white rounded-xl text-xs font-black shadow-lg shadow-orange-500/25 transition-all flex items-center justify-center space-x-2"
             >
               {loading ? (
                 <span>Đang xử lý đăng nhập...</span>
@@ -319,7 +319,7 @@ export const LoginPage: React.FC = () => {
               <div className="w-full border-t border-white/10" />
             </div>
             <div className="relative flex justify-center text-[11px]">
-              <span className="px-3 bg-[#0B1513] text-slate-400 font-medium">hoặc đăng nhập nhanh với</span>
+              <span className="px-3 bg-[#111827] text-slate-400 font-medium">hoặc đăng nhập nhanh với</span>
             </div>
           </div>
 
@@ -337,7 +337,7 @@ export const LoginPage: React.FC = () => {
           {/* Footer link to register */}
           <div className="pt-2 text-center text-xs text-slate-400">
             <span>Chưa có tài khoản? </span>
-            <Link to="/register" className="font-bold text-emerald-400 hover:text-emerald-300 hover:underline">
+            <Link to="/register" className="font-bold text-orange-400 hover:text-orange-300 hover:underline">
               Đăng ký ngay
             </Link>
           </div>
@@ -346,7 +346,7 @@ export const LoginPage: React.FC = () => {
         {/* Security badge */}
         <div className="p-3.5 bg-white/[0.03] rounded-2xl border border-white/5 text-center">
           <p className="text-[11px] text-slate-300 flex items-center justify-center space-x-1 font-medium">
-            <Mail className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+            <Mail className="w-3.5 h-3.5 text-orange-400 mr-1" />
             Hỗ trợ đăng nhập với Google, Outlook, Yahoo và email doanh nghiệp
           </p>
         </div>
