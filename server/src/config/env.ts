@@ -23,6 +23,9 @@ const envSchema = z.object({
   VNP_HASHSECRET: z.string().optional(),
   VNP_URL: z.string().optional(),
   VNP_RETURNURL: z.string().optional(),
+  CLOUDINARY_CLOUD_NAME: z.string().default('dsxbuk4pe'),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
   SEED_PASSWORD: z.string().default('Motorent@2026'),
   TRUST_PROXY: z.string().default('1'),
 }).superRefine((val, ctx) => {

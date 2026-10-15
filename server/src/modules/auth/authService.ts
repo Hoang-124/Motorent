@@ -9,6 +9,7 @@ import { AuditLog } from '../../models/AuditLog';
 import { Notification } from '../../models/Notification';
 import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer';
 import { env } from '../../config/env';
+import { deleteFromCloudinary, getSignedCloudinaryEkycUrl } from '../../config/cloudinary';
 import { AppError } from '../../core/errorHandler';
 import { uploadDir, privateEkycDir } from '../../core/uploadMiddleware';
 
@@ -694,6 +695,16 @@ export const updateAvatar = async (
   return sanitizeUser(user);
 };
 
+const removeOldEkycAsset = (oldRef?: string) => {
+  if (!oldRef) return;
+  if (oldRef.startsWith('cloudinary:')) {
+    deleteFromCloudinary(oldRef, 'authenticated').catch(() => {});
+  } else {
+    const oldPath = path.join(privateEkycDir, path.basename(oldRef));
+    fs.promises.unlink(oldPath).catch(() => {});
+  }
+};
+
 /**
  * Submit eKYC Identity Documents (Decree 13/2023/ND-CP Compliant)
  */
@@ -702,9 +713,11 @@ export const submitEkyc = async (
   data: {
     idCardFrontFile?: string;
     idCardBackFile?: string;
+    selfieFile?: string;
     drivingLicenseFile?: string;
     idCardFrontUrl?: string;
     idCardBackUrl?: string;
+    selfieUrl?: string;
     drivingLicenseUrl?: string;
     consentAgreed?: boolean;
     watermarked?: boolean;
@@ -719,13 +732,15 @@ export const submitEkyc = async (
   const hasAnyDoc =
     data.idCardFrontFile ||
     data.idCardBackFile ||
+    data.selfieFile ||
     data.drivingLicenseFile ||
     data.idCardFrontUrl ||
     data.idCardBackUrl ||
+    data.selfieUrl ||
     data.drivingLicenseUrl;
 
   if (!hasAnyDoc) {
-    throw new AppError(400, 'Vui lòng tải lên ít nhất một ảnh giấy tờ tùy thân (CCCD hoặc GPLX) để tiếp tục.');
+    throw new AppError(400, 'Vui lòng tải lên ít nhất một ảnh giấy tờ tùy thân (CCCD hoặc ảnh chân dung) để tiếp tục.');
   }
 
   // Enforce upload permission: Only allowed if Unverified or Rejected
@@ -739,8 +754,7 @@ export const submitEkyc = async (
   // Update private files and delete replaced old files
   if (data.idCardFrontFile) {
     if (user.idCardFrontFile && user.idCardFrontFile !== data.idCardFrontFile) {
-      const oldPath = path.join(privateEkycDir, path.basename(user.idCardFrontFile));
-      fs.promises.unlink(oldPath).catch(() => {});
+      removeOldEkycAsset(user.idCardFrontFile);
     }
     user.idCardFrontFile = data.idCardFrontFile;
     user.idCardFrontUrl = `/api/auth/ekyc/document/me/idCardFront`;
@@ -750,8 +764,7 @@ export const submitEkyc = async (
 
   if (data.idCardBackFile) {
     if (user.idCardBackFile && user.idCardBackFile !== data.idCardBackFile) {
-      const oldPath = path.join(privateEkycDir, path.basename(user.idCardBackFile));
-      fs.promises.unlink(oldPath).catch(() => {});
+      removeOldEkycAsset(user.idCardBackFile);
     }
     user.idCardBackFile = data.idCardBackFile;
     user.idCardBackUrl = `/api/auth/ekyc/document/me/idCardBack`;
@@ -759,10 +772,19 @@ export const submitEkyc = async (
     user.idCardBackUrl = data.idCardBackUrl;
   }
 
+  if (data.selfieFile) {
+    if (user.selfieFile && user.selfieFile !== data.selfieFile) {
+      removeOldEkycAsset(user.selfieFile);
+    }
+    user.selfieFile = data.selfieFile;
+    user.selfieUrl = `/api/auth/ekyc/document/me/selfiePhoto`;
+  } else if (data.selfieUrl) {
+    user.selfieUrl = data.selfieUrl;
+  }
+
   if (data.drivingLicenseFile) {
     if (user.drivingLicenseFile && user.drivingLicenseFile !== data.drivingLicenseFile) {
-      const oldPath = path.join(privateEkycDir, path.basename(user.drivingLicenseFile));
-      fs.promises.unlink(oldPath).catch(() => {});
+      removeOldEkycAsset(user.drivingLicenseFile);
     }
     user.drivingLicenseFile = data.drivingLicenseFile;
     user.drivingLicenseUrl = `/api/auth/ekyc/document/me/drivingLicense`;
@@ -791,6 +813,7 @@ export const submitEkyc = async (
     details: {
       hasIdCardFront: Boolean(user.idCardFrontFile || user.idCardFrontUrl),
       hasIdCardBack: Boolean(user.idCardBackFile || user.idCardBackUrl),
+      hasSelfiePhoto: Boolean(user.selfieFile || user.selfieUrl),
       hasDrivingLicense: Boolean(user.drivingLicenseFile || user.drivingLicenseUrl),
       consentAgreed: user.ekycConsentAgreed,
       consentDate: user.ekycConsentDate,
@@ -806,12 +829,12 @@ export const submitEkyc = async (
 };
 
 /**
- * Safely retrieve private eKYC document file with path verification
+ * Safely retrieve private eKYC document file or signed Cloudinary URL with path verification
  */
 export const getEkycDocumentFile = async (
   userId: string,
-  docType: 'idCardFront' | 'idCardBack' | 'drivingLicense'
-): Promise<{ filePath: string; mimeType: string; filename: string }> => {
+  docType: 'idCardFront' | 'idCardBack' | 'selfiePhoto' | 'drivingLicense'
+): Promise<{ filePath: string; mimeType: string; filename: string; signedRedirectUrl?: string }> => {
   const user = await User.findById(userId);
   if (!user) {
     throw new AppError(404, 'Tài khoản không tồn tại.');
@@ -822,12 +845,27 @@ export const getEkycDocumentFile = async (
     filename = user.idCardFrontFile || (user.idCardFrontUrl?.startsWith('/uploads/') ? user.idCardFrontUrl.replace('/uploads/', '') : undefined);
   } else if (docType === 'idCardBack') {
     filename = user.idCardBackFile || (user.idCardBackUrl?.startsWith('/uploads/') ? user.idCardBackUrl.replace('/uploads/', '') : undefined);
+  } else if (docType === 'selfiePhoto') {
+    filename = user.selfieFile || (user.selfieUrl?.startsWith('/uploads/') ? user.selfieUrl.replace('/uploads/', '') : undefined);
   } else if (docType === 'drivingLicense') {
     filename = user.drivingLicenseFile || (user.drivingLicenseUrl?.startsWith('/uploads/') ? user.drivingLicenseUrl.replace('/uploads/', '') : undefined);
   }
 
   if (!filename) {
     throw new AppError(404, 'Không tìm thấy tài liệu giấy tờ được yêu cầu.');
+  }
+
+  if (filename.startsWith('cloudinary:')) {
+    const signedUrl = getSignedCloudinaryEkycUrl(filename);
+    const base = path.basename(filename.replace(/^cloudinary:/, ''));
+    const ext = path.extname(base).toLowerCase();
+    const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg';
+    return {
+      filePath: '',
+      mimeType,
+      filename: base,
+      signedRedirectUrl: signedUrl,
+    };
   }
 
   // Prevent directory traversal
@@ -859,7 +897,7 @@ export const getEkycDocumentFile = async (
 export const getPendingEkycList = async () => {
   const users = await User.find({ identityStatus: 'Pending' })
     .select(
-      'username email firstName lastName phoneNumber avatarUrl identityStatus idCardFrontUrl idCardBackUrl drivingLicenseUrl ekycConsentAgreed ekycConsentDate updatedAt createdAt'
+      'username email firstName lastName phoneNumber avatarUrl identityStatus idCardFrontUrl idCardBackUrl selfieUrl drivingLicenseUrl ekycWatermarked ekycConsentAgreed ekycConsentDate updatedAt createdAt'
     )
     .sort({ updatedAt: -1 });
 
@@ -868,11 +906,18 @@ export const getPendingEkycList = async () => {
 
 /**
  * Staff / BranchManager / SystemAdmin review and approve/reject user eKYC
+ * When status === 'Verified', replaces raw CCCD files with watermarked versions if provided,
+ * sets ekycWatermarked = true, and leaves selfiePhoto clean for in-person counter verification.
  */
 export const reviewEkyc = async (
   targetUserId: string,
   reviewerId: string,
-  decision: { status: 'Verified' | 'Rejected'; note?: string },
+  decision: {
+    status: 'Verified' | 'Rejected';
+    note?: string;
+    idCardFrontFile?: string;
+    idCardBackFile?: string;
+  },
   meta?: { ipAddress?: string; userAgent?: string }
 ) => {
   const targetUser = await User.findById(targetUserId);
@@ -883,8 +928,24 @@ export const reviewEkyc = async (
   targetUser.identityStatus = decision.status;
   if (decision.status === 'Rejected') {
     targetUser.ekycRejectionReason = decision.note || 'Giấy tờ tùy thân không đạt yêu cầu.';
+    targetUser.ekycWatermarked = false;
   } else {
     targetUser.ekycRejectionReason = '';
+    if (decision.idCardFrontFile) {
+      if (targetUser.idCardFrontFile && targetUser.idCardFrontFile !== decision.idCardFrontFile) {
+        removeOldEkycAsset(targetUser.idCardFrontFile);
+      }
+      targetUser.idCardFrontFile = decision.idCardFrontFile;
+      targetUser.idCardFrontUrl = `/api/auth/ekyc/document/me/idCardFront`;
+    }
+    if (decision.idCardBackFile) {
+      if (targetUser.idCardBackFile && targetUser.idCardBackFile !== decision.idCardBackFile) {
+        removeOldEkycAsset(targetUser.idCardBackFile);
+      }
+      targetUser.idCardBackFile = decision.idCardBackFile;
+      targetUser.idCardBackUrl = `/api/auth/ekyc/document/me/idCardBack`;
+    }
+    targetUser.ekycWatermarked = true;
   }
   await targetUser.save();
 
@@ -894,7 +955,7 @@ export const reviewEkyc = async (
     title: decision.status === 'Verified' ? 'Xác thực eKYC thành công' : 'Yêu cầu cập nhật hồ sơ eKYC',
     body:
       decision.status === 'Verified'
-        ? 'Hồ sơ định danh eKYC của bạn đã được kiểm duyệt và chấp thuận. Bạn đã có thể thuê xe ngay bây giờ!'
+        ? 'Hồ sơ định danh eKYC của bạn đã được kiểm duyệt và chấp thuận. Ảnh CCCD đã được đóng dấu bảo mật tự động.'
         : `Hồ sơ eKYC của bạn bị từ chối với lý do: ${decision.note || 'Ảnh chụp không rõ ràng hoặc thông tin không khớp'}. Vui lòng tải lại hồ sơ.`,
     type: 'SYSTEM',
     isRead: false,
@@ -908,6 +969,7 @@ export const reviewEkyc = async (
     details: {
       newStatus: decision.status,
       note: decision.note || '',
+      sealedWatermarkedCccd: decision.status === 'Verified',
       targetUsername: targetUser.username,
       targetEmail: targetUser.email,
     },

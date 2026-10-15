@@ -75,153 +75,155 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
   };
 
   return (
-    <div className="w-full bg-[#0D1C16] rounded-2xl border border-emerald-500/15 p-6 md:p-8 text-slate-100 shadow-xl relative z-20">
-      {/* Top Segmented Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-white/[0.08]">
-        <div className="flex items-center space-x-1.5 bg-[#06100C] p-1 rounded-xl border border-white/5 text-xs">
+    <div className="w-full bg-[#161616] rounded-2xl border border-white/12 p-6 sm:p-7 text-[#F5F5F5] shadow-2xl relative z-20">
+      {/* Editorial Ticket Masthead & Segmented Toggle */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-white/[0.08]">
+        <div>
+          <span className="text-[10px] uppercase tracking-[0.18em] text-[#FFC799] block font-medium">
+            Phiếu Điều Phối Trực Tuyến
+          </span>
+          <h3 className="text-lg font-semibold text-[#F5F5F5] tracking-tight mt-0.5">
+            Đặt lịch &amp;{' '}
+            <span className="font-serif-display italic font-normal text-[#FFC799] text-xl">
+              giữ biển số xe
+            </span>
+          </h3>
+        </div>
+
+        <div className="inline-flex items-center bg-[#101010] p-1 rounded-lg border border-white/[0.08] text-[11px] self-start sm:self-auto">
           <button
             type="button"
             onClick={() => { if (isDifferentReturn) handleToggleDifferentReturn(); }}
-            className={`px-3.5 py-1.5 rounded-lg font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-md transition-all cursor-pointer ${
               !isDifferentReturn
-                ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
+                : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
             }`}
           >
-            Nhận & trả cùng điểm
+            Cùng trạm
           </button>
           <button
             type="button"
             onClick={() => { if (!isDifferentReturn) handleToggleDifferentReturn(); }}
-            className={`px-3.5 py-1.5 rounded-lg font-medium transition-all flex items-center space-x-1.5 ${
+            className={`px-3 py-1.5 rounded-md transition-all flex items-center space-x-1.5 cursor-pointer ${
               isDifferentReturn
-                ? 'bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-500/30'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
+                : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
             }`}
           >
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-            <span>Trả tại trạm khác</span>
+            <ArrowRightLeft className="w-3 h-3" />
+            <span>Liên trạm (0đ)</span>
           </button>
-        </div>
-
-        <div className="hidden sm:flex items-center space-x-2 text-xs text-slate-400 font-medium">
-          <span className="w-2 h-2 rounded-full bg-emerald-400" />
-          <span>Giao xe tận nơi: Sân bay Ga T1/T2 & Khách sạn trung tâm</span>
         </div>
       </div>
 
-      {/* Search Form Fields */}
-      <div className="space-y-4 mt-6">
+      {/* Architectural Hairline Ledger Fields (Zero Box-in-Box Slop) */}
+      <div className="mt-5 rounded-xl border border-white/10 bg-[#101010]/80 divide-y divide-white/[0.08] overflow-hidden">
         
-        {/* Row 1: Pickup & Return Locations */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          {/* Field 1: Pickup Location */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
-              Điểm nhận xe
+        {/* Row 1: Pickup & Return Stations */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.08]">
+          {/* Pickup Location */}
+          <div className="p-3.5 sm:p-4 space-y-1">
+            <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center justify-between">
+              <span>Điểm nhận xe</span>
+              <MapPin className="w-3 h-3 text-[#FFC799]" />
             </label>
-            <div className="relative">
-              <select
-                value={pickupBranchId || (branches[0]?._id ?? '')}
-                onChange={(e) => handlePickupBranchChange(e.target.value)}
-                className="w-full bg-[#06100C] hover:bg-[#08140F] focus:bg-[#06100C] border border-white/10 focus:border-emerald-400 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium text-white outline-none transition-all cursor-pointer"
-              >
-                {branches.map((branch) => (
-                  <option key={branch._id} value={branch._id} className="bg-[#0D1C16] text-white">
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <p className="text-[10px] text-slate-400 truncate">
-              {branches.find(b => b._id === (pickupBranchId || branches[0]?._id))?.address || 'Chọn chi nhánh'}
+            <select
+              value={pickupBranchId || (branches[0]?._id ?? '')}
+              onChange={(e) => handlePickupBranchChange(e.target.value)}
+              className="w-full bg-transparent text-xs sm:text-sm font-semibold text-[#F5F5F5] outline-none cursor-pointer py-0.5"
+            >
+              {branches.map((branch) => (
+                <option key={branch._id} value={branch._id} className="bg-[#161616] text-[#F5F5F5]">
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-[#6E6E6E] truncate">
+              {branches.find(b => b._id === (pickupBranchId || branches[0]?._id))?.address || 'Sân bay & Trung tâm Đà Nẵng'}
             </p>
           </div>
 
-          {/* Field 2: Return Location */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center">
-              <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
-              Điểm trả xe
+          {/* Return Location */}
+          <div className="p-3.5 sm:p-4 space-y-1">
+            <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center justify-between">
+              <span>Điểm trả xe</span>
+              <span className="text-[10px] text-[#FFC799] font-mono-tabular">
+                {isDifferentReturn ? 'Khác trạm' : 'Tại trạm nhận'}
+              </span>
             </label>
-            <div className="relative">
-              <select
-                disabled={!isDifferentReturn}
-                value={isDifferentReturn ? (returnBranchId || branches[1]?._id || branches[0]?._id) : (pickupBranchId || branches[0]?._id)}
-                onChange={(e) => setReturnBranchId(e.target.value)}
-                className={`w-full border rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-medium outline-none transition-all ${
-                  isDifferentReturn
-                    ? 'bg-[#06100C] hover:bg-[#08140F] focus:bg-[#06100C] border-white/10 focus:border-emerald-400 text-white cursor-pointer'
-                    : 'bg-white/[0.02] border-white/5 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                {branches.map((branch) => (
-                  <option key={branch._id} value={branch._id} className="bg-[#0D1C16] text-white">
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <p className="text-[10px] text-slate-400 truncate">
-              {isDifferentReturn ? 'Trả xe tại trạm tùy chọn' : 'Trả tại cùng trạm nhận xe'}
+            <select
+              disabled={!isDifferentReturn}
+              value={isDifferentReturn ? (returnBranchId || branches[1]?._id || branches[0]?._id) : (pickupBranchId || branches[0]?._id)}
+              onChange={(e) => setReturnBranchId(e.target.value)}
+              className={`w-full bg-transparent text-xs sm:text-sm font-semibold outline-none py-0.5 ${
+                isDifferentReturn
+                  ? 'text-[#F5F5F5] cursor-pointer'
+                  : 'text-[#6E6E6E] cursor-not-allowed'
+              }`}
+            >
+              {branches.map((branch) => (
+                <option key={branch._id} value={branch._id} className="bg-[#161616] text-[#F5F5F5]">
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-[10px] text-[#6E6E6E] truncate">
+              {isDifferentReturn ? 'Miễn phí điều chuyển nội bộ' : 'Trả tại cùng điểm xuất phát'}
             </p>
           </div>
         </div>
 
         {/* Row 2: Pickup Date & Time */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center">
-              <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
-              Lịch trình nhận xe
+        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center">
+              <Calendar className="w-3 h-3 text-[#FFC799] mr-1.5" />
+              Thời gian nhận xe
             </label>
-            <span className="text-[10px] text-slate-400 flex items-center">
-              <Clock className="w-3 h-3 mr-1 text-slate-400" />
-              06:00 - 23:00
-            </span>
+            <span className="text-[10px] text-[#6E6E6E] block">Phục vụ 06:00 – 23:00 mỗi ngày</span>
           </div>
-          <div className="grid grid-cols-[1fr_118px] gap-2">
+          <div className="flex items-center space-x-2">
             <input
               type="date"
               value={pickupDate}
               onChange={(e) => setPickupDate(e.target.value)}
-              className="w-full bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-3 py-2 text-xs font-medium text-white outline-none"
+              className="bg-[#1E1E1E] border border-white/10 focus:border-[#FFC799] rounded-lg px-2.5 py-1.5 text-xs font-mono-tabular text-[#F5F5F5] outline-none"
             />
             <input
               type="time"
               value={pickupTime}
               onChange={(e) => setPickupTime(e.target.value)}
-              className="w-full bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-1.5 py-2 text-xs font-mono font-medium text-white outline-none text-center"
+              className="w-[88px] bg-[#1E1E1E] border border-white/10 focus:border-[#FFC799] rounded-lg px-2 py-1.5 text-xs font-mono-tabular text-[#F5F5F5] outline-none text-center"
             />
           </div>
         </div>
 
         {/* Row 3: Return Date & Time */}
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 flex items-center">
-              <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
-              Lịch trình trả xe
+        <div className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="space-y-0.5">
+            <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center">
+              <Clock className="w-3 h-3 text-[#FFC799] mr-1.5" />
+              Thời gian trả xe
             </label>
-            <span className="text-[10px] text-emerald-300 font-medium flex items-center">
-              <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-400" />
-              Thuê {durationDays} ngày
+            <span className="text-[10px] text-[#FFC799] font-medium flex items-center">
+              <CheckCircle2 className="w-3 h-3 mr-1" />
+              Tổng hành trình: {durationDays} ngày
             </span>
           </div>
-          <div className="grid grid-cols-[1fr_118px] gap-2">
+          <div className="flex items-center space-x-2">
             <input
               type="date"
               value={returnDate}
               min={pickupDate}
               onChange={(e) => setReturnDate(e.target.value)}
-              className="w-full bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-3 py-2 text-xs font-medium text-white outline-none"
+              className="bg-[#1E1E1E] border border-white/10 focus:border-[#FFC799] rounded-lg px-2.5 py-1.5 text-xs font-mono-tabular text-[#F5F5F5] outline-none"
             />
             <input
               type="time"
               value={returnTime}
               onChange={(e) => setReturnTime(e.target.value)}
-              className="w-full bg-[#06100C] focus:bg-[#08140F] border border-white/10 focus:border-emerald-400 rounded-xl px-1.5 py-2 text-xs font-mono font-medium text-white outline-none text-center"
+              className="w-[88px] bg-[#1E1E1E] border border-white/10 focus:border-[#FFC799] rounded-lg px-2 py-1.5 text-xs font-mono-tabular text-[#F5F5F5] outline-none text-center"
             />
           </div>
         </div>
@@ -229,27 +231,28 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
       </div>
 
       {/* Action Footer */}
-      <div className="mt-8 pt-6 border-t border-white/[0.08] flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
-          <span className="flex items-center space-x-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            <span className="text-slate-200 font-medium">Xe đời 2023 - 2024</span>
-          </span>
-          <span>•</span>
-          <span>Không giữ CCCD bản gốc</span>
-          <span>•</span>
-          <span>Cứu hộ tận nơi 24/7</span>
-        </div>
-
+      <div className="mt-5 space-y-4">
         <button
           type="button"
           onClick={handleSearchClick}
-          className="w-full whitespace-nowrap px-7 py-3 rounded-xl font-bold text-sm bg-emerald-500 hover:bg-emerald-400 text-[#06100C] transition-all active:scale-[0.99] flex items-center justify-center space-x-2 shadow-md cursor-pointer"
+          className="group w-full px-6 py-3.5 rounded-xl font-semibold text-xs sm:text-sm bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] transition-all active:scale-[0.99] flex items-center justify-between cursor-pointer"
         >
-          <Search className="w-4 h-4 stroke-[2.5]" />
-          <span>Tìm xe phù hợp ({durationDays} ngày)</span>
-          <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+          <span className="flex items-center space-x-2">
+            <Search className="w-4 h-4 stroke-[2.2]" />
+            <span>Tìm xe sẵn sàng tại trạm ({durationDays} ngày)</span>
+          </span>
+          <span className="w-7 h-7 rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center transition-transform group-hover:translate-x-0.5">
+            <ArrowRight className="w-3.5 h-3.5" />
+          </span>
         </button>
+
+        <div className="flex items-center justify-between text-[11px] text-[#A0A0A0] pt-1">
+          <span>Không giữ CCCD gốc</span>
+          <span>•</span>
+          <span>Cọc 30% giữ biển số</span>
+          <span>•</span>
+          <span>Hỗ trợ nội thành 24/7</span>
+        </div>
       </div>
     </div>
   );

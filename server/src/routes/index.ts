@@ -10,8 +10,12 @@ import auditRoutes from '../modules/audit/auditRoutes';
 import chatRoutes from '../modules/chat/chatRoutes';
 import financeRoutes from '../modules/finance/financeRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
+import { autoCrudAuditMiddleware } from '../core/auditMiddleware';
 
 const router = Router();
+
+// Global Auto-CRUD Audit Middleware (Captures all POST/PUT/PATCH/DELETE mutations)
+router.use(autoCrudAuditMiddleware);
 
 // Direct Categories endpoint alias
 router.get('/categories', getCategories);

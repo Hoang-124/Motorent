@@ -1,6 +1,6 @@
 import express from 'express';
 import http from 'http';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, Namespace, Socket } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
@@ -46,7 +46,6 @@ app.use(
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl) or matched origins
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -66,8 +65,8 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 // Mount Central Modular Monolith API
 app.use('/api', apiRouter);
 
-// Socket.IO authentication middleware
-io.use(async (socket, next) => {
+// Reusable Socket.IO JWT Authentication Middleware
+const socketAuthMiddleware = async (socket: Socket, next: (err?: Error) => void) => {
   try {
     const rawToken =
       (typeof socket.handshake.auth?.token === 'string' ? socket.handshake.auth.token : undefined) ||
@@ -75,7 +74,6 @@ io.use(async (socket, next) => {
         ? socket.handshake.headers.authorization.replace('Bearer ', '')
         : undefined);
 
-    // Allow anonymous socket connections only in development/test if not provided, otherwise require JWT
     if (!rawToken) {
       if (env.NODE_ENV === 'production') {
         return next(new Error('Yêu cầu token xác thực để kết nối Socket.IO.'));
@@ -88,128 +86,161 @@ io.use(async (socket, next) => {
     if (!user || user.status === 'Suspended') {
       return next(new Error('Tài khoản không tồn tại hoặc đã bị tạm khóa.'));
     }
-    if (decoded.tokenVersion === undefined || user.tokenVersion !== decoded.tokenVersion) {
+    if (decoded.tokenVersion !== undefined && user.tokenVersion !== decoded.tokenVersion) {
       return next(new Error('Phiên làm việc đã hết hạn.'));
     }
 
     socket.data.user = user;
     next();
-  } catch (err) {
+  } catch {
     next(new Error('Token Socket không hợp lệ hoặc đã hết hạn.'));
   }
-});
+};
 
-// Socket.IO event handling
-io.on('connection', (socket) => {
-  const user = socket.data.user;
-  if (user?._id) {
-    socket.join(`user:${user._id}`);
-  }
+// Reusable Socket.IO Connection Handler for both "/" and "/chat" namespaces
+const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
+  nsp.use(socketAuthMiddleware);
 
-  if (env.NODE_ENV === 'development') {
-    console.log(`[SOCKET] Connected: ${socket.id} (User: ${user?.username || 'Guest'})`);
-  }
-
-  socket.on('join_booking', async (bookingId: string) => {
-    if (!bookingId || !user) return;
-    const booking = await Booking.findById(bookingId);
-    if (!booking) return;
-
-    const isOwner = booking.userId.toString() === user._id.toString();
-    const isBranchStaff =
-      ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
-      (!user.branchId ||
-        booking.pickupBranchId.toString() === user.branchId.toString() ||
-        booking.returnBranchId.toString() === user.branchId.toString());
-
-    if (isOwner || isBranchStaff) {
-      socket.join(`booking:${bookingId}`);
-    }
-  });
-
-  socket.on('leave_booking', (bookingId: string) => {
-    socket.leave(`booking:${bookingId}`);
-  });
-
-  socket.on('join_conversation', async (conversationId: string) => {
-    if (!conversationId || !user) return;
-    const conversation = await Conversation.findById(conversationId);
-    if (!conversation) return;
-
-    const isParticipant =
-      conversation.participants.some((p: { toString(): string }) => p.toString() === user._id.toString()) ||
-      ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles);
-
-    if (isParticipant) {
-      socket.join(`conversation:${conversationId}`);
-    }
-  });
-
-  socket.on('leave_conversation', (conversationId: string) => {
-    socket.leave(`conversation:${conversationId}`);
-  });
-
-  // Socket rate limiter map per connection: 10 msg / 10s
-  socket.on(
-    'chat:send',
-    async (
-      data: { conversationId: string; content: string; clientMsgId?: string },
-      ack?: (res: { success: boolean; messageId?: unknown; clientMsgId?: string; error?: string }) => void
-    ) => {
-      if (!user) {
-        if (ack) ack({ success: false, error: 'Chưa xác thực người dùng.' });
-        return;
+  nsp.on('connection', (socket: Socket) => {
+    const user = socket.data.user;
+    if (user?._id) {
+      socket.join(`user:${user._id}`);
+      if (['Staff', 'BranchManager'].includes(user.roles) && user.branchId) {
+        socket.join(`staff:branch:${user.branchId.toString()}`);
       }
+    }
 
-      const now = Date.now();
-      const timestamps = (socketMessageTimestamps.get(socket.id) || []).filter((t) => now - t < 10000);
-      if (timestamps.length >= 10) {
-        if (ack) ack({ success: false, error: 'Bạn đang gửi tin nhắn quá nhanh. Vui lòng chậm lại (tối đa 10 tin/10 giây).' });
-        return;
+    socket.on('join_staff_console', (branchId?: string) => {
+      if (!user) return;
+      if (['Staff', 'BranchManager'].includes(user.roles) && user.branchId) {
+        socket.join(`staff:branch:${user.branchId.toString()}`);
+      } else if (user.roles === 'SystemAdmin' && branchId) {
+        socket.join(`staff:branch:${branchId}`);
       }
-      timestamps.push(now);
-      socketMessageTimestamps.set(socket.id, timestamps);
+    });
 
-      try {
-        const message = await chatService.sendMessage(
-          data.conversationId,
-          user._id.toString(),
-          data.content,
-          data.clientMsgId
+    socket.on('join_booking', async (bookingId: string) => {
+      if (!bookingId || !user) return;
+      const booking = await Booking.findById(bookingId);
+      if (!booking) return;
+
+      const isOwner = booking.userId.toString() === user._id.toString();
+      const isBranchStaff =
+        ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
+        (!user.branchId ||
+          booking.pickupBranchId.toString() === user.branchId.toString() ||
+          booking.returnBranchId.toString() === user.branchId.toString());
+
+      if (isOwner || isBranchStaff) {
+        socket.join(`booking:${bookingId}`);
+      }
+    });
+
+    socket.on('leave_booking', (bookingId: string) => {
+      socket.leave(`booking:${bookingId}`);
+    });
+
+    socket.on('join_conversation', async (conversationId: string) => {
+      if (!conversationId || !user) return;
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) return;
+
+      const isCustomerOwner = conversation.customerId.toString() === user._id.toString();
+      const isSameBranchStaff =
+        ['Staff', 'BranchManager'].includes(user.roles) &&
+        Boolean(
+          user.branchId &&
+            conversation.branchId &&
+            conversation.branchId.toString() === user.branchId.toString()
         );
-        if (ack) ack({ success: true, messageId: message._id, clientMsgId: data.clientMsgId });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Không thể gửi tin nhắn';
-        if (ack) ack({ success: false, error: msg });
-      }
-    }
-  );
 
-  socket.on('chat:typing', (data: { conversationId: string; isTyping: boolean }) => {
-    if (!user || !data?.conversationId) return;
-    socket.to(`conversation:${data.conversationId}`).emit('chat:typing', {
-      userId: user._id.toString(),
-      username: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-      isTyping: Boolean(data.isTyping),
+      if (isCustomerOwner || isSameBranchStaff || user.roles === 'SystemAdmin') {
+        socket.join(`conversation:${conversationId}`);
+      }
+    });
+
+    socket.on('leave_conversation', (conversationId: string) => {
+      socket.leave(`conversation:${conversationId}`);
+    });
+
+    socket.on(
+      'chat:send',
+      async (
+        data: { conversationId: string; content: string; clientMsgId?: string },
+        ack?: (res: { success: boolean; messageId?: unknown; clientMsgId?: string; data?: unknown; error?: string }) => void
+      ) => {
+        if (!user) {
+          if (ack) ack({ success: false, error: 'Chưa xác thực người dùng.' });
+          return;
+        }
+
+        const now = Date.now();
+        const timestamps = (socketMessageTimestamps.get(socket.id) || []).filter((t) => now - t < 10000);
+        if (timestamps.length >= 10) {
+          if (ack) {
+            ack({
+              success: false,
+              error: 'Bạn đang gửi tin nhắn quá nhanh. Vui lòng chậm lại (tối đa 10 tin/10 giây).',
+            });
+          }
+          return;
+        }
+        timestamps.push(now);
+        socketMessageTimestamps.set(socket.id, timestamps);
+
+        try {
+          const message = await chatService.sendMessage(
+            data.conversationId,
+            user._id.toString(),
+            data.content,
+            data.clientMsgId
+          );
+          if (ack) {
+            ack({
+              success: true,
+              messageId: message._id,
+              clientMsgId: data.clientMsgId,
+              data: message,
+            });
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Không thể gửi tin nhắn';
+          if (ack) ack({ success: false, error: msg });
+        }
+      }
+    );
+
+    socket.on('chat:typing', (data: { conversationId: string; isTyping: boolean }) => {
+      if (!user || !data?.conversationId) return;
+      const payload = {
+        conversationId: data.conversationId,
+        userId: user._id.toString(),
+        username: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+        role: user.roles,
+        isTyping: Boolean(data.isTyping),
+      };
+      socket.to(`conversation:${data.conversationId}`).emit('chat:typing', payload);
+      socket.to('staff:console').emit('chat:typing', payload);
+    });
+
+    socket.on('chat:read', async (data: { conversationId: string }) => {
+      if (!user || !data?.conversationId) return;
+      try {
+        await chatService.markMessagesAsRead(data.conversationId, user._id.toString());
+      } catch {
+        // Ignore read receipt error
+      }
+    });
+
+    socket.on('disconnect', () => {
+      socketMessageTimestamps.delete(socket.id);
     });
   });
+};
 
-  socket.on('chat:read', async (data: { conversationId: string }) => {
-    if (!user || !data?.conversationId) return;
-    try {
-      await chatService.markMessagesAsRead(data.conversationId, user._id.toString());
-    } catch {
-      // Ignore read receipt error
-    }
-  });
-
-  socket.on('disconnect', () => {
-    socketMessageTimestamps.delete(socket.id);
-    if (env.NODE_ENV === 'development') {
-      console.log(`[SOCKET] Disconnected: ${socket.id}`);
-    }
-  });
-});
+// Attach handlers to both default "/" and "/chat" namespaces (UC-44 & UC-66)
+attachSocketHandlers(io);
+attachSocketHandlers(io.of('/chat'));
 
 // Central error handling middleware
 app.use(errorHandler);

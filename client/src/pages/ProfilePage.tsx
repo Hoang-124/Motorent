@@ -1,54 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
-import { 
-  User as UserIcon, 
-  Mail, 
-  Phone, 
-  Calendar, 
-  ShieldCheck, 
-  Sparkles, 
-  Camera, 
-  Lock, 
-  Save, 
-  CheckCircle2, 
+import {
+  User as UserIcon,
+  Phone,
+  ShieldCheck,
+  Camera,
+  Lock,
+  Save,
+  CheckCircle2,
   AlertCircle,
-  Award, 
-  UploadCloud, 
-  Eye, 
+  UploadCloud,
+  Eye,
   EyeOff,
   Clock,
   X,
   FileCheck2,
   RefreshCw,
   KeyRound,
-  Compass,
   Copy,
   Check,
-  ChevronRight,
   RotateCcw,
   MapPin,
   ArrowRight,
-  PhoneCall,
   AlertTriangle,
-  ChevronDown
+  ChevronDown,
+  QrCode,
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import axios from 'axios';
 import { calculatePasswordStrength } from '../utils/validation';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
-import { applyEkycWatermark } from '../utils/watermark';
+import { compressEkycImage } from '../utils/watermark';
 import type { Booking, Vehicle, Branch } from '../types';
 
 export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password';
 
-
 export const ProfilePage: React.FC = () => {
-  const { user, updateUser, logout } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Active Tab: bookings | info | avatar | ekyc | password
   const initialTab = (searchParams.get('tab') as ProfileTab) || 'bookings';
   const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
 
@@ -61,6 +54,12 @@ export const ProfilePage: React.FC = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  // Interactive QR Payment Modal for Pending Bookings
+  const [selectedBookingForQrPay, setSelectedBookingForQrPay] = useState<Booking | null>(null);
+  const [qrPaymentType, setQrPaymentType] = useState<'Deposit30' | 'Full100'>('Deposit30');
+  const [qrVerifying, setQrVerifying] = useState(false);
+  const [qrVerifiedSuccess, setQrVerifiedSuccess] = useState(false);
+
   // Form states - Info
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
@@ -68,7 +67,7 @@ export const ProfilePage: React.FC = () => {
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>(user?.gender || 'Other');
   const [dob, setDob] = useState(user?.dob ? user.dob.split('T')[0] : '');
 
-  // Form states - Password (UC-23)
+  // Form states - Password
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -76,20 +75,19 @@ export const ProfilePage: React.FC = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Form states - Avatar (UC-21)
+  // Form states - Avatar
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  // Form states - eKYC (UC-22 & Decree 13/2023/ND-CP)
+  // Form states - eKYC
   const [idCardFrontFile, setIdCardFrontFile] = useState<File | null>(null);
   const [idCardFrontPreview, setIdCardFrontPreview] = useState<string | null>(null);
   const [idCardBackFile, setIdCardBackFile] = useState<File | null>(null);
   const [idCardBackPreview, setIdCardBackPreview] = useState<string | null>(null);
-  const [licenseFile, setLicenseFile] = useState<File | null>(null);
-  const [licensePreview, setLicensePreview] = useState<string | null>(null);
-  const [isWatermarking, setIsWatermarking] = useState<'idCardFront' | 'idCardBack' | 'drivingLicense' | null>(null);
+  const [selfieFile, setSelfieFile] = useState<File | null>(null);
+  const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
+  const [isWatermarking, setIsWatermarking] = useState<'idCardFront' | 'idCardBack' | 'selfiePhoto' | null>(null);
   const [ekycConsent, setEkycConsent] = useState(false);
-
 
   // Status indicators
   const [loading, setLoading] = useState(false);
@@ -112,6 +110,14 @@ export const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     fetchBookings();
+    api
+      .get('/auth/me')
+      .then((res) => {
+        if (res.data?.success && res.data?.data) {
+          updateUser(res.data.data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -149,26 +155,59 @@ export const ProfilePage: React.FC = () => {
     setCancelLoading(true);
     try {
       const res = await api.put(`/bookings/${selectedBookingForCancel._id}/cancel`, {
-        cancelReason: cancelReasonInput.trim() || 'Khách hàng yêu cầu hủy đơn trực tuyến.'
+        cancelReason: cancelReasonInput.trim() || 'Khách hàng yêu cầu hủy đơn trực tuyến.',
       });
       if (res.data && res.data.success) {
         setSelectedBookingForCancel(null);
         setCancelReasonInput('');
         await fetchBookings();
-        setSuccessMsg('Hủy đơn đặt giữ xe thành công.');
+        setSuccessMsg('Đã hủy đơn đặt xe thành công.');
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         setErrorMsg(err.response.data.message);
       } else {
-        setErrorMsg('Không thể hủy đơn đặt xe này. Vui lòng liên hệ tổng đài 1900 6868.');
+        setErrorMsg('Không thể hủy đơn đặt xe này.');
       }
     } finally {
       setCancelLoading(false);
     }
   };
 
-  // UC-20: Update Profile Info
+  // Confirm VietQR Transfer for a Pending booking
+  const handleConfirmQrPayment = async () => {
+    if (!selectedBookingForQrPay) return;
+    setQrVerifying(true);
+    setErrorMsg('');
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      const res = await api.post('/payments/vietqr/confirm', {
+        bookingId: selectedBookingForQrPay._id,
+        paymentType: qrPaymentType,
+      });
+      if (res.data && res.data.success) {
+        setQrVerifiedSuccess(true);
+        await fetchBookings();
+        setSuccessMsg(
+          `Đã xác nhận thanh toán QR cho mã đơn ${selectedBookingForQrPay.bookingCode}. Biển số xe đã được khóa giữ cho bạn!`
+        );
+        setTimeout(() => {
+          setSelectedBookingForQrPay(null);
+          setQrVerifiedSuccess(false);
+        }, 1200);
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setErrorMsg(err.response.data.message);
+      } else {
+        setErrorMsg('Không thể xác nhận thanh toán QR lúc này. Vui lòng thử lại.');
+      }
+    } finally {
+      setQrVerifying(false);
+    }
+  };
+
+  // Update Profile Info
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -186,7 +225,7 @@ export const ProfilePage: React.FC = () => {
 
       if (res.data && res.data.success) {
         updateUser(res.data.data);
-        setSuccessMsg('Cập nhật thông tin hồ sơ thành công!');
+        setSuccessMsg('Đã lưu thông tin hồ sơ cá nhân.');
       } else {
         setErrorMsg(res.data?.message || 'Không thể cập nhật hồ sơ.');
       }
@@ -201,20 +240,19 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // UC-21: Handle Avatar file selection with 5MB check
+  // Avatar file selection
   const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
-      // Spec: Max 5MB, JPEG/PNG/WebP
+
       if (file.size > 5 * 1024 * 1024) {
-        setErrorMsg('Dung lượng ảnh vượt quá 5MB. Vui lòng chọn ảnh đại diện nhỏ hơn.');
+        setErrorMsg('Dung lượng ảnh vượt quá 5MB. Vui lòng chọn ảnh nhỏ hơn.');
         return;
       }
 
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
       if (!allowedTypes.includes(file.type)) {
-        setErrorMsg('Định dạng ảnh không hợp lệ. Chỉ chấp nhận JPEG, PNG hoặc WebP.');
+        setErrorMsg('Chỉ chấp nhận định dạng JPEG, PNG hoặc WebP.');
         return;
       }
 
@@ -225,7 +263,7 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // UC-21: Upload Avatar (PUT /api/auth/me/avatar)
+  // Upload Avatar
   const handleUploadAvatar = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
@@ -249,7 +287,7 @@ export const ProfilePage: React.FC = () => {
 
       if (res.data && res.data.success) {
         updateUser(res.data.data.user);
-        setSuccessMsg('Cập nhật ảnh đại diện thành công!');
+        setSuccessMsg('Đã cập nhật ảnh đại diện.');
         setSelectedFile(null);
       } else {
         setErrorMsg(res.data?.message || 'Tải ảnh lên thất bại.');
@@ -265,10 +303,10 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // UC-22 & Decree 13/2023/ND-CP: eKYC Document file handlers with auto-watermarking
+  // eKYC upload handler
   const handleDocFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: 'idCardFront' | 'idCardBack' | 'drivingLicense'
+    type: 'idCardFront' | 'idCardBack' | 'selfiePhoto'
   ) => {
     if (e.target.files && e.target.files[0]) {
       const rawFile = e.target.files[0];
@@ -282,24 +320,19 @@ export const ProfilePage: React.FC = () => {
       setErrorMsg('');
 
       try {
-        // Automatically stamp anti-fraud watermarking on client canvas before uploading
-        const watermarkedFile = await applyEkycWatermark(rawFile, {
-          rentalService: 'MOTORENT VIỆT NAM',
-        });
-
-        const previewUrl = URL.createObjectURL(watermarkedFile);
+        const optimizedFile = await compressEkycImage(rawFile, 1280);
+        const objUrl = URL.createObjectURL(optimizedFile);
         if (type === 'idCardFront') {
-          setIdCardFrontFile(watermarkedFile);
-          setIdCardFrontPreview(previewUrl);
+          setIdCardFrontFile(optimizedFile);
+          setIdCardFrontPreview(objUrl);
         } else if (type === 'idCardBack') {
-          setIdCardBackFile(watermarkedFile);
-          setIdCardBackPreview(previewUrl);
+          setIdCardBackFile(optimizedFile);
+          setIdCardBackPreview(objUrl);
         } else {
-          setLicenseFile(watermarkedFile);
-          setLicensePreview(previewUrl);
+          setSelfieFile(optimizedFile);
+          setSelfiePreview(objUrl);
         }
-      } catch (watermarkErr) {
-        console.warn('Lỗi xử lý đóng dấu watermarking:', watermarkErr);
+      } catch {
         const fallbackUrl = URL.createObjectURL(rawFile);
         if (type === 'idCardFront') {
           setIdCardFrontFile(rawFile);
@@ -308,8 +341,8 @@ export const ProfilePage: React.FC = () => {
           setIdCardBackFile(rawFile);
           setIdCardBackPreview(fallbackUrl);
         } else {
-          setLicenseFile(rawFile);
-          setLicensePreview(fallbackUrl);
+          setSelfieFile(rawFile);
+          setSelfiePreview(fallbackUrl);
         }
       } finally {
         setIsWatermarking(null);
@@ -317,16 +350,15 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // UC-22: Submit eKYC (POST /api/auth/ekyc) compliant with Decree 13/2023/ND-CP
   const handleUploadEkyc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!idCardFrontFile && !idCardBackFile && !licenseFile) {
-      setErrorMsg('Vui lòng chọn ít nhất một ảnh giấy tờ (CCCD hoặc GPLX) để gửi thẩm định.');
+    if (!idCardFrontFile && !idCardBackFile && !selfieFile) {
+      setErrorMsg('Vui lòng chọn ảnh CCCD (mặt trước / mặt sau) và ảnh chân dung để gửi thẩm định.');
       return;
     }
 
     if (!ekycConsent) {
-      setErrorMsg('Vui lòng tích xác nhận đồng ý điều khoản bảo vệ dữ liệu cá nhân theo Nghị định 13/2023/NĐ-CP trước khi gửi.');
+      setErrorMsg('Vui lòng tích xác nhận đồng ý điều khoản bảo vệ dữ liệu cá nhân trước khi gửi.');
       return;
     }
 
@@ -337,9 +369,9 @@ export const ProfilePage: React.FC = () => {
     const formData = new FormData();
     if (idCardFrontFile) formData.append('idCardFront', idCardFrontFile);
     if (idCardBackFile) formData.append('idCardBack', idCardBackFile);
-    if (licenseFile) formData.append('drivingLicense', licenseFile);
+    if (selfieFile) formData.append('selfiePhoto', selfieFile);
     formData.append('consentAgreed', 'true');
-    formData.append('watermarked', 'true');
+    formData.append('watermarked', 'false');
 
     try {
       const res = await api.post('/auth/ekyc', formData, {
@@ -350,10 +382,10 @@ export const ProfilePage: React.FC = () => {
 
       if (res.data && res.data.success) {
         updateUser(res.data.data.user);
-        setSuccessMsg('Gửi hồ sơ thẩm định eKYC thành công! Dữ liệu đã được lưu trữ bảo mật trong hệ thống riêng tư theo Nghị định 13/2023/NĐ-CP.');
+        setSuccessMsg('Đã gửi hồ sơ thẩm định eKYC thành công.');
         setIdCardFrontFile(null);
         setIdCardBackFile(null);
-        setLicenseFile(null);
+        setSelfieFile(null);
       } else {
         setErrorMsg(res.data?.message || 'Không thể gửi hồ sơ eKYC.');
       }
@@ -368,8 +400,7 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-
-  // UC-23: Change Password (PUT /api/auth/change-password, min 8 chars)
+  // Change Password
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword || !newPassword) {
@@ -403,7 +434,7 @@ export const ProfilePage: React.FC = () => {
       });
 
       if (res.data && res.data.success) {
-        setSuccessMsg('Đổi mật khẩu thành công! Vui lòng ghi nhớ mật khẩu mới.');
+        setSuccessMsg('Đã cập nhật mật khẩu mới thành công.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
@@ -423,12 +454,12 @@ export const ProfilePage: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#040D08]">
+      <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#101010]">
         <div className="text-center space-y-3">
-          <p className="text-sm text-slate-400">Vui lòng đăng nhập để xem thông tin hồ sơ cá nhân.</p>
+          <p className="text-sm text-[#A0A0A0]">Vui lòng đăng nhập để quản lý lịch trình và hồ sơ cá nhân.</p>
           <button
             onClick={() => navigate('/login')}
-            className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-400 transition-colors"
+            className="px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl font-semibold text-xs transition-colors"
           >
             Đến trang Đăng nhập
           </button>
@@ -437,13 +468,9 @@ export const ProfilePage: React.FC = () => {
     );
   }
 
-  // Calculate full display avatar url
   const currentAvatar = previewUrl || getUserAvatarUrl(user.avatarUrl);
-
-  // Compute password strength for Tab 4
   const passwordStrength = calculatePasswordStrength(newPassword);
 
-  // Helper to format document image URLs (with JWT auth token for secure media streaming)
   const formatDocUrl = (url?: string) => {
     if (!url) return null;
     const resolved = getUserAvatarUrl(url);
@@ -451,1379 +478,1196 @@ export const ProfilePage: React.FC = () => {
     const token = localStorage.getItem('motorent_token') || localStorage.getItem('token');
     if (token && resolved.includes('/api/auth/ekyc/document')) {
       const sep = resolved.includes('?') ? '&' : '?';
-      return `${resolved}${sep}token=${encodeURIComponent(token)}`;
+      return `${resolved}${sep}token=${encodeURIComponent(token)}&v=${user.identityStatus}_${user.ekycWatermarked ? '1' : '0'}`;
     }
     return resolved;
   };
 
+  const TABS: { id: ProfileTab; num: string; label: string; count?: number; statusTag?: string }[] = [
+    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: bookings.length },
+    { id: 'info', num: '02', label: 'Thông tin cá nhân' },
+    {
+      id: 'ekyc',
+      num: '03',
+      label: 'Định danh eKYC',
+      statusTag: user.identityStatus === 'Verified' ? 'Đã duyệt' : user.identityStatus === 'Pending' ? 'Chờ duyệt' : 'Cần làm',
+    },
+    { id: 'avatar', num: '04', label: 'Ảnh đại diện' },
+    { id: 'password', num: '05', label: 'Đổi mật khẩu' },
+  ];
+
+  const activeBookingsCount = bookings.filter((b) =>
+    ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)
+  ).length;
 
   return (
-    <div className="min-h-screen bg-[#040D08] text-slate-100 py-8 lg:py-12">
+    <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 sm:py-12 bg-editorial-grain">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Top Header & Breadcrumb */}
-        <div className="mb-8">
-          <nav className="flex items-center space-x-2 text-xs text-slate-400 mb-2">
-            <Link to="/" className="hover:text-emerald-400 transition-colors">Trang chủ</Link>
-            <span>/</span>
-            <span className="text-slate-200">Tài khoản</span>
-            <span>/</span>
-            <span className="text-emerald-400 font-medium">Hồ sơ cá nhân</span>
-          </nav>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                Cài đặt tài khoản
-              </h1>
-              <p className="text-xs text-slate-400 mt-1">
-                Quản lý thông tin cá nhân, định danh điện tử và lịch sử thuê xe tại Motorent
-              </p>
-            </div>
-            <div className="flex items-center space-x-2 text-xs">
-              <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-medium">
-                {user.roles === 'SystemAdmin' ? 'Quản trị viên' : user.roles === 'Staff' ? 'Nhân viên quầy' : user.roles === 'BranchManager' ? 'Quản lý trạm' : 'Khách hàng cá nhân'}
-              </span>
-            </div>
-          </div>
-        </div>
 
-        {/* 2-Column Dashboard */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-          {/* Left Column: Unified Settings Sidebar (4 cols) */}
-          <aside className="lg:col-span-4">
-            <div className="bg-[#111715] rounded-2xl border border-white/[0.08] p-5 shadow-xl shadow-black/20 space-y-5 sticky top-24">
-              {/* User Mini Profile Header */}
-              <div className="flex items-center space-x-3.5">
-                <div className="relative group shrink-0">
-                  <div className="w-14 h-14 rounded-full overflow-hidden bg-[#07130D] ring-2 ring-emerald-500/30 flex items-center justify-center">
-                    {currentAvatar ? (
-                      <img
-                        src={currentAvatar}
-                        alt="Avatar"
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                        crossOrigin="anonymous"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          target.style.display = 'none';
-                          if (target.parentElement) {
-                            target.parentElement.innerHTML = `<div class="w-full h-full flex items-center justify-center bg-[#050D0A] text-emerald-300 font-bold text-lg">${(user.firstName || user.username || 'U').charAt(0).toUpperCase()}</div>`;
-                          }
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-[#050D0A] text-emerald-300 font-bold text-lg">
-                        {(user.firstName || user.username || 'U').charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTabChange('avatar')}
-                    className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md transition-all active:scale-90"
-                    title="Đổi ảnh đại diện"
-                  >
-                    <Camera className="w-3 h-3" />
-                  </button>
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <h2 className="font-bold text-white text-sm truncate">
-                    {user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.username}
-                  </h2>
-                  <p className="text-xs text-slate-400 truncate mt-0.5">
-                    {user.email || `@${user.username}`}
-                  </p>
-                  <div className="flex items-center space-x-2 mt-1.5">
-                    {user.identityStatus === 'Verified' ? (
-                      <span className="inline-flex items-center text-[10px] font-semibold text-emerald-400">
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        Đã xác thực eKYC
-                      </span>
-                    ) : user.identityStatus === 'Pending' ? (
-                      <span className="inline-flex items-center text-[10px] font-semibold text-amber-400">
-                        <Clock className="w-3 h-3 mr-1 text-amber-400" />
-                        Chờ duyệt eKYC
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center text-[10px] font-semibold text-slate-400">
-                        <ShieldCheck className="w-3 h-3 mr-1 text-slate-500" />
-                        Chưa xác thực eKYC
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Loyalty summary chip */}
-              <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/[0.03] border border-white/5 text-xs">
-                <span className="text-slate-400 flex items-center">
-                  <Award className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
-                  Điểm tích lũy thành viên
-                </span>
-                <span className="font-bold text-emerald-400">
-                  {user.loyaltyPoints || 0} pts
-                </span>
-              </div>
-
-              {/* Navigation Menu (5 Tabs) */}
-              <nav className="space-y-1 pt-1 border-t border-white/[0.06]" aria-label="Hồ sơ tài khoản">
-                {/* 1. Chuyến xe của tôi */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('bookings')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
-                    activeTab === 'bookings'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <Compass className={`w-4 h-4 shrink-0 ${activeTab === 'bookings' ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="truncate">Chuyến xe của tôi</span>
-                  </div>
-                  {bookings.filter(b => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length > 0 ? (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] shrink-0">
-                      {bookings.filter(b => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length} đơn
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 font-medium shrink-0">
-                      {bookings.length} chuyến
-                    </span>
-                  )}
-                </button>
-
-                {/* 2. Thông tin cá nhân & Chỉnh sửa */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('info')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
-                    activeTab === 'info'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <UserIcon className={`w-4 h-4 shrink-0 ${activeTab === 'info' ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="truncate">Thông tin cá nhân & Chỉnh sửa</span>
-                  </div>
-                </button>
-
-                {/* 3. Đổi ảnh đại diện */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('avatar')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
-                    activeTab === 'avatar'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <Camera className={`w-4 h-4 shrink-0 ${activeTab === 'avatar' ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="truncate">Đổi ảnh đại diện</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-medium shrink-0">5MB</span>
-                </button>
-
-                {/* 4. Định danh điện tử (eKYC) */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('ekyc')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
-                    activeTab === 'ekyc'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <FileCheck2 className={`w-4 h-4 shrink-0 ${activeTab === 'ekyc' ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="truncate">Định danh điện tử (eKYC)</span>
-                  </div>
-                  {user.identityStatus === 'Verified' ? (
-                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] shrink-0">
-                      Đã duyệt
-                    </span>
-                  ) : (
-                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] shrink-0">
-                      Cần làm
-                    </span>
-                  )}
-                </button>
-
-                {/* 5. Đổi mật khẩu bảo mật */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('password')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all text-left ${
-                    activeTab === 'password'
-                      ? 'bg-emerald-500/10 text-emerald-300 font-semibold border-l-2 border-emerald-400 pl-3'
-                      : 'text-slate-400 hover:text-white hover:bg-white/[0.03]'
-                  }`}
-                >
-                  <div className="flex items-center space-x-2.5 min-w-0">
-                    <Lock className={`w-4 h-4 shrink-0 ${activeTab === 'password' ? 'text-emerald-400' : 'text-slate-400'}`} />
-                    <span className="truncate">Đổi mật khẩu bảo mật</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-medium shrink-0">≥ 8 ký tự</span>
-                </button>
-              </nav>
-
-              {/* Bottom Support Hotline helper */}
-              <div className="pt-3 border-t border-white/[0.06]">
-                <a
-                  href="tel:19006868"
-                  className="flex items-center space-x-2.5 p-3 rounded-xl bg-white/[0.02] hover:bg-white/[0.05] border border-white/5 text-xs text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  <PhoneCall className="w-4 h-4 text-emerald-400 shrink-0" />
-                  <div className="min-w-0 flex-1 leading-snug">
-                    <p className="text-[11px] text-slate-400">Hỗ trợ khách hàng 24/7</p>
-                    <p className="font-bold text-emerald-400">1900 6868</p>
-                  </div>
-                </a>
-              </div>
-            </div>
-          </aside>
-
-          {/* Right Column: Active Tab Content (8 cols) */}
-          <main className="lg:col-span-8">
-            <div className="bg-[#111715] rounded-2xl p-6 sm:p-8 border border-white/[0.08] shadow-xl shadow-black/20">
-              {/* Alert notices */}
-              {successMsg && (
-                <div className="mb-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center space-x-2.5 animate-fadeIn">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span className="font-medium">{successMsg}</span>
-                </div>
-              )}
-
-              {errorMsg && (
-                <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-300 flex items-center space-x-2.5 animate-fadeIn">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                  <span className="font-medium">{errorMsg}</span>
-                </div>
-              )}
-
-              {/* TAB: My Bookings (Chuyến xe của tôi) */}
-              {activeTab === 'bookings' && (
-                <div className="space-y-6">
-                  {/* Header */}
-                  <div className="pb-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                      <h2 className="text-lg font-bold text-white flex items-center space-x-2">
-                        <Compass className="w-5 h-5 text-emerald-400" />
-                        <span>Chuyến xe của tôi</span>
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Lịch trình nhận xe, thanh toán cọc và quản lý hợp đồng thuê xe điện tử
-                      </p>
-                    </div>
-
-                    <Link
-                      to="/bikes"
-                      className="inline-flex items-center space-x-1.5 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-xl text-xs font-black transition-all shadow-lg shadow-emerald-500/20 shrink-0 self-start sm:self-auto"
-                    >
-                      <span>Thuê xe mới</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
-                  </div>
-
-                  {/* Filter Pills */}
-                  <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none">
-                    <button
-                      type="button"
-                      onClick={() => setBookingFilter('all')}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
-                        bookingFilter === 'all'
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                          : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
-                      }`}
-                    >
-                      Tất cả ({bookings.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookingFilter('active')}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
-                        bookingFilter === 'active'
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                          : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
-                      }`}
-                    >
-                      Chờ duyệt & Đang giữ xe ({bookings.filter(b => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookingFilter('completed')}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
-                        bookingFilter === 'completed'
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                          : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
-                      }`}
-                    >
-                      Hoàn thành ({bookings.filter(b => b.status === 'Completed').length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookingFilter('cancelled')}
-                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all shrink-0 ${
-                        bookingFilter === 'cancelled'
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                          : 'bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
-                      }`}
-                    >
-                      Đã hủy ({bookings.filter(b => ['Cancelled', 'Rejected'].includes(b.status)).length})
-                    </button>
-                  </div>
-
-                  {/* Bookings List */}
-                  {bookingsLoading ? (
-                    <div className="py-12 text-center space-y-3">
-                      <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
-                      <p className="text-xs text-slate-400">Đang tải lịch trình thuê xe của bạn...</p>
-                    </div>
-                  ) : (() => {
-                    const filteredBookings = bookings.filter((b) => {
-                      if (bookingFilter === 'active') return ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status);
-                      if (bookingFilter === 'completed') return b.status === 'Completed';
-                      if (bookingFilter === 'cancelled') return ['Cancelled', 'Rejected'].includes(b.status);
-                      return true;
-                    });
-
-                    if (filteredBookings.length === 0) {
-                      return (
-                        <div className="p-10 rounded-2xl bg-white/[0.02] border border-white/5 text-center space-y-4">
-                          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto">
-                            <Compass className="w-7 h-7" />
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-white">Chưa có chuyến xe nào</h3>
-                            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
-                              {bookingFilter === 'all'
-                                ? 'Bạn chưa đặt thuê xe máy nào. Hãy chọn dòng xe tay ga hoặc xe số ưng ý để vi vu khám phá Đà Nẵng!'
-                                : 'Không tìm thấy chuyến xe nào ở danh mục này.'}
-                            </p>
-                          </div>
-                          <Link
-                            to="/bikes"
-                            className="inline-flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-emerald-500/20"
-                          >
-                            <span>Khám phá bảng giá & Đặt xe</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="space-y-4">
-                        {filteredBookings.map((b) => {
-                          const v = (typeof b.vehicleId === 'object' && b.vehicleId !== null) ? (b.vehicleId as Vehicle) : null;
-                          const pb = (typeof b.pickupBranchId === 'object' && b.pickupBranchId !== null) ? (b.pickupBranchId as Branch) : null;
-                          const rb = (typeof b.returnBranchId === 'object' && b.returnBranchId !== null) ? (b.returnBranchId as Branch) : null;
-
-                          const vehicleName = v?.vehicleModel || 'Xe máy Motorent';
-                          const vehicleBrand = v?.brand || '';
-                          const licensePlate = v?.licensePlate || 'Chờ bàn giao';
-                          const vehicleImg = v?.images && v.images.length > 0 ? getOptimizedVehicleImageUrl(v.images[0]) : '';
-
-                          const canCancel = b.status === 'Pending' || b.status === 'Approved' || b.status === 'Confirmed';
-
-                          return (
-                            <div
-                              key={b._id}
-                              className="p-5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] border border-white/10 hover:border-emerald-500/30 transition-all space-y-4"
-                            >
-                              {/* Header Card: Code & Status */}
-                              <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/5">
-                                <div className="flex items-center space-x-2">
-                                  <span className="font-mono font-black text-sm text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
-                                    {b.bookingCode}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyCode(b.bookingCode)}
-                                    className="p-1 text-slate-400 hover:text-white transition-colors"
-                                    title="Sao chép mã đơn"
-                                  >
-                                    {copiedCode === b.bookingCode ? (
-                                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                  {b.createdAt && (
-                                    <span className="text-[11px] text-slate-400 hidden sm:inline">
-                                      • Đặt ngày: {new Date(b.createdAt).toLocaleDateString('vi-VN')}
-                                    </span>
-                                  )}
-                                </div>
-
-                                <div>
-                                  {b.status === 'Pending' && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse mr-1.5" />
-                                      Chờ xác nhận cọc
-                                    </span>
-                                  )}
-                                  {(b.status === 'Approved' || b.status === 'Confirmed') && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
-                                      <CheckCircle2 className="w-3 h-3 mr-1 text-sky-400" />
-                                      Đã xác nhận giữ xe
-                                    </span>
-                                  )}
-                                  {b.status === 'Ongoing' && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mr-1.5" />
-                                      Đang lưu hành trên đường
-                                    </span>
-                                  )}
-                                  {b.status === 'Completed' && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                                      Hoàn tất chuyến đi
-                                    </span>
-                                  )}
-                                  {(b.status === 'Cancelled' || b.status === 'Rejected') && (
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-500/15 text-red-400 border border-red-500/30">
-                                      <X className="w-3 h-3 mr-1" />
-                                      Đã hủy đơn
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Body: Vehicle Info + Schedule + Payment */}
-                              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                                {/* Vehicle Preview (4 cols) */}
-                                <div className="md:col-span-4 flex items-center space-x-3.5">
-                                  <div className="w-20 h-16 rounded-xl bg-[#060D0B] border border-white/10 overflow-hidden shrink-0 flex items-center justify-center p-1">
-                                    {vehicleImg ? (
-                                      <img
-                                        src={vehicleImg}
-                                        alt={vehicleName}
-                                        className="w-full h-full object-cover rounded-lg"
-                                      />
-                                    ) : (
-                                      <Compass className="w-6 h-6 text-slate-600" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <h4 className="font-bold text-white text-xs truncate">{vehicleName}</h4>
-                                    <p className="text-[11px] text-slate-400">{vehicleBrand}</p>
-                                    <div className="mt-1">
-                                      <span className="inline-block px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-emerald-400">
-                                        {licensePlate}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Schedule & Branch (5 cols) */}
-                                <div className="md:col-span-5 space-y-2 text-xs border-y md:border-y-0 md:border-l md:border-r border-white/5 py-3 md:py-0 md:px-4">
-                                  <div className="flex items-start space-x-2">
-                                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                                    <div>
-                                      <p className="text-[11px] text-slate-400">
-                                        Nhận: <span className="font-bold text-white">{new Date(b.pickupDateTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-                                      </p>
-                                      <p className="text-[10px] text-slate-400 truncate">{pb?.name || 'Chi nhánh Motorent'}</p>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-start space-x-2">
-                                    <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                                    <div>
-                                      <p className="text-[11px] text-slate-400">
-                                        Trả: <span className="font-bold text-white">{new Date(b.returnDateTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}</span>
-                                      </p>
-                                      <p className="text-[10px] text-slate-400 truncate">{rb?.name || 'Chi nhánh Motorent'}</p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Financial details (3 cols) */}
-                                <div className="md:col-span-3 text-right space-y-1 text-xs">
-                                  <p className="text-[11px] text-slate-400">Tổng tiền thuê</p>
-                                  <p className="text-sm font-black text-white">{b.totalAmount.toLocaleString('vi-VN')} đ</p>
-                                  <div className="text-[10px] space-y-0.5 pt-1">
-                                    <p className="text-emerald-400 font-semibold">
-                                      Đã cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
-                                    </p>
-                                    <p className="text-slate-400">
-                                      Còn lại: {b.remainingAmount.toLocaleString('vi-VN')} đ
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Footer Actions */}
-                              <div className="pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-2">
-                                <div className="text-[11px] text-slate-400">
-                                  {b.cancelReason && (
-                                    <span className="text-red-400/90">Lý do hủy: {b.cancelReason}</span>
-                                  )}
-                                  {b.loyaltyPointsEarned > 0 && (
-                                    <span className="text-emerald-400 font-semibold">+{b.loyaltyPointsEarned} điểm thưởng</span>
-                                  )}
-                                </div>
-
-                                <div className="flex items-center space-x-2">
-                                  {canCancel && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedBookingForCancel(b)}
-                                      className="px-3 py-1.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 text-xs font-semibold transition-colors"
-                                    >
-                                      Hủy đơn đặt
-                                    </button>
-                                  )}
-                                  {v && (
-                                    <Link
-                                      to={`/booking/${v._id}`}
-                                      className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] text-slate-300 hover:text-white text-xs font-semibold transition-colors flex items-center space-x-1"
-                                    >
-                                      <RotateCcw className="w-3 h-3 text-emerald-400" />
-                                      <span>Thuê lại xe này</span>
-                                    </Link>
-                                  )}
-                                  <a
-                                    href="tel:19006868"
-                                    className="p-1.5 rounded-xl bg-white/[0.04] text-slate-400 hover:text-white transition-colors"
-                                    title="Liên hệ hotline chi nhánh 1900 6868"
-                                  >
-                                    <PhoneCall className="w-3.5 h-3.5 text-emerald-400" />
-                                  </a>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {/* TAB 1: Edit Info */}
-              {activeTab === 'info' && (
-                <div>
-                  <div className="pb-5 border-b border-white/[0.08] mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <h2 className="text-lg font-bold text-white tracking-tight">
-                        Thông tin cá nhân & Liên hệ
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Thông tin dùng để đối chiếu khi bàn giao xe và xuất hợp đồng điện tử
-                      </p>
-                    </div>
-                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-slate-300 self-start sm:self-auto">
-                      Hồ sơ khách hàng
-                    </span>
-                  </div>
-
-                  <form onSubmit={handleUpdateProfile} className="space-y-6">
-                    {/* Fieldset 1: Account identification (read-only) */}
-                    <div className="space-y-3">
-                      <div className="flex items-center space-x-2 text-xs font-semibold text-slate-300">
-                        <Lock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>1. Tài khoản định danh hệ thống</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                            Tên người dùng (Username)
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="text"
-                              value={user.username}
-                              disabled
-                              className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3.5 py-2.5 text-xs font-mono text-slate-400 cursor-not-allowed outline-none"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 font-medium">
-                              Cố định
-                            </span>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                            Địa chỉ email liên kết
-                          </label>
-                          <div className="relative">
-                            <input
-                              type="email"
-                              value={user.email || 'Chưa cập nhật'}
-                              disabled
-                              className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3.5 py-2.5 text-xs text-slate-400 cursor-not-allowed outline-none"
-                            />
-                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-emerald-400 font-semibold flex items-center">
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Đã xác thực
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Fieldset 2: Legal identification info */}
-                    <div className="space-y-3 pt-4 border-t border-white/[0.06]">
-                      <div className="flex items-center space-x-2 text-xs font-semibold text-slate-300">
-                        <UserIcon className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>2. Thông tin pháp lý người thuê xe</span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                            Họ và tên đệm <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="VD: Nguyễn Văn"
-                            value={lastName}
-                            onChange={(e) => setLastName(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                            Tên <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="VD: An"
-                            value={firstName}
-                            onChange={(e) => setFirstName(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                            Giới tính
-                          </label>
-                          <div className="relative">
-                            <select
-                              value={gender}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (val === 'Male' || val === 'Female' || val === 'Other') {
-                                  setGender(val);
-                                }
-                              }}
-                              className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none appearance-none cursor-pointer transition-all"
-                            >
-                              <option value="Male" className="bg-[#111715] text-white">Nam</option>
-                              <option value="Female" className="bg-[#111715] text-white">Nữ</option>
-                              <option value="Other" className="bg-[#111715] text-white">Khác</option>
-                            </select>
-                            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                            Ngày sinh
-                          </label>
-                          <input
-                            type="date"
-                            value={dob}
-                            onChange={(e) => setDob(e.target.value)}
-                            className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none transition-all [color-scheme:dark]"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Fieldset 3: Contact information */}
-                    <div className="space-y-3 pt-4 border-t border-white/[0.06]">
-                      <div className="flex items-center space-x-2 text-xs font-semibold text-slate-300">
-                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>3. Thông tin liên hệ nhận xe</span>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-slate-300 mb-1.5">
-                          Số điện thoại di động <span className="text-red-400">*</span>
-                        </label>
-                        <input
-                          type="tel"
-                          placeholder="VD: 0912 345 678"
-                          value={phoneNumber}
-                          onChange={(e) => setPhoneNumber(e.target.value)}
-                          className="w-full sm:w-1/2 bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
-                        />
-                        <p className="text-[11px] text-slate-400 mt-1.5">
-                          Dùng để nhận tin nhắn SMS xác nhận lịch bàn giao xe và mã PIN mở khóa phương tiện.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Action Bar */}
-                    <div className="pt-6 border-t border-white/[0.08] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                      <div className="text-xs text-slate-400 flex items-center space-x-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Thông tin được bảo mật và mã hóa trên máy chủ Motorent.</span>
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="inline-flex items-center justify-center space-x-2 px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-bold rounded-xl text-xs transition-all active:scale-95 shadow-md shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {loading ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang lưu thông tin...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save className="w-3.5 h-3.5" />
-                            <span>Lưu thay đổi</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* TAB 2: Change Avatar (UC-21: Max 5MB, JPEG/PNG/WebP, Multer upload) */}
-              {activeTab === 'avatar' && (
-                <div>
-                  <div className="pb-5 border-b border-white/[0.08] mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <h2 className="text-lg font-bold text-white tracking-tight">
-                        Thay đổi ảnh đại diện
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Tải lên hình ảnh đại diện rõ nét định dạng JPG, PNG hoặc WebP (tối đa 5MB)
-                      </p>
-                    </div>
-                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-slate-300 self-start sm:self-auto">
-                      Ảnh hồ sơ cá nhân
-                    </span>
-                  </div>
-
-                  <form onSubmit={handleUploadAvatar} className="space-y-6">
-                    {/* Preview & Dropzone Box */}
-                    <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-6 p-6 rounded-2xl bg-white/[0.02] border border-dashed border-white/15 hover:border-white/25 transition-colors">
-                      <div className="w-24 h-24 rounded-full overflow-hidden ring-4 ring-emerald-500/20 bg-[#07130D] shadow-md flex items-center justify-center flex-shrink-0">
-                        {currentAvatar ? (
-                          <img
-                            src={currentAvatar}
-                            alt="Preview"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                            crossOrigin="anonymous"
-                          />
-                        ) : (
-                          <UserIcon className="w-12 h-12 text-slate-500" />
-                        )}
-                      </div>
-
-                      <div className="space-y-2 text-center sm:text-left flex-1">
-                        <label className="inline-flex items-center space-x-2 px-4 py-2.5 bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 rounded-xl text-xs font-semibold text-slate-200 cursor-pointer transition-colors active:scale-95">
-                          <UploadCloud className="w-4 h-4 text-emerald-400" />
-                          <span>Chọn file ảnh mới từ thiết bị</span>
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={handleAvatarFileChange}
-                            className="hidden"
-                          />
-                        </label>
-                        <p className="text-[11px] text-slate-400">
-                          {selectedFile 
-                            ? `Đã chọn: ${selectedFile.name} (${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)` 
-                            : 'Định dạng được hỗ trợ: JPEG, PNG, WebP. Kích thước tối đa 5MB.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 border-t border-white/[0.08] flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={loading || !selectedFile}
-                        className={`inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                          selectedFile && !loading
-                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md shadow-emerald-500/20 active:scale-95'
-                            : 'bg-white/5 text-slate-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {loading ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang cập nhật...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Camera className="w-3.5 h-3.5" />
-                            <span>Lưu ảnh đại diện</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* TAB 3: eKYC Document Upload (UC-22: CCCD front/back + driving license) */}
-              {activeTab === 'ekyc' && (
-                <div>
-                  <div className="pb-5 border-b border-white/[0.08] mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div>
-                      <h2 className="text-lg font-bold text-white tracking-tight">
-                        Xác thực danh tính điện tử (eKYC)
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Tải lên ảnh 2 mặt CCCD và Giấy phép lái xe để thuê xe không giữ bản gốc
-                      </p>
-                    </div>
-
-                    {/* Status Badge */}
-                    <div>
-                      {user.identityStatus === 'Verified' ? (
-                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          <CheckCircle2 className="w-4 h-4 mr-1.5 text-emerald-400" />
-                          <span>Đã xác thực hợp lệ</span>
-                        </div>
-                      ) : user.identityStatus === 'Pending' ? (
-                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                          <Clock className="w-4 h-4 mr-1.5 text-amber-400 animate-spin" />
-                          <span>Đang chờ kiểm duyệt</span>
-                        </div>
-                      ) : user.identityStatus === 'Rejected' ? (
-                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-red-500/15 text-red-400 border border-red-500/30">
-                          <AlertCircle className="w-4 h-4 mr-1.5 text-red-400" />
-                          <span>Yêu cầu gửi lại hồ sơ</span>
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold bg-white/5 text-slate-400 border border-white/10">
-                          <ShieldCheck className="w-4 h-4 mr-1.5 text-slate-500" />
-                          <span>Chưa xác thực</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Status Banner */}
-                  <div className={`p-4 rounded-xl border mb-6 text-xs leading-relaxed ${
-                    user.identityStatus === 'Verified'
-                      ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                      : user.identityStatus === 'Pending'
-                      ? 'bg-amber-500/10 border-amber-500/20 text-amber-200'
-                      : user.identityStatus === 'Rejected'
-                      ? 'bg-red-500/10 border-red-500/20 text-red-300'
-                      : 'bg-white/[0.02] border-white/10 text-slate-300'
-                  }`}>
-                    {user.identityStatus === 'Verified' ? (
-                      <div className="flex items-start space-x-2.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <strong className="block font-bold">Hồ sơ eKYC của bạn đã được kiểm duyệt thành công!</strong>
-                          <span>Bạn được hưởng toàn bộ đặc quyền nhận xe hỏa tốc tại các điểm chi nhánh Đà Nẵng mà không cần để lại CCCD gốc.</span>
-                        </div>
-                      </div>
-                    ) : user.identityStatus === 'Pending' ? (
-                      <div className="flex items-start space-x-2.5">
-                        <Clock className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <strong className="block font-bold">Hồ sơ đang trong hàng đợi đối soát</strong>
-                          <span>Nhân viên điều phối sẽ đối chiếu thông tin trong vòng 15-30 phút. Bạn vẫn có thể đặt trước phương tiện bình thường.</span>
-                        </div>
-                      </div>
-                    ) : user.identityStatus === 'Rejected' ? (
-                      <div className="flex items-start space-x-2.5">
-                        <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <strong className="block font-bold">Hình ảnh giấy tờ chưa đạt yêu cầu kiểm duyệt</strong>
-                          {user.ekycRejectionReason && (
-                            <p className="mt-1 font-semibold text-red-200 bg-red-950/60 p-2.5 rounded-lg border border-red-500/30">
-                              Lý do từ chối: {user.ekycRejectionReason}
-                            </p>
-                          )}
-                          <span className="block mt-1">Vui lòng kiểm tra lại ảnh chụp: chụp rõ đủ 4 góc của thẻ CCCD, không bị lóa sáng và GPLX còn hạn sử dụng rồi gửi lại hồ sơ bên dưới.</span>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start space-x-2.5">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
-                        <div>
-                          <strong className="block font-bold">Bảo vệ quyền lợi tối đa cho khách thuê xe</strong>
-                          <span>Hình ảnh của bạn được lưu trữ mã hóa an toàn trên máy chủ Motorent và chỉ dùng cho thủ tục ký nhận xe tại trạm.</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <form onSubmit={handleUploadEkyc} className="space-y-6">
-                    {/* 3 Upload Cards Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {/* Card 1: CCCD Front */}
-                      <div className="p-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-xl border border-white/10 flex flex-col items-center justify-between text-center relative group min-h-[240px] transition-colors">
-                        <div className="w-full flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-slate-200 truncate">
-                            1. Mặt trước CCCD <span className="text-red-400">*</span>
-                          </span>
-                          {(idCardFrontFile || user.idCardFrontUrl) && (
-                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-medium border border-emerald-500/25 shrink-0">
-                              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                              <span>Đã bảo mật</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="w-full h-36 rounded-lg bg-[#07130D] border border-white/10 overflow-hidden flex items-center justify-center relative">
-                          {isWatermarking === 'idCardFront' ? (
-                            <div className="p-4 text-center space-y-2">
-                              <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
-                              <span className="text-[11px] text-emerald-300 font-medium block">Đang đóng dấu bảo mật...</span>
-                              <span className="text-[10px] text-slate-400 block">Nghị định 13/2023/NĐ-CP</span>
-                            </div>
-                          ) : idCardFrontPreview || formatDocUrl(user.idCardFrontUrl) ? (
-                            <>
-                              <img
-                                src={idCardFrontPreview || formatDocUrl(user.idCardFrontUrl)!}
-                                alt="CCCD Front"
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded bg-black/75 backdrop-blur-sm border border-emerald-500/30 text-[9px] font-semibold text-emerald-300 flex items-center space-x-1">
-                                <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                                <span>Chống mạo danh</span>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="p-3 text-center space-y-1">
-                              <FileCheck2 className="w-8 h-8 text-slate-500 mx-auto" />
-                              <span className="text-[10px] text-slate-400 block">Chưa tải ảnh lên</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <label className="mt-3 w-full py-2 bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 rounded-lg text-xs font-medium text-slate-200 cursor-pointer transition-colors block">
-                          <span>{idCardFrontFile ? 'Thay đổi ảnh' : 'Chọn ảnh mặt trước'}</span>
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => handleDocFileChange(e, 'idCardFront')}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-
-                      {/* Card 2: CCCD Back */}
-                      <div className="p-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-xl border border-white/10 flex flex-col items-center justify-between text-center relative group min-h-[240px] transition-colors">
-                        <div className="w-full flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-slate-200 truncate">
-                            2. Mặt sau CCCD <span className="text-red-400">*</span>
-                          </span>
-                          {(idCardBackFile || user.idCardBackUrl) && (
-                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-medium border border-emerald-500/25 shrink-0">
-                              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                              <span>Đã bảo mật</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="w-full h-36 rounded-lg bg-[#07130D] border border-white/10 overflow-hidden flex items-center justify-center relative">
-                          {isWatermarking === 'idCardBack' ? (
-                            <div className="p-4 text-center space-y-2">
-                              <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
-                              <span className="text-[11px] text-emerald-300 font-medium block">Đang đóng dấu bảo mật...</span>
-                              <span className="text-[10px] text-slate-400 block">Nghị định 13/2023/NĐ-CP</span>
-                            </div>
-                          ) : idCardBackPreview || formatDocUrl(user.idCardBackUrl) ? (
-                            <>
-                              <img
-                                src={idCardBackPreview || formatDocUrl(user.idCardBackUrl)!}
-                                alt="CCCD Back"
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded bg-black/75 backdrop-blur-sm border border-emerald-500/30 text-[9px] font-semibold text-emerald-300 flex items-center space-x-1">
-                                <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                                <span>Chống mạo danh</span>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="p-3 text-center space-y-1">
-                              <FileCheck2 className="w-8 h-8 text-slate-500 mx-auto" />
-                              <span className="text-[10px] text-slate-400 block">Chưa tải ảnh lên</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <label className="mt-3 w-full py-2 bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 rounded-lg text-xs font-medium text-slate-200 cursor-pointer transition-colors block">
-                          <span>{idCardBackFile ? 'Thay đổi ảnh' : 'Chọn ảnh mặt sau'}</span>
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => handleDocFileChange(e, 'idCardBack')}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-
-                      {/* Card 3: Driving License */}
-                      <div className="p-4 bg-white/[0.02] hover:bg-white/[0.04] rounded-xl border border-white/10 flex flex-col items-center justify-between text-center relative group min-h-[240px] transition-colors">
-                        <div className="w-full flex items-center justify-between mb-2">
-                          <span className="text-xs font-semibold text-slate-200 truncate">
-                            3. Giấy phép lái xe <span className="text-red-400">*</span>
-                          </span>
-                          {(licenseFile || user.drivingLicenseUrl) && (
-                            <span className="inline-flex items-center space-x-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[10px] font-medium border border-emerald-500/25 shrink-0">
-                              <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                              <span>Đã bảo mật</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="w-full h-36 rounded-lg bg-[#07130D] border border-white/10 overflow-hidden flex items-center justify-center relative">
-                          {isWatermarking === 'drivingLicense' ? (
-                            <div className="p-4 text-center space-y-2">
-                              <RefreshCw className="w-6 h-6 text-emerald-400 animate-spin mx-auto" />
-                              <span className="text-[11px] text-emerald-300 font-medium block">Đang đóng dấu bảo mật...</span>
-                              <span className="text-[10px] text-slate-400 block">Nghị định 13/2023/NĐ-CP</span>
-                            </div>
-                          ) : licensePreview || formatDocUrl(user.drivingLicenseUrl) ? (
-                            <>
-                              <img
-                                src={licensePreview || formatDocUrl(user.drivingLicenseUrl)!}
-                                alt="Driving License"
-                                className="w-full h-full object-cover"
-                              />
-                              <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded bg-black/75 backdrop-blur-sm border border-emerald-500/30 text-[9px] font-semibold text-emerald-300 flex items-center space-x-1">
-                                <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
-                                <span>Chống mạo danh</span>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="p-3 text-center space-y-1">
-                              <FileCheck2 className="w-8 h-8 text-slate-500 mx-auto" />
-                              <span className="text-[10px] text-slate-400 block">Chưa tải ảnh lên</span>
-                            </div>
-                          )}
-                        </div>
-
-                        <label className="mt-3 w-full py-2 bg-white/[0.05] hover:bg-white/[0.08] border border-white/10 rounded-lg text-xs font-medium text-slate-200 cursor-pointer transition-colors block">
-                          <span>{licenseFile ? 'Thay đổi ảnh' : 'Chọn ảnh GPLX'}</span>
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => handleDocFileChange(e, 'drivingLicense')}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Security Notice: Decree 13/2023/ND-CP & C06/A05 recommendations */}
-                    <div className="p-4 bg-emerald-500/[0.04] rounded-xl border border-emerald-500/20 text-xs text-slate-300 space-y-2">
-                      <div className="font-semibold text-emerald-400 flex items-center space-x-2">
-                        <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Bảo mật dữ liệu cá nhân theo Nghị định 13/2023/NĐ-CP & Khuyến nghị C06/A05:</span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 text-[11px] text-slate-400">
-                        <div className="flex items-start space-x-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                          <span><strong>Đóng dấu chống mạo danh:</strong> Tự động chèn watermark chéo <em>&quot;CHỈ DÙNG THUÊ XE MOTORENT - KHÔNG CÓ GIÁ TRỊ VAY VỐN&quot;</em> trực tiếp tại trình duyệt trước khi tải lên.</span>
-                        </div>
-                        <div className="flex items-start space-x-2">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                          <span><strong>Lưu trữ cách ly tuyệt đối (Private Storage):</strong> Giấy tờ của bạn được lưu trong phân vùng riêng tư, ngăn chặn 100% việc truy cập công khai qua đường link URL.</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Decree 13 Explicit Consent Agreement Checkbox */}
-                    <div className="p-3.5 bg-white/[0.02] rounded-xl border border-white/10 hover:border-emerald-500/30 transition-colors">
-                      <label className="flex items-start space-x-3 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={ekycConsent}
-                          onChange={(e) => setEkycConsent(e.target.checked)}
-                          className="mt-0.5 h-4 w-4 rounded border-white/20 text-emerald-500 focus:ring-emerald-500/20 bg-black/40 cursor-pointer accent-emerald-500 shrink-0"
-                        />
-                        <span className="text-xs text-slate-300 leading-relaxed">
-                          Tôi xác nhận đồng ý cung cấp thông tin giấy tờ tùy thân cho Motorent xử lý xác thực theo <strong>Nghị định 13/2023/NĐ-CP</strong>. Tôi đã kiểm tra ảnh đã được đóng dấu chống mạo danh và ủy quyền cho nhân viên Motorent đối soát khi giao nhận xe.
-                        </span>
-                      </label>
-                    </div>
-
-                    <div className="pt-4 border-t border-white/[0.08] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <span className="text-[11px] text-slate-400">
-                        {user.identityStatus === 'Pending'
-                          ? 'Hồ sơ đang được nhân viên kiểm duyệt, vui lòng không gửi lại.'
-                          : user.identityStatus === 'Verified'
-                          ? 'Tài khoản đã hoàn tất xác thực eKYC thành công.'
-                          : (!idCardFrontFile && !idCardBackFile && !licenseFile)
-                          ? 'Vui lòng chọn ảnh giấy tờ để tiếp tục.'
-                          : !ekycConsent
-                          ? 'Vui lòng tích đồng ý điều khoản bảo vệ dữ liệu để gửi.'
-                          : 'Hồ sơ đã sẵn sàng để gửi đối soát an toàn.'}
-                      </span>
-
-                      <button
-                        type="submit"
-                        disabled={
-                          loading ||
-                          user.identityStatus === 'Pending' ||
-                          user.identityStatus === 'Verified' ||
-                          (!idCardFrontFile && !idCardBackFile && !licenseFile) ||
-                          !ekycConsent
-                        }
-                        className={`inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                          (idCardFrontFile || idCardBackFile || licenseFile) &&
-                          ekycConsent &&
-                          !loading &&
-                          user.identityStatus !== 'Pending' &&
-                          user.identityStatus !== 'Verified'
-                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md shadow-emerald-500/20 active:scale-95 cursor-pointer'
-                            : 'bg-white/5 text-slate-500 cursor-not-allowed opacity-60'
-                        }`}
-                      >
-                        {loading ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang lưu trữ bảo mật...</span>
-                          </>
-                        ) : user.identityStatus === 'Pending' ? (
-                          <>
-                            <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Hồ sơ đang chờ duyệt</span>
-                          </>
-                        ) : user.identityStatus === 'Verified' ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Đã xác thực</span>
-                          </>
-                        ) : (
-                          <>
-                            <UploadCloud className="w-3.5 h-3.5" />
-                            <span>Gửi hồ sơ thẩm định eKYC</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-
-              {/* TAB 4: Change Password (UC-23: Verify old, bcrypt new, min 8 chars) */}
-              {activeTab === 'password' && (
-                <div>
-                  <div className="pb-5 border-b border-white/[0.08] mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <h2 className="text-lg font-bold text-white tracking-tight">
-                        Đổi mật khẩu bảo mật
-                      </h2>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Sử dụng mật khẩu mạnh từ 8 ký tự trở lên kết hợp chữ hoa, chữ thường và chữ số
-                      </p>
-                    </div>
-                    <span className="text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-slate-300 self-start sm:self-auto">
-                      Bảo mật tài khoản
-                    </span>
-                  </div>
-
-                  <form onSubmit={handleChangePassword} className="space-y-5 max-w-lg">
-                    {/* Current Password */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center">
-                        <Lock className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
-                        <span>Mật khẩu hiện tại</span>
-                        <span className="text-red-400 ml-1">*</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPassword ? 'text' : 'password'}
-                          placeholder="Nhập mật khẩu hiện tại của bạn..."
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white focus:outline-none"
-                        >
-                          {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* New Password */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center">
-                        <KeyRound className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
-                        <span>Mật khẩu mới</span>
-                        <span className="text-red-400 ml-1">*</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showNewPassword ? 'text' : 'password'}
-                          placeholder="Nhập mật khẩu mới (tối thiểu 8 ký tự)..."
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowNewPassword(!showNewPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white focus:outline-none"
-                        >
-                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-
-                      {/* Password strength indicator */}
-                      {newPassword.length > 0 && (
-                        <div className="mt-2.5 space-y-1.5 p-3 bg-white/[0.02] rounded-xl border border-white/5">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-slate-400 font-medium">Độ phức tạp mật khẩu:</span>
-                            <span className={`font-bold ${passwordStrength.color}`}>
-                              {passwordStrength.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-1.5">
-                            {[1, 2, 3, 4].map((seg) => (
-                              <div
-                                key={seg}
-                                className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                                  seg <= passwordStrength.score ? passwordStrength.bgClass : 'bg-white/10'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                          {newPassword.length < 8 && (
-                            <p className="text-[11px] text-emerald-400 font-medium">
-                              • Cần thêm ít nhất {8 - newPassword.length} ký tự nữa để đạt chuẩn tối thiểu 8 ký tự.
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Confirm Password */}
-                    <div>
-                      <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center">
-                        <Lock className="w-3.5 h-3.5 text-slate-400 mr-1.5" />
-                        <span>Xác nhận lại mật khẩu mới</span>
-                        <span className="text-red-400 ml-1">*</span>
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showConfirmPassword ? 'text' : 'password'}
-                          placeholder="Nhập lại chính xác mật khẩu mới..."
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          required
-                          className="w-full bg-white/[0.03] hover:bg-white/[0.05] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] focus:ring-1 focus:ring-emerald-500/30 rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 outline-none transition-all"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white focus:outline-none"
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      {confirmPassword && newPassword && confirmPassword === newPassword && (
-                        <div className="flex items-center space-x-1.5 mt-1.5 text-xs font-medium text-emerald-400">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Mật khẩu xác nhận trùng khớp</span>
-                        </div>
-                      )}
-                      {confirmPassword && newPassword && confirmPassword !== newPassword && (
-                        <div className="flex items-center space-x-1.5 mt-1.5 text-xs font-medium text-red-400">
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          <span>Mật khẩu xác nhận chưa trùng khớp</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="pt-4 border-t border-white/[0.08] flex justify-end">
-                      <button
-                        type="submit"
-                        disabled={loading || newPassword.length < 8 || newPassword !== confirmPassword}
-                        className={`inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                          newPassword.length >= 8 && newPassword === confirmPassword && !loading
-                            ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white shadow-md shadow-emerald-500/20 active:scale-95'
-                            : 'bg-white/5 text-slate-500 cursor-not-allowed'
-                        }`}
-                      >
-                        {loading ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang cập nhật mật khẩu...</span>
-                          </>
-                        ) : (
-                          <>
-                            <KeyRound className="w-3.5 h-3.5" />
-                            <span>Cập nhật mật khẩu mới</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-            </div>
-          </main>
-        </div>
-      </div>
-
-      {/* Cancel Booking Confirmation Modal */}
-      {selectedBookingForCancel && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-[#091512] rounded-3xl max-w-md w-full p-6 border border-white/10 shadow-2xl text-left space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center space-x-2 text-red-400 font-bold text-sm">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Xác nhận hủy đơn đặt giữ xe</span>
+        {/* =====================================================================
+            1. EDITORIAL MEMBER MASTHEAD (NO CLUNKY AI SIDEBAR)
+            ===================================================================== */}
+        <div className="pb-6 border-b border-white/[0.08] flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center space-x-4">
+            {/* Avatar with subtle camera trigger */}
+            <div className="relative group shrink-0">
+              <div className="w-16 h-16 rounded-2xl overflow-hidden bg-[#161616] border border-white/15 flex items-center justify-center">
+                {currentAvatar ? (
+                  <img
+                    src={currentAvatar}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                  />
+                ) : (
+                  <span className="text-lg font-bold text-[#FFC799]">
+                    {(user.firstName || user.username || 'U').charAt(0).toUpperCase()}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedBookingForCancel(null)}
-                className="text-slate-400 hover:text-white"
+                onClick={() => handleTabChange('avatar')}
+                className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-lg bg-[#161616] border border-white/20 hover:border-[#FFC799] text-[#F5F5F5] flex items-center justify-center transition-colors cursor-pointer"
+                title="Đổi ảnh đại diện"
+              >
+                <Camera className="w-3 h-3 text-[#FFC799]" />
+              </button>
+            </div>
+
+            {/* Identity Details */}
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-xl sm:text-2xl font-bold text-[#F5F5F5] tracking-tight">
+                  {user.firstName ? `${user.lastName || ''} ${user.firstName}`.trim() : user.username}
+                </h1>
+                {user.identityStatus === 'Verified' ? (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-[#FFC799]/15 border border-[#FFC799]/30 text-[11px] font-medium text-[#FFC799]">
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Đã xác thực eKYC</span>
+                  </span>
+                ) : user.identityStatus === 'Pending' ? (
+                  <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-[#FFC799]/12 border border-[#FFC799]/30 text-[11px] font-medium text-[#FFC799]">
+                    <Clock className="w-3 h-3" />
+                    <span>Chờ duyệt eKYC</span>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange('ekyc')}
+                    className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-[#FFC799]/15 border border-[#FFC799]/30 text-[11px] font-medium text-[#FFC799] hover:bg-[#FFC799]/25 transition-colors cursor-pointer"
+                  >
+                    <ShieldCheck className="w-3 h-3" />
+                    <span>Bổ sung eKYC</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#A0A0A0]">
+                <span>{user.email || `@${user.username}`}</span>
+                {user.phoneNumber && (
+                  <>
+                    <span className="text-white/20">•</span>
+                    <span className="font-mono-tabular">{user.phoneNumber}</span>
+                  </>
+                )}
+                <span className="text-white/20">•</span>
+                <span>
+                  Điểm thành viên:{' '}
+                  <strong className="font-mono-tabular text-[#FFC799]">
+                    {user.loyaltyPoints || 0} điểm
+                  </strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Quick Actions */}
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <Link
+              to="/bikes"
+              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all active:scale-95"
+            >
+              <span>Đặt chuyến xe mới</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* =====================================================================
+            2. HORIZONTAL ARCHITECTURAL TAB BAR
+            ===================================================================== */}
+        <div className="border-b border-white/[0.08] mb-8 overflow-x-auto scrollbar-none">
+          <nav className="flex items-center space-x-1 min-w-max py-2" aria-label="Quản lý tài khoản">
+            {TABS.map((t) => {
+              const active = activeTab === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleTabChange(t.id)}
+                  className={`px-4 py-2.5 rounded-xl text-xs transition-all flex items-center space-x-2 cursor-pointer ${
+                    active
+                      ? 'bg-[#161616] text-[#F5F5F5] font-semibold border border-white/12'
+                      : 'text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.03] font-medium border border-transparent'
+                  }`}
+                >
+                  <span className="font-mono-tabular text-[10px] text-[#6E6E6E]">{t.num}</span>
+                  <span>{t.label}</span>
+                  {typeof t.count === 'number' && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[10px] font-mono-tabular ${
+                        active ? 'bg-[#FFC799]/20 text-[#FFC799]' : 'bg-white/5 text-[#6E6E6E]'
+                      }`}
+                    >
+                      {t.count}
+                    </span>
+                  )}
+                  {t.statusTag && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[10px] font-medium ${
+                        user.identityStatus === 'Verified'
+                          ? 'bg-[#FFC799]/15 text-[#FFC799]'
+                          : 'bg-[#FFC799]/15 text-[#FFC799]'
+                      }`}
+                    >
+                      {t.statusTag}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Alert Notices */}
+        {successMsg && (
+          <div className="mb-6 p-4 bg-[#FFC799]/10 border border-[#FFC799]/30 rounded-xl text-xs text-[#FFC799] flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[#FFC799] shrink-0" />
+              <span className="font-medium">{successMsg}</span>
+            </div>
+            <button type="button" onClick={() => setSuccessMsg('')} className="text-[#FFC799]/70 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {errorMsg && (
+          <div className="mb-6 p-4 bg-[#FF8080]/12 border border-[#FF8080]/30 rounded-xl text-xs text-[#FF8080] flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
+              <AlertCircle className="w-4 h-4 text-[#FF8080] shrink-0" />
+              <span className="font-medium">{errorMsg}</span>
+            </div>
+            <button type="button" onClick={() => setErrorMsg('')} className="text-[#FF8080] hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* =====================================================================
+            TAB 01: CHUYẾN XE CỦA TÔI (FULL-WIDTH RENTAL CONTRACT TICKETS)
+            ===================================================================== */}
+        {activeTab === 'bookings' && (
+          <div className="space-y-6">
+            {/* Filter Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {[
+                  { key: 'all' as const, label: 'Tất cả đơn', count: bookings.length },
+                  { key: 'active' as const, label: 'Đang giữ xe / Đang thuê', count: activeBookingsCount },
+                  {
+                    key: 'completed' as const,
+                    label: 'Đã hoàn thành',
+                    count: bookings.filter((b) => b.status === 'Completed').length,
+                  },
+                  {
+                    key: 'cancelled' as const,
+                    label: 'Đã hủy',
+                    count: bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length,
+                  },
+                ].map((f) => {
+                  const active = bookingFilter === f.key;
+                  return (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => setBookingFilter(f.key)}
+                      className={`px-3.5 py-2 rounded-xl text-xs transition-all shrink-0 cursor-pointer flex items-center space-x-2 ${
+                        active
+                          ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
+                          : 'bg-[#161616] text-[#A0A0A0] border border-white/[0.08] hover:text-[#F5F5F5]'
+                      }`}
+                    >
+                      <span>{f.label}</span>
+                      <span
+                        className={`font-mono-tabular text-[11px] ${
+                          active ? 'text-[#101010]/80 font-bold' : 'text-[#6E6E6E]'
+                        }`}
+                      >
+                        ({f.count})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchBookings}
+                className="inline-flex items-center space-x-1.5 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors self-start sm:self-auto cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${bookingsLoading ? 'animate-spin text-[#FFC799]' : ''}`} />
+                <span>Làm mới trạng thái</span>
+              </button>
+            </div>
+
+            {/* Bookings List */}
+            {bookingsLoading ? (
+              <div className="py-16 text-center space-y-3 bg-[#161616] rounded-2xl border border-white/[0.08]">
+                <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin mx-auto" />
+                <p className="text-xs text-[#A0A0A0]">Đang đồng bộ danh sách hợp đồng thuê xe...</p>
+              </div>
+            ) : (() => {
+              const filteredBookings = bookings.filter((b) => {
+                if (bookingFilter === 'active') return ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status);
+                if (bookingFilter === 'completed') return b.status === 'Completed';
+                if (bookingFilter === 'cancelled') return ['Cancelled', 'Rejected'].includes(b.status);
+                return true;
+              });
+
+              if (filteredBookings.length === 0) {
+                return (
+                  <div className="p-12 rounded-2xl bg-[#161616] border border-white/[0.08] text-center space-y-4">
+                    <h3 className="text-base font-bold text-[#F5F5F5]">Chưa có chuyến xe nào trong mục này</h3>
+                    <p className="text-xs text-[#A0A0A0] max-w-md mx-auto leading-relaxed">
+                      Chọn chiếc xe tay ga, xe điện hoặc xe số phù hợp để nhận xe nhanh trong 03 phút tại Sân bay Đà Nẵng hoặc Bãi biển Mỹ Khê.
+                    </p>
+                    <Link
+                      to="/bikes"
+                      className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all"
+                    >
+                      <span>Xem đội xe &amp; Bảng giá</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {filteredBookings.map((b) => {
+                    const v = typeof b.vehicleId === 'object' && b.vehicleId !== null ? (b.vehicleId as Vehicle) : null;
+                    const pb =
+                      typeof b.pickupBranchId === 'object' && b.pickupBranchId !== null
+                        ? (b.pickupBranchId as Branch)
+                        : null;
+                    const rb =
+                      typeof b.returnBranchId === 'object' && b.returnBranchId !== null
+                        ? (b.returnBranchId as Branch)
+                        : null;
+
+                    const vehicleName = v?.vehicleModel || 'Xe máy Motorent';
+                    const vehicleBrand = v?.brand || '';
+                    const licensePlate = v?.licensePlate || 'Chờ bàn giao';
+                    const vehicleImg =
+                      v?.images && v.images.length > 0
+                        ? getOptimizedVehicleImageUrl(v.images[1] || v.images[0])
+                        : '';
+
+                    const canCancel = b.status === 'Pending' || b.status === 'Approved' || b.status === 'Confirmed';
+                    const needsDepositPayment = b.status === 'Pending' && !b.depositPaid && !b.isPaid;
+
+                    return (
+                      <div
+                        key={b._id}
+                        className="rounded-2xl bg-[#161616] border border-white/10 hover:border-white/20 transition-all overflow-hidden"
+                      >
+                        {/* Top Ticket Bar: Booking Code, Created Date & Status */}
+                        <div className="px-5 py-3.5 bg-[#101010]/60 border-b border-white/[0.07] flex flex-wrap items-center justify-between gap-3">
+                          <div className="flex items-center space-x-3">
+                            <span className="text-[11px] uppercase tracking-wider text-[#6E6E6E] font-semibold">
+                              Mã hợp đồng
+                            </span>
+                            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#161616] border border-white/12">
+                              <span className="font-mono-tabular font-bold text-xs text-[#FFC799]">
+                                {b.bookingCode}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyCode(b.bookingCode)}
+                                className="text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
+                                title="Sao chép mã đơn"
+                              >
+                                {copiedCode === b.bookingCode ? (
+                                  <Check className="w-3.5 h-3.5 text-[#FFC799]" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            {b.createdAt && (
+                              <span className="text-xs text-[#6E6E6E] hidden sm:inline">
+                                Đặt ngày {new Date(b.createdAt).toLocaleDateString('vi-VN')}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Status Badge */}
+                          <div className="flex items-center gap-2">
+                            {b.status === 'Pending' && (
+                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
+                                Chờ xác nhận cọc 30%
+                              </span>
+                            )}
+                            {(b.status === 'Approved' || b.status === 'Confirmed') && (
+                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                Đã xác nhận cọc &amp; Khóa biển số
+                              </span>
+                            )}
+                            {b.status === 'Ongoing' && (
+                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
+                                Đang bàn giao lưu hành
+                              </span>
+                            )}
+                            {b.status === 'Completed' && (
+                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                Đã hoàn thành chuyến đi
+                              </span>
+                            )}
+                            {(b.status === 'Cancelled' || b.status === 'Rejected') && (
+                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FF8080]/12 text-[#FF8080] border border-[#FF8080]/30">
+                                Đã hủy đơn
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Main Ticket Body: 12-Column Architectural Grid */}
+                        <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                          {/* Col 1-5: Vehicle Studio Photo + Full Name + Single-Line License Plate */}
+                          <div className="lg:col-span-5 flex items-center space-x-4">
+                            <div className="w-28 h-20 rounded-xl studio-paper-backdrop border border-white/10 overflow-hidden shrink-0 flex items-center justify-center p-2">
+                              {vehicleImg ? (
+                                <img
+                                  src={vehicleImg}
+                                  alt={vehicleName}
+                                  className="w-full h-full object-contain scale-110 mix-blend-multiply"
+                                />
+                              ) : (
+                                <span className="text-[10px] font-bold text-slate-600">MOTORENT</span>
+                              )}
+                            </div>
+
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              <div className="text-[11px] uppercase tracking-wider text-[#A0A0A0] font-medium">
+                                {vehicleBrand}
+                              </div>
+                              <h3 className="text-base font-bold text-[#F5F5F5] leading-snug">
+                                {vehicleName}
+                              </h3>
+                              <div className="pt-0.5">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-[#101010] border border-white/12 text-xs font-mono-tabular font-semibold text-[#FFC799] whitespace-nowrap">
+                                  Biển số: {licensePlate}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Col 6-9: Pickup & Return Schedule */}
+                          <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 border-y lg:border-y-0 lg:border-x border-white/[0.07] py-4 lg:py-0 lg:px-5 text-xs">
+                            <div className="flex items-start space-x-2.5">
+                              <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
+                              <div>
+                                <div className="text-[#A0A0A0]">
+                                  Nhận xe:{' '}
+                                  <strong className="text-[#F5F5F5] font-mono-tabular">
+                                    {new Date(b.pickupDateTime).toLocaleString('vi-VN', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                    })}
+                                  </strong>
+                                </div>
+                                <div className="text-[11px] text-[#6E6E6E] mt-0.5">
+                                  {pb?.name || 'Trạm giao nhận Motorent'}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-start space-x-2.5">
+                              <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
+                              <div>
+                                <div className="text-[#A0A0A0]">
+                                  Trả xe:{' '}
+                                  <strong className="text-[#F5F5F5] font-mono-tabular">
+                                    {new Date(b.returnDateTime).toLocaleString('vi-VN', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                    })}
+                                  </strong>
+                                </div>
+                                <div className="text-[11px] text-[#6E6E6E] mt-0.5">
+                                  {rb?.name || 'Trạm giao nhận Motorent'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Col 10-12: Financial Breakdown */}
+                          <div className="lg:col-span-3 flex flex-row lg:flex-col items-center lg:items-end justify-between gap-2 text-xs">
+                            <div className="lg:text-right">
+                              <span className="text-[11px] text-[#6E6E6E] block">Tổng chi phí thuê</span>
+                              <span className="text-lg font-bold text-[#F5F5F5] font-mono-tabular">
+                                {b.totalAmount.toLocaleString('vi-VN')} đ
+                              </span>
+                            </div>
+
+                            <div className="text-right space-y-0.5 text-[11px]">
+                              {b.isPaid ? (
+                                <p className="text-[#FFC799] font-semibold">Đã thanh toán đủ 100%</p>
+                              ) : b.depositPaid || b.status === 'Approved' || b.status === 'Confirmed' ? (
+                                <>
+                                  <p className="text-[#FFC799] font-semibold font-mono-tabular">
+                                    Đã cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
+                                  </p>
+                                  <p className="text-[#A0A0A0] font-mono-tabular">
+                                    Còn lại khi nhận xe: {b.remainingAmount.toLocaleString('vi-VN')} đ
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="text-[#FFC799] font-semibold font-mono-tabular">
+                                    Cần cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
+                                  </p>
+                                  <p className="text-[#6E6E6E] font-mono-tabular">
+                                    Còn lại 70%: {b.remainingAmount.toLocaleString('vi-VN')} đ
+                                  </p>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bottom Action Strip */}
+                        <div className="px-5 py-3 bg-[#101010]/40 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-xs text-[#A0A0A0]">
+                            {b.cancelReason ? (
+                              <span className="text-[#A0A0A0]">
+                                Ghi chú hủy đơn: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
+                              </span>
+                            ) : needsDepositPayment ? (
+                              <span className="text-[#FFC799]">
+                                Vui lòng hoàn tất quét mã QR thanh toán cọc 30% để hệ thống khóa biển số xe.
+                              </span>
+                            ) : (
+                              <span>Xuất trình mã hợp đồng {b.bookingCode} tại quầy để nhận xe trong 03 phút.</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2.5">
+                            {needsDepositPayment && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQrPaymentType('Deposit30');
+                                  setQrVerifiedSuccess(false);
+                                  setSelectedBookingForQrPay(b);
+                                }}
+                                className="px-3.5 py-1.5 rounded-lg bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
+                              >
+                                <QrCode className="w-3.5 h-3.5" />
+                                <span>Thanh toán cọc QR ngay</span>
+                              </button>
+                            )}
+
+                            {canCancel && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedBookingForCancel(b)}
+                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#FF8080]/30 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-colors cursor-pointer"
+                              >
+                                Hủy đơn
+                              </button>
+                            )}
+
+                            {v && (
+                              <Link
+                                to={`/booking/${v._id}`}
+                                className="px-3.5 py-1.5 rounded-lg bg-[#161616] border border-white/12 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                              >
+                                <RotateCcw className="w-3 h-3 text-[#FFC799]" />
+                                <span>Thuê lại xe này</span>
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* =====================================================================
+            TAB 02: THÔNG TIN CÁ NHÂN & LIÊN HỆ
+            ===================================================================== */}
+        {activeTab === 'info' && (
+          <div className="bg-[#161616] rounded-2xl border border-white/10 p-6 sm:p-8 max-w-3xl">
+            <div className="pb-5 border-b border-white/[0.08] mb-6">
+              <h2 className="text-lg font-bold text-[#F5F5F5]">Thông tin cá nhân &amp; Liên hệ nhận xe</h2>
+              <p className="text-xs text-[#A0A0A0] mt-1">
+                Thông tin dùng để ghi nhận trên hợp đồng thuê xe điện tử và nhận thông báo bàn giao xe.
+              </p>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-[#A0A0A0] mb-1.5">
+                    Tên đăng nhập (Cố định)
+                  </label>
+                  <input
+                    type="text"
+                    value={user.username}
+                    disabled
+                    className="w-full bg-[#101010] border border-white/[0.07] rounded-xl px-3.5 py-2.5 text-xs font-mono-tabular text-[#6E6E6E] cursor-not-allowed outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#A0A0A0] mb-1.5">
+                    Email nhận hợp đồng điện tử
+                  </label>
+                  <input
+                    type="email"
+                    value={user.email || 'Chưa cập nhật'}
+                    disabled
+                    className="w-full bg-[#101010] border border-white/[0.07] rounded-xl px-3.5 py-2.5 text-xs text-[#6E6E6E] cursor-not-allowed outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                    Họ và tên đệm *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: Nguyễn Văn"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                    Tên *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="VD: Hoàng"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                    Số điện thoại liên hệ *
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="VD: 0905 123 456"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] outline-none transition-colors"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">Giới tính</label>
+                    <div className="relative">
+                      <select
+                        value={gender}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'Male' || val === 'Female' || val === 'Other') {
+                            setGender(val);
+                          }
+                        }}
+                        className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3 py-2.5 text-xs text-[#F5F5F5] outline-none appearance-none cursor-pointer"
+                      >
+                        <option value="Male" className="bg-[#161616]">Nam</option>
+                        <option value="Female" className="bg-[#161616]">Nữ</option>
+                        <option value="Other" className="bg-[#161616]">Khác</option>
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 text-[#A0A0A0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">Ngày sinh</label>
+                    <input
+                      type="date"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3 py-2.5 text-xs text-[#F5F5F5] outline-none [color-scheme:dark]"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-white/[0.08] flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Lưu thông tin hồ sơ</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* =====================================================================
+            TAB 03: ĐỊNH DANH ĐIỆN TỬ (EKYC)
+            ===================================================================== */}
+        {activeTab === 'ekyc' && (
+          <div className="bg-[#161616] rounded-2xl border border-white/10 p-6 sm:p-8 space-y-6">
+            <div className="pb-5 border-b border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#F5F5F5]">
+                  Định danh điện tử eKYC — Nhận xe không giữ CCCD gốc
+                </h2>
+                <p className="text-xs text-[#A0A0A0] mt-1">
+                  Tải lên 2 mặt CCCD và ảnh chân dung để đối soát trước, giúp nhận bàn giao xe tại trạm chỉ trong 03 phút.
+                </p>
+              </div>
+
+              <div>
+                {user.identityStatus === 'Verified' ? (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                    <CheckCircle2 className="w-4 h-4 mr-1.5" />
+                    Đã duyệt hợp lệ
+                  </span>
+                ) : user.identityStatus === 'Pending' ? (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30">
+                    <Clock className="w-4 h-4 mr-1.5" />
+                    Đang chờ nhân viên đối soát
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-[#A0A0A0] border border-white/10">
+                    Chưa xác thực
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <form onSubmit={handleUploadEkyc} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1. CCCD Front */}
+                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
+                  <span className="text-xs font-semibold text-[#F5F5F5]">1. Mặt trước CCCD *</span>
+                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
+                    {isWatermarking === 'idCardFront' ? (
+                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
+                    ) : idCardFrontPreview || formatDocUrl(user.idCardFrontUrl) ? (
+                      <img
+                        src={idCardFrontPreview || formatDocUrl(user.idCardFrontUrl)!}
+                        alt="CCCD Front"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center space-y-1 p-3">
+                        <FileCheck2 className="w-7 h-7 text-[#6E6E6E] mx-auto" />
+                        <span className="text-[11px] text-[#6E6E6E] block">Chưa có ảnh mặt trước</span>
+                      </div>
+                    )}
+                  </div>
+                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
+                    <span>{idCardFrontFile ? 'Đổi ảnh mặt trước' : 'Chọn ảnh mặt trước'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => handleDocFileChange(e, 'idCardFront')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* 2. CCCD Back */}
+                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
+                  <span className="text-xs font-semibold text-[#F5F5F5]">2. Mặt sau CCCD *</span>
+                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
+                    {isWatermarking === 'idCardBack' ? (
+                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
+                    ) : idCardBackPreview || formatDocUrl(user.idCardBackUrl) ? (
+                      <img
+                        src={idCardBackPreview || formatDocUrl(user.idCardBackUrl)!}
+                        alt="CCCD Back"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center space-y-1 p-3">
+                        <FileCheck2 className="w-7 h-7 text-[#6E6E6E] mx-auto" />
+                        <span className="text-[11px] text-[#6E6E6E] block">Chưa có ảnh mặt sau</span>
+                      </div>
+                    )}
+                  </div>
+                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
+                    <span>{idCardBackFile ? 'Đổi ảnh mặt sau' : 'Chọn ảnh mặt sau'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => handleDocFileChange(e, 'idCardBack')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {/* 3. Selfie */}
+                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
+                  <span className="text-xs font-semibold text-[#F5F5F5]">3. Ảnh chân dung đối chiếu *</span>
+                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
+                    {isWatermarking === 'selfiePhoto' ? (
+                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
+                    ) : selfiePreview || formatDocUrl(user.selfieUrl) ? (
+                      <img
+                        src={selfiePreview || formatDocUrl(user.selfieUrl)!}
+                        alt="Selfie"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="text-center space-y-1 p-3">
+                        <Camera className="w-7 h-7 text-[#6E6E6E] mx-auto" />
+                        <span className="text-[11px] text-[#6E6E6E] block">Chụp chính diện rõ khuôn mặt</span>
+                      </div>
+                    )}
+                  </div>
+                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
+                    <span>{selfieFile ? 'Đổi ảnh chân dung' : 'Chọn ảnh chân dung'}</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(e) => handleDocFileChange(e, 'selfiePhoto')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#101010] rounded-xl border border-white/10">
+                <label className="flex items-start space-x-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={ekycConsent}
+                    onChange={(e) => setEkycConsent(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-white/20 accent-[#FFC799] cursor-pointer shrink-0"
+                  />
+                  <span className="text-xs text-[#A0A0A0] leading-relaxed">
+                    Tôi đồng ý cung cấp hình ảnh CCCD và chân dung để Motorent đối soát xác thực hợp đồng thuê xe theo Nghị định 13/2023/NĐ-CP. Hệ thống tự động đóng dấu bảo mật lên ảnh CCCD sau khi duyệt.
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={
+                    loading ||
+                    user.identityStatus === 'Pending' ||
+                    user.identityStatus === 'Verified' ||
+                    (!idCardFrontFile && !idCardBackFile && !selfieFile) ||
+                    !ekycConsent
+                  }
+                  className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>Gửi hồ sơ thẩm định eKYC</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* =====================================================================
+            TAB 04: ĐỔI ẢNH ĐẠI DIỆN
+            ===================================================================== */}
+        {activeTab === 'avatar' && (
+          <div className="bg-[#161616] rounded-2xl border border-white/10 p-6 sm:p-8 max-w-2xl">
+            <div className="pb-5 border-b border-white/[0.08] mb-6">
+              <h2 className="text-lg font-bold text-[#F5F5F5]">Ảnh đại diện tài khoản</h2>
+              <p className="text-xs text-[#A0A0A0] mt-1">
+                Hỗ trợ ảnh định dạng JPEG, PNG hoặc WebP (dung lượng tối đa 5MB).
+              </p>
+            </div>
+
+            <form onSubmit={handleUploadAvatar} className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-center gap-6 p-6 rounded-xl bg-[#101010] border border-white/10">
+                <div className="w-24 h-24 rounded-2xl overflow-hidden bg-[#161616] border border-white/15 flex items-center justify-center shrink-0">
+                  {currentAvatar ? (
+                    <img
+                      src={currentAvatar}
+                      alt="Avatar Preview"
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
+                    />
+                  ) : (
+                    <UserIcon className="w-10 h-10 text-[#6E6E6E]" />
+                  )}
+                </div>
+
+                <div className="space-y-2 text-center sm:text-left">
+                  <label className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-xl text-xs font-medium text-[#F5F5F5] cursor-pointer transition-colors">
+                    <UploadCloud className="w-4 h-4 text-[#FFC799]" />
+                    <span>Chọn ảnh mới từ thiết bị</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleAvatarFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-[#6E6E6E]">
+                    {selectedFile
+                      ? `Đã chọn: ${selectedFile.name} (${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB)`
+                      : 'Chưa chọn tệp ảnh mới.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loading || !selectedFile}
+                  className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>Lưu ảnh đại diện</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* =====================================================================
+            TAB 05: ĐỔI MẬT KHẨU BẢO MẬT
+            ===================================================================== */}
+        {activeTab === 'password' && (
+          <div className="bg-[#161616] rounded-2xl border border-white/10 p-6 sm:p-8 max-w-xl">
+            <div className="pb-5 border-b border-white/[0.08] mb-6">
+              <h2 className="text-lg font-bold text-[#F5F5F5]">Đổi mật khẩu bảo mật</h2>
+              <p className="text-xs text-[#A0A0A0] mt-1">
+                Mật khẩu mới cần có tối thiểu 8 ký tự.
+              </p>
+            </div>
+
+            <form onSubmit={handleChangePassword} className="space-y-5">
+              <div>
+                <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                  Mật khẩu hiện tại *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    placeholder="Nhập mật khẩu hiện tại..."
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    required
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-[#F5F5F5] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-[#F5F5F5]"
+                  >
+                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                  Mật khẩu mới *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    placeholder="Tối thiểu 8 ký tự..."
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-[#F5F5F5] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-[#F5F5F5]"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {newPassword.length > 0 && (
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-[#A0A0A0]">
+                    <span>Độ mạnh mật khẩu:</span>
+                    <span className={`font-semibold ${passwordStrength.color}`}>{passwordStrength.label}</span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                  Xác nhận mật khẩu mới *
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Nhập lại mật khẩu mới..."
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl pl-3.5 pr-10 py-2.5 text-xs text-[#F5F5F5] outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-[#F5F5F5]"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-white/[0.08] flex justify-end">
+                <button
+                  type="submit"
+                  disabled={loading || newPassword.length < 8 || newPassword !== confirmPassword}
+                  className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Cập nhật mật khẩu</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
+      {/* =====================================================================
+          MODAL 1: VIETQR DEPOSIT PAYMENT & BANK VERIFICATION MODAL
+          ===================================================================== */}
+      {selectedBookingForQrPay && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => !qrVerifying && setSelectedBookingForQrPay(null)}
+        >
+          <div
+            className="bg-[#161616] rounded-2xl max-w-lg w-full p-6 border border-white/15 shadow-2xl space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/10">
+              <div>
+                <span className="text-[10px] uppercase tracking-[0.16em] text-[#FFC799] font-semibold block">
+                  Cổng Thanh Toán VietQR 24/7
+                </span>
+                <h3 className="text-lg font-bold text-[#F5F5F5] mt-0.5">
+                  Quét mã QR thanh toán đơn {selectedBookingForQrPay.bookingCode}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForQrPay(null)}
+                className="p-1.5 rounded-lg bg-[#101010] border border-white/10 text-[#A0A0A0] hover:text-[#F5F5F5]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
+            {/* Select 30% Deposit vs 100% Full Payment */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setQrPaymentType('Deposit30')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  qrPaymentType === 'Deposit30'
+                    ? 'bg-[#101010] border-[#FFC799] text-[#F5F5F5]'
+                    : 'bg-[#101010]/50 border-white/10 text-[#A0A0A0]'
+                }`}
+              >
+                <span className="text-[10px] uppercase tracking-wider text-[#FFC799] font-semibold block">
+                  Đặt cọc 30% giữ xe
+                </span>
+                <span className="text-sm font-bold font-mono-tabular mt-0.5 block">
+                  {selectedBookingForQrPay.depositAmount.toLocaleString('vi-VN')} đ
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setQrPaymentType('Full100')}
+                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                  qrPaymentType === 'Full100'
+                    ? 'bg-[#101010] border-[#FFC799] text-[#F5F5F5]'
+                    : 'bg-[#101010]/50 border-white/10 text-[#A0A0A0]'
+                }`}
+              >
+                <span className="text-[10px] uppercase tracking-wider text-[#FFC799] font-semibold block">
+                  Tất toán 100%
+                </span>
+                <span className="text-sm font-bold font-mono-tabular mt-0.5 block">
+                  {selectedBookingForQrPay.totalAmount.toLocaleString('vi-VN')} đ
+                </span>
+              </button>
+            </div>
+
+            {/* QR Code & Bank Account Info */}
+            <div className="p-4 rounded-xl bg-[#101010] border border-white/10 flex flex-col sm:flex-row items-center gap-5">
+              <div className="bg-white p-2.5 rounded-xl shrink-0">
+                <img
+                  src={`https://api.vietqr.io/image/970422-0905123456-compact2.jpg?amount=${
+                    qrPaymentType === 'Full100'
+                      ? selectedBookingForQrPay.totalAmount
+                      : selectedBookingForQrPay.depositAmount
+                  }&addInfo=${encodeURIComponent(
+                    `MOTORENT ${selectedBookingForQrPay.bookingCode}`
+                  )}&accountName=CONG%20TY%20MOTORENT`}
+                  alt="VietQR"
+                  className="w-36 h-36 object-contain"
+                />
+              </div>
+
+              <div className="flex-1 w-full space-y-2 text-xs">
+                <div className="flex justify-between py-1 border-b border-white/[0.07]">
+                  <span className="text-[#A0A0A0]">Ngân hàng:</span>
+                  <span className="font-semibold text-[#F5F5F5]">MB Bank (Quân Đội)</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-white/[0.07]">
+                  <span className="text-[#A0A0A0]">Số tài khoản:</span>
+                  <span className="font-mono-tabular font-bold text-[#FFC799]">0905 123 456</span>
+                </div>
+                <div className="flex justify-between py-1 border-b border-white/[0.07]">
+                  <span className="text-[#A0A0A0]">Số tiền:</span>
+                  <span className="font-mono-tabular font-bold text-[#FFC799]">
+                    {(qrPaymentType === 'Full100'
+                      ? selectedBookingForQrPay.totalAmount
+                      : selectedBookingForQrPay.depositAmount
+                    ).toLocaleString('vi-VN')}{' '}
+                    đ
+                  </span>
+                </div>
+                <div className="flex justify-between py-1">
+                  <span className="text-[#A0A0A0]">Nội dung CK:</span>
+                  <span className="font-mono-tabular font-bold text-[#F5F5F5]">
+                    MOTORENT {selectedBookingForQrPay.bookingCode}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {qrVerifiedSuccess ? (
+              <div className="p-3.5 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/30 text-[#FFC799] text-xs font-semibold flex items-center justify-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-[#FFC799]" />
+                <span>Giao dịch hợp lệ! Đã xác nhận thanh toán và khóa biển số xe.</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={qrVerifying}
+                onClick={handleConfirmQrPayment}
+                className="w-full py-3 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-60"
+              >
+                {qrVerifying ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Đang đối soát giao dịch VietQR với ngân hàng...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Tôi đã quét mã chuyển khoản — Xác nhận hoàn thành</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL 2: CANCEL BOOKING CONFIRMATION
+          ===================================================================== */}
+      {selectedBookingForCancel && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#161616] rounded-2xl max-w-md w-full p-6 border border-white/15 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-2 text-[#FF8080] font-bold text-sm">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Xác nhận hủy đơn {selectedBookingForCancel.bookingCode}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForCancel(null)}
+                className="text-[#A0A0A0] hover:text-[#F5F5F5]"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#A0A0A0] leading-relaxed">
               Bạn có chắc chắn muốn hủy đơn đặt giữ xe mã{' '}
-              <strong className="text-emerald-400 font-mono font-bold">
+              <strong className="text-[#F5F5F5] font-mono-tabular">
                 {selectedBookingForCancel.bookingCode}
               </strong>
-              ? Xe sẽ được mở lại cho khách hàng khác đặt trên hệ thống.
+              ?
             </p>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Lý do hủy đơn (tùy chọn)
+              <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                Lý do hủy đơn
               </label>
               <div className="grid grid-cols-2 gap-1.5 mb-2">
                 {[
-                  'Thay đổi kế hoạch chuyến đi',
-                  'Muốn chọn dòng xe khác',
-                  'Có việc bận đột xuất',
-                  'Chuyển sang phương tiện khác'
+                  'Thay đổi lịch trình',
+                  'Đổi sang mẫu xe khác',
+                  'Có việc đột xuất',
+                  'Đặt nhầm ngày nhận xe',
                 ].map((reason) => (
                   <button
                     key={reason}
                     type="button"
                     onClick={() => setCancelReasonInput(reason)}
-                    className={`p-2 rounded-xl text-[11px] text-left border transition-all ${
+                    className={`p-2 rounded-lg text-[11px] text-left border transition-all cursor-pointer ${
                       cancelReasonInput === reason
-                        ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                        : 'bg-white/[0.03] border-white/5 text-slate-400 hover:bg-white/[0.06]'
+                        ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
+                        : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
                     }`}
                   >
                     {reason}
@@ -1835,16 +1679,16 @@ export const ProfilePage: React.FC = () => {
                 value={cancelReasonInput}
                 onChange={(e) => setCancelReasonInput(e.target.value)}
                 placeholder="Hoặc nhập lý do khác..."
-                className="w-full px-3 py-2 bg-[#040D08] border border-white/10 rounded-xl text-xs text-white placeholder:text-slate-500 outline-none focus:border-emerald-500"
+                className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
               />
             </div>
 
-            <div className="flex items-center space-x-3 pt-3">
+            <div className="flex items-center space-x-3 pt-2">
               <button
                 type="button"
                 disabled={cancelLoading}
                 onClick={() => setSelectedBookingForCancel(null)}
-                className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 text-xs font-bold hover:bg-white/10 transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5]"
               >
                 Giữ lại đơn
               </button>
@@ -1852,13 +1696,9 @@ export const ProfilePage: React.FC = () => {
                 type="button"
                 disabled={cancelLoading}
                 onClick={handleCancelBooking}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 shadow-lg shadow-red-600/30"
+                className="flex-1 py-2.5 rounded-xl bg-[#FF8080] hover:bg-[#FF9999] text-[#101010] text-xs font-semibold transition-colors"
               >
-                {cancelLoading ? (
-                  <span>Đang hủy...</span>
-                ) : (
-                  <span>Xác nhận hủy đơn</span>
-                )}
+                {cancelLoading ? 'Đang hủy...' : 'Xác nhận hủy'}
               </button>
             </div>
           </div>

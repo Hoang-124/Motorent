@@ -41,7 +41,6 @@ router.get('/health', async (req: Request, res: Response, next: NextFunction) =>
       database: isDbConnected ? 'Connected' : 'Disconnected',
     };
 
-    // Only count collections if requested by admin with detailed query
     if (req.query.detailed === 'true') {
       const collections = {
         branches: await Branch.countDocuments(),
@@ -97,6 +96,84 @@ router.get(
         roles: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
       },
     });
+  }
+);
+
+/**
+ * Notifications Endpoints for Header Notification Bell
+ */
+router.get(
+  '/notifications',
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
+        return;
+      }
+
+      const items = await Notification.find({ userId: req.user._id })
+        .sort({ createdAt: -1 })
+        .limit(30);
+
+      const unreadCount = items.filter((n) => !n.isRead).length;
+
+      res.json({
+        success: true,
+        data: {
+          items,
+          unreadCount,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.put(
+  '/notifications/read-all',
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
+        return;
+      }
+
+      await Notification.updateMany(
+        { userId: req.user._id, isRead: false },
+        { $set: { isRead: true } }
+      );
+
+      res.json({ success: true, message: 'Đã đánh dấu đọc tất cả thông báo.' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.put(
+  '/notifications/:id/read',
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
+        return;
+      }
+
+      if (mongoose.isValidObjectId(req.params.id)) {
+        await Notification.updateOne(
+          { _id: req.params.id, userId: req.user._id },
+          { $set: { isRead: true } }
+        );
+      }
+
+      res.json({ success: true, message: 'Đã đánh dấu đã đọc.' });
+    } catch (error) {
+      next(error);
+    }
   }
 );
 

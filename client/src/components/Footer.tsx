@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   MapPin,
-  Clock,
   ArrowUpRight,
   CheckCircle2,
   PhoneCall,
@@ -14,182 +13,197 @@ import { FaqModal } from './FaqModal';
 
 export const Footer: React.FC = () => {
   const [isFaqOpen, setIsFaqOpen] = useState<boolean>(false);
+  const location = useLocation();
+
+  // Hide B2C marketing footer on the operational CounterDesk workspace
+  if (location.pathname.startsWith('/counter')) {
+    return null;
+  }
 
   return (
     <>
-      <footer className="bg-[#040A07] text-slate-400 pt-16 pb-12 border-t border-emerald-500/10">
+      <footer className="bg-[#101010] text-[#A0A0A0] pt-16 pb-12 border-t border-white/[0.08]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-          {/* Main 4-Column Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 pb-12 border-b border-emerald-500/10">
+          {/* Editorial Masthead Banner inside Footer */}
+          <div className="pb-12 mb-12 border-b border-white/[0.08] flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+            <div className="space-y-2 max-w-2xl">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-[#FFC799] font-medium">
+                Dịch Vụ Thuê Xe Máy Đô Thị &amp; Du Lịch Đà Nẵng
+              </p>
+              <h2 className="text-2xl sm:text-4xl font-semibold text-[#F5F5F5] tracking-tight leading-snug">
+                Mỗi chiếc xe rời trạm là một hành trình{' '}
+                <span className="font-serif-display italic font-normal text-[#FFC799]">
+                  dạo phố êm ái và an tâm.
+                </span>
+              </h2>
+            </div>
 
-            {/* Column 1: Brand Info & Legal (4 cols) */}
+            <div className="flex flex-wrap items-center gap-3">
+              <a
+                href="tel:02363822101"
+                className="inline-flex items-center space-x-2.5 px-5 py-2.5 rounded-full bg-[#1E1E1E] border border-white/12 text-[#F5F5F5] hover:border-[#FFC799]/50 text-xs font-medium transition-colors"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-[#FFC799]" />
+                <span>Tổng đài điều phối:</span>
+                <span className="font-mono-tabular font-semibold">(0236) 3822 101</span>
+              </a>
+              <button
+                onClick={() => setIsFaqOpen(true)}
+                className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFD6B3] text-[#101010] text-xs font-semibold transition-colors cursor-pointer"
+              >
+                <HelpCircle className="w-3.5 h-3.5" />
+                <span>Cẩm nang &amp; Câu hỏi thường gặp</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Main 12-Column Editorial Directory */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 pb-12 border-b border-white/[0.08]">
+
+            {/* Column 1: Atelier Identity & Legal (4 cols) */}
             <div className="lg:col-span-4 space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-emerald-600 flex items-center justify-center text-[#060D0B] font-bold shadow-lg shadow-emerald-500/20">
-                  <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
-                    <circle cx="5.5" cy="17.5" r="3.5" />
-                    <circle cx="18.5" cy="17.5" r="3.5" />
-                    <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h4" />
-                  </svg>
-                </div>
-                <span className="text-2xl font-black text-white tracking-tight">
-                  MOTO<span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-teal-300 to-teal-300">RENT</span>
+              <div className="flex items-baseline space-x-2">
+                <span className="text-lg font-bold tracking-[0.14em] text-[#F5F5F5] uppercase">
+                  MOTORENT
+                </span>
+                <span className="font-serif-display italic text-base text-[#FFC799]">
+                  Đà Nẵng
                 </span>
               </div>
 
-              <p className="text-xs sm:text-sm text-slate-400 leading-relaxed pr-4">
-                Hệ thống chuỗi cho thuê xe máy tự lái tự doanh đa chi nhánh tại TP. Đà Nẵng. 100% xe mới chính hãng đời 2023 - 2024, giao nhận tại Sân bay Đà Nẵng và Biển Mỹ Khê, hợp đồng số hóa eKYC <strong>không giữ CCCD gốc</strong>.
+              <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed pr-4">
+                Hệ thống trạm cho thuê xe máy tự lái đô thị tại TP. Đà Nẵng. Đội xe chính hãng đời 2023–2024 vận hành êm ái, tiết kiệm nhiên liệu, được kiểm tra an toàn trước mỗi chuyến đi. Giao nhận nhanh tại Sân bay Quốc tế, Trung tâm &amp; Biển Mỹ Khê, hợp đồng số hóa eKYC <strong className="text-[#F5F5F5] font-medium">không giữ CCCD gốc</strong>.
               </p>
 
-              <div className="space-y-2 text-xs text-slate-400 pt-2">
+              <div className="space-y-2 text-xs text-[#A0A0A0] pt-2 border-t border-white/[0.06]">
                 <div className="flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>Giấy chứng nhận ĐKKD: 0402198010 do Sở KH&ĐT TP. Đà Nẵng cấp</span>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] flex-shrink-0" />
+                  <span>Giấy chứng nhận ĐKKD: 0402198010 — Sở KH&amp;ĐT TP. Đà Nẵng</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                  <span>Bảo hiểm trách nhiệm dân sự bắt buộc & cứu hộ xe máy 24/7</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] flex-shrink-0" />
+                  <span>Bảo hiểm trách nhiệm dân sự &amp; Hỗ trợ kỹ thuật nội thành 24/7</span>
                 </div>
               </div>
             </div>
 
-            {/* Column 2: Vehicle Categories (2 cols) */}
+            {/* Column 2: Vehicle Collection (2 cols) */}
             <div className="lg:col-span-2">
-              <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4">
-                Dòng xe tự lái
+              <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
+                Danh mục xe
               </h4>
               <ul className="space-y-2.5 text-xs">
                 <li>
-                  <Link to="/bikes" className="hover:text-emerald-200 transition-colors flex items-center justify-between font-semibold text-slate-300">
-                    <span>Xem toàn bộ xe</span>
-                    <ArrowUpRight className="w-3.5 h-3.5 text-slate-500" />
+                  <Link to="/bikes" className="hover:text-[#F5F5F5] transition-colors flex items-center justify-between font-medium text-[#FFC799]">
+                    <span>Toàn bộ đội xe</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
                   </Link>
                 </li>
                 <li>
-                  <Link to="/bikes?type=xe-tay-ga" className="hover:text-emerald-200 transition-colors">
-                    Xe tay ga (Vision, Air Blade)
+                  <Link to="/bikes?type=xe-tay-ga" className="hover:text-[#F5F5F5] transition-colors">
+                    Xe tay ga đi phố (Vision, Air Blade)
                   </Link>
                 </li>
                 <li>
-                  <Link to="/bikes?type=xe-so" className="hover:text-emerald-200 transition-colors">
-                    Xe số tiết kiệm (Wave Alpha)
+                  <Link to="/bikes?type=xe-so" className="hover:text-[#F5F5F5] transition-colors">
+                    Xe số tiết kiệm xăng (Wave, Future)
                   </Link>
                 </li>
                 <li>
-                  <Link to="/bikes?type=xe-con-tay" className="hover:text-emerald-200 transition-colors">
-                    Xe côn tay thể thao (Exciter)
+                  <Link to="/bikes?type=xe-con-tay" className="hover:text-[#F5F5F5] transition-colors">
+                    Xe côn tay thể thao (Winner, Exciter)
                   </Link>
                 </li>
                 <li>
-                  <Link to="/bikes?type=xe-dien" className="hover:text-emerald-200 transition-colors">
-                    Xe máy điện (VinFast Feliz)
+                  <Link to="/bikes?type=xe-dien" className="hover:text-[#F5F5F5] transition-colors">
+                    Xe máy điện dạo phố (VinFast Feliz)
                   </Link>
                 </li>
                 <li>
-                  <Link to="/bikes?type=xe-phan-khoi-lon" className="hover:text-emerald-200 transition-colors">
-                    Xe phân khối lớn (CB500X)
+                  <Link to="/bikes?type=xe-phan-khoi-lon" className="hover:text-[#F5F5F5] transition-colors">
+                    Mô tô đi đường trường (CB500X)
                   </Link>
                 </li>
               </ul>
             </div>
 
-            {/* Column 3: Customer Support & Policies with FAQ Trigger (3 cols) */}
+            {/* Column 3: Service Principles (3 cols) */}
             <div className="lg:col-span-3">
-              <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4">
-                Hỗ trợ & Chính sách
+              <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
+                Chuẩn mực phục vụ
               </h4>
               <ul className="space-y-2.5 text-xs">
                 <li>
                   <button
                     onClick={() => setIsFaqOpen(true)}
-                    className="w-full text-left inline-flex items-center space-x-1.5 text-emerald-200 hover:text-emerald-300 font-bold transition-colors cursor-pointer group"
+                    className="w-full text-left inline-flex items-center space-x-1.5 text-[#F5F5F5] hover:text-[#FFC799] font-medium transition-colors cursor-pointer"
                   >
-                    <HelpCircle className="w-4 h-4 text-emerald-400 transition-transform group-hover:scale-110" />
-                    <span>Câu hỏi thường gặp (FAQ)</span>
-                    <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Giải đáp thủ tục &amp; Chính sách (FAQ)</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-[#FFC799]" />
                   </button>
                 </li>
-                <li>
-                  <span className="flex items-center space-x-1.5 text-slate-300">
-                    <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Quy trình cọc 30% khóa biển số</span>
-                  </span>
+                <li className="flex items-center space-x-2 text-[#A0A0A0]">
+                  <FileCheck2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                  <span>Đặt cọc 30% khóa đích danh biển số xe</span>
                 </li>
-                <li>
-                  <span className="flex items-center space-x-1.5 text-slate-300">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Chính sách hoàn cọc 100% trước 24h</span>
-                  </span>
+                <li className="flex items-center space-x-2 text-[#A0A0A0]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                  <span>Hoàn cọc 100% khi báo hủy trước 24 giờ</span>
                 </li>
-                <li>
-                  <span className="text-slate-400">
-                    Gói SafeRide: 2 Mũ bảo hiểm UV 3/4 & 2 Áo mưa
-                  </span>
+                <li className="text-[#A0A0A0]">
+                  Trang bị tiêu chuẩn: 02 mũ 3/4 khử khuẩn UV &amp; 02 áo mưa
                 </li>
-                <li>
-                  <span className="text-slate-400">
-                    Giao nhận xe Sân bay Đà Nẵng phụ phí 0đ
-                  </span>
+                <li className="text-[#A0A0A0]">
+                  Miễn phí chuyển trạm một chiều Sân bay — Mỹ Khê
                 </li>
               </ul>
             </div>
 
-            {/* Column 4: 3 Branches & Direct Hotline (3 cols) */}
+            {/* Column 4: Open Typographic Station Ledger (3 cols) */}
             <div className="lg:col-span-3">
-              <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-4">
-                Hệ thống 3 chi nhánh Đà Nẵng
+              <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
+                Trạm giao nhận tại Đà Nẵng
               </h4>
-              <div className="space-y-2.5 text-xs">
-                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-                  <p className="font-bold text-white text-xs">Trạm 1: Sân bay Quốc tế Đà Nẵng</p>
-                  <p className="text-[11px] text-slate-400 flex items-center mt-0.5">
-                    <MapPin className="w-3 h-3 text-emerald-400 mr-1 flex-shrink-0" />
-                    <span>Cổng Ga Quốc Nội & T2 Quốc Tế</span>
-                  </p>
-                  <p className="text-[11px] text-emerald-400/90 flex items-center mt-0.5">
-                    <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
-                    <span>06:00 - 23:00 hàng ngày</span>
-                  </p>
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
-                  <p className="font-bold text-white text-xs">Trạm 2: Bãi biển Mỹ Khê</p>
-                  <p className="text-[11px] text-slate-400 flex items-center mt-0.5">
-                    <MapPin className="w-3 h-3 text-emerald-400 mr-1 flex-shrink-0" />
-                    <span>28 Võ Nguyên Giáp, Sơn Trà</span>
-                  </p>
-                  <p className="text-[11px] text-emerald-400/90 flex items-center mt-0.5">
-                    <Clock className="w-3 h-3 mr-1 flex-shrink-0" />
-                    <span>07:00 - 22:30 hàng ngày</span>
+              <div className="divide-y divide-white/[0.08] border-y border-white/[0.08] text-xs">
+                <div className="py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-[#F5F5F5]">Sân bay Quốc tế Đà Nẵng</p>
+                    <span className="font-mono-tabular text-[10px] text-[#FFC799]">06:00–23:00</span>
+                  </div>
+                  <p className="text-[11px] text-[#A0A0A0] mt-0.5 flex items-center">
+                    <MapPin className="w-3 h-3 text-[#A0A0A0] mr-1 flex-shrink-0" />
+                    <span>Cổng Ga Quốc Nội T1 &amp; Ga Quốc Tế T2</span>
                   </p>
                 </div>
 
-
-                <a
-                  href="tel:02363822101"
-                  className="mt-3 inline-flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 font-bold hover:bg-emerald-500/25 transition-colors w-full justify-center"
-                >
-                  <PhoneCall className="w-3.5 h-3.5" />
-                  <span>Hotline: (0236) 3822 101</span>
-                </a>
+                <div className="py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-[#F5F5F5]">Trạm Biển Mỹ Khê</p>
+                    <span className="font-mono-tabular text-[10px] text-[#FFC799]">07:00–22:30</span>
+                  </div>
+                  <p className="text-[11px] text-[#A0A0A0] mt-0.5 flex items-center">
+                    <MapPin className="w-3 h-3 text-[#A0A0A0] mr-1 flex-shrink-0" />
+                    <span>28 Võ Nguyên Giáp, Quận Sơn Trà</span>
+                  </p>
+                </div>
               </div>
             </div>
 
           </div>
 
-          {/* Bottom Copyright & Legal Links */}
-          <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 space-y-4 sm:space-y-0">
-            <p>© 2026 MOTORENT Systems. Toàn bộ bản quyền thuộc về Hệ thống Chuỗi Cho Thuê Xe Máy Motorent Đà Nẵng.</p>
+          {/* Bottom Colophon */}
+          <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-[#6E6E6E] space-y-4 sm:space-y-0">
+            <p>© 2026 Motorent Đà Nẵng. Chế tác dành riêng cho những hành trình tự lái tử tế.</p>
             <div className="flex space-x-6 text-[11px]">
-              <button onClick={() => setIsFaqOpen(true)} className="hover:text-emerald-400 transition-colors cursor-pointer">
+              <button onClick={() => setIsFaqOpen(true)} className="hover:text-[#F5F5F5] transition-colors cursor-pointer">
                 Hỏi đáp FAQ
               </button>
-              <Link to="/branches" className="hover:text-slate-400 transition-colors">
-                Danh sách trạm
+              <Link to="/branches" className="hover:text-[#F5F5F5] transition-colors">
+                Bản đồ trạm
               </Link>
-              <Link to="/bikes" className="hover:text-slate-400 transition-colors">
-                Bảng giá tự lái
+              <Link to="/bikes" className="hover:text-[#F5F5F5] transition-colors">
+                Danh mục xe &amp; Bảng giá
               </Link>
             </div>
           </div>

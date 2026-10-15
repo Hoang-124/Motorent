@@ -10,6 +10,7 @@ router.get('/my', authenticateJWT, chatController.getMyConversation);
 router.get('/:conversationId/messages', authenticateJWT, chatController.getMessages);
 router.post('/:conversationId/messages', authenticateJWT, chatController.sendMessage);
 router.put('/:conversationId/read', authenticateJWT, chatController.markAsRead);
+router.put('/:conversationId/reopen', authenticateJWT, chatController.reopenConversation);
 
 // Staff / Manager console endpoints
 router.get(

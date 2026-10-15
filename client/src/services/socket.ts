@@ -1,45 +1,90 @@
 import { io, Socket } from 'socket.io-client';
+import { getActiveAuthToken } from './api';
 
-let socket: Socket | null = null;
-
-export const getSocket = (): Socket => {
-  if (!socket) {
-    const wsUrl = import.meta.env.VITE_WS_URL || 'http://localhost:5000';
-    const token = localStorage.getItem('motorent_token') || '';
-
-    socket = io(wsUrl, {
-      auth: { token },
-      autoConnect: true,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      transports: ['websocket', 'polling'],
-    });
-
-    socket.on('connect_error', (err) => {
-      // Refresh token on reconnect attempt
-      const refreshedToken = localStorage.getItem('motorent_token') || '';
-      if (socket && refreshedToken) {
-        socket.auth = { token: refreshedToken };
-      }
-    });
-  }
-
-  return socket;
+const getSocketBaseUrl = (): string => {
+  const apiUrl = (import.meta.env.VITE_API_URL as string) || 'http://localhost:5000/api';
+  return apiUrl.replace(/\/api\/?$/, '');
 };
 
-export const updateSocketAuth = (token: string): void => {
-  if (socket) {
-    socket.auth = { token };
-    if (!socket.connected) {
-      socket.connect();
+let rootSocket: Socket | null = null;
+let lastRootToken: string | null = null;
+
+let chatSocket: Socket | null = null;
+let lastChatToken: string | null = null;
+
+/**
+ * Connect to default Socket.IO namespace "/" (UC-37 Real-time booking status)
+ */
+export const getSocket = (): Socket => {
+  const token = getActiveAuthToken() || '';
+
+  if (rootSocket && lastRootToken === token) {
+    if (!rootSocket.connected) {
+      rootSocket.connect();
     }
+    return rootSocket;
   }
+
+  if (rootSocket) {
+    rootSocket.disconnect();
+  }
+
+  lastRootToken = token;
+  const baseUrl = getSocketBaseUrl();
+
+  rootSocket = io(baseUrl, {
+    auth: { token },
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+  });
+
+  return rootSocket;
+};
+
+/**
+ * Connect to Socket.IO /chat namespace (UC-44 Live Chat & UC-66 Staff Reply Chat)
+ */
+export const getChatSocket = (): Socket => {
+  const token = getActiveAuthToken() || '';
+
+  if (chatSocket && lastChatToken === token) {
+    if (!chatSocket.connected) {
+      chatSocket.connect();
+    }
+    return chatSocket;
+  }
+
+  if (chatSocket) {
+    chatSocket.disconnect();
+  }
+
+  lastChatToken = token;
+  const baseUrl = getSocketBaseUrl();
+
+  chatSocket = io(`${baseUrl}/chat`, {
+    auth: { token },
+    transports: ['websocket', 'polling'],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+  });
+
+  return chatSocket;
 };
 
 export const disconnectSocket = (): void => {
-  if (socket) {
-    socket.disconnect();
-    socket = null;
+  if (rootSocket) {
+    rootSocket.disconnect();
+    rootSocket = null;
+    lastRootToken = null;
+  }
+  if (chatSocket) {
+    chatSocket.disconnect();
+    chatSocket = null;
+    lastChatToken = null;
   }
 };
+
+export const disconnectChatSocket = disconnectSocket;

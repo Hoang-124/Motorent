@@ -88,3 +88,43 @@ export const ekycUpload = multer({
   },
 });
 
+/**
+ * Verify file magic bytes (JPEG: FFD8FF, PNG: 89504E47, WebP: RIFF....WEBP)
+ * Deletes the uploaded file immediately if magic bytes do not match.
+ */
+export const validateImageMagicBytes = async (filePath: string): Promise<boolean> => {
+  try {
+    const handle = await fs.promises.open(filePath, 'r');
+    const buffer = Buffer.alloc(12);
+    const { bytesRead } = await handle.read(buffer, 0, 12, 0);
+    await handle.close();
+
+    if (bytesRead < 4) {
+      await fs.promises.unlink(filePath).catch(() => {});
+      return false;
+    }
+
+    const isJpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    const isPng =
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47;
+    const isWebp =
+      bytesRead >= 12 &&
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+
+    if (!isJpeg && !isPng && !isWebp) {
+      await fs.promises.unlink(filePath).catch(() => {});
+      return false;
+    }
+
+    return true;
+  } catch {
+    await fs.promises.unlink(filePath).catch(() => {});
+    return false;
+  }
+};
+
+

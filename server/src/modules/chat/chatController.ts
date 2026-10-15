@@ -20,12 +20,16 @@ export const getMyConversation = async (
     }
 
     const branchId = typeof req.query.branchId === 'string' ? req.query.branchId : undefined;
-    const conversation = await chatService.getOrCreateCustomerConversation(
-      req.user._id.toString(),
-      branchId
-    );
+    const [conversation, branchConversations] = await Promise.all([
+      chatService.getOrCreateCustomerConversation(req.user._id.toString(), branchId),
+      chatService.getCustomerBranchConversations(req.user._id.toString()),
+    ]);
 
-    res.json({ success: true, data: conversation });
+    res.json({
+      success: true,
+      data: conversation,
+      branchConversations,
+    });
   } catch (error) {
     next(error);
   }
@@ -111,8 +115,16 @@ export const getStaffConversations = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const status = (req.query.status as 'Open' | 'Closed') || 'Open';
-    const conversations = await chatService.getStaffConversations(req.user, status);
+    const rawStatus = req.query.status as string;
+    const status: 'Open' | 'Closed' | 'All' =
+      rawStatus === 'Closed' ? 'Closed' : rawStatus === 'All' ? 'All' : 'Open';
+    const requestedBranchId =
+      typeof req.query.branchId === 'string' ? req.query.branchId : undefined;
+    const conversations = await chatService.getStaffConversations(
+      req.user,
+      status,
+      requestedBranchId
+    );
 
     res.json({ success: true, data: { items: conversations, total: conversations.length } });
   } catch (error) {
@@ -149,6 +161,23 @@ export const closeConversation = async (
 
     const conversation = await chatService.closeConversation(req.params.conversationId, req.user);
     res.json({ success: true, message: 'Đã đóng cuộc trò chuyện hỗ trợ.', data: conversation });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const reopenConversation = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const conversation = await chatService.reopenConversation(req.params.conversationId, req.user);
+    res.json({ success: true, message: 'Đã mở lại cuộc trò chuyện hỗ trợ.', data: conversation });
   } catch (error) {
     next(error);
   }

@@ -476,3 +476,98 @@ export const verifyReturnUrlData = async (
     booking,
   };
 };
+
+/**
+ * Confirm VietQR 24/7 Bank Transfer Payment (Deposit 30% or Full 100%)
+ * Transitions Booking from Pending -> Approved, records Payment & AuditLog, and emits Socket.IO event
+ */
+export const confirmVietQrPayment = async (options: {
+  bookingId: string;
+  userId: string;
+  paymentType?: 'Deposit30' | 'Full100';
+}): Promise<IBooking> => {
+  const { bookingId, userId, paymentType = 'Deposit30' } = options;
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe để xác nhận thanh toán QR.');
+  }
+
+  if (booking.userId.toString() !== userId) {
+    throw new AppError(403, 'Bạn không có quyền xác nhận thanh toán cho đơn đặt xe này.');
+  }
+
+  if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
+    throw new AppError(400, 'Đơn đặt xe này đã bị hủy hoặc từ chối.');
+  }
+
+  const isFullPay = paymentType === 'Full100';
+  const paidAmount = isFullPay ? booking.totalAmount : booking.depositAmount;
+  const txnRef = `${booking.bookingCode}__VIETQR_${Date.now()}`;
+
+  const updatePayload: Record<string, unknown> = {
+    status: 'Approved',
+    depositPaid: true,
+    depositPaidAt: new Date(),
+    paymentMethod: 'Banking',
+    paymentType: isFullPay ? 'Full100' : 'Deposit30',
+    vnpayTxnRef: txnRef,
+  };
+
+  if (isFullPay) {
+    updatePayload.isPaid = true;
+    updatePayload.paidAt = new Date();
+    updatePayload.remainingAmount = 0;
+  }
+
+  const updatedBooking = await Booking.findByIdAndUpdate(
+    booking._id,
+    { $set: updatePayload },
+    { new: true }
+  )
+    .populate('vehicleId')
+    .populate('pickupBranchId')
+    .populate('returnBranchId');
+
+  if (!updatedBooking) {
+    throw new AppError(500, 'Không thể cập nhật trạng thái thanh toán đơn đặt xe.');
+  }
+
+  await Payment.create({
+    bookingId: booking._id,
+    txnRef,
+    vnpTransactionNo: `MB_VIETQR_${Date.now().toString().slice(-8)}`,
+    amount: paidAmount,
+    type: isFullPay ? 'FULL' : 'DEPOSIT',
+    status: 'SUCCESS',
+    rawIpn: { channel: 'VietQR_247', bankCode: 'MBBANK', bookingCode: booking.bookingCode },
+  }).catch((err: unknown) => console.error('[VietQR Payment Record Error]', err));
+
+  emitBookingStatus(updatedBooking);
+
+  await Notification.create({
+    userId: booking.userId,
+    title: isFullPay ? 'Thanh toán QR 100% thành công' : 'Xác nhận cọc QR 30% thành công',
+    body: `Hệ thống đã nhận chuyển khoản QR ${paidAmount.toLocaleString('vi-VN')} đ cho mã đơn ${booking.bookingCode}. Biển số xe đã được khóa giữ cho bạn.`,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
+    isRead: false,
+  }).catch((err: unknown) => console.error('[Notification Error]', err));
+
+  await AuditLog.create({
+    userId: booking.userId,
+    action: 'VIETQR_PAYMENT_SUCCESS',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      txnRef,
+      amount: paidAmount,
+      paymentType: isFullPay ? 'Full100' : 'Deposit30',
+    },
+    timestamp: new Date(),
+  }).catch((err: unknown) => console.error('[AuditLog Error]', err));
+
+  return updatedBooking;
+};
+

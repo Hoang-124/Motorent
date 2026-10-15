@@ -26,4 +26,8 @@ router.post('/vnpay/ipn', paymentController.handleVnPayIpn);
 // Customer Return URL verification (Redirect callback)
 router.get('/vnpay/return', paymentController.handleVnPayReturn);
 
+// Customer confirms VietQR 24/7 transfer
+router.post('/vietqr/confirm', authenticateJWT, paymentCreateLimiter, paymentController.confirmVietQr);
+
 export default router;
+

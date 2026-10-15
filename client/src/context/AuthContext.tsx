@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { api } from '../services/api';
+import { api, getActiveAuthToken, setActiveAuthToken, clearActiveAuthToken } from '../services/api';
+import { disconnectSocket } from '../services/socket';
 import type { User } from '../types';
 
 export interface WelcomeNotice {
@@ -24,12 +25,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('motorent_token'));
+  const [token, setToken] = useState<string | null>(() => getActiveAuthToken());
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [welcomeNotice, setWelcomeNotice] = useState<WelcomeNotice | null>(null);
 
   const fetchProfile = async () => {
-    const savedToken = localStorage.getItem('motorent_token');
+    const savedToken = getActiveAuthToken();
     if (!savedToken) {
       setUser(null);
       setIsLoading(false);
@@ -56,7 +57,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const login = (newToken: string, newUser: User, isNewUser = false) => {
-    localStorage.setItem('motorent_token', newToken);
+    disconnectSocket();
+    setActiveAuthToken(newToken);
     setToken(newToken);
     setUser(newUser);
     const displayName = newUser.firstName || newUser.username || '';
@@ -69,14 +71,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     try {
-      const currentToken = localStorage.getItem('motorent_token');
+      const currentToken = getActiveAuthToken();
       if (currentToken) {
         await api.post('/auth/logout');
       }
     } catch {
       // Ignore network/session errors on logout
     } finally {
-      localStorage.removeItem('motorent_token');
+      disconnectSocket();
+      clearActiveAuthToken();
       setToken(null);
       setUser(null);
       setWelcomeNotice(null);

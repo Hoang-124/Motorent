@@ -346,7 +346,7 @@ export const getBranchBookings = async (user: IUser, statusFilter?: string) => {
 
   return Booking.find(query)
     .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl identityStatus')
+    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
     .populate('pickupBranchId', 'name code address phone')
     .populate('returnBranchId', 'name code address phone')
     .sort({ createdAt: -1 })
@@ -360,7 +360,7 @@ export const getBookingByCode = async (code: string, requestingUser: IUser) => {
   const cleanCode = code.trim().toUpperCase();
   const booking = await Booking.findOne({ bookingCode: cleanCode })
     .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl identityStatus')
+    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
     .populate('pickupBranchId', 'name code address phone hours_open hours_close')
     .populate('returnBranchId', 'name code address phone hours_open hours_close');
 
@@ -392,7 +392,7 @@ export const getBookingById = async (id: string, requestingUser: IUser) => {
 
   const booking = await Booking.findById(id)
     .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl identityStatus')
+    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
     .populate('pickupBranchId', 'name code address phone hours_open hours_close')
     .populate('returnBranchId', 'name code address phone hours_open hours_close');
 

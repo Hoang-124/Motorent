@@ -151,7 +151,18 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       const res = await api.post('/bookings', payload);
       if (res.data && res.data.success) {
-        onSuccess(res.data.data.bookingCode);
+        const newBooking = res.data.data;
+        if (paymentMethod === 'Banking' && newBooking?._id) {
+          try {
+            await api.post('/payments/vietqr/confirm', {
+              bookingId: newBooking._id,
+              paymentType: 'Deposit30',
+            });
+          } catch {
+            // Ignore fallback error
+          }
+        }
+        onSuccess(newBooking.bookingCode);
       } else {
         setErrorMsg(res.data?.message || 'Không thể tạo đơn đặt xe.');
       }
@@ -177,38 +188,38 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-[#0D131F] rounded-[2rem] max-w-2xl w-full shadow-2xl border border-white/10 overflow-hidden relative animate-in fade-in zoom-in duration-200 text-white">
+      <div className="bg-[#161616] rounded-[2rem] max-w-2xl w-full shadow-2xl border border-white/10 overflow-hidden relative animate-in fade-in zoom-in duration-200 text-white">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#0E1E1A] to-[#081512] text-white p-6 relative border-b border-white/10">
+        <div className="bg-gradient-to-r from-[#0E221A] to-[#07140F] text-white p-6 relative border-b border-white/10">
           <button
             onClick={onClose}
             className="absolute top-5 right-5 p-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
-          <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
+          <div className="flex items-center space-x-2 text-[#FFC799] text-xs font-bold uppercase tracking-wider mb-1">
             <Sparkles className="w-4 h-4" />
             <span>Xác nhận thông tin thuê xe tự lái</span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-white">
             {vehicle.vehicleModel}
           </h2>
-          <p className="text-xs text-slate-300 mt-1">
+          <p className="text-xs text-[#A0A0A0] mt-1">
             Biển số: {vehicle.licensePlate} • Đời {vehicle.yearManufactured || 2024} {vehicle.color ? `• Màu: ${vehicle.color}` : ''} • Tiết kiệm nhiên liệu
           </p>
         </div>
 
         {/* Not Logged In Banner */}
         {!isAuthenticated && (
-          <div className="p-4 bg-amber-500/10 border-b border-amber-500/30 flex items-center justify-between">
-            <div className="flex items-center space-x-2 text-amber-200 text-xs">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+          <div className="p-4 bg-[#FFC799]/12 border-b border-[#FFC799]/30 flex items-center justify-between">
+            <div className="flex items-center space-x-2 text-[#FFC799] text-xs">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#FFC799]" />
               <span>Bạn cần đăng nhập tài khoản khách hàng để đặt xe giữ chỗ.</span>
             </div>
             <button
               type="button"
               onClick={handleLoginRedirect}
-              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-[#040D08] text-xs font-bold rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
+              className="px-3 py-1.5 bg-[#FFC799] hover:bg-[#FFC799] text-[#101010] text-xs font-bold rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span>Đăng nhập ngay</span>
@@ -217,11 +228,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         )}
 
         {/* 3-Angle Vehicle Showcase & Gallery */}
-        <div className="bg-[#081210] border-b border-white/10 p-5">
-          <div className="relative rounded-2xl bg-gradient-to-b from-white/[0.02] to-emerald-950/20 border border-white/5 p-4 flex flex-col items-center justify-center min-h-[190px] overflow-hidden">
+        <div className="bg-[#101010] border-b border-white/10 p-5">
+          <div className="relative rounded-2xl bg-[#161616] border border-white/10 p-4 flex flex-col items-center justify-center min-h-[190px] overflow-hidden">
             {/* Angle Indicator Badge */}
-            <div className="absolute top-3 left-3 z-10 flex items-center space-x-1.5 bg-[#0A1813]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-semibold text-emerald-200">
-              <Camera className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="absolute top-3 left-3 z-10 flex items-center space-x-1.5 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-semibold text-[#F5F5F5]">
+              <Camera className="w-3.5 h-3.5 text-[#FFC799]" />
               <span>{ANGLE_LABELS[modalAngle]?.title} (Góc {modalAngle + 1}/3)</span>
             </div>
 
@@ -232,7 +243,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 setModalAngle((prev) => (prev === 0 ? 2 : prev - 1));
                 setModalImgError(false);
               }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/60 hover:bg-emerald-500 hover:text-white text-white border border-white/10 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-[#101010]/80 hover:bg-[#FFC799] hover:text-[#101010] text-white border border-white/15 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
               aria-label="Góc trước"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -243,14 +254,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 setModalAngle((prev) => (prev === 2 ? 0 : prev + 1));
                 setModalImgError(false);
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-black/60 hover:bg-emerald-500 hover:text-white text-white border border-white/10 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-[#101010]/80 hover:bg-[#FFC799] hover:text-[#101010] text-white border border-white/15 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
               aria-label="Góc sau"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
 
             {/* Main Preview */}
-            <div className="w-full h-48 bg-white rounded-xl flex items-center justify-center overflow-hidden">
+            <div className="w-full h-48 bg-gradient-to-b from-[#E8F1ED] via-[#F4F8F6] to-[#DCE9E3] shadow-inner rounded-xl flex items-center justify-center overflow-hidden">
               {vehicle.images && vehicle.images[modalAngle] && !modalImgError ? (
                 <img
                   src={getOptimizedVehicleImageUrl(vehicle.images[modalAngle])}
@@ -259,12 +270,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   loading="lazy"
                   decoding="async"
                   crossOrigin="anonymous"
-                  className="w-full h-full object-contain scale-[1.38] transition-transform duration-300"
+                  className="w-full h-full object-contain scale-[1.38] transition-transform duration-300 mix-blend-multiply"
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-2">
                   <svg
-                    className="w-36 h-24 text-emerald-400"
+                    className="w-36 h-24 text-[#FFC799]"
                     viewBox="0 0 64 48"
                     fill="none"
                     stroke="currentColor"
@@ -272,16 +283,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <circle cx="15" cy="34" r="9" className="stroke-slate-300 fill-[#040D08]" />
-                    <circle cx="49" cy="34" r="9" className="stroke-slate-300 fill-[#040D08]" />
+                    <circle cx="15" cy="34" r="9" className="stroke-slate-400 fill-white/60" />
+                    <circle cx="49" cy="34" r="9" className="stroke-slate-400 fill-white/60" />
                     <circle cx="15" cy="34" r="3" className="fill-slate-500" />
                     <circle cx="49" cy="34" r="3" className="fill-slate-500" />
                     <path d="M15 34 L25 22 L38 22 L49 34" />
                     <path d="M25 22 L20 12 L28 10" />
                     <path d="M38 22 L42 15 L48 15" />
-                    <path d="M24 20 C28 16 35 16 40 20 Z" className="fill-emerald-500/20 stroke-emerald-400" />
+                    <path d="M24 20 C28 16 35 16 40 20 Z" className="fill-[#FFC799]/20 stroke-[#FFC799]" />
                   </svg>
-                  <span className="text-[11px] text-slate-400 mt-1 font-semibold">
+                  <span className="text-[11px] text-slate-600 mt-1 font-semibold">
                     Ảnh mô phỏng góc chụp chuẩn kiểm định Motorent
                   </span>
                 </div>
@@ -300,24 +311,24 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   }}
                   className={`p-2 rounded-xl text-left transition-all flex items-center space-x-2 border cursor-pointer ${
                     modalAngle === ang.id
-                      ? 'bg-emerald-500/15 border-emerald-500/50 shadow-sm'
-                      : 'bg-white/[0.02] border-white/5 hover:border-white/20'
+                      ? 'bg-[#FFC799]/15 border-[#FFC799]/50 shadow-sm'
+                      : 'bg-[#101010] border-white/5 hover:border-white/20'
                   }`}
                 >
                   <div
                     className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      modalAngle === ang.id ? 'bg-emerald-400 ring-2 ring-emerald-500/30' : 'bg-slate-600'
+                      modalAngle === ang.id ? 'bg-[#99FFE4] ring-2 ring-[#FFC799]/30' : 'bg-slate-600'
                     }`}
                   />
                   <div className="truncate">
                     <span
                       className={`block text-[11px] font-bold truncate ${
-                        modalAngle === ang.id ? 'text-emerald-200 font-black' : 'text-slate-300'
+                        modalAngle === ang.id ? 'text-[#F5F5F5] font-black' : 'text-[#A0A0A0]'
                       }`}
                     >
                       {ang.label}
                     </span>
-                    <span className="block text-[9px] text-slate-500 truncate">
+                    <span className="block text-[9px] text-[#6E6E6E] truncate">
                       {ang.title}
                     </span>
                   </div>
@@ -330,44 +341,44 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {errorMsg && (
-            <div className="p-3.5 bg-red-500/10 border border-red-500/30 text-red-300 rounded-xl text-xs flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400" />
+            <div className="p-3.5 bg-[#FF8080]/12 border border-[#FF8080]/30 text-[#FF8080] rounded-xl text-xs flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#FF8080]" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {/* Pricing transparency card */}
-          <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-4">
+          <div className="bg-[#101010] border border-white/10 rounded-2xl p-4">
             <div className="flex items-center justify-between pb-3 border-b border-white/10 text-xs">
-              <span className="text-slate-400 font-medium">Đơn giá ngày:</span>
+              <span className="text-[#A0A0A0] font-medium">Đơn giá ngày:</span>
               <span className="font-bold text-white">
                 {vehicle.dailyPrice.toLocaleString('vi-VN')} đ/ngày
               </span>
             </div>
             <div className="flex items-center justify-between py-2 border-b border-white/10 text-xs">
-              <span className="text-slate-400 font-medium">Thời gian thuê ({durationDays} ngày):</span>
+              <span className="text-[#A0A0A0] font-medium">Thời gian thuê ({durationDays} ngày):</span>
               <span className="font-bold text-white">
                 {totalAmount.toLocaleString('vi-VN')} đ
               </span>
             </div>
             <div className="pt-3 grid grid-cols-2 gap-3 text-center">
-              <div className="p-2.5 bg-[#050D0A] rounded-xl border border-emerald-500/30 shadow-sm">
-                <span className="block text-[11px] font-bold text-emerald-200 uppercase">
+              <div className="p-2.5 bg-[#161616] rounded-xl border border-[#FFC799]/30 shadow-sm">
+                <span className="block text-[11px] font-bold text-[#F5F5F5] uppercase">
                   Cọc giữ xe online (30%)
                 </span>
-                <span className="text-base font-black text-emerald-400">
+                <span className="text-base font-black text-[#FFC799]">
                   {depositAmount.toLocaleString('vi-VN')} đ
                 </span>
-                <span className="block text-[10px] text-slate-400 mt-0.5">Hoàn 100% nếu báo trước 24h</span>
+                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Hoàn 100% nếu báo trước 24h</span>
               </div>
-              <div className="p-2.5 bg-white/[0.03] rounded-xl border border-white/10 shadow-sm">
-                <span className="block text-[11px] font-bold text-slate-300 uppercase">
+              <div className="p-2.5 bg-[#161616] rounded-xl border border-white/10 shadow-sm">
+                <span className="block text-[11px] font-bold text-[#A0A0A0] uppercase">
                   Thanh toán tại quầy (70%)
                 </span>
                 <span className="text-base font-black text-white">
                   {remainingAmount.toLocaleString('vi-VN')} đ
                 </span>
-                <span className="block text-[10px] text-slate-400 mt-0.5">Khi nhận xe và kiểm tra</span>
+                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Khi nhận xe và kiểm tra</span>
               </div>
             </div>
           </div>
@@ -375,17 +386,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {/* Branch & Date selector */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+              <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
+                <MapPin className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
                 Chi nhánh nhận xe
               </label>
               <select
                 value={pickupBranchId}
                 onChange={(e) => setPickupBranchId(e.target.value)}
-                className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-emerald-500 cursor-pointer"
+                className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-[#FFC799] cursor-pointer"
               >
                 {branches.map((b) => (
-                  <option key={b._id} value={b._id} className="bg-[#0D131F] text-white">
+                  <option key={b._id} value={b._id} className="bg-[#161616] text-white">
                     {b.name}
                   </option>
                 ))}
@@ -393,17 +404,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <MapPin className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+              <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
+                <MapPin className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
                 Chi nhánh trả xe (Khác trạm)
               </label>
               <select
                 value={returnBranchId}
                 onChange={(e) => setReturnBranchId(e.target.value)}
-                className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-emerald-500 cursor-pointer"
+                className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2.5 text-xs font-semibold text-white outline-none focus:border-[#FFC799] cursor-pointer"
               >
                 {branches.map((b) => (
-                  <option key={b._id} value={b._id} className="bg-[#0D131F] text-white">
+                  <option key={b._id} value={b._id} className="bg-[#161616] text-white">
                     {b.name}
                   </option>
                 ))}
@@ -411,8 +422,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+              <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
+                <Calendar className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
                 Ngày & giờ nhận xe
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -420,23 +431,23 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   type="date"
                   value={pickupDate}
                   onChange={(e) => setPickupDate(e.target.value)}
-                  className="col-span-2 bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
+                  className="col-span-2 bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-[#FFC799]"
                 />
                 <div className="relative">
                   <input
                     type="time"
                     value={pickupTime}
                     onChange={(e) => setPickupTime(e.target.value)}
-                    className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
+                    className="w-full bg-[#101010] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-[#FFC799]"
                   />
-                  <Clock className="w-3 h-3 text-slate-400 absolute right-2 top-3 pointer-events-none" />
+                  <Clock className="w-3 h-3 text-[#A0A0A0] absolute right-2 top-3 pointer-events-none" />
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+              <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
+                <Calendar className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
                 Ngày & giờ trả xe
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -445,16 +456,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   value={returnDate}
                   min={pickupDate}
                   onChange={(e) => setReturnDate(e.target.value)}
-                  className="col-span-2 bg-[#0A1813] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
+                  className="col-span-2 bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs font-semibold text-white outline-none focus:border-[#FFC799]"
                 />
                 <div className="relative">
                   <input
                     type="time"
                     value={returnTime}
                     onChange={(e) => setReturnTime(e.target.value)}
-                    className="w-full bg-[#0A1813] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-emerald-500"
+                    className="w-full bg-[#161616] border border-white/10 rounded-xl px-2 py-2 text-xs font-semibold text-white outline-none focus:border-[#FFC799]"
                   />
-                  <Clock className="w-3 h-3 text-slate-400 absolute right-2 top-3 pointer-events-none" />
+                  <Clock className="w-3 h-3 text-[#A0A0A0] absolute right-2 top-3 pointer-events-none" />
                 </div>
               </div>
             </div>
@@ -463,36 +474,36 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {/* Customer information from profile */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 border-t border-white/10">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <UserIcon className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+              <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
+                <UserIcon className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
                 Họ và tên người thuê (theo hồ sơ)
               </label>
               <input
                 type="text"
                 value={customerName || (isAuthenticated ? 'Đang cập nhật hồ sơ' : 'Chưa đăng nhập')}
                 readOnly
-                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-300 outline-none cursor-not-allowed"
+                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-[#A0A0A0] outline-none cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center">
-                <Phone className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+              <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
+                <Phone className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
                 Số điện thoại liên hệ (theo hồ sơ)
               </label>
               <input
                 type="tel"
                 value={customerPhone || (isAuthenticated ? 'Chưa cập nhật SĐT' : 'Chưa đăng nhập')}
                 readOnly
-                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-300 outline-none cursor-not-allowed"
+                className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-[#A0A0A0] outline-none cursor-not-allowed"
               />
             </div>
           </div>
 
           {/* Payment selection */}
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-2 flex items-center">
-              <CreditCard className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+            <label className="block text-xs font-bold text-[#A0A0A0] mb-2 flex items-center">
+              <CreditCard className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
               Hình thức cọc 30% ({depositAmount.toLocaleString('vi-VN')} đ)
             </label>
             <div className="grid grid-cols-2 gap-3">
@@ -501,14 +512,14 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 onClick={() => setPaymentMethod('Banking')}
                 className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all ${
                   paymentMethod === 'Banking'
-                    ? 'border-emerald-500 bg-emerald-500/15 text-white font-bold'
-                    : 'border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]'
+                    ? 'border-[#FFC799] bg-[#FFC799]/15 text-white font-bold'
+                    : 'border-white/10 bg-white/[0.02] text-[#A0A0A0] hover:bg-white/[0.04]'
                 }`}
               >
-                <QrCode className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <QrCode className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
                 <div className="text-xs">
                   <p className="font-bold text-white">Quét mã QR / VNPay</p>
-                  <p className="text-[11px] text-slate-400">Xác nhận tự động trong 30s</p>
+                  <p className="text-[11px] text-[#A0A0A0]">Xác nhận tự động trong 30s</p>
                 </div>
               </button>
 
@@ -517,22 +528,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 onClick={() => setPaymentMethod('Cash')}
                 className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all ${
                   paymentMethod === 'Cash'
-                    ? 'border-emerald-500 bg-emerald-500/15 text-white font-bold'
-                    : 'border-white/10 bg-white/[0.02] text-slate-400 hover:bg-white/[0.04]'
+                    ? 'border-[#FFC799] bg-[#FFC799]/15 text-white font-bold'
+                    : 'border-white/10 bg-white/[0.02] text-[#A0A0A0] hover:bg-white/[0.04]'
                 }`}
               >
-                <CreditCard className="w-5 h-5 text-emerald-400 flex-shrink-0" />
+                <CreditCard className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
                 <div className="text-xs">
                   <p className="font-bold text-white">Cọc tại quầy chi nhánh</p>
-                  <p className="text-[11px] text-slate-400">Giữ chỗ trước tối đa 2 giờ</p>
+                  <p className="text-[11px] text-[#A0A0A0]">Giữ chỗ trước tối đa 2 giờ</p>
                 </div>
               </button>
             </div>
           </div>
 
           {/* Guarantee notice */}
-          <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 text-xs text-slate-300 flex items-start space-x-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+          <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 text-xs text-[#A0A0A0] flex items-start space-x-2">
+            <ShieldCheck className="w-4 h-4 text-[#FFC799] mt-0.5 flex-shrink-0" />
             <p className="leading-relaxed">
               <strong className="text-white">Cam kết minh bạch:</strong> Kiểm tra xe chụp ảnh 5 góc trước khi bàn giao. Miễn phí hủy cọc nếu báo trước 24 giờ nhận xe.
             </p>
@@ -543,7 +554,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white hover:bg-white/5 transition-colors"
             >
               Hủy bỏ
             </button>
@@ -551,7 +562,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-3 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-[#040D08] shadow-lg shadow-emerald-500/25 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95 cursor-pointer"
+                className="px-6 py-3 rounded-xl text-xs font-black bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-[#101010] shadow-lg shadow-black/50 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95 cursor-pointer"
               >
                 {loading ? (
                   <span>Đang xử lý đặt xe...</span>
@@ -566,7 +577,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <button
                 type="button"
                 onClick={handleLoginRedirect}
-                className="px-6 py-3 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-[#040D08] shadow-lg shadow-emerald-500/25 transition-all flex items-center space-x-2 active:scale-95 cursor-pointer"
+                className="px-6 py-3 rounded-xl text-xs font-black bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-[#101010] shadow-lg shadow-black/50 transition-all flex items-center space-x-2 active:scale-95 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Đăng nhập để đặt xe</span>

@@ -268,6 +268,32 @@ describe('Phase A & F: Security and Authentication Verifications', () => {
       });
     expect(retryRes.status).toBe(200);
     expect(retryRes.body.data.identityStatus).toBe('Pending');
+
+    // 6. Reject again and test forged magic-bytes upload (.png containing HTML script) -> 400
+    await User.findByIdAndUpdate(ekycUser._id, { identityStatus: 'Rejected' });
+    const forgedRes = await request(app)
+      .post('/api/auth/ekyc')
+      .set('Authorization', `Bearer ${ekycToken}`)
+      .attach('idCardFront', Buffer.from('<script>alert("xss")</script>'), {
+        filename: 'forged.png',
+        contentType: 'image/png',
+      });
+    expect(forgedRes.status).toBe(400);
+    expect(forgedRes.body.message).toContain('sai chữ ký định dạng');
+
+    // 7. Test Cloudinary private authenticated signed URL redirection & AuditLog
+    await User.findByIdAndUpdate(ekycUser._id, {
+      idCardFrontFile: 'cloudinary:motorent/ekyc/sample_cccd_front.webp',
+      identityStatus: 'Pending',
+    });
+    const docRes = await request(app)
+      .get(`/api/auth/ekyc/document/view/${ekycUser._id}/idCardFront`)
+      .set('Authorization', `Bearer ${staffDadToken}`);
+    expect(docRes.status).toBe(302);
+    expect(docRes.headers['cache-control']).toContain('no-store');
+    expect(docRes.headers['location']).toMatch(
+      /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/authenticated\/s--[A-Za-z0-9_-]{8}--\/motorent\/ekyc\/sample_cccd_front\.webp$/
+    );
   });
 });
 

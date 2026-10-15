@@ -82,6 +82,7 @@ router.post(
   ekycUpload.fields([
     { name: 'idCardFront', maxCount: 1 },
     { name: 'idCardBack', maxCount: 1 },
+    { name: 'selfiePhoto', maxCount: 1 },
     { name: 'drivingLicense', maxCount: 1 },
   ]),
   authController.uploadEkyc
@@ -110,6 +111,10 @@ router.put(
   '/ekyc/review/:userId',
   authenticateJWT,
   authorize('SystemAdmin', 'BranchManager', 'Staff'),
+  ekycUpload.fields([
+    { name: 'idCardFront', maxCount: 1 },
+    { name: 'idCardBack', maxCount: 1 },
+  ]),
   authController.reviewUserEkyc
 );
 

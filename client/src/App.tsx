@@ -1,12 +1,14 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { WelcomeToast } from './components/WelcomeToast';
 import { Footer } from './components/Footer';
+import { LiveChatWidget } from './components/LiveChatWidget';
 import { HomePage } from './pages/HomePage';
 import { FleetPage } from './pages/FleetPage';
 import { BranchesPage } from './pages/BranchesPage';
 import { CounterDesk } from './pages/CounterDesk';
+import { AuditLogPage } from './pages/AuditLogPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
@@ -17,17 +19,29 @@ import { BookingPage } from './pages/BookingPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 
+function RoleBasedHome() {
+  const { user, isAuthenticated } = useAuth();
+  if (
+    isAuthenticated &&
+    user &&
+    ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles)
+  ) {
+    return <Navigate to="/counter" replace />;
+  }
+  return <HomePage />;
+}
+
 export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <ScrollToTop />
-        <div className="min-h-screen flex flex-col bg-[#050D0A] font-sans text-slate-100 antialiased selection:bg-emerald-500 selection:text-[#050D0A]">
+        <div className="min-h-screen flex flex-col bg-[#101010] font-sans text-[#F5F5F5] antialiased selection:bg-[#FFC799] selection:text-[#101010]">
           <Navbar />
           <WelcomeToast />
           <main className="flex-1">
             <Routes>
-              <Route path="/" element={<HomePage />} />
+              <Route path="/" element={<RoleBasedHome />} />
               <Route path="/bikes" element={<FleetPage />} />
               <Route path="/branches" element={<BranchesPage />} />
               <Route
@@ -35,6 +49,14 @@ export function App() {
                 element={
                   <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
                     <CounterDesk />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/audit"
+                element={
+                  <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                    <AuditLogPage />
                   </RequireRole>
                 }
               />
@@ -52,10 +74,12 @@ export function App() {
               <Route path="/booking" element={<BookingPage />} />
 
               {/* Fallback route */}
-              <Route path="*" element={<HomePage />} />
+              <Route path="*" element={<RoleBasedHome />} />
             </Routes>
           </main>
           <Footer />
+          {/* UC-44 & UC-66: Real-Time Live Chat Popover */}
+          <LiveChatWidget />
         </div>
       </BrowserRouter>
     </AuthProvider>
@@ -63,4 +87,3 @@ export function App() {
 }
 
 export default App;
-

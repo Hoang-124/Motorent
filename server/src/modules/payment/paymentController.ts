@@ -82,3 +82,39 @@ export const handleVnPayReturn = async (
     next(error);
   }
 };
+
+/**
+ * POST /api/payments/vietqr/confirm
+ * Confirm VietQR 24/7 transfer & transition booking to Approved
+ */
+export const confirmVietQr = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user?._id) {
+      throw new AppError(401, 'Yêu cầu đăng nhập để xác nhận thanh toán.');
+    }
+
+    const { bookingId, paymentType } = req.body;
+    if (!bookingId) {
+      throw new AppError(400, 'Thiếu thông tin bookingId để xác nhận thanh toán QR.');
+    }
+
+    const updatedBooking = await vnpayService.confirmVietQrPayment({
+      bookingId,
+      userId: req.user._id.toString(),
+      paymentType: paymentType === 'Full100' ? 'Full100' : 'Deposit30',
+    });
+
+    res.json({
+      success: true,
+      message: 'Đã xác nhận giao dịch chuyển khoản VietQR thành công.',
+      data: updatedBooking,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

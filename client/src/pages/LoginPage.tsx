@@ -162,9 +162,11 @@ export const LoginPage: React.FC = () => {
         const name = u.firstName ? (u.lastName ? `${u.lastName} ${u.firstName}` : u.firstName) : (u.username || '');
         setLoginSuccessMsg(`Đăng nhập thành công! Chào mừng bạn quay trở lại${name ? `, ${name}` : ''}.`);
         login(res.data.data.token, res.data.data.user);
+        const returnTo = queryParams.get('returnTo');
+        const isStaffRole = ['Staff', 'BranchManager', 'SystemAdmin'].includes(u.roles);
         setTimeout(() => {
-          navigate('/');
-        }, 400);
+          navigate(returnTo || (isStaffRole ? '/counter' : '/'));
+        }, 300);
       } else {
         setErrorMsg(res.data?.message || 'Đăng nhập không thành công.');
       }
@@ -180,42 +182,42 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#040D08] text-slate-100">
+    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-[#101010] text-[#F5F5F5]">
       <div className="max-w-md w-full space-y-6">
         {/* Brand Header */}
         <div className="text-center">
           <Link to="/" className="inline-flex items-center space-x-2.5 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <svg className="w-5 h-5 fill-none stroke-current stroke-2" viewBox="0 0 24 24">
+            <div className="w-10 h-10 rounded-xl bg-[#FFC799] text-[#101010] flex items-center justify-center shadow-lg shadow-black/50">
+              <svg className="w-5 h-5 fill-none stroke-current stroke-[2.2]" viewBox="0 0 24 24">
                 <circle cx="5.5" cy="17.5" r="3.5" />
                 <circle cx="18.5" cy="17.5" r="3.5" />
                 <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h4" />
               </svg>
             </div>
             <span className="text-2xl font-black text-white tracking-tight">
-              MOTO<span className="text-emerald-400">RENT</span>
+              MOTO<span className="text-[#FFC799]">RENT</span>
             </span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
             Đăng nhập tài khoản
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-[#A0A0A0] mt-1">
             Quản lý lịch trình thuê xe, điểm thưởng và hợp đồng số hóa
           </p>
         </div>
 
         {/* Notice Message */}
         {successNotice && (
-          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="p-3.5 bg-[#FFC799]/10 border border-[#FFC799]/30 text-[#FFC799] rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 text-[#FFC799] shrink-0" />
             <span>{successNotice}</span>
           </div>
         )}
 
         {/* Error Alert */}
         {errorMsg && (
-          <div className="p-3.5 bg-red-500/10 border border-red-500/30 text-red-300 rounded-2xl text-xs flex items-start space-x-2.5 animate-fade-in">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <div className="p-3.5 bg-[#FF8080]/12 border border-[#FF8080]/30 text-[#FF8080] rounded-2xl text-xs flex items-start space-x-2.5 animate-fade-in">
+            <AlertCircle className="w-4 h-4 text-[#FF8080] shrink-0 mt-0.5" />
             <div className="flex-1">
               <span>{errorMsg}</span>
             </div>
@@ -224,18 +226,18 @@ export const LoginPage: React.FC = () => {
 
         {/* Success Alert */}
         {loginSuccessMsg && (
-          <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <div className="p-3.5 bg-[#FFC799]/10 border border-[#FFC799]/30 text-[#FFC799] rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 text-[#FFC799] shrink-0" />
             <span>{loginSuccessMsg}</span>
           </div>
         )}
 
         {/* Form Box */}
-        <div className="bg-[#0A1813] p-7 sm:p-8 rounded-[2rem] border border-white/10 shadow-2xl space-y-5 text-white">
+        <div className="bg-[#161616] p-7 sm:p-8 rounded-[2rem] border border-white/10 shadow-2xl space-y-5 text-white">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5 flex items-center">
-                <UserIcon className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
+              <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5 flex items-center">
+                <UserIcon className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
                 Tên đăng nhập hoặc Email
               </label>
               <input
@@ -244,20 +246,20 @@ export const LoginPage: React.FC = () => {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="VD: admin hoặc yourname@outlook.com.vn"
-                className={`w-full px-3.5 py-2.5 bg-[#06120B] border rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all ${
+                className={`w-full px-3.5 py-2.5 bg-[#101010] border rounded-xl text-xs font-semibold text-white placeholder:text-[#6E6E6E] outline-none transition-all ${
                   isGmail
-                    ? 'border-emerald-500/70 focus:border-emerald-400 bg-emerald-500/[0.04]'
-                    : 'border-white/10 focus:border-emerald-500'
+                    ? 'border-[#FFC799]/70 focus:border-[#FFC799] bg-[#FFC799]/[0.04]'
+                    : 'border-white/10 focus:border-[#FFC799]'
                 }`}
               />
 
               {/* Real-time Gmail Alert */}
               {isGmail && (
-                <div className="mt-2.5 p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-200 flex items-start space-x-2.5 animate-in fade-in duration-200">
-                  <Sparkles className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="mt-2.5 p-3.5 bg-[#FFC799]/10 border border-[#FFC799]/30 rounded-xl text-xs text-[#F5F5F5] flex items-start space-x-2.5 animate-in fade-in duration-200">
+                  <Sparkles className="w-4 h-4 text-[#FFC799] shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="font-bold text-emerald-300">Phát hiện tài khoản Gmail</p>
-                    <p className="text-[11px] text-emerald-200/90 mt-1 leading-relaxed">
+                    <p className="font-bold text-[#FFC799]">Phát hiện tài khoản Gmail</p>
+                    <p className="text-[11px] text-[#F5F5F5] mt-1 leading-relaxed">
                       Tài khoản Gmail được hỗ trợ đăng nhập 1 chạm an toàn. Vui lòng bấm vào nút <strong className="text-white underline underline-offset-2">"Đăng nhập bằng Google"</strong> ở bên dưới.
                     </p>
                   </div>
@@ -267,13 +269,13 @@ export const LoginPage: React.FC = () => {
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-300 flex items-center">
-                  <Lock className="w-3.5 h-3.5 text-emerald-400 mr-1.5" />
+                <label className="text-xs font-bold text-[#A0A0A0] flex items-center">
+                  <Lock className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
                   Mật khẩu
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 hover:underline"
+                  className="text-[11px] font-semibold text-[#FFC799] hover:text-[#FFC799] hover:underline"
                 >
                   Quên mật khẩu?
                 </Link>
@@ -285,12 +287,12 @@ export const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 bg-[#06120B] border border-white/10 rounded-xl text-xs font-semibold text-white placeholder:text-slate-500 outline-none focus:border-emerald-500 transition-all pr-10"
+                  className="w-full px-3.5 py-2.5 bg-[#101010] border border-white/10 rounded-xl text-xs font-semibold text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799] transition-all pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-200"
+                  className="absolute right-3 top-2.5 text-[#A0A0A0] hover:text-[#F5F5F5]"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -300,7 +302,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-[0.99] text-white rounded-xl text-xs font-black shadow-lg shadow-emerald-500/25 transition-all flex items-center justify-center space-x-2"
+              className="w-full py-3 px-4 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] active:scale-[0.99] text-white rounded-xl text-xs font-black shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
             >
               {loading ? (
                 <span>Đang xử lý đăng nhập...</span>
@@ -319,7 +321,7 @@ export const LoginPage: React.FC = () => {
               <div className="w-full border-t border-white/10" />
             </div>
             <div className="relative flex justify-center text-[11px]">
-              <span className="px-3 bg-[#0A1813] text-slate-400 font-medium">hoặc đăng nhập nhanh với</span>
+              <span className="px-3 bg-[#161616] text-[#A0A0A0] font-medium">hoặc đăng nhập nhanh với</span>
             </div>
           </div>
 
@@ -329,15 +331,15 @@ export const LoginPage: React.FC = () => {
           </div>
 
           {!gisReady && (
-            <p className="text-[11px] text-slate-400 text-center">
+            <p className="text-[11px] text-[#A0A0A0] text-center">
               Đang tải xác thực Google an toàn...
             </p>
           )}
 
           {/* Footer link to register */}
-          <div className="pt-2 text-center text-xs text-slate-400">
+          <div className="pt-2 text-center text-xs text-[#A0A0A0]">
             <span>Chưa có tài khoản? </span>
-            <Link to="/register" className="font-bold text-emerald-400 hover:text-emerald-300 hover:underline">
+            <Link to="/register" className="font-bold text-[#FFC799] hover:text-[#FFC799] hover:underline">
               Đăng ký ngay
             </Link>
           </div>
@@ -345,8 +347,8 @@ export const LoginPage: React.FC = () => {
 
         {/* Security badge */}
         <div className="p-3.5 bg-white/[0.03] rounded-2xl border border-white/5 text-center">
-          <p className="text-[11px] text-slate-300 flex items-center justify-center space-x-1 font-medium">
-            <Mail className="w-3.5 h-3.5 text-emerald-400 mr-1" />
+          <p className="text-[11px] text-[#A0A0A0] flex items-center justify-center space-x-1 font-medium">
+            <Mail className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
             Hỗ trợ đăng nhập với Google, Outlook, Yahoo và email doanh nghiệp
           </p>
         </div>

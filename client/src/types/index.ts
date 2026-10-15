@@ -57,6 +57,8 @@ export interface User {
   drivingLicenseUrl?: string;
   idCardFrontUrl?: string;
   idCardBackUrl?: string;
+  selfieUrl?: string;
+  ekycWatermarked?: boolean;
   isEmailVerified?: boolean;
   gender?: 'Male' | 'Female' | 'Other';
   dob?: string;
@@ -119,3 +121,68 @@ export interface Feedback {
   createdAt: string;
 }
 
+export interface ChatSender {
+  _id: string;
+  username: string;
+  firstName?: string;
+  lastName?: string;
+  avatarUrl?: string;
+  phoneNumber?: string;
+  email?: string;
+  roles?: 'SystemAdmin' | 'BranchManager' | 'Staff' | 'Customer';
+}
+
+export interface ChatMessage {
+  _id: string;
+  conversationId: string;
+  senderId: string | ChatSender;
+  clientMsgId?: string;
+  content: string;
+  isRead: boolean;
+  readAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ChatConversation {
+  _id: string;
+  participants: string[];
+  customerId: string | ChatSender;
+  assignedStaffId?: string | ChatSender;
+  branchId?: string | Branch;
+  status: 'Open' | 'Closed';
+  lastMessageId?: string;
+  lastMessageText?: string;
+  lastMessageAt?: string;
+  unreadCustomerCount: number;
+  unreadStaffCount: number;
+  closedAt?: string;
+  closedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AuditLogEntry {
+  _id: string;
+  userId?: {
+    _id: string;
+    username: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    roles?: string;
+    avatarUrl?: string;
+  } | null;
+  action: string;
+  entity: string;
+  entityId?: string;
+  method?: string;
+  path?: string;
+  changes?: Record<string, unknown>;
+  details?: Record<string, unknown>;
+  status: 'SUCCESS' | 'FAILED';
+  statusCode: number;
+  ipAddress?: string;
+  userAgent?: string;
+  timestamp: string;
+}

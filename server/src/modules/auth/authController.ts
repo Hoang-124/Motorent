@@ -5,6 +5,8 @@ import { AuthenticatedRequest } from '../../core/authMiddleware';
 import * as authService from './authService';
 import { AuditLog } from '../../models/AuditLog';
 import { AppError } from '../../core/errorHandler';
+import { validateImageMagicBytes } from '../../core/uploadMiddleware';
+import { isCloudinaryConfigured, uploadFileToCloudinary } from '../../config/cloudinary';
 
 // Zod schemas for input validation
 const registerSchema = z.object({
@@ -339,10 +341,26 @@ export const uploadAvatar = async (
       );
     }
 
+    const isValidMagic = await validateImageMagicBytes(req.file.path);
+    if (!isValidMagic) {
+      throw new AppError(
+        400,
+        'Nội dung file ảnh không hợp lệ (sai chữ ký định dạng JPEG, PNG hoặc WebP).'
+      );
+    }
+
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
 
-    const avatarUrl = `/uploads/${req.file.filename}`;
+    let avatarUrl = `/uploads/${req.file.filename}`;
+    if (isCloudinaryConfigured()) {
+      const uploaded = await uploadFileToCloudinary(req.file.path, {
+        folder: 'motorent/avatars',
+        type: 'upload',
+      });
+      avatarUrl = uploaded.secureUrl;
+    }
+
     const updatedUser = await authService.updateAvatar(req.user._id.toString(), avatarUrl, {
       ipAddress,
       userAgent,
@@ -361,6 +379,26 @@ export const uploadAvatar = async (
   }
 };
 
+const processUploadedEkycFile = async (fileObj: Express.Multer.File): Promise<string> => {
+  const isValidMagic = await validateImageMagicBytes(fileObj.path);
+  if (!isValidMagic) {
+    throw new AppError(
+      400,
+      'Nội dung file giấy tờ không hợp lệ (sai chữ ký định dạng JPEG, PNG hoặc WebP).'
+    );
+  }
+
+  if (isCloudinaryConfigured()) {
+    const uploaded = await uploadFileToCloudinary(fileObj.path, {
+      folder: 'motorent/ekyc',
+      type: 'authenticated',
+    });
+    return `cloudinary:${uploaded.publicId}.${uploaded.format}`;
+  }
+
+  return fileObj.filename;
+};
+
 export const uploadEkyc = async (
   req: AuthenticatedRequest,
   res: Response,
@@ -375,32 +413,46 @@ export const uploadEkyc = async (
 
     let idCardFrontFile: string | undefined;
     let idCardBackFile: string | undefined;
+    let selfieFile: string | undefined;
     let drivingLicenseFile: string | undefined;
 
     if (files) {
       if (files['idCardFront'] && files['idCardFront'][0]) {
-        idCardFrontFile = files['idCardFront'][0].filename;
+        idCardFrontFile = await processUploadedEkycFile(files['idCardFront'][0]);
       }
       if (files['idCardBack'] && files['idCardBack'][0]) {
-        idCardBackFile = files['idCardBack'][0].filename;
+        idCardBackFile = await processUploadedEkycFile(files['idCardBack'][0]);
+      }
+      if (files['selfiePhoto'] && files['selfiePhoto'][0]) {
+        selfieFile = await processUploadedEkycFile(files['selfiePhoto'][0]);
       }
       if (files['drivingLicense'] && files['drivingLicense'][0]) {
-        drivingLicenseFile = files['drivingLicense'][0].filename;
+        drivingLicenseFile = await processUploadedEkycFile(files['drivingLicense'][0]);
       }
     }
 
     const bodyObj = (req.body && typeof req.body === 'object') ? (req.body as Record<string, unknown>) : {};
-    let idCardFrontUrl = typeof bodyObj.idCardFrontUrl === 'string' ? bodyObj.idCardFrontUrl : undefined;
-    let idCardBackUrl = typeof bodyObj.idCardBackUrl === 'string' ? bodyObj.idCardBackUrl : undefined;
-    let drivingLicenseUrl = typeof bodyObj.drivingLicenseUrl === 'string' ? bodyObj.drivingLicenseUrl : undefined;
+    const idCardFrontUrl = typeof bodyObj.idCardFrontUrl === 'string' ? bodyObj.idCardFrontUrl : undefined;
+    const idCardBackUrl = typeof bodyObj.idCardBackUrl === 'string' ? bodyObj.idCardBackUrl : undefined;
+    const selfieUrl = typeof bodyObj.selfieUrl === 'string' ? bodyObj.selfieUrl : undefined;
+    const drivingLicenseUrl = typeof bodyObj.drivingLicenseUrl === 'string' ? bodyObj.drivingLicenseUrl : undefined;
 
     const consentAgreed = bodyObj.consentAgreed === 'true' || bodyObj.consentAgreed === true;
-    const watermarked = bodyObj.watermarked === 'true' || bodyObj.watermarked === true || true;
+    const watermarked = bodyObj.watermarked === 'true' || bodyObj.watermarked === true;
 
-    if (!idCardFrontFile && !idCardBackFile && !drivingLicenseFile && !idCardFrontUrl && !idCardBackUrl && !drivingLicenseUrl) {
+    if (
+      !idCardFrontFile &&
+      !idCardBackFile &&
+      !selfieFile &&
+      !drivingLicenseFile &&
+      !idCardFrontUrl &&
+      !idCardBackUrl &&
+      !selfieUrl &&
+      !drivingLicenseUrl
+    ) {
       throw new AppError(
         400,
-        'Vui lòng chọn ảnh CCCD (mặt trước / mặt sau) hoặc Giấy phép lái xe để tải lên.'
+        'Vui lòng chọn ảnh CCCD (mặt trước / mặt sau) và ảnh chân dung đối chiếu để tải lên.'
       );
     }
 
@@ -412,9 +464,11 @@ export const uploadEkyc = async (
       {
         idCardFrontFile,
         idCardBackFile,
+        selfieFile,
         drivingLicenseFile,
         idCardFrontUrl,
         idCardBackUrl,
+        selfieUrl,
         drivingLicenseUrl,
         consentAgreed,
         watermarked,
@@ -424,7 +478,7 @@ export const uploadEkyc = async (
 
     res.json({
       success: true,
-      message: 'Tải lên tài liệu eKYC thành công! Hồ sơ đã được lưu trữ bảo mật và đóng dấu chống lạm dụng.',
+      message: 'Tải lên tài liệu eKYC thành công! Hồ sơ của bạn đã được chuyển tới bộ phận thẩm định.',
       data: {
         user: updatedUser,
         identityStatus: 'Pending',
@@ -448,18 +502,31 @@ export const getEkycDocumentMe = async (
       throw new AppError(401, 'Chưa xác thực người dùng.');
     }
 
-    const docType = req.params.docType as 'idCardFront' | 'idCardBack' | 'drivingLicense';
-    if (!['idCardFront', 'idCardBack', 'drivingLicense'].includes(docType)) {
+    const docType = req.params.docType as 'idCardFront' | 'idCardBack' | 'selfiePhoto' | 'drivingLicense';
+    if (!['idCardFront', 'idCardBack', 'selfiePhoto', 'drivingLicense'].includes(docType)) {
       throw new AppError(400, 'Loại tài liệu không hợp lệ.');
     }
 
-    const { filePath, mimeType, filename } = await authService.getEkycDocumentFile(
+    const { filePath, mimeType, filename, signedRedirectUrl } = await authService.getEkycDocumentFile(
       req.user._id.toString(),
       docType
     );
 
-    res.setHeader('Content-Type', mimeType);
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    if (signedRedirectUrl) {
+      const upstream = await fetch(signedRedirectUrl);
+      if (upstream.ok) {
+        const buffer = Buffer.from(await upstream.arrayBuffer());
+        res.setHeader('Content-Type', upstream.headers.get('content-type') || mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        res.send(buffer);
+        return;
+      }
+      res.redirect(302, signedRedirectUrl);
+      return;
+    }
+
+    res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
@@ -483,13 +550,13 @@ export const getEkycDocumentAdmin = async (
     }
 
     const { userId, docType } = req.params;
-    if (!['idCardFront', 'idCardBack', 'drivingLicense'].includes(docType)) {
+    if (!['idCardFront', 'idCardBack', 'selfiePhoto', 'drivingLicense'].includes(docType)) {
       throw new AppError(400, 'Loại tài liệu không hợp lệ.');
     }
 
-    const { filePath, mimeType, filename } = await authService.getEkycDocumentFile(
+    const { filePath, mimeType, filename, signedRedirectUrl } = await authService.getEkycDocumentFile(
       userId,
-      docType as 'idCardFront' | 'idCardBack' | 'drivingLicense'
+      docType as 'idCardFront' | 'idCardBack' | 'selfiePhoto' | 'drivingLicense'
     );
 
     // Decree 13/2023/ND-CP compliance: Audit log every staff access to sensitive customer identification
@@ -510,8 +577,21 @@ export const getEkycDocumentAdmin = async (
       timestamp: new Date(),
     }).catch((err: unknown) => console.error('Failed to log eKYC audit access:', err));
 
-    res.setHeader('Content-Type', mimeType);
     res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    if (signedRedirectUrl) {
+      const upstream = await fetch(signedRedirectUrl);
+      if (upstream.ok) {
+        const buffer = Buffer.from(await upstream.arrayBuffer());
+        res.setHeader('Content-Type', upstream.headers.get('content-type') || mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        res.send(buffer);
+        return;
+      }
+      res.redirect(302, signedRedirectUrl);
+      return;
+    }
+
+    res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
@@ -542,6 +622,8 @@ export const getPendingEkycQueue = async (
 
 /**
  * Review user eKYC decision (Staff, BranchManager, SystemAdmin)
+ * When status === 'Verified', optionally receives sealed/watermarked CCCD files (idCardFront, idCardBack)
+ * to replace the raw unwatermarked CCCD images while preserving the clean selfiePhoto.
  */
 export const reviewUserEkyc = async (
   req: AuthenticatedRequest,
@@ -560,13 +642,26 @@ export const reviewUserEkyc = async (
       throw new AppError(400, 'Trạng thái xét duyệt phải là Verified hoặc Rejected.');
     }
 
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    let idCardFrontFile: string | undefined;
+    let idCardBackFile: string | undefined;
+
+    if (files && status === 'Verified') {
+      if (files['idCardFront'] && files['idCardFront'][0]) {
+        idCardFrontFile = await processUploadedEkycFile(files['idCardFront'][0]);
+      }
+      if (files['idCardBack'] && files['idCardBack'][0]) {
+        idCardBackFile = await processUploadedEkycFile(files['idCardBack'][0]);
+      }
+    }
+
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress || '';
     const userAgent = req.headers['user-agent'] || '';
 
     const updatedUser = await authService.reviewEkyc(
       userId,
       req.user._id.toString(),
-      { status, note },
+      { status, note, idCardFrontFile, idCardBackFile },
       { ipAddress, userAgent }
     );
 
