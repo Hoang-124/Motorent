@@ -12,18 +12,52 @@ const escapeHtml = (text: string): string => {
 
 /**
  * Check whether real production SMTP credentials have been configured
+ * Never send real SMTP emails during automated test runs (NODE_ENV === 'test')
  */
 export const isRealSmtpConfigured = (): boolean => {
+  if (process.env.NODE_ENV === 'test' || env.NODE_ENV === 'test') {
+    return false;
+  }
   const user = env.SMTP_USER?.trim();
   const pass = env.SMTP_PASS?.trim();
   return Boolean(
     user &&
-    pass &&
-    user !== 'test@motorent.vn' &&
-    pass !== 'password' &&
-    pass !== 'your_smtp_password' &&
-    pass !== 'your_smtp_app_password'
+      pass &&
+      user !== 'test@motorent.vn' &&
+      pass !== 'password' &&
+      pass !== 'your_smtp_password' &&
+      pass !== 'your_smtp_app_password'
   );
+};
+
+/**
+ * Prevent sending real SMTP emails to dummy/internal/test domains (e.g. @motorent.vn, @example.com)
+ * which have no MX server and would cause Gmail's Mail Delivery Subsystem to retry & bounce for 72h.
+ */
+export const isDeliverableRecipientEmail = (email: string): boolean => {
+  const normalized = (email || '').trim().toLowerCase();
+  if (!normalized || !normalized.includes('@')) return false;
+
+  const domain = normalized.split('@')[1] || '';
+  const blockedDomains = [
+    'motorent.vn',
+    'example.com',
+    'test.com',
+    'localhost',
+    'invalid',
+    'local',
+  ];
+
+  if (
+    blockedDomains.some((d) => domain === d || domain.endsWith(`.${d}`)) ||
+    /^user_\d+@/i.test(normalized) ||
+    /^admin_\d+@/i.test(normalized) ||
+    /^test_/i.test(normalized)
+  ) {
+    return false;
+  }
+
+  return true;
 };
 
 /**
@@ -34,7 +68,6 @@ const getTransporter = () => {
   const port = env.SMTP_PORT || 587;
   const user = env.SMTP_USER?.trim() || '';
   const rawPass = env.SMTP_PASS?.trim() || '';
-  // Google App Passwords often have spaces like "ghmz yryj ivhs mtwq", strip them
   const pass = host.includes('gmail') ? rawPass.replace(/\s+/g, '') : rawPass;
 
   if (host.includes('gmail')) {
@@ -53,7 +86,7 @@ const getTransporter = () => {
 };
 
 /**
- * Send account verification email with ultra-clear contrast header
+ * Send account verification email with Vesper Design System styling
  */
 export const sendVerificationEmail = async (
   toEmail: string,
@@ -62,15 +95,14 @@ export const sendVerificationEmail = async (
 ): Promise<boolean> => {
   const safeUsername = escapeHtml(username);
   const verifyUrl = `${env.CLIENT_URL}/verify-email?token=${otpCode}&email=${encodeURIComponent(toEmail)}`;
-  const realSmtp = isRealSmtpConfigured();
+  const canDeliverViaSmtp = isRealSmtpConfigured() && isDeliverableRecipientEmail(toEmail);
 
-  // Log only in development
   if (env.NODE_ENV === 'development') {
     console.log('----------------------------------------------------');
     console.log(`[EMAIL OTP VERIFICATION] To: ${toEmail}`);
     console.log(`[OTP] 6-Digit Code: ${otpCode}`);
     console.log(`[LINK] Verification Link: ${verifyUrl}`);
-    console.log(`[SMTP] Real SMTP Configured: ${realSmtp ? 'YES' : 'NO (Dev console mode)'}`);
+    console.log(`[SMTP] Will Send Real Email: ${canDeliverViaSmtp ? 'YES' : 'NO (Skipped dummy/test domain or dev console)'}`);
     console.log('----------------------------------------------------');
   }
 
@@ -80,60 +112,52 @@ export const sendVerificationEmail = async (
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Xác thực tài khoản Motorent</title>
+      <title>Xác thực tài khoản Motorent Đà Nẵng</title>
     </head>
-    <body style="margin: 0; padding: 24px 12px; background-color: #f1f5f9; font-family: 'Segoe UI', Arial, sans-serif;">
-      <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06);">
+    <body style="margin: 0; padding: 24px 12px; background-color: #101010; font-family: 'Segoe UI', Arial, sans-serif; color: #F5F5F5;">
+      <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 580px; margin: 0 auto; background-color: #161616; border: 1px solid #282828; border-radius: 20px; overflow: hidden;">
         <tr>
-          <td align="center" style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 28px 20px; text-align: center;">
-            <div style="display: inline-block; background-color: #059669; width: 44px; height: 44px; line-height: 44px; border-radius: 12px; text-align: center; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(5,150,105,0.25);">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; display: inline-block;">
-                <circle cx="5.5" cy="17.5" r="3.5"/>
-                <circle cx="18.5" cy="17.5" r="3.5"/>
-                <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h4"/>
-              </svg>
-            </div>
-            <h1 style="margin: 0; font-size: 28px; font-weight: 900; letter-spacing: 0.5px; line-height: 1.2;">
-              <span style="color: #0f172a !important; font-weight: 900;">MOTO</span><span style="color: #059669 !important; font-weight: 900;">RENT</span>
+          <td align="center" style="background-color: #101010; border-bottom: 1px solid #282828; padding: 28px 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 3px; line-height: 1.2; color: #F5F5F5;">
+              MOTORENT <span style="color: #FFC799; font-style: italic; font-weight: 600; letter-spacing: 0;">Đà Nẵng</span>
             </h1>
-            <p style="margin: 6px 0 0; font-size: 12px; color: #475569; font-weight: 600; letter-spacing: 0.3px;">
-              Chuỗi Cho Thuê Xe Máy Tự Lái Đa Chi Nhánh • TP. Đà Nẵng
+            <p style="margin: 6px 0 0; font-size: 12px; color: #A0A0A0; font-weight: 500;">
+              Hệ Thống Thuê Xe Máy Tự Lái Đô Thị &amp; Ven Biển Đà Nẵng
             </p>
           </td>
         </tr>
         <tr>
           <td style="padding: 36px 28px;">
-            <h2 style="margin: 0 0 16px; font-size: 20px; color: #0f172a; font-weight: 800;">
-              Chào bạn <span style="color: #059669;">${safeUsername}</span>,
+            <h2 style="margin: 0 0 16px; font-size: 19px; color: #F5F5F5; font-weight: 700;">
+              Chào bạn <span style="color: #FFC799;">${safeUsername}</span>,
             </h2>
-            <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.6; color: #334155;">
-              Cảm ơn bạn đã đăng ký tài khoản tại Motorent. Dưới đây là <strong>mã OTP xác thực 6 chữ số</strong> để kích hoạt tài khoản của bạn:
+            <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.6; color: #A0A0A0;">
+              Cảm ơn bạn đã đăng ký tài khoản tại Motorent. Dưới đây là <strong style="color: #F5F5F5;">mã OTP xác thực 6 chữ số</strong> để kích hoạt tài khoản của bạn:
             </p>
             <div style="text-align: center; margin: 28px 0;">
-              <div style="display: inline-block; font-size: 40px; font-weight: 900; letter-spacing: 12px; color: #047857; padding: 18px 36px; background-color: #ecfdf5; border-radius: 16px; border: 2px dashed #059669; font-family: Consolas, Monaco, monospace; box-shadow: 0 2px 6px rgba(5,150,105,0.08);">
+              <div style="display: inline-block; font-size: 38px; font-weight: 900; letter-spacing: 12px; color: #FFC799; padding: 18px 36px; background-color: #101010; border-radius: 16px; border: 1px solid #FFC799; font-family: Consolas, Monaco, monospace;">
                 ${otpCode}
               </div>
-              <p style="margin: 12px 0 0; font-size: 12px; color: #64748b; font-weight: 500;">
-                Mã OTP này có hiệu lực trong vòng <strong>15 phút</strong>.
+              <p style="margin: 12px 0 0; font-size: 12px; color: #6E6E6E; font-weight: 500;">
+                Mã OTP này có hiệu lực trong vòng <strong style="color: #A0A0A0;">15 phút</strong>.
               </p>
             </div>
-            <p style="margin: 0 0 14px; font-size: 13px; color: #475569; text-align: center; font-weight: 500;">
-              Hoặc bạn có thể bấm trực tiếp vào nút dưới đây để kích hoạt tức thì:
+            <p style="margin: 0 0 14px; font-size: 13px; color: #A0A0A0; text-align: center;">
+              Hoặc nhấn trực tiếp vào nút dưới đây để kích hoạt tức thì:
             </p>
             <div style="text-align: center; margin: 16px 0 24px;">
-              <a href="${verifyUrl}" target="_blank" style="display: inline-block; background-color: #059669; color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);">
+              <a href="${verifyUrl}" target="_blank" style="display: inline-block; background-color: #FFC799; color: #101010; text-decoration: none; padding: 14px 34px; border-radius: 12px; font-weight: 700; font-size: 14px;">
                 Kích Hoạt Tài Khoản Ngay
               </a>
             </div>
-            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; line-height: 1.5; text-align: center;">
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #282828; font-size: 11px; color: #6E6E6E; line-height: 1.5; text-align: center;">
               * Nếu bạn không thực hiện đăng ký tài khoản này, vui lòng bỏ qua email để đảm bảo an toàn.
             </div>
           </td>
         </tr>
         <tr>
-          <td style="background-color: #f8fafc; padding: 18px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center; line-height: 1.6;">
-            © 2026 <strong>MOTORENT Systems</strong> • Hệ thống thuê xe máy tự lái tự doanh đa chi nhánh TP. Đà Nẵng.<br>
-            Cơ sở Sân Bay Quốc Tế Đà Nẵng & Bãi Biển Mỹ Khê - Sơn Trà & Cầu Rồng - Hải Châu.
+          <td style="background-color: #101010; padding: 18px 24px; border-top: 1px solid #282828; font-size: 11px; color: #6E6E6E; text-align: center; line-height: 1.6;">
+            © 2026 <strong style="color: #A0A0A0;">MOTORENT Đà Nẵng</strong> • Trạm Sân Bay Quốc Tế Đà Nẵng • Trạm Biển Mỹ Khê • Trạm Sơn Trà.
           </td>
         </tr>
       </table>
@@ -141,11 +165,11 @@ export const sendVerificationEmail = async (
     </html>
   `;
 
-  if (realSmtp) {
+  if (canDeliverViaSmtp) {
     try {
       const transporter = getTransporter();
       await transporter.sendMail({
-        from: `"MOTORENT Support" <${env.SMTP_USER}>`,
+        from: `"MOTORENT Đà Nẵng" <${env.SMTP_USER}>`,
         to: toEmail,
         subject: `[MOTORENT] Mã OTP xác thực tài khoản: ${otpCode}`,
         html: htmlContent,
@@ -161,7 +185,7 @@ export const sendVerificationEmail = async (
 };
 
 /**
- * Send password reset email with ultra-clear contrast header
+ * Send password reset email with Vesper Design System styling
  */
 export const sendPasswordResetEmail = async (
   toEmail: string,
@@ -170,13 +194,13 @@ export const sendPasswordResetEmail = async (
 ): Promise<boolean> => {
   const safeUsername = escapeHtml(username);
   const resetUrl = `${env.CLIENT_URL}/reset-password?token=${token}`;
-  const realSmtp = isRealSmtpConfigured();
+  const canDeliverViaSmtp = isRealSmtpConfigured() && isDeliverableRecipientEmail(toEmail);
 
   if (env.NODE_ENV === 'development') {
     console.log('----------------------------------------------------');
     console.log(`[PASSWORD RESET] To: ${toEmail}`);
     console.log(`[LINK] Reset Password Link: ${resetUrl}`);
-    console.log(`[SMTP] Real SMTP Configured: ${realSmtp ? 'YES' : 'NO (Dev console mode)'}`);
+    console.log(`[SMTP] Will Send Real Email: ${canDeliverViaSmtp ? 'YES' : 'NO (Skipped dummy/test domain or dev console)'}`);
     console.log('----------------------------------------------------');
   }
 
@@ -186,48 +210,41 @@ export const sendPasswordResetEmail = async (
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Yêu cầu đặt lại mật khẩu Motorent</title>
+      <title>Yêu cầu đặt lại mật khẩu Motorent Đà Nẵng</title>
     </head>
-    <body style="margin: 0; padding: 24px 12px; background-color: #f1f5f9; font-family: 'Segoe UI', Arial, sans-serif;">
-      <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06);">
+    <body style="margin: 0; padding: 24px 12px; background-color: #101010; font-family: 'Segoe UI', Arial, sans-serif; color: #F5F5F5;">
+      <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 580px; margin: 0 auto; background-color: #161616; border: 1px solid #282828; border-radius: 20px; overflow: hidden;">
         <tr>
-          <td align="center" style="background-color: #f8fafc; border-bottom: 2px solid #e2e8f0; padding: 28px 20px; text-align: center;">
-            <div style="display: inline-block; background-color: #059669; width: 44px; height: 44px; line-height: 44px; border-radius: 12px; text-align: center; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(5,150,105,0.25);">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; display: inline-block;">
-                <circle cx="5.5" cy="17.5" r="3.5"/>
-                <circle cx="18.5" cy="17.5" r="3.5"/>
-                <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h4"/>
-              </svg>
-            </div>
-            <h1 style="margin: 0; font-size: 28px; font-weight: 900; letter-spacing: 0.5px; line-height: 1.2;">
-              <span style="color: #0f172a !important; font-weight: 900;">MOTO</span><span style="color: #059669 !important; font-weight: 900;">RENT</span>
+          <td align="center" style="background-color: #101010; border-bottom: 1px solid #282828; padding: 28px 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 800; letter-spacing: 3px; line-height: 1.2; color: #F5F5F5;">
+              MOTORENT <span style="color: #FFC799; font-style: italic; font-weight: 600; letter-spacing: 0;">Đà Nẵng</span>
             </h1>
-            <p style="margin: 6px 0 0; font-size: 12px; color: #475569; font-weight: 600; letter-spacing: 0.3px;">
-              Chuỗi Cho Thuê Xe Máy Tự Lái Đa Chi Nhánh • TP. Đà Nẵng
+            <p style="margin: 6px 0 0; font-size: 12px; color: #A0A0A0; font-weight: 500;">
+              Hệ Thống Thuê Xe Máy Tự Lái Đô Thị &amp; Ven Biển Đà Nẵng
             </p>
           </td>
         </tr>
         <tr>
           <td style="padding: 36px 28px;">
-            <h2 style="margin: 0 0 16px; font-size: 20px; color: #0f172a; font-weight: 800;">
-              Chào bạn <span style="color: #059669;">${safeUsername}</span>,
+            <h2 style="margin: 0 0 16px; font-size: 19px; color: #F5F5F5; font-weight: 700;">
+              Chào bạn <span style="color: #FFC799;">${safeUsername}</span>,
             </h2>
-            <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.6; color: #334155;">
+            <p style="margin: 0 0 22px; font-size: 14px; line-height: 1.6; color: #A0A0A0;">
               Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Motorent liên kết với địa chỉ email này. Vui lòng bấm vào nút dưới đây để thiết lập mật khẩu mới:
             </p>
             <div style="text-align: center; margin: 28px 0;">
-              <a href="${resetUrl}" target="_blank" style="display: inline-block; background-color: #059669; color: #ffffff; text-decoration: none; padding: 14px 34px; border-radius: 12px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);">
+              <a href="${resetUrl}" target="_blank" style="display: inline-block; background-color: #FFC799; color: #101010; text-decoration: none; padding: 14px 34px; border-radius: 12px; font-weight: 700; font-size: 14px;">
                 Đặt Lại Mật Khẩu Mới
               </a>
             </div>
-            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; line-height: 1.5; text-align: center;">
-              * Liên kết này chỉ có hiệu lực trong vòng 1 giờ. Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này, mật khẩu hiện tại của bạn vẫn được bảo vệ an toàn tuyệt đối.
+            <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #282828; font-size: 11px; color: #6E6E6E; line-height: 1.5; text-align: center;">
+              * Liên kết này chỉ có hiệu lực trong vòng 1 giờ. Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.
             </div>
           </td>
         </tr>
         <tr>
-          <td style="background-color: #f8fafc; padding: 18px 24px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #64748b; text-align: center; line-height: 1.6;">
-            © 2026 <strong>MOTORENT Systems</strong> • Hệ thống thuê xe máy tự lái tự doanh đa chi nhánh TP. Đà Nẵng.
+          <td style="background-color: #101010; padding: 18px 24px; border-top: 1px solid #282828; font-size: 11px; color: #6E6E6E; text-align: center; line-height: 1.6;">
+            © 2026 <strong style="color: #A0A0A0;">MOTORENT Đà Nẵng</strong> • Hệ thống thuê xe máy tự lái tự doanh đa chi nhánh TP. Đà Nẵng.
           </td>
         </tr>
       </table>
@@ -235,11 +252,11 @@ export const sendPasswordResetEmail = async (
     </html>
   `;
 
-  if (realSmtp) {
+  if (canDeliverViaSmtp) {
     try {
       const transporter = getTransporter();
       await transporter.sendMail({
-        from: `"MOTORENT Support" <${env.SMTP_USER}>`,
+        from: `"MOTORENT Đà Nẵng" <${env.SMTP_USER}>`,
         to: toEmail,
         subject: '[MOTORENT] Hướng dẫn đặt lại mật khẩu tài khoản',
         html: htmlContent,
