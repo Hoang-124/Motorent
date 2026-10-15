@@ -12,6 +12,7 @@ import { Payment } from '../../models/Payment';
 import { AppError } from '../../core/errorHandler';
 import { assertBranchAccess } from '../../core/permissions';
 import { emitBookingStatus } from './bookingEvents';
+import { isCloudinaryConfigured, uploadDataUriToCloudinary } from '../../config/cloudinary';
 
 export interface CreateBookingDto {
   vehicleId: string;
@@ -459,7 +460,22 @@ export const checkinBooking = async (
   booking.startOdometer = input.startOdometer;
   if (input.startFuelLevel) booking.startFuelLevel = input.startFuelLevel;
   if (input.checkinImages) booking.checkinImages = input.checkinImages;
-  if (input.eSignatureUrl) booking.eSignatureUrl = input.eSignatureUrl;
+  if (input.eSignatureUrl) {
+    if (input.eSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
+      try {
+        const uploadedSig = await uploadDataUriToCloudinary(input.eSignatureUrl, {
+          folder: 'motorent/signatures',
+          type: 'upload',
+          publicId: `sig_${booking.bookingCode}_${Date.now()}`,
+        });
+        booking.eSignatureUrl = uploadedSig.secureUrl;
+      } catch {
+        booking.eSignatureUrl = input.eSignatureUrl;
+      }
+    } else {
+      booking.eSignatureUrl = input.eSignatureUrl;
+    }
+  }
   booking.approvedBy = staffUser._id as mongoose.Types.ObjectId;
   booking.status = 'Ongoing';
   await booking.save();

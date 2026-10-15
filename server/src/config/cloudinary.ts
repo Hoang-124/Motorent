@@ -168,3 +168,70 @@ export const getSignedCloudinaryEkycUrl = (storedRef: string): string => {
 
   return `https://res.cloudinary.com/${cloudName}/image/authenticated/s--${rawDigest}--/${cleanRef}`;
 };
+
+/**
+ * Upload a Base64 Data URI (e.g. Counter Check-in digital signature PNG) directly to Cloudinary
+ */
+export const uploadDataUriToCloudinary = async (
+  dataUri: string,
+  options: {
+    folder: string;
+    type?: 'upload' | 'authenticated';
+    publicId?: string;
+  }
+): Promise<CloudinaryUploadResult> => {
+  const cloudName = env.CLOUDINARY_CLOUD_NAME.trim();
+  const apiKey = (env.CLOUDINARY_API_KEY || '').trim();
+  const apiSecret = (env.CLOUDINARY_API_SECRET || '').trim();
+
+  if (!cloudName || !apiKey || !apiSecret) {
+    throw new Error('Chưa cấu hình đầy đủ thông tin xác thực Cloudinary.');
+  }
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const deliveryType = options.type || 'upload';
+  const signParams: Record<string, string | number> = {
+    folder: options.folder,
+    timestamp,
+    type: deliveryType,
+  };
+  if (options.publicId) {
+    signParams.public_id = options.publicId;
+  }
+
+  const signature = signCloudinaryParams(signParams, apiSecret);
+
+  const formData = new FormData();
+  formData.append('file', dataUri);
+  formData.append('api_key', apiKey);
+  formData.append('timestamp', String(timestamp));
+  formData.append('folder', options.folder);
+  formData.append('type', deliveryType);
+  if (options.publicId) {
+    formData.append('public_id', options.publicId);
+  }
+  formData.append('signature', signature);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Cloudinary dataURI upload failed (${response.status}): ${errText}`);
+  }
+
+  const result = (await response.json()) as {
+    public_id: string;
+    secure_url: string;
+    format: string;
+  };
+
+  return {
+    publicId: result.public_id,
+    secureUrl: result.secure_url,
+    format: result.format || 'png',
+  };
+};
+
