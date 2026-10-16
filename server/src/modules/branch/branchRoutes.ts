@@ -12,12 +12,35 @@ router.get('/nearby', branchController.getNearby);
 router.get('/:id', branchController.getBranch);
 
 // SystemAdmin protected routes
+router.get(
+  '/:id/active-bookings',
+  authenticateJWT,
+  authorize('SystemAdmin', 'BranchManager'),
+  branchController.checkActiveBookings
+);
+
 router.post(
   '/',
   authenticateJWT,
   authorize('SystemAdmin'),
   auditLogger('CREATE_BRANCH', 'Branch'),
   branchController.createBranch
+);
+
+router.put(
+  '/:id/deactivate',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  auditLogger('DEACTIVATE_BRANCH', 'Branch'),
+  branchController.deactivateBranch
+);
+
+router.put(
+  '/:id/activate',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  auditLogger('ACTIVATE_BRANCH', 'Branch'),
+  branchController.activateBranch
 );
 
 router.put(

@@ -694,7 +694,7 @@ export const LiveChatWidget: React.FC = () => {
                     ? activeCustomerInfo.name
                     : staffOwnBranch
                       ? `Hộp thư ${getBranchShortName(staffOwnBranch.name)}`
-                      : 'Hộp thư Chi nhánh (UC-66)'
+                      : 'Hộp thư Chi nhánh'
                   : activeBranchObj
                     ? `Chat ${getBranchShortName(activeBranchObj.name)}`
                     : 'Live Chat Chi Nhánh'}

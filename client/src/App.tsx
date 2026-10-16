@@ -9,6 +9,7 @@ import { FleetPage } from './pages/FleetPage';
 import { BranchesPage } from './pages/BranchesPage';
 import { CounterDesk } from './pages/CounterDesk';
 import { AuditLogPage } from './pages/AuditLogPage';
+import { AdminCenter } from './pages/AdminCenter';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
@@ -44,6 +45,14 @@ export function App() {
               <Route path="/" element={<RoleBasedHome />} />
               <Route path="/bikes" element={<FleetPage />} />
               <Route path="/branches" element={<BranchesPage />} />
+              <Route
+                path="/admin"
+                element={
+                  <RequireRole roles={['SystemAdmin']}>
+                    <AdminCenter />
+                  </RequireRole>
+                }
+              />
               <Route
                 path="/counter"
                 element={

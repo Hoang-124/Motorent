@@ -14,7 +14,7 @@ export const AuditLogPage: React.FC = () => {
               <span>TRUNG TÂM GIÁM SÁT BẢO MẬT • AUDIT TRAIL</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-[#F5F5F5] mt-1">
-              Nhật ký Truy vết Hệ thống (UC-102)
+              Nhật ký Truy vết Hệ thống
             </h1>
           </div>
 

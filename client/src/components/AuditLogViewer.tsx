@@ -188,10 +188,10 @@ export const AuditLogViewer: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block">
-                UC-102 • SECURITY & CRUD AUDIT LOG VIEWER
+                SECURITY & CRUD AUDIT LOG VIEWER
               </span>
               <h2 className="text-lg font-black text-[#F5F5F5] mt-0.5">
-                Nhật ký Truy vết Hệ thống & Thay đổi Dữ liệu (`GET /api/audit`)
+                Nhật ký Truy vết Hệ thống & Thay đổi Dữ liệu
               </h2>
             </div>
 

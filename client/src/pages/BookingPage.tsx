@@ -645,7 +645,7 @@ export const BookingPage: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
                       <User className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Họ và tên người thuê *</span>
+                      <span>Họ và tên người thuê <span className="text-red-500 font-bold ml-0.5">*</span></span>
                     </label>
                     <input
                       type="text"
@@ -659,7 +659,7 @@ export const BookingPage: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
                       <Phone className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Số điện thoại nhận mã xe *</span>
+                      <span>Số điện thoại nhận mã xe <span className="text-red-500 font-bold ml-0.5">*</span></span>
                     </label>
                     <input
                       type="tel"

@@ -13,11 +13,12 @@ const createBranchSchema = z.object({
   hours_open: z.string().default('06:00'),
   hours_close: z.string().default('23:00'),
   description: z.string().optional(),
+  managerId: z.string().optional().or(z.literal('')),
 });
 
 const updateBranchSchema = createBranchSchema.partial().extend({
   isActive: z.boolean().optional(),
-  managerId: z.string().optional(),
+  managerId: z.string().optional().nullable(),
 });
 
 export const getBranches = async (
@@ -26,7 +27,8 @@ export const getBranches = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const branches = await branchService.getAllBranches();
+    const includeInactive = req.query.all === 'true' || req.query.includeInactive === 'true';
+    const branches = await branchService.getAllBranches(includeInactive);
     res.json({
       success: true,
       count: branches.length,
@@ -72,6 +74,24 @@ export const getNearby = async (
   }
 };
 
+export const checkActiveBookings = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const count = await branchService.checkActiveBookings(req.params.id);
+    res.json({
+      success: true,
+      activeBookingsCount: count,
+      hasActiveBookings: count > 0,
+      message: count > 0 ? `Chi nhánh có ${count} đơn thuê xe đang hoạt động.` : 'Không có đơn thuê xe đang hoạt động.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const createBranch = async (
   req: Request,
   res: Response,
@@ -79,7 +99,10 @@ export const createBranch = async (
 ): Promise<void> => {
   try {
     const data = createBranchSchema.parse(req.body);
-    const branch = await branchService.createBranch(data);
+    const branch = await branchService.createBranch({
+      ...data,
+      managerId: data.managerId || undefined,
+    });
     res.status(201).json({
       success: true,
       message: 'Tạo chi nhánh mới thành công.',
@@ -108,17 +131,55 @@ export const updateBranch = async (
   }
 };
 
+export const deactivateBranch = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const result = await branchService.deactivateBranch(req.params.id);
+    res.json({
+      success: true,
+      message: result.warning || 'Đã tạm ngưng hoạt động chi nhánh.',
+      activeBookingsCount: result.activeBookingsCount,
+      warning: result.warning,
+      data: result.branch,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const activateBranch = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const branch = await branchService.activateBranch(req.params.id);
+    res.json({
+      success: true,
+      message: 'Đã kích hoạt lại chi nhánh thành công.',
+      data: branch,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteBranch = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const branch = await branchService.deactivateBranch(req.params.id);
+    const result = await branchService.deactivateBranch(req.params.id);
     res.json({
       success: true,
-      message: 'Đã tạm ngưng hoạt động chi nhánh.',
-      data: branch,
+      message: result.warning || 'Đã tạm ngưng hoạt động chi nhánh.',
+      activeBookingsCount: result.activeBookingsCount,
+      warning: result.warning,
+      data: result.branch,
     });
   } catch (error) {
     next(error);

@@ -481,7 +481,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>03. Tổng đài Live Chat (UC-66)</span>
+                <span>03. Tổng đài Live Chat</span>
               </button>
 
               <button
@@ -494,7 +494,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <Database className="w-4 h-4" />
-                <span>04. Nhật ký Audit (UC-102)</span>
+                <span>04. Nhật ký Audit</span>
               </button>
             </div>
           </div>

@@ -412,7 +412,7 @@ export const StaffChatConsole: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799]">
-              UC-66 • {staffOwnBranch ? staffOwnBranch.name.toUpperCase() : 'STAFF LIVE CHAT CONSOLE'}
+              {staffOwnBranch ? staffOwnBranch.name.toUpperCase() : 'STAFF LIVE CHAT CONSOLE'}
             </span>
             <span
               className={`inline-flex items-center space-x-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
