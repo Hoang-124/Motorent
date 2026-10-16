@@ -61,5 +61,9 @@ const VehicleSchema = new Schema<IVehicle>(
 
 VehicleSchema.index({ branchId: 1, status: 1 });
 VehicleSchema.index({ category: 1 });
+VehicleSchema.index(
+  { vehicleModel: 'text', brand: 'text', licensePlate: 'text' },
+  { name: 'vehicle_search_text' }
+);
 
 export const Vehicle = mongoose.model<IVehicle>('Vehicle', VehicleSchema);

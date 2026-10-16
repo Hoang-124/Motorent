@@ -42,10 +42,27 @@ export const getVehicles = async (
     const q = typeof req.query.q === 'string' ? req.query.q : undefined;
     const fuelType = typeof req.query.fuelType === 'string' ? req.query.fuelType : undefined;
     const transmissionType = typeof req.query.transmissionType === 'string' ? req.query.transmissionType : undefined;
-    const sortPrice =
-      req.query.sortPrice === 'asc' || req.query.sortPrice === 'desc'
-        ? req.query.sortPrice
-        : undefined;
+    const brand = typeof req.query.brand === 'string' ? req.query.brand : undefined;
+    const parsePrice = (value: unknown, label: string): number | undefined => {
+      if (value === undefined) return undefined;
+      if (typeof value !== 'string' || !value.trim()) {
+        throw new AppError(400, `${label} không hợp lệ.`);
+      }
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new AppError(400, `${label} phải là số không âm.`);
+      }
+      return parsed;
+    };
+    const minPrice = parsePrice(req.query.minPrice, 'Giá thấp nhất');
+    const maxPrice = parsePrice(req.query.maxPrice, 'Giá cao nhất');
+    if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+      throw new AppError(400, 'Giá thấp nhất không được lớn hơn giá cao nhất.');
+    }
+    const sortValue = typeof req.query.sort === 'string' ? req.query.sort : undefined;
+    const sort = ['price_asc', 'price_desc', 'rating_asc', 'rating_desc'].includes(sortValue || '')
+      ? (sortValue as 'price_asc' | 'price_desc' | 'rating_asc' | 'rating_desc')
+      : undefined;
 
     const vehicles = await vehicleService.getAllVehicles({
       branchId,
@@ -54,7 +71,10 @@ export const getVehicles = async (
       q,
       fuelType,
       transmissionType,
-      sortPrice,
+      brand,
+      minPrice,
+      maxPrice,
+      sort,
     });
 
     res.json({
@@ -73,11 +93,52 @@ export const getVehicle = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const vehicle = await vehicleService.getVehicleById(req.params.id);
+    if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+      throw new AppError(400, 'Mã phương tiện không hợp lệ.');
+    }
+    const [vehicle, rating] = await Promise.all([
+      vehicleService.getVehicleById(req.params.id),
+      vehicleService.getVehicleRatingSummary(req.params.id),
+    ]);
     res.json({
       success: true,
-      data: vehicle,
+      data: { ...vehicle.toObject(), ...rating },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getVehicleReviews = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 6);
+    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(limit) || limit < 1) {
+      throw new AppError(400, 'Trang và số đánh giá mỗi trang phải là số nguyên dương.');
+    }
+    const result = await vehicleService.getVehicleReviews(req.params.id, page, Math.min(limit, 50));
+    res.json({ success: true, data: result.reviews, pagination: result.pagination });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getVehicleAvailability = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const month = typeof req.query.month === 'string' ? req.query.month : new Date().toISOString().slice(0, 7);
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+      throw new AppError(400, 'Tháng cần có định dạng YYYY-MM.');
+    }
+    const availability = await vehicleService.getVehicleAvailability(req.params.id, month);
+    res.json({ success: true, data: availability });
   } catch (error) {
     next(error);
   }

@@ -485,19 +485,20 @@ const seedDatabase = async (): Promise<void> => {
       slug: 'dieu-khoan-dich-vu',
       title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
       content: 'Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.',
-      lastUpdatedBy: userAdmin._id,
+      isPublished: true,
+      updatedBy: userAdmin._id,
     },
     {
       slug: 'chinh-sach-bao-mat',
       title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
       content: 'Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa lưu trữ theo tiêu chuẩn bảo mật cao cấp.',
-      lastUpdatedBy: userAdmin._id,
+      updatedBy: userAdmin._id,
     },
     {
       slug: 'cau-hoi-thuong-gap',
       title: 'Câu Hỏi Thường Gặp (FAQs)',
       content: '1. Thủ tục nhận xe cần những gì? Quý khách chỉ cần CCCD và GPLX còn hạn để đối chiếu 2 phút tại quầy.\n2. Cọc giữ xe bao nhiêu? Hệ thống chỉ thu trước 30% để khóa biển số xe riêng cho bạn.',
-      lastUpdatedBy: userAdmin._id,
+      updatedBy: userAdmin._id,
     },
   ]);
 

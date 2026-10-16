@@ -14,6 +14,8 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { BookingPage } from './pages/BookingPage';
+import { VehicleDetailPage } from './pages/VehicleDetailPage';
+import { RentalPolicyPage } from './pages/RentalPolicyPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 
@@ -29,6 +31,8 @@ export function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/bikes" element={<FleetPage />} />
+              <Route path="/bikes/:vehicleId" element={<VehicleDetailPage />} />
+              <Route path="/rental-policy" element={<RentalPolicyPage />} />
               <Route path="/branches" element={<BranchesPage />} />
               <Route
                 path="/counter"

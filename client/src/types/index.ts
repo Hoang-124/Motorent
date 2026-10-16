@@ -37,6 +37,8 @@ export interface Vehicle {
   color?: string;
   requiresMaintenance: boolean;
   images: string[];
+  ratingAverage?: number;
+  reviewCount?: number;
 }
 
 export interface User {
@@ -110,6 +112,16 @@ export interface Feedback {
   comment: string;
   isPublic: boolean;
   responseComment?: string;
+  createdAt: string;
+}
+
+export interface VehicleReview {
+  _id: string;
+  userId: string | Pick<User, '_id' | 'username' | 'firstName' | 'lastName' | 'avatarUrl'>;
+  rating: number;
+  comment: string;
+  imageUrls?: string[];
+  response?: string;
   createdAt: string;
 }
 

@@ -9,6 +9,8 @@ const router = Router();
 // Public routes
 router.get('/', vehicleController.getVehicles);
 router.get('/categories', vehicleController.getCategories);
+router.get('/:id/reviews', vehicleController.getVehicleReviews);
+router.get('/:id/availability', vehicleController.getVehicleAvailability);
 router.get('/:id', vehicleController.getVehicle);
 
 // Categories admin route

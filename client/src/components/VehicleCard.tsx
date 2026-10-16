@@ -8,7 +8,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Camera
+  Camera,
+  Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
@@ -17,6 +18,7 @@ import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 interface VehicleCardProps {
   vehicle: Vehicle;
   onBookNow?: (vehicle: Vehicle) => void;
+  variant?: 'grid' | 'list';
 }
 
 const ANGLE_VIEWS = [
@@ -25,7 +27,7 @@ const ANGLE_VIEWS = [
   { id: 2, label: 'Góc sau', title: 'Góc đuôi xe & khoang lái' },
 ];
 
-export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) => {
+export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow, variant = 'grid' }) => {
   const navigate = useNavigate();
   // Mặc định góc ngang xe (Side view - index 1)
   const [activeAngle, setActiveAngle] = useState<number>(1);
@@ -36,6 +38,13 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
   }, [vehicle._id, activeAngle]);
 
   const isAvailable = vehicle.status === 'Available';
+  const availabilityLabel = vehicle.status === 'Available'
+    ? 'Sẵn sàng giao ngay'
+    : vehicle.status === 'Rented'
+      ? 'Đang có khách'
+      : vehicle.status === 'Transferring'
+        ? 'Đang điều chuyển'
+        : 'Đang bảo dưỡng';
   const branchName = typeof vehicle.branchId === 'object' && vehicle.branchId !== null 
     ? vehicle.branchId.name 
     : 'Chi nhánh Trung tâm';
@@ -47,10 +56,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
   const isManual = vehicle.transmissionType === 'Manual';
 
   const handleCardClick = () => {
-    if (onBookNow) {
-      onBookNow(vehicle);
-    }
-    navigate(`/booking/${vehicle._id}`);
+    navigate(`/bikes/${vehicle._id}`);
   };
 
   const currentImageUrl = vehicle.images && vehicle.images[activeAngle] 
@@ -60,10 +66,10 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
   return (
     <div 
       onClick={handleCardClick}
-      className="group bg-[#0B1513] rounded-[2rem] border border-white/10 hover:border-emerald-500/60 shadow-lg hover:shadow-[0_0_35px_-5px_rgba(16,185,129,0.25)] transition-all duration-300 flex flex-col overflow-hidden relative cursor-pointer"
+      className={`group bg-[#0B1513] rounded-[2rem] border border-white/10 hover:border-emerald-500/60 shadow-lg hover:shadow-[0_0_35px_-5px_rgba(16,185,129,0.25)] transition-all duration-300 flex overflow-hidden relative cursor-pointer ${variant === 'list' ? 'flex-col sm:flex-row sm:min-h-64' : 'flex-col'}`}
     >
       {/* Top Image Stage: Phóng Full tràn khung hình, chân thực 100% */}
-      <div className="relative w-full h-52 sm:h-56 bg-white overflow-hidden flex items-center justify-center">
+      <div className={`relative w-full h-52 sm:h-56 bg-white overflow-hidden flex items-center justify-center ${variant === 'list' ? 'sm:w-72 sm:h-auto sm:min-h-64 sm:shrink-0' : ''}`}>
         
         {/* Top Floating Badges */}
         <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
@@ -71,7 +77,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
             className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wide shadow-md ${
               isAvailable
                 ? 'bg-emerald-950/85 text-emerald-300 border border-emerald-500/40 backdrop-blur-md'
-                : vehicle.status === 'Rented'
+              : vehicle.status === 'Rented'
                 ? 'bg-amber-950/85 text-amber-300 border border-amber-500/40 backdrop-blur-md'
                 : 'bg-black/80 text-slate-300 border border-white/20 backdrop-blur-md'
             }`}
@@ -81,7 +87,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
                 isAvailable ? 'bg-emerald-400' : vehicle.status === 'Rented' ? 'bg-amber-400' : 'bg-slate-400'
               }`}
             />
-            {isAvailable ? 'Sẵn sàng giao ngay' : vehicle.status === 'Rented' ? 'Đang có khách' : 'Bảo dưỡng'}
+            {availabilityLabel}
           </span>
 
           <span className="text-xs text-slate-200 bg-black/75 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 flex items-center font-semibold shadow-md truncate max-w-[190px]">
@@ -191,9 +197,15 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
       <div className="p-5 pt-4 flex-1 flex flex-col justify-between">
         <div>
           <div className="flex items-start justify-between gap-2 mb-3">
-            <h3 className="text-lg sm:text-xl font-black text-white group-hover:text-emerald-300 transition-colors leading-snug">
-              {vehicle.vehicleModel}
-            </h3>
+            <div>
+              <h3 className="text-lg sm:text-xl font-black text-white group-hover:text-emerald-300 transition-colors leading-snug">
+                {vehicle.vehicleModel}
+              </h3>
+              <p className="mt-1 flex items-center gap-1 text-xs text-slate-400">
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                {vehicle.reviewCount ? `${vehicle.ratingAverage?.toFixed(1)} (${vehicle.reviewCount} đánh giá)` : 'Chưa có đánh giá'}
+              </p>
+            </div>
             {vehicle.color && (
               <span className="text-xs font-bold text-slate-200 bg-white/10 px-2.5 py-1 rounded-full border border-white/10 flex-shrink-0">
                 {vehicle.color}
@@ -258,7 +270,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
             disabled={!isAvailable}
             onClick={(e) => {
               e.stopPropagation();
-              handleCardClick();
+              if (onBookNow) onBookNow(vehicle);
+              else navigate(`/booking/${vehicle._id}`);
             }}
             className={`pl-5 pr-2 py-2 rounded-full text-xs sm:text-sm font-black transition-all flex items-center space-x-2 shadow-sm ${
               isAvailable
@@ -266,7 +279,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
                 : 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/5'
             }`}
           >
-            <span>{isAvailable ? 'Chọn xe' : 'Đã có khách'}</span>
+            <span>{isAvailable ? (onBookNow ? 'Chọn xe' : 'Đặt xe') : 'Chưa sẵn sàng'}</span>
             {isAvailable && (
               <div className="w-7 h-7 rounded-full bg-[#060D0B] text-emerald-400 flex items-center justify-center transition-transform group-hover:translate-x-0.5">
                 <ArrowRight className="w-3.5 h-3.5" />

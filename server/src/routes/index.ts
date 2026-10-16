@@ -4,6 +4,7 @@ import branchRoutes from '../modules/branch/branchRoutes';
 import vehicleRoutes from '../modules/vehicle/vehicleRoutes';
 import bookingRoutes from '../modules/booking/bookingRoutes';
 import feedbackRoutes from '../modules/support/feedbackRoutes';
+import staticPageRoutes from '../modules/cms/staticPageRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
 import {
   Branch,
@@ -71,5 +72,6 @@ router.use('/branches', branchRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/feedbacks', feedbackRoutes);
+router.use('/pages', staticPageRoutes);
 
 export default router;

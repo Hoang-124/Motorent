@@ -111,6 +111,12 @@ export const Footer: React.FC = () => {
                   </button>
                 </li>
                 <li>
+                  <Link to="/rental-policy" className="flex items-center space-x-1.5 text-slate-300 hover:text-emerald-300 transition-colors">
+                    <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Điều khoản thuê xe</span>
+                  </Link>
+                </li>
+                <li>
                   <span className="flex items-center space-x-1.5 text-slate-300">
                     <FileCheck2 className="w-3.5 h-3.5 text-emerald-400" />
                     <span>Quy trình cọc 30% khóa biển số</span>
@@ -201,6 +207,9 @@ export const Footer: React.FC = () => {
               </Link>
               <Link to="/bikes" className="hover:text-slate-400 transition-colors">
                 Bảng giá tự lái
+              </Link>
+              <Link to="/rental-policy" className="hover:text-slate-400 transition-colors">
+                Điều khoản thuê xe
               </Link>
             </div>
           </div>
