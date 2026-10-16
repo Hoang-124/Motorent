@@ -5,7 +5,7 @@ import vehicleRoutes from '../modules/vehicle/vehicleRoutes';
 import bookingRoutes from '../modules/booking/bookingRoutes';
 import feedbackRoutes from '../modules/support/feedbackRoutes';
 import staticPageRoutes from '../modules/cms/staticPageRoutes';
-import { getCategories } from '../modules/vehicle/vehicleController';
+import categoryRoutes from '../modules/category/categoryRoutes';
 import {
   Branch,
   Vehicle,
@@ -63,12 +63,10 @@ router.get('/health', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
-// Direct Categories endpoint alias
-router.get('/categories', getCategories);
-
 // Feature modules
 router.use('/auth', authRoutes);
 router.use('/branches', branchRoutes);
+router.use('/categories', categoryRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/feedbacks', feedbackRoutes);

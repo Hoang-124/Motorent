@@ -4,12 +4,6 @@ import { AuthenticatedRequest } from '../../core/authMiddleware';
 import * as vehicleService from './vehicleService';
 import { AppError } from '../../core/errorHandler';
 
-const createCategorySchema = z.object({
-  name: z.string().trim().min(2, 'Tên danh mục phải có tối thiểu 2 ký tự'),
-  slug: z.string().trim().min(2, 'Slug danh mục phải có tối thiểu 2 ký tự'),
-  description: z.string().optional(),
-});
-
 const createVehicleSchema = z.object({
   branchId: z.string().min(1, 'Thiếu ID chi nhánh'),
   category: z.string().min(1, 'Thiếu ID danh mục'),
@@ -155,24 +149,6 @@ export const getCategories = async (
       success: true,
       count: categories.length,
       data: categories,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const createCategory = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const data = createCategorySchema.parse(req.body);
-    const category = await vehicleService.createCategory(data);
-    res.status(201).json({
-      success: true,
-      message: 'Tạo danh mục xe mới thành công.',
-      data: category,
     });
   } catch (error) {
     next(error);

@@ -16,6 +16,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { BookingPage } from './pages/BookingPage';
 import { VehicleDetailPage } from './pages/VehicleDetailPage';
 import { RentalPolicyPage } from './pages/RentalPolicyPage';
+import { AdminCategoriesPage } from './pages/AdminCategoriesPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 
@@ -33,6 +34,14 @@ export function App() {
               <Route path="/bikes" element={<FleetPage />} />
               <Route path="/bikes/:vehicleId" element={<VehicleDetailPage />} />
               <Route path="/rental-policy" element={<RentalPolicyPage />} />
+              <Route
+                path="/admin/categories"
+                element={
+                  <RequireRole roles={['SystemAdmin']}>
+                    <AdminCategoriesPage />
+                  </RequireRole>
+                }
+              />
               <Route path="/branches" element={<BranchesPage />} />
               <Route
                 path="/counter"

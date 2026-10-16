@@ -3,6 +3,7 @@ import { authenticateJWT } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
 import { auditLogger } from '../../core/auditMiddleware';
 import * as vehicleController from './vehicleController';
+import * as categoryController from '../category/categoryController';
 
 const router = Router();
 
@@ -13,13 +14,13 @@ router.get('/:id/reviews', vehicleController.getVehicleReviews);
 router.get('/:id/availability', vehicleController.getVehicleAvailability);
 router.get('/:id', vehicleController.getVehicle);
 
-// Categories admin route
+// Backward-compatible alias; the canonical Admin endpoint is /api/categories.
 router.post(
   '/categories',
   authenticateJWT,
   authorize('SystemAdmin'),
   auditLogger('CREATE_CATEGORY', 'Category'),
-  vehicleController.createCategory
+  categoryController.createCategory
 );
 
 // Protected vehicle management routes

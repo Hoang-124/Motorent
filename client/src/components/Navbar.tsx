@@ -151,6 +151,16 @@ export const Navbar: React.FC = () => {
                       <span>Hồ sơ & eKYC</span>
                     </Link>
 
+                    {user.roles === 'SystemAdmin' && (
+                      <Link
+                        to="/admin/categories"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center space-x-2 px-3 py-2 rounded-xl text-slate-300 hover:text-white hover:bg-white/5 transition-colors"
+                      >
+                        <span>Quản lý danh mục xe</span>
+                      </Link>
+                    )}
+
                     {isStaffOrAdmin && (
                       <Link
                         to="/counter"

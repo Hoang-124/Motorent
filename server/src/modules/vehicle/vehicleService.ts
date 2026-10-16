@@ -223,24 +223,6 @@ export const getAllCategories = async (): Promise<ICategory[]> => {
   return Category.find().sort({ name: 1 });
 };
 
-export const createCategory = async (data: {
-  name: string;
-  slug: string;
-  description?: string;
-}): Promise<ICategory> => {
-  const slug = data.slug.trim().toLowerCase();
-  const existing = await Category.findOne({ slug });
-  if (existing) {
-    throw new AppError(409, `Danh mục với slug "${slug}" đã tồn tại.`);
-  }
-
-  return Category.create({
-    name: data.name.trim(),
-    slug,
-    description: data.description?.trim(),
-  });
-};
-
 export const createVehicle = async (data: {
   branchId: string;
   category: string;
