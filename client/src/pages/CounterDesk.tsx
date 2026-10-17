@@ -24,7 +24,11 @@ import {
   Mail,
   Calendar,
   MessageSquare,
-  Database
+  Database,
+  CreditCard,
+  Wallet,
+  Banknote,
+  Receipt
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
@@ -109,6 +113,13 @@ export const CounterDesk: React.FC = () => {
   // Canvas ref for digital signature
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawing = useRef<boolean>(false);
+
+  // Counter Payment modal states (UC-31)
+  const [showCounterPayModal, setShowCounterPayModal] = useState<boolean>(false);
+  const [counterPayAmount, setCounterPayAmount] = useState<number>(0);
+  const [counterPayMethod, setCounterPayMethod] = useState<'Cash' | 'POS' | 'DirectBank'>('Cash');
+  const [counterPayNotes, setCounterPayNotes] = useState<string>('');
+  const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -416,6 +427,60 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const openCounterPayModal = () => {
+    if (!selectedBooking) return;
+    const remaining = selectedBooking.remainingAmount || 0;
+    setCounterPayAmount(remaining);
+    setCounterPayMethod('Cash');
+    setCounterPayNotes('');
+    setShowCounterPayModal(true);
+  };
+
+  const handleCounterPaySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking) return;
+    if (counterPayAmount <= 0) {
+      setStatusMessage({ type: 'error', text: 'Số tiền thu phải lớn hơn 0 VNĐ.' });
+      return;
+    }
+    if (counterPayAmount > (selectedBooking.remainingAmount || 0)) {
+      setStatusMessage({
+        type: 'error',
+        text: `Số tiền thu (${counterPayAmount.toLocaleString('vi-VN')} đ) vượt quá số dư còn lại (${(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ).`,
+      });
+      return;
+    }
+    setCounterPaySubmitting(true);
+    setStatusMessage(null);
+    try {
+      const methodLabel = counterPayMethod === 'POS' ? '[Quẹt thẻ POS]' : counterPayMethod === 'DirectBank' ? '[Chuyển khoản quầy]' : '[Tiền mặt]';
+      const notes = [methodLabel, counterPayNotes.trim()].filter(Boolean).join(' - ');
+      const res = await api.put(`/bookings/${selectedBooking._id}/counter-pay`, {
+        amount: counterPayAmount,
+        notes,
+      });
+      if (res.data?.success && res.data?.data) {
+        const updated = res.data.data;
+        setStatusMessage({
+          type: 'success',
+          text: `Ghi nhận thu tiền tại quầy thành công cho đơn ${selectedBooking.bookingCode}: +${counterPayAmount.toLocaleString('vi-VN')} đ! Số dư còn lại: ${(updated.remainingAmount || 0).toLocaleString('vi-VN')} đ.`,
+        });
+        handleSelectBooking(updated);
+        setShowCounterPayModal(false);
+        fetchBookings();
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setStatusMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Không thể ghi nhận thanh toán tại quầy.',
+        });
+      }
+    } finally {
+      setCounterPaySubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] pt-28 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -699,6 +764,54 @@ export const CounterDesk: React.FC = () => {
                       </span>
                     </div>
                   </div>
+
+                  {/* Financial & Counter Payment (UC-31) Status Card */}
+                  <div className="mt-4 p-3.5 bg-[#101010] border border-white/10 rounded-xl">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center space-x-6 text-xs">
+                        <div>
+                          <span className="text-[#A0A0A0] block text-[10px] uppercase font-bold">Tổng tiền đơn</span>
+                          <span className="font-bold text-white text-sm">
+                            {selectedBooking.totalAmount?.toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[#A0A0A0] block text-[10px] uppercase font-bold">Đã thanh toán</span>
+                          <span className="font-bold text-[#99FFE4] text-sm">
+                            {(selectedBooking.paidAmount || selectedBooking.depositAmount || 0).toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[#A0A0A0] block text-[10px] uppercase font-bold">Còn lại phải thu</span>
+                          <span className={`font-bold text-sm ${
+                            selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0
+                              ? 'text-[#99FFE4]'
+                              : 'text-[#FF8080]'
+                          }`}>
+                            {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        {selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0 ? (
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-[#99FFE4]/10 text-[#99FFE4] border border-[#99FFE4]/30">
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                            Đã tất toán 100%
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={openCounterPayModal}
+                            className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] shadow-sm hover:shadow-md transition-all cursor-pointer"
+                          >
+                            <Wallet className="w-3.5 h-3.5 mr-1.5" />
+                            <span>Thu tiền tại quầy ({(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ)</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Workflow Mode Tabs */}
@@ -728,6 +841,24 @@ export const CounterDesk: React.FC = () => {
                 {/* Tab 1: Check-in Process */}
                 {activeTab === 'checkin' && (
                   <div className="p-6 space-y-5">
+                    {/* Unpaid 70% Alert Banner */}
+                    {!selectedBooking.isPaid && (selectedBooking.remainingAmount || 0) > 0 && (
+                      <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center space-x-2.5 text-[#FFC799]">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <span>
+                            Khách hàng chưa thanh toán 70% còn lại (<strong>{(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ</strong>).
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={openCounterPayModal}
+                          className="px-3 py-1 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                        >
+                          Thu tiền ngay
+                        </button>
+                      </div>
+                    )}
                     {/* Odometer Input */}
                     <div>
                       <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
@@ -1310,6 +1441,187 @@ export const CounterDesk: React.FC = () => {
                   className="max-w-full max-h-[72vh] object-contain rounded-lg transition-transform duration-150"
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Counter Payment (UC-31) */}
+        {showCounterPayModal && selectedBooking && (
+          <div
+            onClick={() => setShowCounterPayModal(false)}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#161616] border border-white/15 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
+            >
+              <div className="p-5 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-[#FFC799]/10 text-[#FFC799] rounded-xl border border-[#FFC799]/20">
+                    <Wallet className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-white">Ghi nhận thu tiền tại quầy (UC-31)</h3>
+                    <p className="text-[11px] text-[#A0A0A0]">Đơn đặt xe #{selectedBooking.bookingCode}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCounterPayModal(false)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCounterPaySubmit} className="p-5 space-y-4">
+                {/* Payment overview */}
+                <div className="grid grid-cols-2 gap-2 text-xs bg-[#101010] p-3.5 rounded-xl border border-white/5">
+                  <div>
+                    <span className="text-[#A0A0A0] block text-[10px]">Tổng đơn:</span>
+                    <span className="font-bold text-white">
+                      {selectedBooking.totalAmount?.toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#A0A0A0] block text-[10px]">Đã thanh toán trước:</span>
+                    <span className="font-bold text-[#99FFE4]">
+                      {(selectedBooking.paidAmount || selectedBooking.depositAmount || 0).toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                  <div className="col-span-2 pt-2 border-t border-white/5 flex items-center justify-between">
+                    <span className="text-[#A0A0A0] text-[11px]">Còn lại cần thu:</span>
+                    <span className="font-extrabold text-[#FFC799] text-base">
+                      {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                </div>
+
+                {/* Amount Input */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Số tiền thu thực tế (VNĐ) <span className="text-[#FF8080]">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      max={selectedBooking.remainingAmount || 0}
+                      value={counterPayAmount}
+                      onChange={(e) => setCounterPayAmount(Number(e.target.value))}
+                      className="w-full pl-3.5 pr-14 py-2.5 bg-[#101010] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-[#FFC799]"
+                      required
+                    />
+                    <span className="absolute right-3.5 top-2.5 text-xs font-semibold text-[#A0A0A0]">
+                      VNĐ
+                    </span>
+                  </div>
+                  {/* Quick presets */}
+                  <div className="flex items-center space-x-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setCounterPayAmount(selectedBooking.remainingAmount || 0)}
+                      className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[#FFC799] border border-white/10 cursor-pointer"
+                    >
+                      Thu đủ 100% ({(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCounterPayAmount(Math.round((selectedBooking.remainingAmount || 0) / 2))}
+                      className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[#A0A0A0] hover:text-white border border-white/10 cursor-pointer"
+                    >
+                      Thu 50%
+                    </button>
+                  </div>
+                </div>
+
+                {/* Payment Method */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Phương thức thu tại quầy
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCounterPayMethod('Cash')}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
+                        counterPayMethod === 'Cash'
+                          ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
+                          : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4" />
+                      <span>Tiền mặt</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCounterPayMethod('POS')}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
+                        counterPayMethod === 'POS'
+                          ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
+                          : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      <span>Thẻ POS</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCounterPayMethod('DirectBank')}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
+                        counterPayMethod === 'DirectBank'
+                          ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
+                          : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                      }`}
+                    >
+                      <Receipt className="w-4 h-4" />
+                      <span>Chuyển khoản</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Ghi chú biên nhận (Tùy chọn)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Mã chuẩn chi POS / Bill ngân hàng / Tên người nộp..."
+                    value={counterPayNotes}
+                    onChange={(e) => setCounterPayNotes(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="pt-2 flex items-center justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowCounterPayModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10 cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={counterPaySubmitting || counterPayAmount <= 0}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] transition-colors flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {counterPaySubmitting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang ghi nhận...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Xác nhận đã thu tiền</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

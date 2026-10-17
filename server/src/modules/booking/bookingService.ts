@@ -725,6 +725,16 @@ export const recordCounterPayment = async (
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
 
+  // Prevent paying on cancelled/rejected bookings
+  if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
+    throw new AppError(400, `Không thể thu tiền cho đơn đặt xe đã ở trạng thái ${booking.status}.`);
+  }
+
+  // Prevent double-paying if already fully paid
+  if (booking.isPaid && (booking.remainingAmount || 0) <= 0) {
+    throw new AppError(400, 'Đơn đặt xe này đã được thanh toán toàn bộ (100%). Không còn số dư cần thu.');
+  }
+
   // Verify staff branch assignment (staff at pickup branch or return branch can accept counter payment)
   assertBranchAccess(staffUser, [booking.pickupBranchId, booking.returnBranchId]);
 
@@ -732,10 +742,20 @@ export const recordCounterPayment = async (
     throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0 VNĐ.');
   }
 
+  if (amount > (booking.remainingAmount || 0)) {
+    throw new AppError(
+      400,
+      `Số tiền thu (${amount.toLocaleString('vi-VN')} đ) vượt quá số dư còn lại cần thanh toán (${(booking.remainingAmount || 0).toLocaleString('vi-VN')} đ).`
+    );
+  }
+
   booking.paidAmount = (booking.paidAmount || 0) + amount;
   booking.remainingAmount = Math.max(0, (booking.remainingAmount || 0) - amount);
   if (booking.remainingAmount === 0) {
     booking.isPaid = true;
+  }
+  if (booking.status === 'Pending') {
+    booking.status = 'Confirmed';
   }
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
   booking.counterPaidAt = new Date();
@@ -750,7 +770,9 @@ export const recordCounterPayment = async (
       bookingCode: booking.bookingCode,
       amount,
       notes,
+      paidAmount: booking.paidAmount,
       remainingAmount: booking.remainingAmount,
+      isPaid: booking.isPaid,
     },
     timestamp: new Date(),
   }).catch(() => {});
@@ -765,7 +787,15 @@ export const recordCounterPayment = async (
   }).catch((err: unknown) => console.error('[Payment Record Error]', err));
 
   emitBookingStatus(booking);
-  return booking;
+
+  const populated = await Booking.findById(booking._id)
+    .populate('userId', 'username email firstName lastName phoneNumber')
+    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('pickupBranchId', 'name address phone')
+    .populate('returnBranchId', 'name address phone')
+    .populate('counterPaidBy', 'username firstName lastName');
+
+  return populated || booking;
 };
 
 /**
