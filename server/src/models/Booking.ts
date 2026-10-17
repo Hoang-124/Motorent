@@ -51,6 +51,10 @@ export interface IBooking extends Document {
   checkoutImages?: string[];
   cancelReason?: string;
   rejectReason?: string;
+  refundAmount?: number;
+  refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
+  refundForfeitAmount?: number;
+  cancelledAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -102,6 +106,14 @@ const BookingSchema = new Schema<IBooking>(
     checkoutImages: [{ type: String }],
     cancelReason: { type: String, default: '' },
     rejectReason: { type: String, default: '' },
+    refundAmount: { type: Number, default: 0 },
+    refundStatus: {
+      type: String,
+      enum: ['Pending', 'Approved', 'Rejected', 'None'],
+      default: 'None',
+    },
+    refundForfeitAmount: { type: Number, default: 0 },
+    cancelledAt: { type: Date },
   },
   { timestamps: true }
 );
