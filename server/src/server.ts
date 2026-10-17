@@ -140,25 +140,42 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       }
     });
 
-    socket.on('join_booking', async (bookingId: string) => {
-      if (!bookingId || !user) return;
-      const booking = await Booking.findById(bookingId);
-      if (!booking) return;
+    socket.on(
+      'join_booking',
+      async (bookingId: string, ack?: (res: { success: boolean; message?: string }) => void) => {
+        if (!bookingId || !user) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Yêu cầu đăng nhập xác thực.' });
+          return;
+        }
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Không tìm thấy đơn đặt xe.' });
+          return;
+        }
 
-      const isOwner = booking.userId.toString() === user._id.toString();
-      const isBranchStaff =
-        ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
-        (!user.branchId ||
-          booking.pickupBranchId.toString() === user.branchId.toString() ||
-          booking.returnBranchId.toString() === user.branchId.toString());
+        const isOwner = booking.userId.toString() === user._id.toString();
+        const isBranchStaff =
+          ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
+          (!user.branchId ||
+            booking.pickupBranchId.toString() === user.branchId.toString() ||
+            booking.returnBranchId.toString() === user.branchId.toString());
 
-      if (isOwner || isBranchStaff) {
-        socket.join(`booking:${bookingId}`);
+        if (isOwner || isBranchStaff) {
+          socket.join(`booking:${bookingId}`);
+          if (typeof ack === 'function') {
+            ack({ success: true, message: `Đã kết nối theo dõi thời gian thực đơn ${booking.bookingCode}.` });
+          }
+        } else {
+          if (typeof ack === 'function') {
+            ack({ success: false, message: 'Bạn không có quyền theo dõi đơn đặt xe này.' });
+          }
+        }
       }
-    });
+    );
 
-    socket.on('leave_booking', (bookingId: string) => {
+    socket.on('leave_booking', (bookingId: string, ack?: () => void) => {
       socket.leave(`booking:${bookingId}`);
+      if (typeof ack === 'function') ack();
     });
 
     socket.on('join_conversation', async (conversationId: string) => {
