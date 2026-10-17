@@ -94,6 +94,10 @@ export interface Booking {
   startOdometer: number;
   endOdometer?: number;
   cancelReason?: string;
+  refundAmount?: number;
+  refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
+  refundForfeitAmount?: number;
+  cancelledAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }

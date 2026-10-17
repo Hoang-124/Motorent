@@ -799,13 +799,16 @@ export const recordCounterPayment = async (
 };
 
 /**
- * Cancel booking
+ * Cancel booking (UC-32) - BR-06 Cancellation Policy
+ * Free cancellation if > 24 hours before pickup time.
+ * 50% deposit forfeited if cancelled within 24 hours of pickup.
+ * No cancellation allowed after vehicle handover (Ongoing / Completed).
  */
 export const cancelBooking = async (
   bookingId: string,
   requestingUser: IUser,
   cancelReason?: string
-): Promise<IBooking> => {
+): Promise<IBooking & { policySummary?: Record<string, unknown> }> => {
   if (!mongoose.isValidObjectId(bookingId)) {
     throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
   }
@@ -815,25 +818,131 @@ export const cancelBooking = async (
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
 
+  // Precondition 1: Customer authorization
   if (requestingUser.roles === 'Customer') {
     if (booking.userId.toString() !== requestingUser._id.toString()) {
       throw new AppError(403, 'Bạn không có quyền hủy đơn đặt xe này.');
     }
   }
 
+  // 32.0.E1: Disallow cancellation if already Ongoing, Completed, Cancelled, or Rejected
   if (booking.status === 'Ongoing' || booking.status === 'Completed') {
-    throw new AppError(400, 'Không thể hủy đơn đặt xe đang hoặc đã hoàn tất chuyến đi.');
+    throw new AppError(
+      409,
+      `Không thể hủy đơn đặt xe đang trong hành trình hoặc đã hoàn tất (Trạng thái hiện tại: "${booking.status}").`
+    );
   }
 
+  if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
+    throw new AppError(
+      409,
+      `Đơn đặt xe này đã ở trạng thái "${booking.status}", không thể thực hiện thao tác hủy.`
+    );
+  }
+
+  const now = new Date();
+  const hoursUntilPickup = (booking.pickupDateTime.getTime() - now.getTime()) / (1000 * 3600);
+
+  let forfeitAmount = 0;
+  let refundAmount = 0;
+  let policyNotice = '';
+
+  // BR-06 policy calculation
+  if ((booking.paidAmount || 0) > 0) {
+    if (hoursUntilPickup > 24) {
+      // Free cancellation > 24h before pickup
+      forfeitAmount = 0;
+      refundAmount = booking.paidAmount;
+      policyNotice = `Hủy trước giờ nhận > 24 giờ (${Math.max(0, Math.floor(hoursUntilPickup))} giờ). Miễn phí hủy 100%, số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
+    } else {
+      // Within 24h of pickup: 50% deposit forfeited
+      forfeitAmount = Math.round((booking.depositAmount || 0) * 0.5);
+      refundAmount = Math.max(0, (booking.paidAmount || 0) - forfeitAmount);
+      policyNotice = `Hủy trong vòng 24 giờ trước giờ nhận (${Math.max(0, Math.round(hoursUntilPickup))} giờ). Khấu trừ 50% tiền cọc (${forfeitAmount.toLocaleString('vi-VN')} đ) theo chính sách BR-06. Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
+    }
+  } else {
+    policyNotice = 'Đơn đặt giữ chưa phát sinh tiền thanh toán, hủy đơn không mất phí.';
+  }
+
+  // Update booking status and refund state
   booking.status = 'Cancelled';
-  booking.cancelReason = cancelReason?.trim() || 'Khách hàng yêu cầu hủy đơn.';
+  booking.cancelReason = cancelReason?.trim() || 'Khách hàng yêu cầu hủy đơn trực tuyến.';
+  booking.cancelledAt = now;
+  booking.refundAmount = refundAmount;
+  booking.refundForfeitAmount = forfeitAmount;
+  booking.refundStatus = refundAmount > 0 ? 'Pending' : 'None';
   await booking.save();
+
+  // Release vehicle back to Available status
+  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Available' }).catch(() => {});
 
   // Rollback discount usage count if applied
   if (booking.discountId) {
     await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
   }
 
+  // Create pending refund record if eligible
+  if (refundAmount > 0) {
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
+      amount: refundAmount,
+      type: 'REFUND',
+      status: 'PENDING',
+    }).catch((err: unknown) => console.error('[Refund Payment Record Error]', err));
+  }
+
+  // Send customer notification
+  await Notification.create({
+    userId: booking.userId,
+    title: `Đơn đặt xe ${booking.bookingCode} đã được hủy`,
+    message: policyNotice,
+    type: 'BOOKING_CANCELLED',
+    data: {
+      bookingId: booking._id,
+      bookingCode: booking.bookingCode,
+      refundAmount,
+      forfeitAmount,
+      refundStatus: booking.refundStatus,
+    },
+  }).catch(() => {});
+
+  // Log action to AuditLog
+  await AuditLog.create({
+    userId: requestingUser._id,
+    action: 'CANCEL_BOOKING',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      cancelReason: booking.cancelReason,
+      hoursUntilPickup,
+      paidAmount: booking.paidAmount,
+      depositAmount: booking.depositAmount,
+      forfeitAmount,
+      refundAmount,
+      refundStatus: booking.refundStatus,
+      policyNotice,
+    },
+    timestamp: now,
+  }).catch(() => {});
+
   emitBookingStatus(booking);
-  return booking;
+
+  const populated = await Booking.findById(booking._id)
+    .populate('userId', 'username email firstName lastName phoneNumber')
+    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('pickupBranchId', 'name address phone')
+    .populate('returnBranchId', 'name address phone');
+
+  const result = populated ? populated.toObject() : booking.toObject();
+  (result as unknown as Record<string, unknown>).policySummary = {
+    hoursUntilPickup,
+    forfeitAmount,
+    refundAmount,
+    policyNotice,
+  };
+
+  return result as unknown as IBooking;
 };
+

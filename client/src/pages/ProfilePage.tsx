@@ -961,8 +961,27 @@ export const ProfilePage: React.FC = () => {
 
                         {/* Bottom Action Strip */}
                         <div className="px-5 py-3 bg-[#101010]/40 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
-                          <div className="text-xs text-[#A0A0A0]">
-                            {b.cancelReason ? (
+                          <div className="text-xs text-[#A0A0A0] flex flex-wrap items-center gap-2">
+                            {b.status === 'Cancelled' ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[#FF8080] font-medium">Đơn đã hủy</span>
+                                {b.cancelReason && (
+                                  <span className="text-[#A0A0A0]">
+                                    • Lý do: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
+                                  </span>
+                                )}
+                                {(b.refundAmount ?? 0) > 0 && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold font-mono-tabular">
+                                    Hoàn tiền BR-06: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
+                                  </span>
+                                )}
+                                {(b.refundForfeitAmount ?? 0) > 0 && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold font-mono-tabular">
+                                    Khấu trừ &lt; 24h: {(b.refundForfeitAmount ?? 0).toLocaleString('vi-VN')} đ
+                                  </span>
+                                )}
+                              </div>
+                            ) : b.cancelReason ? (
                               <span className="text-[#A0A0A0]">
                                 Ghi chú hủy đơn: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
                               </span>
@@ -1624,86 +1643,157 @@ export const ProfilePage: React.FC = () => {
       {/* =====================================================================
           MODAL 2: CANCEL BOOKING CONFIRMATION
           ===================================================================== */}
-      {selectedBookingForCancel && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#161616] rounded-2xl max-w-md w-full p-6 border border-white/15 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center space-x-2 text-[#FF8080] font-bold text-sm">
-                <AlertTriangle className="w-4 h-4" />
-                <span>Xác nhận hủy đơn {selectedBookingForCancel.bookingCode}</span>
+      {/* =====================================================================
+          MODAL 2: CANCEL BOOKING CONFIRMATION WITH BR-06 POLICY
+          ===================================================================== */}
+      {selectedBookingForCancel && (() => {
+        const pickupTime = new Date(selectedBookingForCancel.pickupDateTime).getTime();
+        const hoursUntilPickup = (pickupTime - Date.now()) / (1000 * 3600);
+        const paid =
+          selectedBookingForCancel.paidAmount ||
+          (selectedBookingForCancel.depositPaid ? selectedBookingForCancel.depositAmount : 0) ||
+          0;
+        const deposit = selectedBookingForCancel.depositAmount || 0;
+        const isMoreThan24h = hoursUntilPickup > 24;
+        const forfeitAmount = paid > 0 ? (isMoreThan24h ? 0 : Math.round(deposit * 0.5)) : 0;
+        const refundEstimate = Math.max(0, paid - forfeitAmount);
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="bg-[#161616] rounded-2xl max-w-lg w-full p-6 border border-white/15 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <div className="flex items-center space-x-2 text-[#FF8080] font-bold text-sm">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Xác nhận hủy đơn {selectedBookingForCancel.bookingCode}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBookingForCancel(null)}
+                  className="text-[#A0A0A0] hover:text-[#F5F5F5] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedBookingForCancel(null)}
-                className="text-[#A0A0A0] hover:text-[#F5F5F5]"
+
+              {/* BR-06 Policy Breakdown Card */}
+              <div
+                className={`p-4 rounded-xl border space-y-2 text-xs ${
+                  paid > 0 && isMoreThan24h
+                    ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                    : paid > 0
+                    ? 'bg-amber-950/20 border-amber-500/30 text-amber-200'
+                    : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
+                }`}
               >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white uppercase tracking-wider text-[11px]">
+                    Chính sách hủy đơn BR-06
+                  </span>
+                  <span className="font-mono-tabular font-medium">
+                    {hoursUntilPickup > 0
+                      ? `Còn ${Math.max(0, Math.floor(hoursUntilPickup))} giờ trước nhận xe`
+                      : 'Đã tới giờ nhận xe'}
+                  </span>
+                </div>
 
-            <p className="text-xs text-[#A0A0A0] leading-relaxed">
-              Bạn có chắc chắn muốn hủy đơn đặt giữ xe mã{' '}
-              <strong className="text-[#F5F5F5] font-mono-tabular">
-                {selectedBookingForCancel.bookingCode}
-              </strong>
-              ?
-            </p>
+                {paid > 0 ? (
+                  isMoreThan24h ? (
+                    <p className="leading-relaxed text-emerald-300">
+                      Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách BR-06, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.
+                    </p>
+                  ) : (
+                    <p className="leading-relaxed text-amber-300">
+                      Bạn đang hủy trong vòng 24 giờ trước giờ nhận xe. Theo chính sách BR-06, hệ thống sẽ <strong>khấu trừ 50% tiền đặt cọc</strong> và hoàn lại số tiền còn lại.
+                    </p>
+                  )
+                ) : (
+                  <p className="leading-relaxed text-[#A0A0A0]">
+                    Đơn đặt xe chưa phát sinh khoản thanh toán cọc. Hệ thống sẽ giải phóng xe về trạng thái sẵn sàng cho khách hàng khác mà không phát sinh phí.
+                  </p>
+                )}
 
-            <div>
-              <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                Lý do hủy đơn
-              </label>
-              <div className="grid grid-cols-2 gap-1.5 mb-2">
-                {[
-                  'Thay đổi lịch trình',
-                  'Đổi sang mẫu xe khác',
-                  'Có việc đột xuất',
-                  'Đặt nhầm ngày nhận xe',
-                ].map((reason) => (
-                  <button
-                    key={reason}
-                    type="button"
-                    onClick={() => setCancelReasonInput(reason)}
-                    className={`p-2 rounded-lg text-[11px] text-left border transition-all cursor-pointer ${
-                      cancelReasonInput === reason
-                        ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
-                        : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
-                    }`}
-                  >
-                    {reason}
-                  </button>
-                ))}
+                {paid > 0 && (
+                  <div className="pt-2 border-t border-white/10 grid grid-cols-3 gap-2 text-center font-mono-tabular text-[11px]">
+                    <div className="bg-black/30 p-2 rounded-lg">
+                      <div className="text-[#A0A0A0] text-[10px]">Đã thanh toán</div>
+                      <div className="font-bold text-white">{paid.toLocaleString('vi-VN')} đ</div>
+                    </div>
+                    <div className="bg-black/30 p-2 rounded-lg">
+                      <div className="text-[#A0A0A0] text-[10px]">Phí khấu trừ BR-06</div>
+                      <div className="font-bold text-[#FF8080]">
+                        {forfeitAmount > 0 ? `-${forfeitAmount.toLocaleString('vi-VN')} đ` : '0 đ'}
+                      </div>
+                    </div>
+                    <div className="bg-black/30 p-2 rounded-lg">
+                      <div className="text-[#A0A0A0] text-[10px]">Tiền hoàn dự kiến</div>
+                      <div className="font-bold text-emerald-400">
+                        {refundEstimate.toLocaleString('vi-VN')} đ
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <input
-                type="text"
-                value={cancelReasonInput}
-                onChange={(e) => setCancelReasonInput(e.target.value)}
-                placeholder="Hoặc nhập lý do khác..."
-                className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
-              />
-            </div>
 
-            <div className="flex items-center space-x-3 pt-2">
-              <button
-                type="button"
-                disabled={cancelLoading}
-                onClick={() => setSelectedBookingForCancel(null)}
-                className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5]"
-              >
-                Giữ lại đơn
-              </button>
-              <button
-                type="button"
-                disabled={cancelLoading}
-                onClick={handleCancelBooking}
-                className="flex-1 py-2.5 rounded-xl bg-[#FF8080] hover:bg-[#FF9999] text-[#101010] text-xs font-semibold transition-colors"
-              >
-                {cancelLoading ? 'Đang hủy...' : 'Xác nhận hủy'}
-              </button>
+              <div>
+                <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                  Lý do hủy đơn
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 mb-2">
+                  {[
+                    'Thay đổi lịch trình',
+                    'Đổi sang mẫu xe khác',
+                    'Có việc đột xuất',
+                    'Đặt nhầm ngày nhận xe',
+                  ].map((reason) => (
+                    <button
+                      key={reason}
+                      type="button"
+                      onClick={() => setCancelReasonInput(reason)}
+                      className={`p-2 rounded-lg text-[11px] text-left border transition-all cursor-pointer ${
+                        cancelReasonInput === reason
+                          ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
+                          : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={cancelReasonInput}
+                  onChange={(e) => setCancelReasonInput(e.target.value)}
+                  placeholder="Hoặc nhập lý do khác..."
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
+                />
+              </div>
+
+              <div className="flex items-center space-x-3 pt-2">
+                <button
+                  type="button"
+                  disabled={cancelLoading}
+                  onClick={() => setSelectedBookingForCancel(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
+                >
+                  Giữ lại đơn
+                </button>
+                <button
+                  type="button"
+                  disabled={cancelLoading}
+                  onClick={handleCancelBooking}
+                  className="flex-1 py-2.5 rounded-xl bg-[#FF8080] hover:bg-[#FF9999] text-[#101010] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {cancelLoading
+                    ? 'Đang hủy...'
+                    : paid > 0 && refundEstimate > 0
+                    ? `Xác nhận hủy (Hoàn ${refundEstimate.toLocaleString('vi-VN')} đ)`
+                    : 'Xác nhận hủy đơn'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 };

@@ -226,10 +226,12 @@ export const cancel = async (
 
     const { cancelReason } = cancelSchema.parse(req.body || {});
     const cancelled = await bookingService.cancelBooking(req.params.id, req.user, cancelReason);
+    const policyNotice = (cancelled as unknown as { policySummary?: { policyNotice?: string } })
+      .policySummary?.policyNotice;
 
     res.json({
       success: true,
-      message: 'Đã hủy đơn đặt xe thành công.',
+      message: policyNotice || 'Đã hủy đơn đặt xe thành công.',
       data: cancelled,
     });
   } catch (error) {
