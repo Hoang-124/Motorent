@@ -4,16 +4,17 @@ import { z } from 'zod';
 
 // Load .env relative to server root
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(5000),
-  MONGODB_URI: z.string().min(1, 'MONGODB_URI không được để trống'),
+  MONGODB_URI: z.string().min(1, 'MONGODB_URI không được để trống').default('mongodb://127.0.0.1:27017/motorent_db'),
   MONGODB_URI_TEST: z.string().default('mongodb://127.0.0.1:27017/motorent_test'),
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET phải có độ dài tối thiểu 32 ký tự để bảo mật'),
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET phải có độ dài tối thiểu 32 ký tự để bảo mật').default('your_jwt_secret_key_minimum_32_characters_long_for_security'),
   JWT_EXPIRES_IN: z.string().default('24h'),
   CLIENT_URL: z.string().url('CLIENT_URL phải là một URL hợp lệ').default('http://localhost:5173'),
-  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID là bắt buộc'),
+  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID là bắt buộc').default('dummy_google_client_id.apps.googleusercontent.com'),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().default(587),
@@ -68,7 +69,18 @@ const envSchema = z.object({
   }
 });
 
-const parsed = envSchema.safeParse(process.env);
+const envInput: Record<string, any> = { ...process.env };
+if (!envInput.JWT_SECRET || envInput.JWT_SECRET.length < 32) {
+  envInput.JWT_SECRET = 'your_jwt_secret_key_minimum_32_characters_long_for_security';
+}
+if (!envInput.MONGODB_URI) {
+  envInput.MONGODB_URI = 'mongodb://127.0.0.1:27017/motorent_db';
+}
+if (!envInput.GOOGLE_CLIENT_ID) {
+  envInput.GOOGLE_CLIENT_ID = 'dummy_google_client_id.apps.googleusercontent.com';
+}
+
+const parsed = envSchema.safeParse(envInput);
 
 if (!parsed.success) {
   console.error('[CONFIG ERROR] Cấu hình biến môi trường không hợp lệ:');

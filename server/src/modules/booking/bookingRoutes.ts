@@ -18,6 +18,9 @@ const bookingCreateLimiter = rateLimit({
   },
 });
 
+// Price estimation & availability check (Public/Customer)
+router.post('/estimate', bookingController.estimateBooking);
+
 // Customer bookings
 router.post(
   '/',

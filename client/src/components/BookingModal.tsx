@@ -15,7 +15,8 @@ import {
   LogIn,
   Camera,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Tag
 } from 'lucide-react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -71,6 +72,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  const [discountCode, setDiscountCode] = useState<string>('');
+  const [appliedVoucher, setAppliedVoucher] = useState<{ code: string; discountAmount: number } | null>(null);
+  const [voucherFeedback, setVoucherFeedback] = useState<string>('');
+  const [isConflicting, setIsConflicting] = useState<boolean>(false);
+  const [estimateLoading, setEstimateLoading] = useState<boolean>(false);
+
   const [modalAngle, setModalAngle] = useState<number>(1);
   const [modalImgError, setModalImgError] = useState<boolean>(false);
 
@@ -101,17 +108,89 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     }
   }, [user]);
 
-  // If vehicle is null, return after all hooks are declared
-  if (!vehicle) return null;
-
   // Duration & pricing calculation
   const startDateTime = new Date(`${pickupDate}T${pickupTime}:00+07:00`);
   const endDateTime = new Date(`${returnDate}T${returnTime}:00+07:00`);
   const durationMs = Math.max(0, endDateTime.getTime() - startDateTime.getTime());
   const durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 3600 * 24)));
-  const totalAmount = durationDays * vehicle.dailyPrice;
+  const basePrice = durationDays * (vehicle ? vehicle.dailyPrice : 0);
+  const discountDeduction = appliedVoucher ? appliedVoucher.discountAmount : 0;
+  const totalAmount = Math.max(0, basePrice - discountDeduction);
   const depositAmount = Math.round(totalAmount * 0.3);
   const remainingAmount = totalAmount - depositAmount;
+
+  // Real-time conflict & price estimation check via server API
+  useEffect(() => {
+    if (!vehicle || !pickupBranchId || !returnBranchId) return;
+    if (startDateTime >= endDateTime) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        setEstimateLoading(true);
+        const res = await api.post('/bookings/estimate', {
+          vehicleId: vehicle._id,
+          pickupBranchId,
+          returnBranchId,
+          pickupDateTime: startDateTime.toISOString(),
+          returnDateTime: endDateTime.toISOString(),
+          discountCode: appliedVoucher?.code || undefined,
+        });
+
+        if (res.data?.success) {
+          setIsConflicting(res.data.data.conflicting);
+        }
+      } catch {
+        // Silently catch live estimate failure
+      } finally {
+        setEstimateLoading(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [vehicle?._id, pickupBranchId, returnBranchId, pickupDate, pickupTime, returnDate, returnTime, appliedVoucher?.code]);
+
+  const handleApplyVoucher = async () => {
+    if (!discountCode.trim()) {
+      setAppliedVoucher(null);
+      setVoucherFeedback('');
+      return;
+    }
+
+    try {
+      setEstimateLoading(true);
+      const res = await api.post('/bookings/estimate', {
+        vehicleId: vehicle!._id,
+        pickupBranchId,
+        returnBranchId,
+        pickupDateTime: startDateTime.toISOString(),
+        returnDateTime: endDateTime.toISOString(),
+        discountCode: discountCode.trim().toUpperCase(),
+      });
+
+      if (res.data?.success && res.data.data.appliedDiscount) {
+        setAppliedVoucher({
+          code: res.data.data.appliedDiscount.code,
+          discountAmount: res.data.data.appliedDiscount.discountAmount,
+        });
+        setVoucherFeedback(`Đã áp dụng mã ${res.data.data.appliedDiscount.code}: Giảm ${res.data.data.appliedDiscount.discountAmount.toLocaleString('vi-VN')} đ`);
+      } else {
+        setAppliedVoucher(null);
+        setVoucherFeedback('Mã giảm giá không tồn tại hoặc không đủ điều kiện.');
+      }
+    } catch (err: unknown) {
+      setAppliedVoucher(null);
+      if (axios.isAxiosError(err)) {
+        setVoucherFeedback(err.response?.data?.message || 'Mã giảm giá không hợp lệ.');
+      } else {
+        setVoucherFeedback('Không thể kiểm tra mã giảm giá.');
+      }
+    } finally {
+      setEstimateLoading(false);
+    }
+  };
+
+  // If vehicle is null, return after all hooks are declared
+  if (!vehicle) return null;
 
   const handleLoginRedirect = () => {
     onClose();
@@ -136,6 +215,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       return;
     }
 
+    if (isConflicting) {
+      setErrorMsg('Xe đã có người đặt trong khoảng thời gian này. Vui lòng chọn khung giờ khác.');
+      return;
+    }
+
     setLoading(true);
     setErrorMsg('');
 
@@ -147,6 +231,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         pickupDateTime: startDateTime.toISOString(),
         returnDateTime: endDateTime.toISOString(),
         paymentMethod,
+        discountCode: appliedVoucher?.code || undefined,
       };
 
       const res = await api.post('/bookings', payload);
@@ -347,21 +432,65 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           )}
 
+          {isConflicting && (
+            <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-300 rounded-xl text-xs flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
+              <span>Phương tiện này đã có khách đặt trong khung thời gian bạn chọn. Vui lòng đổi giờ hoặc chọn xe khác.</span>
+            </div>
+          )}
+
           {/* Pricing transparency card */}
-          <div className="bg-[#101010] border border-white/10 rounded-2xl p-4">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10 text-xs">
+          <div className="bg-[#101010] border border-white/10 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10 text-xs">
               <span className="text-[#A0A0A0] font-medium">Đơn giá ngày:</span>
               <span className="font-bold text-white">
                 {vehicle.dailyPrice.toLocaleString('vi-VN')} đ/ngày
               </span>
             </div>
-            <div className="flex items-center justify-between py-2 border-b border-white/10 text-xs">
+            <div className="flex items-center justify-between py-1 border-b border-white/10 text-xs">
               <span className="text-[#A0A0A0] font-medium">Thời gian thuê ({durationDays} ngày):</span>
               <span className="font-bold text-white">
-                {totalAmount.toLocaleString('vi-VN')} đ
+                {basePrice.toLocaleString('vi-VN')} đ
               </span>
             </div>
-            <div className="pt-3 grid grid-cols-2 gap-3 text-center">
+
+            {appliedVoucher && (
+              <div className="flex items-center justify-between py-1 border-b border-white/10 text-xs text-emerald-400 font-bold">
+                <span>Ưu đãi áp dụng ({appliedVoucher.code}):</span>
+                <span>-{appliedVoucher.discountAmount.toLocaleString('vi-VN')} đ</span>
+              </div>
+            )}
+
+            {/* Voucher code input */}
+            <div className="pt-1">
+              <div className="flex items-center space-x-2">
+                <div className="relative flex-1">
+                  <Tag className="w-3.5 h-3.5 text-[#FFC799] absolute left-3 top-2.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Nhập mã ưu đãi (VD: CHAOBANMOI)..."
+                    value={discountCode}
+                    onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+                    className="w-full bg-[#161616] border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-white uppercase outline-none focus:border-[#FFC799]"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleApplyVoucher}
+                  disabled={estimateLoading}
+                  className="px-3.5 py-2 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer"
+                >
+                  Áp dụng
+                </button>
+              </div>
+              {voucherFeedback && (
+                <p className={`text-[11px] mt-1.5 ${appliedVoucher ? 'text-emerald-400 font-semibold' : 'text-rose-400'}`}>
+                  {voucherFeedback}
+                </p>
+              )}
+            </div>
+
+            <div className="pt-2 grid grid-cols-2 gap-3 text-center">
               <div className="p-2.5 bg-[#161616] rounded-xl border border-[#FFC799]/30 shadow-sm">
                 <span className="block text-[11px] font-bold text-[#F5F5F5] uppercase">
                   Cọc giữ xe online (30%)
@@ -378,7 +507,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <span className="text-base font-black text-white">
                   {remainingAmount.toLocaleString('vi-VN')} đ
                 </span>
-                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Khi nhận xe và kiểm tra</span>
+                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Khi nhận xe và đối soát</span>
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
 import * as bookingService from './bookingService';
@@ -11,6 +11,15 @@ const createBookingSchema = z.object({
   pickupDateTime: z.string().min(1, 'Thiếu thời gian nhận xe'),
   returnDateTime: z.string().min(1, 'Thiếu thời gian trả xe'),
   paymentMethod: z.enum(['Banking', 'Cash']).default('Banking'),
+  discountCode: z.string().trim().optional(),
+});
+
+const estimateBookingSchema = z.object({
+  vehicleId: z.string().min(1, 'Thiếu ID phương tiện'),
+  pickupBranchId: z.string().min(1, 'Thiếu ID chi nhánh nhận xe'),
+  returnBranchId: z.string().min(1, 'Thiếu ID chi nhánh trả xe'),
+  pickupDateTime: z.string().min(1, 'Thiếu thời gian nhận xe'),
+  returnDateTime: z.string().min(1, 'Thiếu thời gian trả xe'),
   discountCode: z.string().trim().optional(),
 });
 
@@ -51,6 +60,24 @@ export const createBooking = async (
       success: true,
       message: 'Đặt giữ xe thành công! Vui lòng hoàn tất cọc 30% để xác nhận đơn.',
       data: booking,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const estimateBooking = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const data = estimateBookingSchema.parse(req.body);
+    const estimate = await bookingService.estimateBooking(data);
+
+    res.json({
+      success: true,
+      data: estimate,
     });
   } catch (error) {
     next(error);
