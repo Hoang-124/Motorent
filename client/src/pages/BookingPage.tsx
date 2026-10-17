@@ -310,8 +310,24 @@ export const BookingPage: React.FC = () => {
       if (res.data && res.data.success) {
         const newBooking: Booking = res.data.data;
 
-        // If paying via VietQR or VNPay online, immediately confirm deposit/full payment on backend
-        if (paymentOption === 'VietQR' || paymentOption === 'VNPay') {
+        // If paying via VNPay, create official payment URL and redirect to gateway
+        if (paymentOption === 'VNPay' && newBooking?._id) {
+          try {
+            const vnpayRes = await api.post('/payments/vnpay/create', {
+              bookingId: newBooking._id,
+              paymentType: paymentScope,
+            });
+            if (vnpayRes.data?.success && vnpayRes.data?.data?.paymentUrl) {
+              window.location.href = vnpayRes.data.data.paymentUrl;
+              return;
+            }
+          } catch (vnpErr) {
+            console.error('[VNPay Create Error]', vnpErr);
+          }
+        }
+
+        // If paying via VietQR online, immediately confirm deposit/full payment on backend
+        if (paymentOption === 'VietQR') {
           try {
             const confirmRes = await api.post('/payments/vietqr/confirm', {
               bookingId: newBooking._id,

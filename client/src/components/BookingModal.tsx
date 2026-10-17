@@ -239,12 +239,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         const newBooking = res.data.data;
         if (paymentMethod === 'Banking' && newBooking?._id) {
           try {
-            await api.post('/payments/vietqr/confirm', {
+            const vnpayRes = await api.post('/payments/vnpay/create', {
               bookingId: newBooking._id,
               paymentType: 'Deposit30',
             });
-          } catch {
-            // Ignore fallback error
+            if (vnpayRes.data?.success && vnpayRes.data?.data?.paymentUrl) {
+              window.location.href = vnpayRes.data.data.paymentUrl;
+              return;
+            }
+          } catch (vnpErr) {
+            console.error('[VNPay redirect fallback]', vnpErr);
           }
         }
         onSuccess(newBooking.bookingCode);
