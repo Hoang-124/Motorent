@@ -98,6 +98,13 @@ export interface Booking {
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
   cancelledAt?: string;
+  refundBankInfo?: {
+    bankName: string;
+    bankAccountNumber: string;
+    bankAccountName: string;
+    reason?: string;
+    requestedAt?: string;
+  };
   createdAt?: string;
   updatedAt?: string;
 }

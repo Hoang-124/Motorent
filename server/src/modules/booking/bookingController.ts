@@ -267,3 +267,34 @@ export const counterPay = async (
   }
 };
 
+const requestRefundSchema = z.object({
+  bankName: z.string().trim().min(1, 'Vui lòng nhập tên ngân hàng'),
+  bankAccountNumber: z.string().trim().min(1, 'Vui lòng nhập số tài khoản'),
+  bankAccountName: z.string().trim().min(1, 'Vui lòng nhập tên chủ tài khoản'),
+  reason: z.string().trim().optional(),
+});
+
+export const requestRefund = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập để gửi yêu cầu hoàn tiền.');
+    }
+
+    const data = requestRefundSchema.parse(req.body);
+    const updated = await bookingService.requestRefund(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: 'Đã tiếp nhận yêu cầu hoàn tiền thành công. Bộ phận quản lý sẽ phê duyệt trong 24 giờ làm việc.',
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

@@ -75,11 +75,20 @@ router.put(
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 
+// UC-32: Cancel booking
 router.put(
   '/:id/cancel',
   authenticateJWT,
   auditLogger('CANCEL_BOOKING', 'Booking'),
   bookingController.cancel
+);
+
+// UC-33: Request refund
+router.post(
+  '/:id/refund',
+  authenticateJWT,
+  auditLogger('REQUEST_REFUND', 'Booking'),
+  bookingController.requestRefund
 );
 
 export default router;

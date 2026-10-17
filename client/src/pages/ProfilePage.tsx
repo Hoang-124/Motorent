@@ -94,6 +94,14 @@ export const ProfilePage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Form states - Refund (UC-33)
+  const [selectedBookingForRefund, setSelectedBookingForRefund] = useState<Booking | null>(null);
+  const [bankNameInput, setBankNameInput] = useState('');
+  const [bankAccountNumberInput, setBankAccountNumberInput] = useState('');
+  const [bankAccountNameInput, setBankAccountNameInput] = useState('');
+  const [refundReasonInput, setRefundReasonInput] = useState('');
+  const [refundLoading, setRefundLoading] = useState(false);
+
   const fetchBookings = async () => {
     setBookingsLoading(true);
     try {
@@ -171,6 +179,40 @@ export const ProfilePage: React.FC = () => {
       }
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  // Request refund for cancelled booking (UC-33)
+  const handleRequestRefund = async () => {
+    if (!selectedBookingForRefund) return;
+    if (!bankNameInput.trim() || !bankAccountNumberInput.trim() || !bankAccountNameInput.trim()) {
+      setErrorMsg('Vui lòng điền đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản nhận tiền.');
+      return;
+    }
+    setRefundLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await api.post(`/bookings/${selectedBookingForRefund._id}/refund`, {
+        bankName: bankNameInput.trim(),
+        bankAccountNumber: bankAccountNumberInput.trim(),
+        bankAccountName: bankAccountNameInput.trim(),
+        reason: refundReasonInput.trim() || undefined,
+      });
+      if (res.data && res.data.success) {
+        setSelectedBookingForRefund(null);
+        await fetchBookings();
+        setSuccessMsg(
+          `Đã tiếp nhận yêu cầu hoàn tiền cho đơn ${selectedBookingForRefund.bookingCode}. Quản lý sẽ phê duyệt trong 24 giờ!`
+        );
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setErrorMsg(err.response.data.message);
+      } else {
+        setErrorMsg('Không thể gửi thông tin hoàn tiền. Vui lòng thử lại.');
+      }
+    } finally {
+      setRefundLoading(false);
     }
   };
 
@@ -1020,6 +1062,22 @@ export const ProfilePage: React.FC = () => {
                               </button>
                             )}
 
+                            {b.status === 'Cancelled' && (b.refundAmount ?? 0) > 0 && b.refundStatus !== 'Approved' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedBookingForRefund(b);
+                                  setBankNameInput(b.refundBankInfo?.bankName || '');
+                                  setBankAccountNumberInput(b.refundBankInfo?.bankAccountNumber || '');
+                                  setBankAccountNameInput(b.refundBankInfo?.bankAccountName || '');
+                                  setRefundReasonInput(b.refundBankInfo?.reason || '');
+                                }}
+                                className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center space-x-1.5"
+                              >
+                                <span>{b.refundBankInfo?.bankAccountNumber ? 'Cập nhật STK hoàn cọc' : 'Gửi STK nhận hoàn cọc'}</span>
+                              </button>
+                            )}
+
                             {v && (
                               <Link
                                 to={`/booking/${v._id}`}
@@ -1794,6 +1852,113 @@ export const ProfilePage: React.FC = () => {
           </div>
         );
       })()}
+      {/* =====================================================================
+          MODAL 3: REQUEST REFUND MODAL (UC-33)
+          ===================================================================== */}
+      {selectedBookingForRefund && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#161616] rounded-2xl max-w-md w-full p-6 border border-white/15 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Yêu cầu hoàn tiền đơn {selectedBookingForRefund.bookingCode}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForRefund(null)}
+                className="text-[#A0A0A0] hover:text-[#F5F5F5] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-1">
+              <div className="flex justify-between text-emerald-300">
+                <span>Số tiền hoàn theo BR-06:</span>
+                <strong className="font-mono-tabular text-sm text-emerald-400">
+                  {(selectedBookingForRefund.refundAmount || 0).toLocaleString('vi-VN')} đ
+                </strong>
+              </div>
+              <p className="text-[11px] text-[#A0A0A0]">
+                Số tiền sẽ được chuyển khoản trực tiếp qua ngân hàng sau khi ban quản lý duyệt yêu cầu.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Ngân hàng thụ hưởng <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankNameInput}
+                  onChange={(e) => setBankNameInput(e.target.value)}
+                  placeholder="Ví dụ: MB Bank, Vietcombank, Techcombank..."
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Số tài khoản nhận tiền <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNumberInput}
+                  onChange={(e) => setBankAccountNumberInput(e.target.value)}
+                  placeholder="Nhập số tài khoản ngân hàng"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs font-mono-tabular text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Tên chủ tài khoản (viết hoa không dấu) <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNameInput}
+                  onChange={(e) => setBankAccountNameInput(e.target.value.toUpperCase())}
+                  placeholder="NGUYEN VAN A"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs font-mono-tabular uppercase text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#A0A0A0] mb-1">
+                  Ghi chú bổ sung (nếu có)
+                </label>
+                <input
+                  type="text"
+                  value={refundReasonInput}
+                  onChange={(e) => setRefundReasonInput(e.target.value)}
+                  placeholder="Lý do hoặc số điện thoại liên hệ đối soát"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                disabled={refundLoading}
+                onClick={() => setSelectedBookingForRefund(null)}
+                className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={refundLoading}
+                onClick={handleRequestRefund}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#101010] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {refundLoading ? 'Đang gửi...' : 'Gửi yêu cầu hoàn tiền'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
