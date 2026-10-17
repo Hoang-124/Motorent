@@ -145,7 +145,12 @@ export const createPaymentUrl = async (
   }
 
   // Calculate amount to pay: Deposit 30% vs Full 100%
-  const amountToPay = paymentType === 'Full100' ? booking.totalAmount : booking.depositAmount;
+  const amountToPay =
+    paymentType === 'Full100'
+      ? booking.depositPaid && booking.remainingAmount
+        ? booking.remainingAmount
+        : booking.totalAmount
+      : booking.depositAmount;
 
   if (amountToPay <= 0) {
     throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0 VNĐ.');
@@ -256,7 +261,11 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
   // 2. Validate Amount
   const vnpAmount = Number(queryParams['vnp_Amount']);
   const expectedAmount =
-    booking.paymentType === 'Full100' ? booking.totalAmount : booking.depositAmount;
+    booking.paymentType === 'Full100'
+      ? booking.depositPaid && booking.remainingAmount
+        ? booking.remainingAmount
+        : booking.totalAmount
+      : booking.depositAmount;
 
   if (isNaN(vnpAmount) || Math.round(expectedAmount * 100) !== vnpAmount) {
     return { RspCode: '04', Message: 'Invalid amount' };
@@ -338,9 +347,9 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
       remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - expectedAmount),
     };
 
-    // Atomic compare-and-swap: only transition if status is still 'Pending'
+    // Atomic compare-and-swap: transition if status is 'Pending' or 'Confirmed'
     const updatedBooking = await Booking.findOneAndUpdate(
-      { _id: booking._id, status: 'Pending' },
+      { _id: booking._id, status: { $in: ['Pending', 'Confirmed'] } },
       { $set: updatePayload },
       { new: true }
     );

@@ -43,6 +43,7 @@ export const VnPayReturnPage: React.FC = () => {
   const [payDate, setPayDate] = useState<string>('');
   const [responseCode, setResponseCode] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [isFullPayment, setIsFullPayment] = useState<boolean>(false);
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -57,6 +58,11 @@ export const VnPayReturnPage: React.FC = () => {
       const rawTxnRef = searchParams.get('vnp_TxnRef') || '';
       const extractedCode = rawTxnRef.includes('__') ? rawTxnRef.split('__')[0] : rawTxnRef;
       setBookingCode(extractedCode);
+
+      const rawOrderInfo = searchParams.get('vnp_OrderInfo') || '';
+      if (rawOrderInfo.includes('100%')) {
+        setIsFullPayment(true);
+      }
 
       const rawAmount = Number(searchParams.get('vnp_Amount') || 0);
       setAmount(rawAmount / 100);
@@ -81,7 +87,14 @@ export const VnPayReturnPage: React.FC = () => {
         const res = await api.get('/payments/vnpay/return', { params: vnpParams });
         if (res.data?.success) {
           setVerifySuccess(true);
-          setStatusMessage('Giao dịch đặt cọc qua cổng VNPay đã được xác thực thành công.');
+          const bookingData = res.data?.data?.booking;
+          const isFull = bookingData?.paymentType === 'Full100' || bookingData?.isPaid || rawOrderInfo.includes('100%');
+          if (isFull) setIsFullPayment(true);
+          setStatusMessage(
+            isFull
+              ? 'Giao dịch thanh toán 100% toàn bộ tiền thuê qua cổng VNPay đã được xác thực thành công!'
+              : 'Giao dịch đặt cọc 30% qua cổng VNPay đã được xác thực thành công.'
+          );
         } else {
           setVerifySuccess(false);
           const errorMsg =
@@ -92,7 +105,11 @@ export const VnPayReturnPage: React.FC = () => {
         // Fallback: If gateway responded 00, treat as successful
         if (respCode === '00') {
           setVerifySuccess(true);
-          setStatusMessage('Giao dịch cọc 30% đã hoàn tất thành công trên cổng VNPay.');
+          setStatusMessage(
+            rawOrderInfo.includes('100%')
+              ? 'Giao dịch thanh toán 100% toàn bộ đã hoàn tất thành công trên cổng VNPay.'
+              : 'Giao dịch cọc 30% đã hoàn tất thành công trên cổng VNPay.'
+          );
         } else {
           setVerifySuccess(false);
           setStatusMessage(VNPAY_ERROR_MESSAGES[respCode] || 'Thanh toán không thành công.');
@@ -144,7 +161,11 @@ export const VnPayReturnPage: React.FC = () => {
           </div>
 
           <h1 className="text-2xl font-black text-white">
-            {verifySuccess ? 'Thanh toán Đặt cọc Thành công' : 'Thanh toán Không thành công'}
+            {verifySuccess
+              ? isFullPayment
+                ? 'Thanh toán 100% Toàn bộ Thành công'
+                : 'Thanh toán Đặt cọc 30% Thành công'
+              : 'Thanh toán Không thành công'}
           </h1>
           <p className="text-xs text-[#A0A0A0] mt-2 max-w-md mx-auto leading-relaxed">
             {statusMessage}
@@ -162,7 +183,9 @@ export const VnPayReturnPage: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
-              <span className="text-[#A0A0A0]">Số tiền giao dịch (Cọc 30%):</span>
+              <span className="text-[#A0A0A0]">
+                Số tiền giao dịch ({isFullPayment ? 'Thanh toán 100%' : 'Cọc 30%'}):
+              </span>
               <span className="font-black text-white text-base">
                 {amount.toLocaleString('vi-VN')} đ
               </span>
@@ -191,12 +214,21 @@ export const VnPayReturnPage: React.FC = () => {
             <ShieldCheck className="w-4 h-4 text-[#FFC799] flex-shrink-0 mt-0.5" />
             <p className="leading-relaxed">
               {verifySuccess ? (
-                <>
-                  <strong className="text-white">Xe của bạn đã được khóa giữ an toàn.</strong> Vui
-                  lòng xuất trình mã hợp đồng{' '}
-                  <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
-                  quầy chi nhánh khi đến giờ nhận xe để hoàn tất đối soát và nhận chìa khóa.
-                </>
+                isFullPayment ? (
+                  <>
+                    <strong className="text-white">Xe của bạn đã được khóa giữ và thanh toán 100%.</strong> Vui
+                    lòng xuất trình mã hợp đồng{' '}
+                    <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
+                    quầy chi nhánh để nhận xe nhanh chóng mà không cần thanh toán thêm tiền thuê xe.
+                  </>
+                ) : (
+                  <>
+                    <strong className="text-white">Xe của bạn đã được khóa giữ an toàn.</strong> Vui
+                    lòng xuất trình mã hợp đồng{' '}
+                    <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
+                    quầy chi nhánh khi đến giờ nhận xe để đối soát và thanh toán 70% còn lại.
+                  </>
+                )
               ) : (
                 <>
                   Giao dịch chưa được trừ tiền hoặc đã bị hủy. Xe vẫn đang ở trạng thái giữ chỗ tạm

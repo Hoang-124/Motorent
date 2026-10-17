@@ -69,6 +69,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<'Banking' | 'Cash'>('Banking');
+  const [onlinePaymentType, setOnlinePaymentType] = useState<'Deposit30' | 'Full100'>('Deposit30');
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -241,7 +242,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           try {
             const vnpayRes = await api.post('/payments/vnpay/create', {
               bookingId: newBooking._id,
-              paymentType: 'Deposit30',
+              paymentType: onlinePaymentType,
             });
             if (vnpayRes.data?.success && vnpayRes.data?.data?.paymentUrl) {
               window.location.href = vnpayRes.data.data.paymentUrl;
@@ -633,43 +634,98 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             </div>
           </div>
 
-          {/* Payment selection */}
+          {/* Payment selection (UC-28, UC-29, UC-30) */}
           <div>
-            <label className="block text-xs font-bold text-[#A0A0A0] mb-2 flex items-center">
-              <CreditCard className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-              Hình thức cọc 30% ({depositAmount.toLocaleString('vi-VN')} đ)
+            <label className="block text-xs font-bold text-[#A0A0A0] mb-2 flex items-center justify-between">
+              <span className="flex items-center">
+                <CreditCard className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
+                Lựa chọn phương thức thanh toán
+              </span>
+              <span className="text-[10px] text-[#A0A0A0]">Hỗ trợ VNPay Sandbox, Thẻ ATM/Visa/QR</span>
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* Option 1: Deposit 30% */}
               <button
                 type="button"
-                onClick={() => setPaymentMethod('Banking')}
-                className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all ${
-                  paymentMethod === 'Banking'
-                    ? 'border-[#FFC799] bg-[#FFC799]/15 text-white font-bold'
+                onClick={() => {
+                  setPaymentMethod('Banking');
+                  setOnlinePaymentType('Deposit30');
+                }}
+                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                  paymentMethod === 'Banking' && onlinePaymentType === 'Deposit30'
+                    ? 'border-[#FFC799] bg-[#FFC799]/15 text-white font-bold shadow-sm'
                     : 'border-white/10 bg-white/[0.02] text-[#A0A0A0] hover:bg-white/[0.04]'
                 }`}
               >
-                <QrCode className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
-                <div className="text-xs">
-                  <p className="font-bold text-white">Quét mã QR / VNPay</p>
-                  <p className="text-[11px] text-[#A0A0A0]">Xác nhận tự động trong 30s</p>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] uppercase font-bold text-[#FFC799] bg-[#FFC799]/10 px-1.5 py-0.5 rounded">
+                      Cọc 30%
+                    </span>
+                    <QrCode className="w-4 h-4 text-[#FFC799]" />
+                  </div>
+                  <p className="font-bold text-white text-xs mt-1">
+                    {depositAmount.toLocaleString('vi-VN')} đ
+                  </p>
                 </div>
+                <p className="text-[10px] text-[#A0A0A0] mt-1.5 leading-tight">
+                  Còn lại 70% ({(totalAmount - depositAmount).toLocaleString('vi-VN')} đ) trả khi nhận xe
+                </p>
               </button>
 
+              {/* Option 2: Full 100% (UC-30) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentMethod('Banking');
+                  setOnlinePaymentType('Full100');
+                }}
+                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all relative cursor-pointer ${
+                  paymentMethod === 'Banking' && onlinePaymentType === 'Full100'
+                    ? 'border-[#99FFE4] bg-[#99FFE4]/15 text-white font-bold shadow-sm'
+                    : 'border-white/10 bg-white/[0.02] text-[#A0A0A0] hover:bg-white/[0.04]'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] uppercase font-bold text-[#99FFE4] bg-[#99FFE4]/10 px-1.5 py-0.5 rounded">
+                      100% Toàn bộ
+                    </span>
+                    <CreditCard className="w-4 h-4 text-[#99FFE4]" />
+                  </div>
+                  <p className="font-bold text-white text-xs mt-1">
+                    {totalAmount.toLocaleString('vi-VN')} đ
+                  </p>
+                </div>
+                <p className="text-[10px] text-[#99FFE4]/90 mt-1.5 leading-tight font-medium">
+                  Tất toán ngay, nhận xe không cần thanh toán thêm tại quầy
+                </p>
+              </button>
+
+              {/* Option 3: Counter Payment */}
               <button
                 type="button"
                 onClick={() => setPaymentMethod('Cash')}
-                className={`p-3 rounded-xl border text-left flex items-center space-x-3 transition-all ${
+                className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
                   paymentMethod === 'Cash'
-                    ? 'border-[#FFC799] bg-[#FFC799]/15 text-white font-bold'
+                    ? 'border-[#FFC799] bg-[#FFC799]/15 text-white font-bold shadow-sm'
                     : 'border-white/10 bg-white/[0.02] text-[#A0A0A0] hover:bg-white/[0.04]'
                 }`}
               >
-                <CreditCard className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
-                <div className="text-xs">
-                  <p className="font-bold text-white">Cọc tại quầy chi nhánh</p>
-                  <p className="text-[11px] text-[#A0A0A0]">Giữ chỗ trước tối đa 2 giờ</p>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] uppercase font-bold text-[#A0A0A0] bg-white/5 px-1.5 py-0.5 rounded">
+                      Tại quầy
+                    </span>
+                    <CreditCard className="w-4 h-4 text-[#A0A0A0]" />
+                  </div>
+                  <p className="font-bold text-white text-xs mt-1">
+                    Thanh toán trạm
+                  </p>
                 </div>
+                <p className="text-[10px] text-[#A0A0A0] mt-1.5 leading-tight">
+                  Đối soát giấy tờ và thanh toán trực tiếp khi nhận xe
+                </p>
               </button>
             </div>
           </div>
@@ -678,7 +734,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 text-xs text-[#A0A0A0] flex items-start space-x-2">
             <ShieldCheck className="w-4 h-4 text-[#FFC799] mt-0.5 flex-shrink-0" />
             <p className="leading-relaxed">
-              <strong className="text-white">Cam kết minh bạch:</strong> Kiểm tra xe chụp ảnh 5 góc trước khi bàn giao. Miễn phí hủy cọc nếu báo trước 24 giờ nhận xe.
+              <strong className="text-white">Cam kết an toàn:</strong> Cổng thanh toán VNPay Sandbox bảo mật SSL/TLS. Miễn phí hủy đặt xe theo chính sách BR-06 trước 24 giờ.
             </p>
           </div>
 
@@ -695,14 +751,24 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-3 rounded-xl text-xs font-black bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-[#101010] shadow-lg shadow-black/50 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95 cursor-pointer"
+                className={`px-6 py-3 rounded-xl text-xs font-black shadow-lg shadow-black/50 transition-all flex items-center space-x-2 disabled:opacity-50 active:scale-95 cursor-pointer ${
+                  paymentMethod === 'Banking' && onlinePaymentType === 'Full100'
+                    ? 'bg-[#99FFE4] hover:bg-[#B3FFF0] text-[#101010]'
+                    : 'bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010]'
+                }`}
               >
                 {loading ? (
                   <span>Đang xử lý đặt xe...</span>
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    <span>Xác nhận đặt xe ngay</span>
+                    <span>
+                      {paymentMethod === 'Banking'
+                        ? onlinePaymentType === 'Full100'
+                          ? `Thanh toán 100% VNPay (${totalAmount.toLocaleString('vi-VN')} đ)`
+                          : `Thanh toán cọc 30% VNPay (${depositAmount.toLocaleString('vi-VN')} đ)`
+                        : 'Xác nhận đặt giữ xe'}
+                    </span>
                   </>
                 )}
               </button>
