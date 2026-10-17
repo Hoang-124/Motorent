@@ -16,6 +16,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { BookingPage } from './pages/BookingPage';
+import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 
@@ -72,6 +73,7 @@ export function App() {
               {/* Dedicated Booking Multi-step Flow */}
               <Route path="/booking/:vehicleId" element={<BookingPage />} />
               <Route path="/booking" element={<BookingPage />} />
+              <Route path="/vnpay-return" element={<VnPayReturnPage />} />
 
               {/* Fallback route */}
               <Route path="*" element={<RoleBasedHome />} />
