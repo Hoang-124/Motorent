@@ -24,6 +24,15 @@ export interface CreateBookingDto {
   discountCode?: string;
 }
 
+export interface EstimateBookingDto {
+  vehicleId: string;
+  pickupBranchId: string;
+  returnBranchId: string;
+  pickupDateTime: string | Date;
+  returnDateTime: string | Date;
+  discountCode?: string;
+}
+
 export interface CheckinDto {
   startOdometer: number;
   startFuelLevel?: string;
@@ -314,6 +323,129 @@ export const createBooking = async (
       throw createErr;
     }
   });
+};
+
+/**
+ * Pre-booking estimation: calculates rental duration, pricing, 30% deposit, and checks availability
+ */
+export const estimateBooking = async (data: EstimateBookingDto) => {
+  const vehicle = await Vehicle.findOne({ _id: data.vehicleId, isDeleted: false });
+  if (!vehicle) {
+    throw new AppError(404, 'Không tìm thấy phương tiện.');
+  }
+
+  const [pickupBranch, returnBranch] = await Promise.all([
+    Branch.findOne({ _id: data.pickupBranchId, isActive: true }),
+    Branch.findOne({ _id: data.returnBranchId, isActive: true }),
+  ]);
+
+  if (!pickupBranch || !returnBranch) {
+    throw new AppError(400, 'Chi nhánh nhận hoặc trả xe không hợp lệ.');
+  }
+
+  const pickupDate = new Date(data.pickupDateTime);
+  const returnDate = new Date(data.returnDateTime);
+
+  if (isNaN(pickupDate.getTime()) || isNaN(returnDate.getTime())) {
+    throw new AppError(400, 'Thời gian nhận hoặc trả xe không hợp lệ.');
+  }
+
+  if (pickupDate >= returnDate) {
+    throw new AppError(400, 'Thời gian trả xe phải sau thời gian nhận xe ít nhất 2 giờ.');
+  }
+
+  const diffHours = (returnDate.getTime() - pickupDate.getTime()) / (1000 * 3600);
+  if (diffHours < 2) {
+    throw new AppError(400, 'Thời gian thuê xe tối thiểu là 2 giờ.');
+  }
+
+  // Branch operating hours check
+  if (pickupBranch.hours_open && pickupBranch.hours_close) {
+    const pickupHm = getVnHm(pickupDate);
+    if (pickupHm < pickupBranch.hours_open || pickupHm > pickupBranch.hours_close) {
+      throw new AppError(
+        400,
+        `Thời gian nhận xe (${pickupHm}) nằm ngoài giờ mở cửa của chi nhánh ${pickupBranch.name} (${pickupBranch.hours_open} - ${pickupBranch.hours_close}).`
+      );
+    }
+  }
+
+  if (returnBranch.hours_open && returnBranch.hours_close) {
+    const returnHm = getVnHm(returnDate);
+    if (returnHm < returnBranch.hours_open || returnHm > returnBranch.hours_close) {
+      throw new AppError(
+        400,
+        `Thời gian trả xe (${returnHm}) nằm ngoài giờ mở cửa của chi nhánh ${returnBranch.name} (${returnBranch.hours_open} - ${returnBranch.hours_close}).`
+      );
+    }
+  }
+
+  // Conflict check
+  const conflictingBooking = await Booking.findOne({
+    vehicleId: vehicle._id,
+    status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+    pickupDateTime: { $lt: returnDate },
+    returnDateTime: { $gt: pickupDate },
+  });
+
+  const isAvailable = !conflictingBooking;
+
+  let basePrice = 0;
+  if (diffHours < 24 && vehicle.hourlyPrice) {
+    basePrice = Math.ceil(diffHours) * vehicle.hourlyPrice;
+  } else {
+    const rentalDays = Math.max(1, Math.ceil(diffHours / 24));
+    basePrice = rentalDays * vehicle.dailyPrice;
+  }
+
+  let discountAmount = 0;
+  let appliedDiscount: { code: string; discountPercent: number; discountAmount: number } | null = null;
+
+  if (data.discountCode) {
+    const discount = await Discount.findOne({
+      code: data.discountCode.toUpperCase(),
+      isActive: true,
+    });
+
+    if (discount) {
+      const now = new Date();
+      const isExpired = discount.endDate && new Date(discount.endDate) < now;
+      const isNotStarted = discount.startDate && new Date(discount.startDate) > now;
+      const isUsageExceeded = discount.usageLimit && discount.usedCount >= discount.usageLimit;
+
+      if (!isExpired && !isNotStarted && !isUsageExceeded) {
+        if (!discount.minBookingAmount || basePrice >= discount.minBookingAmount) {
+          const rawDiscount = Math.round(basePrice * (discount.discountPercent / 100));
+          discountAmount = discount.maxDiscountAmount
+            ? Math.min(discount.maxDiscountAmount, rawDiscount)
+            : rawDiscount;
+          appliedDiscount = {
+            code: discount.code,
+            discountPercent: discount.discountPercent,
+            discountAmount,
+          };
+        }
+      }
+    }
+  }
+
+  const totalAmount = Math.max(0, basePrice - discountAmount);
+  const depositAmount = Math.round(totalAmount * 0.3);
+  const remainingAmount = totalAmount - depositAmount;
+
+  return {
+    isAvailable,
+    conflicting: !isAvailable,
+    durationHours: Math.round(diffHours * 10) / 10,
+    rentalDays: Math.ceil(diffHours / 24),
+    dailyPrice: vehicle.dailyPrice,
+    basePrice,
+    discountAmount,
+    appliedDiscount,
+    totalAmount,
+    depositAmount,
+    remainingAmount,
+  };
 };
 
 /**
