@@ -88,6 +88,8 @@ export interface Booking {
   isPaid: boolean;
   depositPaid?: boolean;
   paidAmount?: number;
+  counterPaidAt?: string;
+  counterPaidBy?: string | User;
   eSignatureUrl?: string;
   startOdometer: number;
   endOdometer?: number;
