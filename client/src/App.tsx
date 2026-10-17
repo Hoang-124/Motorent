@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { WelcomeToast } from './components/WelcomeToast';
@@ -7,7 +8,6 @@ import { LiveChatWidget } from './components/LiveChatWidget';
 import { HomePage } from './pages/HomePage';
 import { FleetPage } from './pages/FleetPage';
 import { BranchesPage } from './pages/BranchesPage';
-import { CounterDesk } from './pages/CounterDesk';
 import { AuditLogPage } from './pages/AuditLogPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -15,10 +15,18 @@ import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { BookingPage } from './pages/BookingPage';
 import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
+import { ManagementNav } from './components/ManagementNav';
+const VehicleDetailPage = lazy(() => import('./pages/VehicleDetailPage').then((module) => ({ default: module.VehicleDetailPage })));
+const RentalPolicyPage = lazy(() => import('./pages/RentalPolicyPage').then((module) => ({ default: module.RentalPolicyPage })));
+const AdminCategoriesPage = lazy(() => import('./pages/AdminCategoriesPage').then((module) => ({ default: module.AdminCategoriesPage })));
+const ManagerVehiclesPage = lazy(() => import('./pages/ManagerVehiclesPage').then((module) => ({ default: module.ManagerVehiclesPage })));
+const FleetOperationsPage = lazy(() => import('./pages/FleetOperationsPage').then((module) => ({ default: module.FleetOperationsPage })));
+const FleetDashboardPage = lazy(() => import('./pages/FleetDashboardPage').then((module) => ({ default: module.FleetDashboardPage })));
+const CounterDesk = lazy(() => import('./pages/CounterDesk').then((module) => ({ default: module.CounterDesk })));
+const BookingPage = lazy(() => import('./pages/BookingPage').then((module) => ({ default: module.BookingPage })));
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -41,10 +49,17 @@ export function App() {
           <Navbar />
           <WelcomeToast />
           <main className="flex-1">
+            <Suspense fallback={<div role="status" className="px-4 py-20 text-center text-[#A0A0A0]">Đang tải trang…</div>}>
             <Routes>
               <Route path="/" element={<RoleBasedHome />} />
               <Route path="/bikes" element={<FleetPage />} />
+              <Route path="/bikes/:vehicleId" element={<VehicleDetailPage />} />
+              <Route path="/rental-policy" element={<RentalPolicyPage />} />
               <Route path="/branches" element={<BranchesPage />} />
+              <Route path="/admin/categories" element={<RequireRole roles={['SystemAdmin']}><><ManagementNav /><AdminCategoriesPage /></></RequireRole>} />
+              <Route path="/manager/vehicles" element={<RequireRole roles={['BranchManager', 'SystemAdmin']}><><ManagementNav /><ManagerVehiclesPage /></></RequireRole>} />
+              <Route path="/manager/fleet" element={<RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}><><ManagementNav /><FleetOperationsPage /></></RequireRole>} />
+              <Route path="/manager/dashboard" element={<RequireRole roles={['BranchManager', 'SystemAdmin']}><><ManagementNav /><FleetDashboardPage /></></RequireRole>} />
               <Route
                 path="/counter"
                 element={
@@ -78,6 +93,7 @@ export function App() {
               {/* Fallback route */}
               <Route path="*" element={<RoleBasedHome />} />
             </Routes>
+            </Suspense>
           </main>
           <Footer />
           {/* UC-44 & UC-66: Real-Time Live Chat Popover */}
@@ -89,3 +105,4 @@ export function App() {
 }
 
 export default App;
+

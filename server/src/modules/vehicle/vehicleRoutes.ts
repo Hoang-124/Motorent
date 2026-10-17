@@ -3,12 +3,16 @@ import { authenticateJWT } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
 import { auditLogger } from '../../core/auditMiddleware';
 import * as vehicleController from './vehicleController';
+import * as categoryController from '../category/categoryController';
 
 const router = Router();
 
 // Public routes
 router.get('/', vehicleController.getVehicles);
 router.get('/categories', vehicleController.getCategories);
+router.get('/management', authenticateJWT, authorize('BranchManager', 'SystemAdmin'), vehicleController.getManagedVehicles);
+router.get('/:id/reviews', vehicleController.getVehicleReviews);
+router.get('/:id/availability', vehicleController.getVehicleAvailability);
 router.get('/:id', vehicleController.getVehicle);
 
 // Categories admin route
@@ -17,7 +21,7 @@ router.post(
   authenticateJWT,
   authorize('SystemAdmin'),
   auditLogger('CREATE_CATEGORY', 'Category'),
-  vehicleController.createCategory
+  categoryController.createCategory
 );
 
 // Protected vehicle management routes

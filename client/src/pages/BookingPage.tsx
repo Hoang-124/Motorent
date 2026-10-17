@@ -47,6 +47,21 @@ interface PaymentReceiptInfo {
   paidAt: string;
 }
 
+interface BookingEstimate {
+  isAvailable: boolean;
+  baseRentalAmount: number;
+  seasonalSurcharge: number;
+  rentalAmount: number;
+  pricingMode: 'hourly' | 'daily';
+  billedUnits: number;
+  totalAmount: number;
+  depositAmount: number;
+  remainingAmount: number;
+  discountAmount: number;
+  appliedDiscount: { code: string; discountAmount: number } | null;
+  breakdown: Array<{ start: string; end: string; date: string; ruleName: string | null; multiplier: number; seasonalAdjustment: number }>;
+}
+
 export const BookingPage: React.FC = () => {
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const [searchParams] = useSearchParams();
@@ -103,18 +118,13 @@ export const BookingPage: React.FC = () => {
   const [customerNotes, setCustomerNotes] = useState<string>('');
 
   // Form Step 3: Perks & Discount
-  const initialVoucherCode = voucherParam === 'MOTORENT30' ? 'MOTORENT30' : 'CHAOBANMOI';
-  const initialVoucherAmount = initialVoucherCode === 'MOTORENT30' ? 30000 : 20000;
+  const initialVoucherCode = voucherParam;
   const [discountCodeInput, setDiscountCodeInput] = useState<string>(initialVoucherCode);
-  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>({
-    code: initialVoucherCode,
-    amount: initialVoucherAmount,
-  });
-  const [discountFeedback, setDiscountFeedback] = useState<string>(
-    initialVoucherCode === 'MOTORENT30'
-      ? 'Đã tự động áp dụng mã ưu đãi MOTORENT30 (-30.000đ)'
-      : 'Đã tự động áp dụng mã ưu đãi chào bạn mới (-20.000đ)'
-  );
+  const [selectedDiscountCode, setSelectedDiscountCode] = useState(initialVoucherCode);
+  const [discountFeedback, setDiscountFeedback] = useState('');
+  const [estimateState, setEstimateState] = useState<{ key: string; data: BookingEstimate } | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
 
   // Form Step 4: Payment selection & QR Verification
   const [paymentOption, setPaymentOption] = useState<'VietQR' | 'VNPay' | 'Cash'>('VietQR');
@@ -195,45 +205,70 @@ export const BookingPage: React.FC = () => {
     setQrPrecheckCode('');
   }, [paymentScope, paymentOption]);
 
-  // Calculation Logic
+  // The estimate endpoint uses the same calculator as booking creation.
   const startDateTime = new Date(`${pickupDate}T${pickupTime}:00+07:00`);
   const endDateTime = new Date(`${returnDate}T${returnTime}:00+07:00`);
   const durationMs = Math.max(0, endDateTime.getTime() - startDateTime.getTime());
-  const durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 3600 * 24)));
 
   const dailyPrice = vehicle ? vehicle.dailyPrice : 0;
-  const baseRentalFee = durationDays * dailyPrice;
-  const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
-  const totalAmount = Math.max(0, baseRentalFee - discountAmount);
-  const depositAmount = Math.round(totalAmount * 0.3); // Cọc 30%
-  const remainingAmount = totalAmount - depositAmount; // 70% còn lại
+  const estimateKey = JSON.stringify([vehicle?._id, pickupBranchId, returnBranchId, pickupDate, pickupTime, returnDate, returnTime, selectedDiscountCode]);
+  const estimate = estimateState?.key === estimateKey ? estimateState.data : null;
+  const appliedDiscount = estimate?.appliedDiscount
+    ? { code: estimate.appliedDiscount.code, amount: estimate.discountAmount } : null;
+  const baseRentalFee = estimate?.baseRentalAmount ?? 0;
+  const totalAmount = currentStep === 5 && createdBooking ? createdBooking.totalAmount : estimate?.totalAmount ?? 0;
+  const depositAmount = currentStep === 5 && createdBooking ? createdBooking.depositAmount : estimate?.depositAmount ?? 0;
+  const remainingAmount = currentStep === 5 && createdBooking ? createdBooking.remainingAmount : estimate?.remainingAmount ?? 0;
   const activePayAmount = paymentScope === 'Full100' ? totalAmount : depositAmount;
   const activeRemainingAfterPay = paymentScope === 'Full100' ? 0 : remainingAmount;
+  const quoteReady = !!estimate && estimate.isAvailable && !quoteLoading;
+  const quotedMoney = (amount: number) => estimate || createdBooking ? amount.toLocaleString('vi-VN') : '—';
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const pickupDateTime = new Date(`${pickupDate}T${pickupTime}:00+07:00`);
+    const returnDateTime = new Date(`${returnDate}T${returnTime}:00+07:00`);
+    setQuoteError(''); setEstimateState(null);
+    if (!vehicle?._id || !pickupBranchId || !returnBranchId || !Number.isFinite(pickupDateTime.getTime()) || !Number.isFinite(returnDateTime.getTime()) || pickupDateTime >= returnDateTime) {
+      setQuoteLoading(false); return () => controller.abort();
+    }
+    setQuoteLoading(true);
+    api.post('/bookings/estimate', {
+      vehicleId: vehicle._id, pickupBranchId, returnBranchId,
+      pickupDateTime: pickupDateTime.toISOString(), returnDateTime: returnDateTime.toISOString(),
+      discountCode: selectedDiscountCode || undefined,
+    }, { signal: controller.signal }).then((response) => {
+      if (controller.signal.aborted) return;
+      const data: BookingEstimate = response.data.data;
+      setEstimateState({ key: estimateKey, data });
+      setDiscountFeedback(selectedDiscountCode
+        ? data.appliedDiscount ? `Đã áp dụng ${data.appliedDiscount.code}: giảm ${data.discountAmount.toLocaleString('vi-VN')} đ.`
+          : 'Mã giảm giá không hợp lệ, hết lượt hoặc chưa đủ điều kiện áp dụng.' : '');
+      if (!data.isAvailable) setQuoteError('Xe đã có lịch trong khoảng thời gian này. Vui lòng chọn lịch khác.');
+    }).catch((failure: unknown) => {
+      if (!controller.signal.aborted) setQuoteError(axios.isAxiosError(failure)
+        ? failure.response?.data?.message || 'Không thể lấy báo giá. Vui lòng thử lại.' : 'Không thể kết nối máy chủ báo giá.');
+    }).finally(() => { if (!controller.signal.aborted) setQuoteLoading(false); });
+    return () => controller.abort();
+  }, [estimateKey, vehicle?._id, pickupBranchId, returnBranchId, pickupDate, pickupTime, returnDate, returnTime, selectedDiscountCode]);
+
+  useEffect(() => { setQrVerified(false); setQrPrecheckCode(''); }, [estimateKey]);
 
   // Discount code handler
   const handleApplyDiscount = () => {
     const trimmed = discountCodeInput.trim().toUpperCase();
-    if (!trimmed) {
-      setAppliedDiscount(null);
-      setDiscountFeedback('');
-      return;
-    }
-
-    if (trimmed === 'CHAOBANMOI') {
-      setAppliedDiscount({ code: 'CHAOBANMOI', amount: 20000 });
-      setDiscountFeedback('Áp dụng thành công mã CHAOBANMOI: Giảm ngay 20.000đ');
-    } else if (trimmed === 'MOTORENT30') {
-      setAppliedDiscount({ code: 'MOTORENT30', amount: 30000 });
-      setDiscountFeedback('Áp dụng thành công mã MOTORENT30: Giảm ngay 30.000đ');
-    } else {
-      setAppliedDiscount(null);
-      setDiscountFeedback('Mã giảm giá không tồn tại hoặc đã hết lượt áp dụng.');
-    }
+    setSelectedDiscountCode(trimmed);
+    if (trimmed !== selectedDiscountCode) setDiscountFeedback(trimmed ? 'Đang kiểm tra mã giảm giá...' : '');
   };
 
   // Next Step Validator
   const handleNextStep = () => {
     setErrorMsg('');
+
+    if (!quoteReady) {
+      setErrorMsg(quoteError || 'Vui lòng chờ báo giá hợp lệ và kiểm tra lịch xe trước khi tiếp tục.');
+      return;
+    }
 
     if (currentStep === 1) {
       if (startDateTime >= endDateTime) {
@@ -289,6 +324,11 @@ export const BookingPage: React.FC = () => {
 
     if (!vehicle) {
       setErrorMsg('Không tìm thấy thông tin phương tiện.');
+      return;
+    }
+
+    if (!quoteReady) {
+      setErrorMsg(quoteError || 'Báo giá chưa sẵn sàng. Vui lòng kiểm tra lại lịch thuê.');
       return;
     }
 
@@ -627,7 +667,7 @@ export const BookingPage: React.FC = () => {
                 <div className="p-3.5 bg-[#101010] border border-white/10 rounded-xl flex items-center justify-between text-xs">
                   <span className="text-[#6E6E6E]">Tổng thời lượng thuê tính phí:</span>
                   <span className="font-mono font-black text-[#FFC799] text-sm">
-                    {durationDays} ngày ({Math.round(durationMs / 3600000)} giờ)
+                    {estimate ? `${estimate.billedUnits} ${estimate.pricingMode === 'hourly' ? 'giờ' : 'ngày'}` : 'Đang tính'} ({Math.round(durationMs / 3600000)} giờ thực tế)
                   </span>
                 </div>
 
@@ -890,10 +930,10 @@ export const BookingPage: React.FC = () => {
                         </span>
                       </div>
                       <p className="font-mono text-base font-black text-[#FFC799]">
-                        {depositAmount.toLocaleString('vi-VN')} đ
+                        {quotedMoney(depositAmount)} đ
                       </p>
                       <p className="text-[11px] text-[#6E6E6E] mt-0.5">
-                        70% còn lại ({remainingAmount.toLocaleString('vi-VN')} đ) thanh toán khi nhận xe
+                        70% còn lại ({quotedMoney(remainingAmount)} đ) thanh toán khi nhận xe
                       </p>
                     </button>
 
@@ -913,7 +953,7 @@ export const BookingPage: React.FC = () => {
                         </span>
                       </div>
                       <p className="font-mono text-base font-black text-[#F5F5F5]">
-                        {totalAmount.toLocaleString('vi-VN')} đ
+                        {quotedMoney(totalAmount)} đ
                       </p>
                       <p className="text-[11px] text-[#6E6E6E] mt-0.5">
                         Không cần thanh toán thêm khi nhận xe tại chi nhánh
@@ -1026,7 +1066,7 @@ export const BookingPage: React.FC = () => {
                             Số tiền ({paymentScope === 'Full100' ? 'Tất toán 100%' : 'Cọc 30%'}):
                           </span>
                           <span className="font-mono font-black text-[#FFC799] text-sm">
-                            {activePayAmount.toLocaleString('vi-VN')} đ
+                            {quotedMoney(activePayAmount)} đ
                           </span>
                         </div>
                         <div className="flex items-center justify-between py-1.5">
@@ -1057,7 +1097,7 @@ export const BookingPage: React.FC = () => {
                             <p className="text-[11px] text-[#C8C2B8] mt-0.5">
                               Mã đối soát NAPAS: <strong className="font-mono text-[#F5F5F5]">{qrPrecheckCode}</strong> • Số tiền:{' '}
                               <strong className="font-mono text-[#FFC799]">
-                                {activePayAmount.toLocaleString('vi-VN')} đ
+                                {quotedMoney(activePayAmount)} đ
                               </strong>
                             </p>
                           </div>
@@ -1094,7 +1134,7 @@ export const BookingPage: React.FC = () => {
                   <div className="p-4 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#C8C2B8] space-y-2">
                     <p>
                       Hệ thống sẽ ghi nhận giao dịch thanh toán trực tuyến qua cổng <strong>VNPay</strong> với số tiền{' '}
-                      <strong className="text-[#FFC799] font-mono">{activePayAmount.toLocaleString('vi-VN')} đ</strong> và kích hoạt trạng thái <strong>Đã duyệt (Approved)</strong> ngay khi xác nhận.
+                      <strong className="text-[#FFC799] font-mono">{quotedMoney(activePayAmount)} đ</strong> và kích hoạt trạng thái <strong>Đã duyệt (Approved)</strong> ngay khi xác nhận.
                     </p>
                   </div>
                 )}
@@ -1132,7 +1172,7 @@ export const BookingPage: React.FC = () => {
 
                   <button
                     type="button"
-                    disabled={submitting}
+                    disabled={submitting || !quoteReady}
                     onClick={handleConfirmBooking}
                     className="flex-1 py-3.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] disabled:opacity-50 text-[#101010] font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 shadow-lg cursor-pointer"
                   >
@@ -1147,7 +1187,7 @@ export const BookingPage: React.FC = () => {
                         <span>
                           {paymentOption === 'Cash'
                             ? 'Tạo đơn giữ chỗ tại quầy'
-                            : `Tôi đã thanh toán ${activePayAmount.toLocaleString('vi-VN')}đ — Hoàn tất & Khóa xe`}
+                            : `Tôi đã thanh toán ${quotedMoney(activePayAmount)}đ — Hoàn tất & Khóa xe`}
                         </span>
                       </>
                     )}
@@ -1252,15 +1292,15 @@ export const BookingPage: React.FC = () => {
                     <span className="font-mono font-bold text-[#FFC799]">
                       {paymentReceipt
                         ? `${paymentReceipt.amount.toLocaleString('vi-VN')} đ (Đã thanh toán QR)`
-                        : `Chờ thanh toán cọc ${depositAmount.toLocaleString('vi-VN')} đ tại quầy`}
+                        : `Chờ thanh toán cọc ${quotedMoney(depositAmount)} đ tại quầy`}
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5">
                     <span className="text-[#6E6E6E]">Còn lại thanh toán khi nhận xe:</span>
                     <span className="font-mono font-bold text-[#F5F5F5]">
                       {paymentReceipt
-                        ? `${activeRemainingAfterPay.toLocaleString('vi-VN')} đ`
-                        : `${remainingAmount.toLocaleString('vi-VN')} đ`}
+                        ? `${quotedMoney(activeRemainingAfterPay)} đ`
+                        : `${quotedMoney(remainingAmount)} đ`}
                     </span>
                   </div>
                 </div>
@@ -1408,23 +1448,35 @@ export const BookingPage: React.FC = () => {
                 <span>Bảng kê chi phí hợp đồng</span>
               </h4>
 
+              {quoteLoading && <p role="status" className="text-xs text-[#FFC799]">Đang lấy báo giá từ chi nhánh...</p>}
+              {quoteError && <p role="alert" className="rounded-xl border border-red-400/25 bg-red-400/10 p-3 text-xs text-red-200">{quoteError}</p>}
+
               <div className="space-y-2.5 text-xs text-[#C8C2B8]">
                 <div className="flex justify-between py-1">
-                  <span className="text-[#6E6E6E]">Đơn giá thuê ngày:</span>
+                  <span className="text-[#6E6E6E]">{estimate?.pricingMode === 'hourly' ? 'Đơn giá thuê giờ:' : 'Đơn giá thuê ngày:'}</span>
                   <span className="font-mono font-bold text-[#F5F5F5]">
-                    {dailyPrice.toLocaleString('vi-VN')} đ/ngày
+                    {(estimate?.pricingMode === 'hourly' ? vehicle.hourlyPrice ?? 0 : dailyPrice).toLocaleString('vi-VN')} đ/{estimate?.pricingMode === 'hourly' ? 'giờ' : 'ngày'}
                   </span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-[#6E6E6E]">Thời lượng thuê:</span>
-                  <span className="font-mono font-bold text-[#FFC799]">{durationDays} ngày</span>
+                  <span className="font-mono font-bold text-[#FFC799]">{estimate ? `${estimate.billedUnits} ${estimate.pricingMode === 'hourly' ? 'giờ' : 'ngày'}` : '—'}</span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className="text-[#6E6E6E]">Tạm tính tiền thuê xe:</span>
+                  <span className="text-[#6E6E6E]">Tiền thuê cơ bản:</span>
                   <span className="font-mono font-bold text-[#F5F5F5]">
-                    {baseRentalFee.toLocaleString('vi-VN')} đ
+                    {quotedMoney(baseRentalFee)} đ
                   </span>
                 </div>
+                {estimate && <div className="flex justify-between py-1 text-[#FFC799]">
+                  <span>Điều chỉnh mùa vụ:</span>
+                  <span className="font-mono font-bold">{estimate.seasonalSurcharge > 0 ? '+' : ''}{estimate.seasonalSurcharge.toLocaleString('vi-VN')} đ</span>
+                </div>}
+                {estimate && estimate.breakdown.filter((segment) => segment.ruleName).map((segment) => <div key={`${segment.start}-${segment.end}`} className="rounded-xl border border-[#FFC799]/20 bg-[#FFC799]/5 p-3 text-[11px] leading-relaxed">
+                  <p className="font-semibold text-[#FFC799]">{segment.ruleName} · {segment.date} · ×{segment.multiplier}</p>
+                  <p className="text-[#8F8F8F]">{new Date(segment.start).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} → {new Date(segment.end).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })} (GMT+7)</p>
+                  <p className="font-mono">{segment.seasonalAdjustment > 0 ? '+' : ''}{segment.seasonalAdjustment.toLocaleString('vi-VN')} đ</p>
+                </div>)}
                 {appliedDiscount && (
                   <div className="flex justify-between py-1 text-[#FFC799] font-bold">
                     <span>Ưu đãi voucher ({appliedDiscount.code}):</span>
@@ -1442,7 +1494,7 @@ export const BookingPage: React.FC = () => {
                 <div className="flex justify-between items-baseline">
                   <span className="text-xs text-[#6E6E6E] font-bold uppercase tracking-wider">Tổng hợp đồng:</span>
                   <span className="text-xl font-black text-[#F5F5F5] font-mono">
-                    {totalAmount.toLocaleString('vi-VN')} <span className="text-xs text-[#6E6E6E] font-normal">đ</span>
+                    {quotedMoney(totalAmount)} <span className="text-xs text-[#6E6E6E] font-normal">đ</span>
                   </span>
                 </div>
 
@@ -1452,7 +1504,7 @@ export const BookingPage: React.FC = () => {
                       {paymentScope === 'Full100' ? 'Thanh toán ngay (100%):' : 'Tiền cọc giữ xe (30%):'}
                     </span>
                     <span className="font-mono font-black text-[#FFC799] text-sm">
-                      {activePayAmount.toLocaleString('vi-VN')} đ
+                      {quotedMoney(activePayAmount)} đ
                     </span>
                   </div>
                   <p className="text-[11px] text-[#6E6E6E]">
@@ -1463,7 +1515,7 @@ export const BookingPage: React.FC = () => {
                 <div className="flex justify-between items-center text-xs text-[#6E6E6E] px-1">
                   <span>Còn lại thanh toán khi nhận xe:</span>
                   <span className="font-mono font-bold text-[#F5F5F5]">
-                    {activeRemainingAfterPay.toLocaleString('vi-VN')} đ
+                    {quotedMoney(activeRemainingAfterPay)} đ
                   </span>
                 </div>
               </div>

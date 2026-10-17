@@ -56,12 +56,23 @@ const VehicleSchema = new Schema<IVehicle>(
     requiresMaintenance: { type: Boolean, default: false },
     lastMaintenanceBucket: { type: Number, default: 0 },
     isDeleted: { type: Boolean, default: false },
-    images: [{ type: String }],
+    images: { type: [String], validate: { validator: (images: string[]) => images.length <= 10, message: 'Mỗi xe có tối đa 10 ảnh.' } },
   },
   { timestamps: true }
 );
 
 VehicleSchema.index({ branchId: 1, status: 1 });
 VehicleSchema.index({ category: 1 });
+VehicleSchema.index({ vehicleModel: 'text', brand: 'text', licensePlate: 'text' });
+// Public catalog price orders include a stable ID tie-break. Partial indexes
+// keep archived vehicles out of these frequently used catalog scans.
+VehicleSchema.index(
+  { dailyPrice: 1, _id: 1 },
+  { name: 'vehicle_public_price_asc', partialFilterExpression: { isDeleted: false } }
+);
+VehicleSchema.index(
+  { dailyPrice: -1, _id: 1 },
+  { name: 'vehicle_public_price_desc', partialFilterExpression: { isDeleted: false } }
+);
 
 export const Vehicle = mongoose.model<IVehicle>('Vehicle', VehicleSchema);

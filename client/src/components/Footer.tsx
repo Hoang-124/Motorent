@@ -135,6 +135,12 @@ export const Footer: React.FC = () => {
               </h4>
               <ul className="space-y-2.5 text-xs">
                 <li>
+                  <Link to="/rental-policy" className="inline-flex items-center space-x-1.5 text-[#F5F5F5] hover:text-[#FFC799] font-medium transition-colors">
+                    <span>Chính sách thuê xe</span>
+                    <ArrowUpRight className="w-3.5 h-3.5 text-[#FFC799]" />
+                  </Link>
+                </li>
+                <li>
                   <button
                     onClick={() => setIsFaqOpen(true)}
                     className="w-full text-left inline-flex items-center space-x-1.5 text-[#F5F5F5] hover:text-[#FFC799] font-medium transition-colors cursor-pointer"

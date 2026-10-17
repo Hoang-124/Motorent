@@ -6,9 +6,11 @@ export type MaintenanceStatus = 'Scheduled' | 'InProgress' | 'Completed';
 export interface IMaintenanceLog extends Document {
   vehicleId: mongoose.Types.ObjectId;
   branchId: mongoose.Types.ObjectId;
+  createdBy?: mongoose.Types.ObjectId;
   maintenanceType: MaintenanceType;
   description: string;
   cost: number;
+  scheduledDate?: Date;
   startDate?: Date;
   endDate?: Date;
   performedBy?: string;
@@ -22,22 +24,16 @@ const MaintenanceLogSchema = new Schema<IMaintenanceLog>(
   {
     vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle', required: true },
     branchId: { type: Schema.Types.ObjectId, ref: 'Branch', required: true },
-    maintenanceType: {
-      type: String,
-      enum: ['Routine', 'Repair', 'Inspection'],
-      default: 'Routine',
-    },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    maintenanceType: { type: String, enum: ['Routine', 'Repair', 'Inspection'], default: 'Routine' },
     description: { type: String, required: true, trim: true },
-    cost: { type: Number, default: 0 },
-    startDate: { type: Date, default: Date.now },
+    cost: { type: Number, default: 0, min: 0 },
+    scheduledDate: { type: Date },
+    startDate: { type: Date },
     endDate: { type: Date },
     performedBy: { type: String, trim: true },
-    odometerAtMaintenance: { type: Number, default: 0 },
-    status: {
-      type: String,
-      enum: ['Scheduled', 'InProgress', 'Completed'],
-      default: 'Scheduled',
-    },
+    odometerAtMaintenance: { type: Number, default: 0, min: 0 },
+    status: { type: String, enum: ['Scheduled', 'InProgress', 'Completed'], default: 'Scheduled' },
   },
   { timestamps: true }
 );
@@ -45,7 +41,4 @@ const MaintenanceLogSchema = new Schema<IMaintenanceLog>(
 MaintenanceLogSchema.index({ vehicleId: 1, status: 1 });
 MaintenanceLogSchema.index({ branchId: 1 });
 
-export const MaintenanceLog = mongoose.model<IMaintenanceLog>(
-  'MaintenanceLog',
-  MaintenanceLogSchema
-);
+export const MaintenanceLog = mongoose.model<IMaintenanceLog>('MaintenanceLog', MaintenanceLogSchema);

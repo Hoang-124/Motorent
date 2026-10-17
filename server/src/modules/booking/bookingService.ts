@@ -10,9 +10,12 @@ import { BookingReminder } from '../../models/BookingReminder';
 import { AuditLog } from '../../models/AuditLog';
 import { Payment } from '../../models/Payment';
 import { AppError } from '../../core/errorHandler';
+import { withResourceLock as acquireVehicleLock } from '../../core/resourceLock';
+export { withResourceLock as acquireVehicleLock } from '../../core/resourceLock';
 import { assertBranchAccess } from '../../core/permissions';
 import { emitBookingStatus } from './bookingEvents';
 import { isCloudinaryConfigured, uploadDataUriToCloudinary } from '../../config/cloudinary';
+import { quoteVehicleRental } from '../pricing/pricingService';
 
 export interface CreateBookingDto {
   vehicleId: string;
@@ -58,28 +61,6 @@ export interface CheckoutDto {
   returnNotes?: string;
   settleNow?: boolean;
 }
-
-// In-process concurrency mutex per vehicle to prevent race conditions on double-booking
-const vehicleMutexes = new Map<string, Promise<unknown>>();
-
-export const acquireVehicleLock = async <T>(vehicleId: string, fn: () => Promise<T>): Promise<T> => {
-  const currentLock = vehicleMutexes.get(vehicleId) || Promise.resolve();
-  let release: () => void;
-  const newLock = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  vehicleMutexes.set(vehicleId, currentLock.then(() => newLock));
-
-  await currentLock;
-  try {
-    return await fn();
-  } finally {
-    release!();
-    if (vehicleMutexes.get(vehicleId) === newLock) {
-      vehicleMutexes.delete(vehicleId);
-    }
-  }
-};
 
 /**
  * Generate unique booking code with MV- prefix
@@ -145,8 +126,12 @@ export const createBooking = async (
       throw new AppError(404, 'Không tìm thấy phương tiện yêu cầu hoặc xe đã ngừng hoạt động.');
     }
 
-    if (vehicle.requiresMaintenance) {
-      throw new AppError(400, 'Phương tiện hiện đang cần bảo dưỡng định kỳ và chưa sẵn sàng bàn giao.');
+    if (vehicle.requiresMaintenance || vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
+      throw new AppError(400, 'Phương tiện đang bảo dưỡng hoặc điều chuyển, chưa sẵn sàng bàn giao.');
+    }
+
+    if (vehicle.branchId.toString() !== data.pickupBranchId) {
+      throw new AppError(400, 'Chi nhánh nhận xe phải là chi nhánh hiện tại của phương tiện.');
     }
 
     const [pickupBranch, returnBranch] = await Promise.all([
@@ -224,13 +209,8 @@ export const createBooking = async (
     }
 
     // Server-side price calculation
-    let basePrice = 0;
-    if (diffHours < 24 && vehicle.hourlyPrice) {
-      basePrice = Math.ceil(diffHours) * vehicle.hourlyPrice;
-    } else {
-      const diffDays = Math.max(1, Math.ceil(diffHours / 24));
-      basePrice = diffDays * vehicle.dailyPrice;
-    }
+    const rentalQuote = await quoteVehicleRental(vehicle, pickupDate, returnDate);
+    const basePrice = rentalQuote.rentalAmount;
 
     let discountAmount = 0;
     let discountDoc = null;
@@ -334,6 +314,13 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
     throw new AppError(404, 'Không tìm thấy phương tiện.');
   }
 
+  if (vehicle.requiresMaintenance || vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
+    throw new AppError(400, 'Phương tiện đang bảo dưỡng hoặc điều chuyển, chưa sẵn sàng bàn giao.');
+  }
+  if (vehicle.branchId.toString() !== data.pickupBranchId) {
+    throw new AppError(400, 'Chi nhánh nhận xe phải là chi nhánh hiện tại của phương tiện.');
+  }
+
   const [pickupBranch, returnBranch] = await Promise.all([
     Branch.findOne({ _id: data.pickupBranchId, isActive: true }),
     Branch.findOne({ _id: data.returnBranchId, isActive: true }),
@@ -357,6 +344,12 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   const diffHours = (returnDate.getTime() - pickupDate.getTime()) / (1000 * 3600);
   if (diffHours < 2) {
     throw new AppError(400, 'Thời gian thuê xe tối thiểu là 2 giờ.');
+  }
+  if (diffHours > 30 * 24) {
+    throw new AppError(400, 'Thời gian thuê xe tối đa cho một đơn là 30 ngày.');
+  }
+  if (pickupDate < new Date(Date.now() - 10 * 60 * 1000)) {
+    throw new AppError(400, 'Thời gian nhận xe không thể ở trong quá khứ.');
   }
 
   // Branch operating hours check
@@ -390,20 +383,15 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
 
   const isAvailable = !conflictingBooking;
 
-  let basePrice = 0;
-  if (diffHours < 24 && vehicle.hourlyPrice) {
-    basePrice = Math.ceil(diffHours) * vehicle.hourlyPrice;
-  } else {
-    const rentalDays = Math.max(1, Math.ceil(diffHours / 24));
-    basePrice = rentalDays * vehicle.dailyPrice;
-  }
+  const rentalQuote = await quoteVehicleRental(vehicle, pickupDate, returnDate);
+  const basePrice = rentalQuote.rentalAmount;
 
   let discountAmount = 0;
   let appliedDiscount: { code: string; discountPercent: number; discountAmount: number } | null = null;
 
-  if (data.discountCode) {
+  if (data.discountCode?.trim()) {
     const discount = await Discount.findOne({
-      code: data.discountCode.toUpperCase(),
+      code: data.discountCode.trim().toUpperCase(),
       isActive: true,
     });
 
@@ -411,7 +399,7 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
       const now = new Date();
       const isExpired = discount.endDate && new Date(discount.endDate) < now;
       const isNotStarted = discount.startDate && new Date(discount.startDate) > now;
-      const isUsageExceeded = discount.usageLimit && discount.usedCount >= discount.usageLimit;
+      const isUsageExceeded = discount.usedCount >= discount.usageLimit;
 
       if (!isExpired && !isNotStarted && !isUsageExceeded) {
         if (!discount.minBookingAmount || basePrice >= discount.minBookingAmount) {
@@ -434,6 +422,7 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   const remainingAmount = totalAmount - depositAmount;
 
   return {
+    ...rentalQuote,
     isAvailable,
     conflicting: !isAvailable,
     durationHours: Math.round(diffHours * 10) / 10,

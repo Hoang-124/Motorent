@@ -26,6 +26,7 @@ import {
   StaticPage,
 } from '../models';
 import { VEHICLE_CATALOG_34 } from './vehicleCatalogData';
+import { SeasonalPricingRule } from '../models/SeasonalPricingRule';
 
 const seedDatabase = async (): Promise<void> => {
   const isForce = process.argv.includes('--force');
@@ -46,6 +47,7 @@ const seedDatabase = async (): Promise<void> => {
     User.deleteMany({ email: { $nin: ['ht20041975@gmail.com', 'ht20041975@outlook.com.vn'] } }),
     Category.deleteMany({}),
     Vehicle.deleteMany({}),
+    SeasonalPricingRule.deleteMany({}),
     Booking.deleteMany({}),
     VehicleTransfer.deleteMany({}),
     MaintenanceLog.deleteMany({}),
@@ -376,6 +378,9 @@ const seedDatabase = async (): Promise<void> => {
       brand: item.brand,
       licensePlate: plate,
       odometer: 1500 + index * 280,
+      // Demo vehicles start serviced at their seeded ODO. Later threshold
+      // crossings are detected normally by checkout and the ODO sweep.
+      lastMaintenanceBucket: Math.floor((1500 + index * 280) / 1500),
       dailyPrice: item.dailyPrice,
       hourlyPrice: item.hourlyPrice,
       status: 'Available' as const,
@@ -472,6 +477,7 @@ const seedDatabase = async (): Promise<void> => {
   await StaticPage.create([
     {
       slug: 'dieu-khoan-dich-vu',
+      isPublished: true,
       title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
       content: 'Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.',
       lastUpdatedBy: userAdmin._id,

@@ -7,9 +7,11 @@
     "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "seed": "tsx src/seeders/seed.ts",
+    "publish:rental-policy": "tsx src/scripts/publishRentalPolicy.ts",
     "typecheck": "tsc",
     "lint": "tsc",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:guest": "vitest run --config vitest.guest.config.mts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

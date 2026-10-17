@@ -1,0 +1,171 @@
+{
+  "measuredAt": "2026-10-17T17:24:17.637Z",
+  "accounts": [
+    {
+      "identifier": "admin",
+      "loginStatus": 200,
+      "role": "SystemAdmin",
+      "endpoints": [
+        {
+          "endpoint": "/fleet/dashboard",
+          "status": 200,
+          "scope": "Toàn bộ chi nhánh",
+          "vehicles": {
+            "total": 20,
+            "statusCounts": {
+              "Available": 19,
+              "Rented": 1,
+              "Maintenance": 0,
+              "Transferring": 0
+            },
+            "readyCount": 0,
+            "maintenanceDueCount": 20,
+            "availableWithMaintenanceDueCount": 19
+          },
+          "maintenance": {
+            "scheduledCount": 0,
+            "inProgressCount": 0,
+            "pendingCount": 0,
+            "completedCount": 0,
+            "pendingEstimatedCost": 0,
+            "completedCost": 0
+          }
+        },
+        {
+          "endpoint": "/vehicles/management",
+          "status": 200,
+          "count": 20
+        },
+        {
+          "endpoint": "/maintenance",
+          "status": 200,
+          "count": 0,
+          "total": 0
+        },
+        {
+          "endpoint": "/transfers",
+          "status": 200,
+          "count": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "identifier": "manager_dad",
+      "loginStatus": 200,
+      "role": "BranchManager",
+      "endpoints": [
+        {
+          "endpoint": "/fleet/dashboard",
+          "status": 200,
+          "scope": "Chi nhánh Sân Bay Quốc Tế Đà Nẵng (Hải Châu)",
+          "vehicles": {
+            "total": 7,
+            "statusCounts": {
+              "Available": 7,
+              "Rented": 0,
+              "Maintenance": 0,
+              "Transferring": 0
+            },
+            "readyCount": 0,
+            "maintenanceDueCount": 7,
+            "availableWithMaintenanceDueCount": 7
+          },
+          "maintenance": {
+            "scheduledCount": 0,
+            "inProgressCount": 0,
+            "pendingCount": 0,
+            "completedCount": 0,
+            "pendingEstimatedCost": 0,
+            "completedCost": 0
+          }
+        },
+        {
+          "endpoint": "/vehicles/management",
+          "status": 200,
+          "count": 7
+        },
+        {
+          "endpoint": "/maintenance",
+          "status": 200,
+          "count": 0,
+          "total": 0
+        },
+        {
+          "endpoint": "/transfers",
+          "status": 200,
+          "count": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "identifier": "manager_mk",
+      "loginStatus": 200,
+      "role": "BranchManager",
+      "endpoints": [
+        {
+          "endpoint": "/fleet/dashboard",
+          "status": 200,
+          "scope": "Chi nhánh Bãi Biển Mỹ Khê",
+          "vehicles": {
+            "total": 7,
+            "statusCounts": {
+              "Available": 6,
+              "Rented": 1,
+              "Maintenance": 0,
+              "Transferring": 0
+            },
+            "readyCount": 0,
+            "maintenanceDueCount": 7,
+            "availableWithMaintenanceDueCount": 6
+          },
+          "maintenance": {
+            "scheduledCount": 0,
+            "inProgressCount": 0,
+            "pendingCount": 0,
+            "completedCount": 0,
+            "pendingEstimatedCost": 0,
+            "completedCost": 0
+          }
+        },
+        {
+          "endpoint": "/vehicles/management",
+          "status": 200,
+          "count": 7
+        },
+        {
+          "endpoint": "/maintenance",
+          "status": 200,
+          "count": 0,
+          "total": 0
+        },
+        {
+          "endpoint": "/transfers",
+          "status": 200,
+          "count": 0,
+          "total": 0
+        }
+      ]
+    },
+    {
+      "identifier": "staff_dad",
+      "loginStatus": 200,
+      "role": "Staff",
+      "endpoints": [
+        {
+          "endpoint": "/maintenance",
+          "status": 200,
+          "count": 0,
+          "total": 0
+        },
+        {
+          "endpoint": "/maintenance/alerts",
+          "status": 200,
+          "count": 7,
+          "total": 7
+        }
+      ]
+    }
+  ]
+}
