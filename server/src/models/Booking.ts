@@ -55,6 +55,9 @@ export interface IBooking extends Document {
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
   cancelledAt?: Date;
+  extensionCount?: number;
+  lastExtendedAt?: Date;
+  originalReturnDateTime?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -114,6 +117,9 @@ const BookingSchema = new Schema<IBooking>(
     },
     refundForfeitAmount: { type: Number, default: 0 },
     cancelledAt: { type: Date },
+    extensionCount: { type: Number, default: 0 },
+    lastExtendedAt: { type: Date },
+    originalReturnDateTime: { type: Date },
   },
   { timestamps: true }
 );

@@ -946,3 +946,285 @@ export const cancelBooking = async (
   return result as unknown as IBooking;
 };
 
+export interface ExtendBookingDto {
+  newReturnDateTime: string | Date;
+}
+
+export interface ExtensionEstimateResult {
+  bookingId: string;
+  bookingCode: string;
+  oldReturnDateTime: string;
+  newReturnDateTime: string;
+  addedHours: number;
+  addedDays: number;
+  oldTotalAmount: number;
+  addedAmount: number;
+  newTotalAmount: number;
+  newRemainingAmount: number;
+  isAvailable: boolean;
+  requiresPayment: boolean;
+}
+
+/**
+ * Preview / estimate rental extension costs and verify availability (UC-34)
+ */
+export const estimateBookingExtension = async (
+  bookingId: string,
+  requestingUser: IUser,
+  data: ExtendBookingDto
+): Promise<ExtensionEstimateResult> => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
+  }
+
+  if (requestingUser.roles === 'Customer') {
+    if (booking.userId.toString() !== requestingUser._id.toString()) {
+      throw new AppError(403, 'Bạn không có quyền thao tác trên đơn đặt xe này.');
+    }
+  }
+
+  if (!['Confirmed', 'Ongoing'].includes(booking.status)) {
+    throw new AppError(
+      400,
+      `Chỉ có thể gia hạn đơn đặt xe đang trong hành trình hoặc đã được xác nhận (Trạng thái hiện tại: "${booking.status}").`
+    );
+  }
+
+  const newReturnDate = new Date(data.newReturnDateTime);
+  if (isNaN(newReturnDate.getTime())) {
+    throw new AppError(400, 'Thời gian trả xe mới không hợp lệ.');
+  }
+
+  if (newReturnDate <= booking.returnDateTime) {
+    throw new AppError(
+      400,
+      `Thời gian trả xe mới (${newReturnDate.toLocaleString('vi-VN')}) phải sau thời gian trả xe hiện tại (${booking.returnDateTime.toLocaleString('vi-VN')}).`
+    );
+  }
+
+  const totalHours = (newReturnDate.getTime() - booking.pickupDateTime.getTime()) / (1000 * 3600);
+  if (totalHours > 30 * 24) {
+    throw new AppError(400, 'Tổng thời gian thuê xe sau khi gia hạn không được vượt quá 30 ngày.');
+  }
+
+  const returnBranch = await Branch.findById(booking.returnBranchId);
+  if (returnBranch && returnBranch.hours_open && returnBranch.hours_close) {
+    const returnHm = getVnHm(newReturnDate);
+    if (returnHm < returnBranch.hours_open || returnHm > returnBranch.hours_close) {
+      throw new AppError(
+        400,
+        `Thời gian trả xe mới (${returnHm}) nằm ngoài giờ mở cửa của chi nhánh ${returnBranch.name} (${returnBranch.hours_open} - ${returnBranch.hours_close}).`
+      );
+    }
+  }
+
+  const conflict = await Booking.findOne({
+    _id: { $ne: booking._id },
+    vehicleId: booking.vehicleId,
+    status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+    pickupDateTime: { $lt: newReturnDate },
+    returnDateTime: { $gt: booking.returnDateTime },
+  });
+
+  if (conflict) {
+    throw new AppError(
+      409,
+      'Phương tiện này đã có lịch đặt tiếp theo trong khung giờ gia hạn bạn yêu cầu. Vui lòng chọn thời gian khác hoặc liên hệ nhân viên chi nhánh.'
+    );
+  }
+
+  const vehicle = await Vehicle.findById(booking.vehicleId);
+  if (!vehicle) {
+    throw new AppError(404, 'Không tìm thấy thông tin phương tiện.');
+  }
+
+  let basePrice = 0;
+  if (totalHours < 24 && vehicle.hourlyPrice) {
+    basePrice = Math.ceil(totalHours) * vehicle.hourlyPrice;
+  } else {
+    const diffDays = Math.max(1, Math.ceil(totalHours / 24));
+    basePrice = diffDays * vehicle.dailyPrice;
+  }
+
+  const discountAmount = booking.discountAmount || 0;
+  const newTotalAmount = Math.max(0, basePrice - discountAmount);
+  const addedAmount = Math.max(0, newTotalAmount - booking.totalAmount);
+  const addedHours = (newReturnDate.getTime() - booking.returnDateTime.getTime()) / (1000 * 3600);
+  const addedDays = Math.ceil(addedHours / 24);
+  const newRemainingAmount = (booking.remainingAmount || 0) + addedAmount;
+
+  return {
+    bookingId: booking._id.toString(),
+    bookingCode: booking.bookingCode,
+    oldReturnDateTime: booking.returnDateTime.toISOString(),
+    newReturnDateTime: newReturnDate.toISOString(),
+    addedHours: Math.round(addedHours * 10) / 10,
+    addedDays,
+    oldTotalAmount: booking.totalAmount,
+    addedAmount,
+    newTotalAmount,
+    newRemainingAmount,
+    isAvailable: true,
+    requiresPayment: addedAmount > 0,
+  };
+};
+
+/**
+ * Execute booking extension with atomic lock and event emission (UC-34)
+ */
+export const extendBooking = async (
+  bookingId: string,
+  requestingUser: IUser,
+  data: ExtendBookingDto
+): Promise<IBooking & { extensionSummary?: Record<string, unknown> }> => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
+  }
+
+  if (requestingUser.roles === 'Customer') {
+    if (booking.userId.toString() !== requestingUser._id.toString()) {
+      throw new AppError(403, 'Bạn không có quyền gia hạn đơn đặt xe này.');
+    }
+  }
+
+  if (!['Confirmed', 'Ongoing'].includes(booking.status)) {
+    throw new AppError(
+      400,
+      `Chỉ có thể gia hạn đơn đặt xe đang trong hành trình hoặc đã được xác nhận (Trạng thái hiện tại: "${booking.status}").`
+    );
+  }
+
+  const newReturnDate = new Date(data.newReturnDateTime);
+  if (isNaN(newReturnDate.getTime())) {
+    throw new AppError(400, 'Thời gian trả xe mới không hợp lệ.');
+  }
+
+  if (newReturnDate <= booking.returnDateTime) {
+    throw new AppError(
+      400,
+      `Thời gian trả xe mới phải sau thời gian trả xe hiện tại (${booking.returnDateTime.toLocaleString('vi-VN')}).`
+    );
+  }
+
+  const totalHours = (newReturnDate.getTime() - booking.pickupDateTime.getTime()) / (1000 * 3600);
+  if (totalHours > 30 * 24) {
+    throw new AppError(400, 'Tổng thời gian thuê xe sau khi gia hạn không được vượt quá 30 ngày.');
+  }
+
+  const returnBranch = await Branch.findById(booking.returnBranchId);
+  if (returnBranch && returnBranch.hours_open && returnBranch.hours_close) {
+    const returnHm = getVnHm(newReturnDate);
+    if (returnHm < returnBranch.hours_open || returnHm > returnBranch.hours_close) {
+      throw new AppError(
+        400,
+        `Thời gian trả xe mới (${returnHm}) nằm ngoài giờ mở cửa của chi nhánh ${returnBranch.name} (${returnBranch.hours_open} - ${returnBranch.hours_close}).`
+      );
+    }
+  }
+
+  return await acquireVehicleLock(booking.vehicleId.toString(), async () => {
+    const conflict = await Booking.findOne({
+      _id: { $ne: booking._id },
+      vehicleId: booking.vehicleId,
+      status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+      pickupDateTime: { $lt: newReturnDate },
+      returnDateTime: { $gt: booking.returnDateTime },
+    });
+
+    if (conflict) {
+      throw new AppError(
+        409,
+        'Phương tiện này đã có lịch đặt tiếp theo trong khung giờ gia hạn bạn yêu cầu. Vui lòng chọn thời gian khác hoặc liên hệ nhân viên chi nhánh.'
+      );
+    }
+
+    const vehicle = await Vehicle.findById(booking.vehicleId);
+    if (!vehicle) {
+      throw new AppError(404, 'Không tìm thấy thông tin phương tiện.');
+    }
+
+    let basePrice = 0;
+    if (totalHours < 24 && vehicle.hourlyPrice) {
+      basePrice = Math.ceil(totalHours) * vehicle.hourlyPrice;
+    } else {
+      const diffDays = Math.max(1, Math.ceil(totalHours / 24));
+      basePrice = diffDays * vehicle.dailyPrice;
+    }
+
+    const discountAmount = booking.discountAmount || 0;
+    const newTotalAmount = Math.max(0, basePrice - discountAmount);
+    const addedAmount = Math.max(0, newTotalAmount - booking.totalAmount);
+    const oldReturnDateTime = booking.returnDateTime;
+
+    if (!booking.originalReturnDateTime) {
+      booking.originalReturnDateTime = oldReturnDateTime;
+    }
+
+    booking.returnDateTime = newReturnDate;
+    booking.totalAmount = newTotalAmount;
+    booking.remainingAmount = (booking.remainingAmount || 0) + addedAmount;
+    if (addedAmount > 0) {
+      booking.isPaid = false;
+    }
+    booking.extensionCount = (booking.extensionCount || 0) + 1;
+    booking.lastExtendedAt = new Date();
+
+    await booking.save();
+
+    await AuditLog.create({
+      userId: requestingUser._id,
+      action: 'EXTEND_BOOKING',
+      entity: 'Booking',
+      entityId: booking._id.toString(),
+      details: {
+        bookingCode: booking.bookingCode,
+        oldReturnDateTime,
+        newReturnDateTime: newReturnDate,
+        addedAmount,
+        newTotalAmount,
+        remainingAmount: booking.remainingAmount,
+      },
+      timestamp: new Date(),
+    }).catch(() => {});
+
+    await Notification.create({
+      userId: booking.userId,
+      title: 'Gia hạn chuyến xe thành công',
+      message: `Đơn thuê xe ${booking.bookingCode} đã được gia hạn đến ${newReturnDate.toLocaleString('vi-VN')}. Phí phát sinh: ${addedAmount.toLocaleString('vi-VN')} đ.`,
+      type: 'BOOKING_UPDATE',
+    }).catch(() => {});
+
+    emitBookingStatus(booking);
+
+    const populated = await Booking.findById(booking._id)
+      .populate('userId', 'username email firstName lastName phoneNumber')
+      .populate('vehicleId', 'vehicleModel licensePlate brand dailyPrice hourlyPrice images')
+      .populate('pickupBranchId', 'name address phone')
+      .populate('returnBranchId', 'name address phone');
+
+    const doc = populated || booking;
+    const result = doc.toObject();
+    (result as unknown as Record<string, unknown>).extensionSummary = {
+      oldReturnDateTime,
+      newReturnDateTime: newReturnDate,
+      addedAmount,
+      newTotalAmount,
+      remainingAmount: booking.remainingAmount,
+      extensionCount: booking.extensionCount,
+    };
+
+    return result as unknown as IBooking;
+  });
+};
+
+

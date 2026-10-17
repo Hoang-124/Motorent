@@ -60,6 +60,21 @@ export const ProfilePage: React.FC = () => {
   const [qrVerifying, setQrVerifying] = useState(false);
   const [qrVerifiedSuccess, setQrVerifiedSuccess] = useState(false);
 
+  // Extend Rental Modal State (UC-34)
+  const [selectedBookingForExtend, setSelectedBookingForExtend] = useState<Booking | null>(null);
+  const [extendNewDate, setExtendNewDate] = useState<string>('');
+  const [extendEstimate, setExtendEstimate] = useState<{
+    addedHours: number;
+    addedDays: number;
+    addedAmount: number;
+    newTotalAmount: number;
+    newRemainingAmount: number;
+    isAvailable: boolean;
+  } | null>(null);
+  const [extendLoading, setExtendLoading] = useState(false);
+  const [extendEstimating, setExtendEstimating] = useState(false);
+  const [extendError, setExtendError] = useState<string>('');
+
   // Form states - Info
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
@@ -171,6 +186,76 @@ export const ProfilePage: React.FC = () => {
       }
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  const handleOpenExtendModal = (b: Booking) => {
+    setSelectedBookingForExtend(b);
+    setExtendError('');
+    setExtendEstimate(null);
+
+    const curr = new Date(b.returnDateTime);
+    const def = new Date(curr.getTime() + 24 * 3600 * 1000);
+    const tzOffset = def.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(def.getTime() - tzOffset).toISOString().slice(0, 16);
+    setExtendNewDate(localISOTime);
+
+    fetchExtendEstimate(b._id, localISOTime);
+  };
+
+  const fetchExtendEstimate = async (bookingId: string, newDateTime: string) => {
+    setExtendEstimating(true);
+    setExtendError('');
+    try {
+      const res = await api.post(`/bookings/${bookingId}/estimate-extension`, {
+        newReturnDateTime: new Date(newDateTime).toISOString(),
+      });
+      if (res.data?.success && res.data.data) {
+        setExtendEstimate(res.data.data);
+      } else {
+        setExtendError(res.data?.message || 'Không thể tính giá gia hạn.');
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setExtendError(err.response?.data?.message || 'Lỗi khi kiểm tra lịch xe trống.');
+      } else {
+        setExtendError('Lỗi kiểm tra lịch xe trống.');
+      }
+      setExtendEstimate(null);
+    } finally {
+      setExtendEstimating(false);
+    }
+  };
+
+  const handleConfirmExtend = async () => {
+    if (!selectedBookingForExtend || !extendNewDate) return;
+    setExtendLoading(true);
+    setExtendError('');
+    try {
+      const res = await api.put(`/bookings/${selectedBookingForExtend._id}/extend`, {
+        newReturnDateTime: new Date(extendNewDate).toISOString(),
+      });
+      if (res.data?.success && res.data.data) {
+        const updated = res.data.data;
+        setBookings((prev) =>
+          prev.map((b) => (b._id === updated._id ? { ...b, ...updated } : b))
+        );
+        const addedText = updated.extensionSummary?.addedAmount
+          ? ` Phí phát sinh: ${Number(updated.extensionSummary.addedAmount).toLocaleString('vi-VN')} đ.`
+          : '';
+        setSuccessMsg(`Gia hạn chuyến xe thành công!${addedText}`);
+        setSelectedBookingForExtend(null);
+      } else {
+        setExtendError(res.data?.message || 'Gia hạn thất bại.');
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setExtendError(err.response?.data?.message || 'Gia hạn thất bại.');
+      } else {
+        setExtendError('Gia hạn thất bại.');
+      }
+    } finally {
+      setExtendLoading(false);
     }
   };
 
@@ -777,6 +862,7 @@ export const ProfilePage: React.FC = () => {
                         : '';
 
                     const canCancel = b.status === 'Pending' || b.status === 'Approved' || b.status === 'Confirmed';
+                    const canExtend = b.status === 'Confirmed' || b.status === 'Ongoing';
                     const needsDepositPayment = b.status === 'Pending' && !b.depositPaid && !b.isPaid;
 
                     return (
@@ -843,6 +929,12 @@ export const ProfilePage: React.FC = () => {
                             {(b.status === 'Cancelled' || b.status === 'Rejected') && (
                               <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FF8080]/12 text-[#FF8080] border border-[#FF8080]/30">
                                 Đã hủy đơn
+                              </span>
+                            )}
+                            {Boolean(b.extensionCount && b.extensionCount > 0) && (
+                              <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30 font-mono-tabular">
+                                <Clock className="w-3 h-3" />
+                                <span>Đã gia hạn {b.extensionCount} lần</span>
                               </span>
                             )}
                           </div>
@@ -1017,6 +1109,17 @@ export const ProfilePage: React.FC = () => {
                                 className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#FF8080]/30 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-colors cursor-pointer"
                               >
                                 Hủy đơn
+                              </button>
+                            )}
+
+                            {canExtend && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenExtendModal(b)}
+                                className="px-3.5 py-1.5 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/30 text-[#FFC799] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Gia hạn thuê xe</span>
                               </button>
                             )}
 
@@ -1794,6 +1897,142 @@ export const ProfilePage: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* Extend Rental Modal (UC-34) */}
+      {selectedBookingForExtend && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#161616] border border-white/12 rounded-2xl w-full max-w-lg p-6 space-y-5 text-[#F5F5F5] shadow-2xl relative">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-2.5">
+                <Clock className="w-5 h-5 text-[#FFC799]" />
+                <h3 className="text-base font-bold text-[#F5F5F5]">
+                  Gia hạn thời gian thuê xe
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForExtend(null)}
+                className="text-[#A0A0A0] hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs space-y-2">
+              <div className="flex justify-between text-[#A0A0A0]">
+                <span>Mã đơn:</span>
+                <span className="text-[#FFC799] font-mono-tabular font-bold">
+                  {selectedBookingForExtend.bookingCode}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#A0A0A0]">
+                <span>Thời gian trả xe hiện tại:</span>
+                <span className="text-[#F5F5F5] font-mono-tabular font-semibold">
+                  {new Date(selectedBookingForExtend.returnDateTime).toLocaleString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-[#F5F5F5]">
+                Chọn mốc thời gian trả xe mới *
+              </label>
+              <input
+                type="datetime-local"
+                value={extendNewDate}
+                min={new Date(new Date(selectedBookingForExtend.returnDateTime).getTime() + 3600 * 1000)
+                  .toISOString()
+                  .slice(0, 16)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setExtendNewDate(val);
+                  if (val) {
+                    fetchExtendEstimate(selectedBookingForExtend._id, val);
+                  }
+                }}
+                className="w-full px-3.5 py-2.5 bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl text-xs text-[#F5F5F5] outline-none [color-scheme:dark]"
+              />
+              <p className="text-[11px] text-[#A0A0A0]">
+                Khung giờ trả xe mới phải nằm trong giờ mở cửa của chi nhánh và tối đa 30 ngày.
+              </p>
+            </div>
+
+            {/* Live Pricing Breakdown / Error */}
+            {extendEstimating ? (
+              <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] text-center space-y-2">
+                <RefreshCw className="w-4 h-4 text-[#FFC799] animate-spin mx-auto" />
+                <span className="text-xs text-[#A0A0A0]">Đang kiểm tra lịch trống và tính toán lại chi phí...</span>
+              </div>
+            ) : extendError ? (
+              <div className="p-3.5 rounded-xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-xs text-[#FF8080] flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{extendError}</span>
+              </div>
+            ) : extendEstimate ? (
+              <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] space-y-2.5 text-xs">
+                <div className="flex justify-between items-center text-[#A0A0A0]">
+                  <span>Thời gian thuê thêm:</span>
+                  <span className="text-[#F5F5F5] font-mono-tabular font-medium">
+                    {extendEstimate.addedDays > 0 ? `${extendEstimate.addedDays} ngày ` : ''}
+                    ({extendEstimate.addedHours} giờ)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[#A0A0A0]">
+                  <span>Chi phí phát sinh thêm:</span>
+                  <span className="text-[#FFC799] font-mono-tabular font-bold text-sm">
+                    +{extendEstimate.addedAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-white/[0.06] flex justify-between items-center">
+                  <span className="text-[#A0A0A0]">Tổng tiền thuê mới:</span>
+                  <span className="text-white font-mono-tabular font-bold">
+                    {extendEstimate.newTotalAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-[#A0A0A0]">
+                  <span>Số dư còn lại cần thanh toán:</span>
+                  <span className="text-[#99FFE4] font-mono-tabular font-semibold">
+                    {extendEstimate.newRemainingAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Actions */}
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                disabled={extendLoading}
+                onClick={() => setSelectedBookingForExtend(null)}
+                className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={extendLoading || extendEstimating || !extendEstimate?.isAvailable}
+                onClick={handleConfirmExtend}
+                className="flex-1 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center space-x-2"
+              >
+                {extendLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {extendLoading
+                    ? 'Đang xử lý...'
+                    : extendEstimate
+                    ? `Xác nhận gia hạn (+${extendEstimate.addedAmount.toLocaleString('vi-VN')} đ)`
+                    : 'Xác nhận gia hạn'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

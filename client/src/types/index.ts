@@ -98,6 +98,9 @@ export interface Booking {
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
   cancelledAt?: string;
+  extensionCount?: number;
+  lastExtendedAt?: string;
+  originalReturnDateTime?: string;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -267,3 +267,54 @@ export const counterPay = async (
   }
 };
 
+const extendSchema = z.object({
+  newReturnDateTime: z.string().min(1, 'Vui lòng chọn thời gian trả xe mới.'),
+});
+
+export const estimateExtension = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const data = extendSchema.parse(req.body);
+    const estimate = await bookingService.estimateBookingExtension(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: 'Ước tính chi phí gia hạn thành công.',
+      data: estimate,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const extend = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const data = extendSchema.parse(req.body);
+    const updated = await bookingService.extendBooking(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: 'Gia hạn thời gian thuê xe thành công!',
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

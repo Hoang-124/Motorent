@@ -75,6 +75,20 @@ router.put(
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 
+// UC-34: Extend Rental
+router.post(
+  '/:id/estimate-extension',
+  authenticateJWT,
+  bookingController.estimateExtension
+);
+
+router.put(
+  '/:id/extend',
+  authenticateJWT,
+  auditLogger('EXTEND_BOOKING', 'Booking'),
+  bookingController.extend
+);
+
 router.put(
   '/:id/cancel',
   authenticateJWT,
