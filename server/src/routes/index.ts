@@ -10,6 +10,7 @@ import auditRoutes from '../modules/audit/auditRoutes';
 import chatRoutes from '../modules/chat/chatRoutes';
 import financeRoutes from '../modules/finance/financeRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
+import { adminPageRouter, publicPageRouter } from '../modules/cms/pageRoutes';
 import { autoCrudAuditMiddleware } from '../core/auditMiddleware';
 
 const router = Router();
@@ -33,5 +34,9 @@ router.use('/payments', paymentRoutes);
 router.use('/audit', auditRoutes);
 router.use('/chat', chatRoutes);
 router.use('/finance', financeRoutes);
+
+// CMS Static Pages (UC-119)
+router.use('/admin/pages', adminPageRouter);
+router.use('/pages', publicPageRouter);
 
 export default router;

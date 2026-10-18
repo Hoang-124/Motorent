@@ -468,19 +468,31 @@ const seedDatabase = async (): Promise<void> => {
   vehicles[1].status = 'Rented';
   await vehicles[1].save();
 
-  // 7. Seed Static Pages & Banners
+  // 7. Seed Static Pages (UC-119: faq, terms, privacy) & Banners
   await StaticPage.create([
     {
-      slug: 'dieu-khoan-dich-vu',
-      title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
-      content: 'Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.',
-      lastUpdatedBy: userAdmin._id,
+      slug: 'faq',
+      title: 'Câu Hỏi Thường Gặp (FAQ)',
+      type: 'FAQ',
+      isPublished: true,
+      content: '<h2>1. Thủ tục thuê xe máy cần những gì?</h2><p>Khách hàng chỉ cần xuất trình CCCD/Hộ chiếu và Giấy phép lái xe hợp lệ (A1/A2) để thực hiện đối chiếu eKYC trực tuyến. Motorent cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng.</p><h2>2. Cách thức đặt cọc và thanh toán?</h2><p>Khách hàng chỉ cần thanh toán cọc 30% giá trị hợp đồng qua cổng thanh toán VNPay để khóa đích danh xe và biển số xe. 70% còn lại thanh toán khi nhận xe hoặc kết thúc hành trình.</p><h2>3. Chính sách hoàn hủy như thế nào?</h2><p>Quý khách được hoàn cọc 100% nếu thông báo hủy lịch thuê trước 24 giờ so với giờ nhận xe đã đăng ký.</p>',
+      updatedBy: userAdmin._id,
     },
     {
-      slug: 'chinh-sach-bao-mat',
+      slug: 'terms',
+      title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
+      type: 'Terms',
+      isPublished: true,
+      content: '<h2>1. Quy định chung</h2><p>Khách hàng khi sử dụng dịch vụ thuê xe tại Motorent Đà Nẵng cần tuân thủ nghiêm ngặt Luật Giao thông Đường bộ Việt Nam, có giấy phép lái xe hợp lệ và không sử dụng phương tiện vào các mục đích vi phạm pháp luật.</p><h2>2. Trách nhiệm bảo quản xe</h2><p>Bên thuê có trách nhiệm kiểm tra xe kỹ lưỡng cùng nhân viên tại thời điểm giao nhận và bảo quản phương tiện cẩn thận trong suốt quá trình thuê xe.</p><h2>3. Xử lý sự cố kỹ thuật</h2><p>Trong trường hợp phương tiện gặp sự cố kỹ thuật trên đường, khách hàng hãy liên hệ ngay hotline tổng đài cứu hộ 24/7 của Motorent để được hỗ trợ đổi xe hoặc sửa chữa lưu động nhanh chóng.</p>',
+      updatedBy: userAdmin._id,
+    },
+    {
+      slug: 'privacy',
       title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
-      content: 'Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa lưu trữ theo tiêu chuẩn bảo mật cao cấp.',
-      lastUpdatedBy: userAdmin._id,
+      type: 'Privacy',
+      isPublished: true,
+      content: '<h2>1. Mục đích thu thập thông tin</h2><p>Motorent thu thập thông tin cá nhân (Họ tên, SĐT, Email, ảnh CCCD/GPLX) nhằm mục đích định danh khách hàng (eKYC), xác lập hợp đồng thuê xe điện tử và phục vụ công tác an toàn giao thông.</p><h2>2. Cam kết bảo mật dữ liệu</h2><p>Mọi dữ liệu giấy tờ tùy thân đều được gắn watermark bảo mật chống sao chép và mã hóa lưu trữ theo tiêu chuẩn cao cấp. Motorent cam kết <strong>tuyệt đối không chia sẻ</strong> thông tin khách hàng cho bên thứ ba vì mục đích thương mại.</p><h2>3. Quyền của khách hàng</h2><p>Khách hàng có quyền yêu cầu tra cứu, cập nhật hoặc xóa dữ liệu cá nhân của mình sau khi hoàn tất các nghĩa vụ hợp đồng thuê xe.</p>',
+      updatedBy: userAdmin._id,
     },
   ]);
 

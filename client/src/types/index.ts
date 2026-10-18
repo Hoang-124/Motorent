@@ -192,3 +192,23 @@ export interface AuditLogEntry {
   userAgent?: string;
   timestamp: string;
 }
+
+export type StaticPageType = 'FAQ' | 'Terms' | 'Privacy' | 'Other';
+
+export interface StaticPage {
+  _id: string;
+  title: string;
+  slug: string;
+  content: string;
+  type: StaticPageType;
+  isPublished: boolean;
+  updatedBy?: {
+    _id: string;
+    username: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+  } | string;
+  createdAt: string;
+  updatedAt: string;
+}
