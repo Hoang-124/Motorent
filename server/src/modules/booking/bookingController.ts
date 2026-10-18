@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
 import * as bookingService from './bookingService';
+import * as invoiceService from './invoiceService';
 import { AppError } from '../../core/errorHandler';
 
 const createBookingSchema = z.object({
@@ -266,4 +267,21 @@ export const counterPay = async (
     next(error);
   }
 };
+
+export const downloadInvoice = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập để tải hóa đơn.');
+    }
+
+    await invoiceService.streamBookingInvoicePdf(req.params.id, req.user, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
 
