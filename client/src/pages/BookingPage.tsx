@@ -27,6 +27,10 @@ import {
   Building2,
   LogIn,
   RefreshCw,
+  Download,
+  CalendarPlus,
+  Lock,
+  ExternalLink,
 } from 'lucide-react';
 import axios from 'axios';
 import { api } from '../services/api';
@@ -178,6 +182,7 @@ export const BookingPage: React.FC = () => {
     ? voucherParam
     : 'CHAOBANMOI';
   const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>(initialVoucherCode);
+  const [customVoucherInput, setCustomVoucherInput] = useState<string>('');
   const [discountFeedback, setDiscountFeedback] = useState<string>('');
 
   // Form Step 4: Payment selection & QR Verification
@@ -189,6 +194,7 @@ export const BookingPage: React.FC = () => {
   const [qrPrecheckCode, setQrPrecheckCode] = useState<string>('');
   const [copiedField, setCopiedField] = useState<string>('');
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState<boolean>(false);
 
   // Created Booking & Verified Receipt response
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
@@ -633,6 +639,48 @@ export const BookingPage: React.FC = () => {
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  const handleDownloadInvoice = async (bookingId: string) => {
+    if (!bookingId) return;
+    setDownloadingInvoice(true);
+    setErrorMsg('');
+    try {
+      const response = await api.get(`/bookings/${bookingId}/invoice?download=true`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Hoa_don_thue_xe_${createdBooking?.bookingCode || bookingId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Invoice download error:', err);
+      // Fallback: open endpoint in new tab
+      window.open(`/api/bookings/${bookingId}/invoice`, '_blank');
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
+
+  const getGoogleCalendarUrl = () => {
+    if (!vehicle) return '#';
+    const title = encodeURIComponent(`Thuê xe máy MotoRent: ${vehicle.vehicleModel} (${vehicle.licensePlate})`);
+    const details = encodeURIComponent(
+      `Hợp đồng thuê xe máy MotoRent Đà Nẵng\nMã đặt xe: ${createdBooking?.bookingCode || 'MV-88692'}\nXe: ${vehicle.vehicleModel} - Biển số: ${vehicle.licensePlate}\nTrạm nhận: ${pickupBranch?.name || ''} (${pickupBranch?.address || ''})\nHotline hỗ trợ 24/7: 0905 123 456`
+    );
+    const location = encodeURIComponent(pickupBranch?.address || 'Đà Nẵng');
+    try {
+      const startIso = startDateTime.toISOString().replace(/-|:|\.\d\d\d/g, '');
+      const endIso = endDateTime.toISOString().replace(/-|:|\.\d\d\d/g, '');
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startIso}/${endIso}&details=${details}&location=${location}`;
+    } catch {
+      return 'https://calendar.google.com';
+    }
+  };
+
   const isElectric = vehicle?.fuelType === 'Electric';
 
   const pickupBranch = branches.find((b) => b._id === pickupBranchId);
@@ -642,11 +690,19 @@ export const BookingPage: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#101010] flex items-center justify-center text-[#F5F5F5]">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-9 h-9 border-2 border-[#FFC799] border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-bold uppercase tracking-wider text-[#6E6E6E]">
-            Đang tải cấu hình xe & biểu phí thuê...
-          </p>
+        <div className="flex flex-col items-center space-y-4 max-w-sm w-full px-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#161616] border border-[#FFC799]/30 flex items-center justify-center shadow-[0_0_24px_rgba(255,199,153,0.15)]">
+            <div className="w-6 h-6 border-2 border-[#FFC799] border-t-transparent rounded-full animate-spin" />
+          </div>
+          <div className="text-center space-y-1">
+            <p className="text-sm font-black text-[#F5F5F5] tracking-tight">
+              Đang kết nối trung tâm xe MotoRent
+            </p>
+            <p className="text-xs text-[#6E6E6E]">
+              Tải cấu hình phương tiện, kiểm tra lịch trống và áp dụng biểu phí...
+            </p>
+          </div>
+          <div className="w-48 h-1.5 rounded-full overflow-hidden bg-white/10 animate-shimmer" />
         </div>
       </div>
     );
@@ -676,22 +732,32 @@ export const BookingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center space-x-2 text-xs text-[#6E6E6E] mb-6">
-          <Link to="/" className="hover:text-[#F5F5F5] transition-colors">
-            Trang chủ
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-[#6E6E6E]" />
-          <Link to="/bikes" className="hover:text-[#F5F5F5] transition-colors">
-            Đội xe chính hãng
-          </Link>
-          <ChevronRight className="w-3.5 h-3.5 text-[#6E6E6E]" />
-          <span className="text-[#F5F5F5] font-semibold truncate max-w-xs">{vehicle.vehicleModel}</span>
-        </nav>
+        {/* Breadcrumb Navigation & Polish Badge */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+          <nav className="flex items-center space-x-2 text-xs text-[#6E6E6E]">
+            <Link to="/" className="hover:text-[#F5F5F5] transition-colors">
+              Trang chủ
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-[#6E6E6E]" />
+            <Link to="/bikes" className="hover:text-[#F5F5F5] transition-colors">
+              Đội xe chính hãng
+            </Link>
+            <ChevronRight className="w-3.5 h-3.5 text-[#6E6E6E]" />
+            <span className="text-[#F5F5F5] font-semibold truncate max-w-xs">{vehicle.vehicleModel}</span>
+          </nav>
+
+          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#161616] border border-white/10 text-[11px] text-[#A0A0A0] shadow-sm self-start sm:self-auto">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#99FFE4] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#99FFE4]"></span>
+            </span>
+            <span>Ước tính: <strong className="text-[#F5F5F5]">~2 phút hoàn tất</strong> • Khóa biển số ngay lập tức</span>
+          </div>
+        </div>
 
         {/* Dynamic Stepper Header */}
-        <div className="bg-[#161616] rounded-2xl px-4 py-4 sm:px-6 sm:py-5 border border-white/10 mb-8">
-          <div className="flex items-center justify-between gap-2 overflow-x-auto">
+        <div className="bg-[#161616] rounded-2xl px-4 py-4 sm:px-6 sm:py-5 border border-white/10 mb-8 shadow-xl">
+          <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
             {[
               { num: 1, code: '01', label: 'Lịch trình', sub: 'Trạm & Giờ thuê' },
               { num: 2, code: '02', label: 'Khách hàng', sub: 'Hồ sơ nhận xe' },
@@ -713,7 +779,7 @@ export const BookingPage: React.FC = () => {
                     }}
                     className={`group flex items-center space-x-3 px-3 py-2 rounded-xl border transition-all shrink-0 text-left ${
                       isActive
-                        ? 'bg-[#1E1E1E] border-[#FFC799]/50 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                        ? 'bg-[#1E1E1E] border-[#FFC799] ring-2 ring-[#FFC799]/30 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
                         : isCompleted
                         ? 'bg-[#101010]/80 border-[#99FFE4]/30 hover:border-[#99FFE4]/60 cursor-pointer'
                         : 'bg-[#101010]/40 border-white/[0.06] opacity-75 cursor-default'
@@ -722,7 +788,7 @@ export const BookingPage: React.FC = () => {
                     <div
                       className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-mono font-black transition-all shrink-0 ${
                         isActive
-                          ? 'bg-[#FFC799] text-[#101010] shadow-[0_0_16px_rgba(255,199,153,0.35)]'
+                          ? 'bg-[#FFC799] text-[#101010] shadow-[0_0_16px_rgba(255,199,153,0.35)] animate-pulse-ring'
                           : isCompleted
                           ? 'bg-[#99FFE4]/15 border border-[#99FFE4]/40 text-[#99FFE4]'
                           : 'bg-[#1E1E1E] border border-white/12 text-[#A0A0A0]'
@@ -760,7 +826,7 @@ export const BookingPage: React.FC = () => {
                     <div className="hidden md:flex flex-1 items-center min-w-[16px] max-w-[48px]">
                       <div
                         className={`h-[2px] w-full rounded-full transition-colors duration-300 ${
-                          currentStep > st.num ? 'bg-[#99FFE4]/50' : 'bg-white/10'
+                          currentStep > st.num ? 'bg-[#99FFE4]/60 shadow-[0_0_8px_rgba(153,255,228,0.3)]' : 'bg-white/10'
                         }`}
                       />
                     </div>
@@ -768,6 +834,31 @@ export const BookingPage: React.FC = () => {
                 </React.Fragment>
               );
             })}
+          </div>
+
+          {/* Stepper Progress bar & Hint */}
+          <div className="mt-3 pt-3 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-[#A0A0A0]">
+            <div className="flex items-center space-x-2">
+              <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
+              <span>
+                {currentStep === 1 && 'Bước 1/5: Chọn ngày giờ và chi nhánh nhận - trả xe'}
+                {currentStep === 2 && 'Bước 2/5: Xác nhận thông tin CCCD và người đứng tên hợp đồng'}
+                {currentStep === 3 && 'Bước 3/5: Lựa chọn bảo hiểm và áp dụng voucher giảm cước'}
+                {currentStep === 4 && 'Bước 4/5: Quét mã QR VietQR hoặc thanh toán VNPay để khóa xe'}
+                {currentStep === 5 && 'Bước 5/5: Hoàn tất đặt xe • Xuất biên lai và hợp đồng điện tử'}
+              </span>
+            </div>
+            <div className="flex items-center space-x-2.5 shrink-0">
+              <span className="font-mono text-[10px] text-[#6E6E6E]">
+                {Math.round((currentStep / 5) * 100)}% hoàn thành
+              </span>
+              <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-[#FFC799] via-[#99FFE4] to-[#99FFE4] transition-all duration-500 ease-out"
+                  style={{ width: `${(currentStep / 5) * 100}%` }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -802,7 +893,24 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 1: Schedule & Branches */}
             {currentStep === 1 && (
-              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6">
+              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
+                {/* Live Availability & Instant Plate Locking Badge */}
+                <div className="p-3.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/25 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center space-x-2.5">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span className="font-semibold text-emerald-300">
+                      Xe đang sẵn sàng tại trạm • Khóa giữ biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> ngay khi hoàn tất
+                    </span>
+                  </div>
+                  <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold shrink-0">
+                    <Lock className="w-3 h-3" />
+                    <span>Khóa độc quyền</span>
+                  </span>
+                </div>
+
                 <div>
                   <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
                     BƯỚC 01 / 04 • LỊCH TRÌNH NHẬN & TRẢ XE
@@ -1000,7 +1108,7 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 2: Customer Identity & eKYC */}
             {currentStep === 2 && (
-              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6">
+              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
                     <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
@@ -1304,7 +1412,7 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 3: Included Perks & Voucher Promo */}
             {currentStep === 3 && (
-              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6">
+              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
                 <div>
                   <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
                     BƯỚC 03 / 04 • TIỆN ÍCH & MÃ KHUYẾN MÃI
@@ -1425,6 +1533,31 @@ export const BookingPage: React.FC = () => {
                       );
                     })}
                   </div>
+
+                  {/* 1-Click Custom Voucher Input Box */}
+                  <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Nhập mã khuyến mãi khác (VD: MOTORENT30)..."
+                        value={customVoucherInput}
+                        onChange={(e) => setCustomVoucherInput(e.target.value.toUpperCase())}
+                        className="w-full bg-[#101010] border border-white/10 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] font-mono tracking-wider outline-none placeholder:text-[#6E6E6E]"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (customVoucherInput.trim()) {
+                          handleSelectVoucher(customVoucherInput.trim());
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-white/[0.08] hover:bg-[#FFC799] hover:text-[#101010] text-[#F5F5F5] border border-white/10 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 text-center"
+                    >
+                      Áp dụng mã
+                    </button>
+                  </div>
+
                   {discountFeedback && (
                     <p className="text-[11px] font-medium text-[#FFC799]">
                       {discountFeedback}
@@ -1456,7 +1589,7 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 4: Deposit / Full Payment (VietQR 24/7 / VNPay / Cash) */}
             {currentStep === 4 && (
-              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6">
+              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
                 <div>
                   <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
                     BƯỚC 04 / 04 • THANH TOÁN & KHÓA BIỂN SỐ XE
@@ -1766,6 +1899,65 @@ export const BookingPage: React.FC = () => {
                         })}
                       </div>
                     </div>
+
+                    {/* VNPay Sandbox Quick-Copy Helper Card */}
+                    <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 text-xs space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-[#FFC799]">
+                        <div className="flex items-center space-x-1.5">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Thông tin thẻ ATM Sandbox thử nghiệm nhanh:</span>
+                        </div>
+                        <span className="font-mono text-[10px] text-[#99FFE4] bg-[#99FFE4]/10 px-2 py-0.5 rounded">
+                          Môi trường TEST
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
+                        <div
+                          onClick={() => handleCopyText('9704198526191432198', 'vnpayCard')}
+                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
+                          title="Nhấp để sao chép"
+                        >
+                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Số thẻ NCB</span>
+                          <span className="text-[#F5F5F5] font-bold">9704 1985...</span>
+                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
+                            {copiedField === 'vnpayCard' ? '✓ Đã chép' : 'Sao chép'}
+                          </span>
+                        </div>
+                        <div
+                          onClick={() => handleCopyText('NGUYEN VAN A', 'vnpayName')}
+                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
+                          title="Nhấp để sao chép"
+                        >
+                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Tên chủ thẻ</span>
+                          <span className="text-[#F5F5F5] font-bold">NGUYEN VAN A</span>
+                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
+                            {copiedField === 'vnpayName' ? '✓ Đã chép' : 'Sao chép'}
+                          </span>
+                        </div>
+                        <div
+                          onClick={() => handleCopyText('07/15', 'vnpayDate')}
+                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
+                          title="Nhấp để sao chép"
+                        >
+                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Ngày phát hành</span>
+                          <span className="text-[#F5F5F5] font-bold">07/15</span>
+                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
+                            {copiedField === 'vnpayDate' ? '✓ Đã chép' : 'Sao chép'}
+                          </span>
+                        </div>
+                        <div
+                          onClick={() => handleCopyText('123456', 'vnpayOtp')}
+                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
+                          title="Nhấp để sao chép"
+                        >
+                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Mã OTP</span>
+                          <span className="text-[#F5F5F5] font-bold">123456</span>
+                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
+                            {copiedField === 'vnpayOtp' ? '✓ Đã chép' : 'Sao chép'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1838,7 +2030,7 @@ export const BookingPage: React.FC = () => {
 
             {/* STEP 5: Success & Verified Payment Receipt Ticket */}
             {currentStep === 5 && (
-              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-[#FFC799]/40 shadow-2xl space-y-6">
+              <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-[#FFC799]/40 shadow-2xl space-y-6 animate-step-fade">
                 {/* Top Status Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
                   <div className="flex items-center space-x-3.5">
@@ -1945,20 +2137,55 @@ export const BookingPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* CTA Buttons */}
-                <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+                {/* CTA Buttons & Electronic Document Downloads */}
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-3 border-t border-white/[0.08]">
+                  {/* Google Calendar export */}
+                  <a
+                    href={getGoogleCalendarUrl()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-[#C8C2B8] hover:text-[#F5F5F5] font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
+                  >
+                    <CalendarPlus className="w-4 h-4 text-[#99FFE4]" />
+                    <span>Lưu vào Google Calendar</span>
+                  </a>
+
+                  {/* PDF Electronic Invoice Download Button */}
+                  <button
+                    type="button"
+                    disabled={downloadingInvoice}
+                    onClick={() => {
+                      if (createdBooking?._id) {
+                        handleDownloadInvoice(createdBooking._id);
+                      }
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/40 text-[#FFC799] font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {downloadingInvoice ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-[#FFC799] border-t-transparent rounded-full animate-spin" />
+                        <span>Đang xuất PDF hóa đơn...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        <span>Tải hóa đơn điện tử (PDF)</span>
+                      </>
+                    )}
+                  </button>
+
                   <Link
                     to="/bikes"
-                    className="w-full sm:w-auto px-5 py-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-[#C8C2B8] font-bold text-xs text-center transition-colors"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-[#C8C2B8] font-bold text-xs text-center transition-colors"
                   >
                     Khám phá thêm xe khác
                   </Link>
 
                   <Link
                     to="/profile?tab=bookings"
-                    className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs uppercase tracking-wider text-center transition-all"
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs uppercase tracking-wider text-center transition-all shadow-md"
                   >
-                    Xem hợp đồng trong Chuyến xe của tôi
+                    Xem trong Chuyến xe của tôi
                   </Link>
                 </div>
               </div>
