@@ -113,3 +113,65 @@ export const submitComplaint = async (
  * Backward compatibility alias for submitComplaint
  */
 export const createComplaint = submitComplaint;
+
+/**
+ * UC-43: GET /me/complaints?status&page&limit
+ * Returns list of customer's own complaints sorted newest first
+ */
+export const getMyComplaints = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user?._id) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const result = await complaintService.getMyComplaints(
+      req.user._id.toString(),
+      req.query
+    );
+
+    res.json({
+      success: true,
+      count: result.items.length,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      data: result.items,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * UC-43: GET /me/complaints/:id
+ * Returns detail of customer's own complaint with timeline and final resolution
+ */
+export const getComplaintDetail = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user?._id) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const detail = await complaintService.getComplaintDetail(
+      req.user._id.toString(),
+      req.params.id
+    );
+
+    res.json({
+      success: true,
+      data: detail,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
