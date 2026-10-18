@@ -97,6 +97,7 @@ export interface Booking {
   checkinImages?: string[];
   checkoutImages?: string[];
   cancelReason?: string;
+  rejectReason?: string;
   refundAmount?: number;
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;

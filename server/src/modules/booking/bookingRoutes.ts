@@ -82,4 +82,13 @@ router.put(
   bookingController.cancel
 );
 
+// UC-76: Reject Refund
+router.put(
+  '/:id/refund/reject',
+  authenticateJWT,
+  authorize('BranchManager', 'SystemAdmin'),
+  auditLogger('REJECT_REFUND', 'Booking'),
+  bookingController.rejectRefund
+);
+
 export default router;

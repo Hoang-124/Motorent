@@ -35,6 +35,7 @@ import {
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
@@ -90,6 +91,7 @@ interface PendingEkycUser {
 }
 
 export const CounterDesk: React.FC = () => {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const modeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
   const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit'].includes(modeParam)
@@ -106,6 +108,11 @@ export const CounterDesk: React.FC = () => {
 
   // Notification banners (replacing alert())
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // UC-76: Reject Refund State
+  const [rejectRefundModal, setRejectRefundModal] = useState<Booking | null>(null);
+  const [refundDenyReason, setRefundDenyReason] = useState<string>('');
+  const [rejectingRefund, setRejectingRefund] = useState<boolean>(false);
 
   // eKYC Management states
   const [pendingEkycList, setPendingEkycList] = useState<PendingEkycUser[]>([]);
@@ -259,6 +266,34 @@ export const CounterDesk: React.FC = () => {
       }
     } finally {
       setReviewLoading(false);
+    }
+  };
+
+  const handleRejectRefund = async () => {
+    if (!rejectRefundModal || !refundDenyReason.trim()) return;
+    setRejectingRefund(true);
+    try {
+      const res = await api.put(`/bookings/${rejectRefundModal._id}/refund/reject`, {
+        reason: refundDenyReason.trim(),
+      });
+
+      setStatusMessage({
+        type: 'success',
+        text: `Đã từ chối hoàn tiền cho đơn ${rejectRefundModal.bookingCode}!`,
+      });
+      setRejectRefundModal(null);
+      setRefundDenyReason('');
+      if (selectedBooking?._id === rejectRefundModal._id) {
+        setSelectedBooking(res.data.data);
+      }
+      fetchBookings();
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err.response?.data?.message || 'Có lỗi xảy ra khi từ chối hoàn tiền.',
+      });
+    } finally {
+      setRejectingRefund(false);
     }
   };
 
@@ -982,6 +1017,45 @@ export const CounterDesk: React.FC = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* UC-76: Refund Status & Action Banner */}
+                  {selectedBooking.refundStatus === 'Pending' && (
+                    <div className="mt-3 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                      <div className="flex items-center space-x-2.5">
+                        <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold text-white">Yêu cầu hoàn tiền BR-06 đang chờ xử lý</p>
+                          <p className="text-[11px] text-[#A0A0A0]">
+                            Số tiền hoàn yêu cầu: <strong className="text-amber-400 font-bold">{(selectedBooking.refundAmount || 0).toLocaleString('vi-VN')} đ</strong>
+                          </p>
+                        </div>
+                      </div>
+                      {['BranchManager', 'SystemAdmin'].includes(user?.roles || '') && (
+                        <div className="flex items-center space-x-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setRejectRefundModal(selectedBooking)}
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#FF8080]/15 hover:bg-[#FF8080]/25 text-[#FF8080] border border-[#FF8080]/30 transition-colors flex items-center space-x-1.5 cursor-pointer"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Từ chối hoàn (UC-76)</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedBooking.refundStatus === 'Rejected' && (
+                    <div className="mt-3 p-3 bg-[#FF8080]/10 border border-[#FF8080]/30 rounded-xl flex items-center space-x-2.5">
+                      <XCircle className="w-4 h-4 text-[#FF8080] shrink-0" />
+                      <div className="text-xs">
+                        <span className="font-bold text-[#FF8080]">Yêu cầu hoàn tiền đã bị Quản lý từ chối.</span>
+                        {selectedBooking.rejectReason && (
+                          <span className="text-[#A0A0A0] ml-1.5">Lý do: {selectedBooking.rejectReason}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Workflow Mode Tabs */}
@@ -2109,6 +2183,97 @@ export const CounterDesk: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* UC-76: Reject Refund Modal */}
+        {rejectRefundModal && (
+          <div
+            onClick={() => setRejectRefundModal(null)}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#161616] border border-white/15 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
+            >
+              <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <XCircle className="w-4 h-4 text-[#FF8080]" />
+                  <span className="font-extrabold text-sm text-white">
+                    Từ chối yêu cầu hoàn tiền ({rejectRefundModal.bookingCode})
+                  </span>
+                </div>
+                <button
+                  onClick={() => setRejectRefundModal(null)}
+                  className="text-[#A0A0A0] hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                <div className="bg-[#101010] p-3 rounded-xl border border-white/10 space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-[#A0A0A0]">Khách hàng:</span>
+                    <span className="font-bold text-white">
+                      {typeof rejectRefundModal.userId === 'object' && rejectRefundModal.userId !== null
+                        ? (rejectRefundModal.userId as User).firstName || (rejectRefundModal.userId as User).username
+                        : 'Khách hàng'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[#A0A0A0]">Số tiền yêu cầu hoàn:</span>
+                    <span className="text-amber-400 font-bold">
+                      {(rejectRefundModal.refundAmount || 0).toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                    Lý do từ chối hoàn tiền (Bắt buộc):
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="VD: Khách báo hủy sau giờ nhận xe, theo điều khoản hợp đồng không đủ điều kiện hoàn trả cọc..."
+                    value={refundDenyReason}
+                    onChange={(e) => setRefundDenyReason(e.target.value)}
+                    className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FF8080]"
+                  />
+                  <p className="text-[10px] text-[#6E6E6E] mt-1">
+                    Lý do từ chối sẽ được gửi trực tiếp thông báo đến tài khoản khách hàng.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-white/10 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setRejectRefundModal(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  disabled={rejectingRefund || !refundDenyReason.trim()}
+                  onClick={handleRejectRefund}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FF8080] text-white hover:bg-[#FF6666] transition-colors flex items-center space-x-1.5 disabled:opacity-50"
+                >
+                  {rejectingRefund ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang từ chối...</span>
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-3.5 h-3.5" />
+                      <span>Xác nhận Từ chối</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

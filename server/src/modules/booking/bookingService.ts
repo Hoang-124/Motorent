@@ -1007,3 +1007,92 @@ export const cancelBooking = async (
   return result as unknown as IBooking;
 };
 
+export const rejectRefund = async (
+  bookingId: string,
+  requestingUser: { _id: mongoose.Types.ObjectId | string; roles: string; fullName?: string; email?: string; branchId?: string | mongoose.Types.ObjectId },
+  data: {
+    reason: string;
+  }
+): Promise<IBooking> => {
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
+  }
+
+  // Branch access check for BranchManager
+  if (requestingUser.roles !== 'SystemAdmin') {
+    assertBranchAccess(requestingUser as any, booking.pickupBranchId);
+  }
+
+  if (booking.refundStatus === 'Approved') {
+    throw new AppError(400, 'Không thể từ chối vì yêu cầu hoàn tiền đã được phê duyệt trước đó.');
+  }
+
+  if (booking.refundStatus === 'Rejected') {
+    throw new AppError(400, 'Yêu cầu hoàn tiền đã bị từ chối trước đó.');
+  }
+
+  if (booking.refundStatus !== 'Pending' || (booking.refundAmount || 0) <= 0) {
+    throw new AppError(400, 'Đơn đặt xe không có khoản hoàn tiền nào đang ở trạng thái chờ duyệt (Pending).');
+  }
+
+  booking.refundStatus = 'Rejected';
+  booking.rejectReason = data.reason.trim();
+  await booking.save();
+
+  // Find or create REFUND payment record and mark FAILED
+  let refundPayment = await Payment.findOne({
+    bookingId: booking._id,
+    type: 'REFUND',
+  });
+
+  if (refundPayment) {
+    refundPayment.status = 'FAILED';
+    await refundPayment.save();
+  } else {
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
+      amount: booking.refundAmount || 0,
+      type: 'REFUND',
+      status: 'FAILED',
+    });
+  }
+
+  // Notify customer
+  await Notification.create({
+    userId: booking.userId,
+    title: `Yêu cầu hoàn tiền đơn ${booking.bookingCode} đã bị từ chối`,
+    body: `Yêu cầu hoàn tiền cho đơn đặt xe ${booking.bookingCode} đã bị từ chối bởi Quản lý chi nhánh. Lý do: ${data.reason.trim()}`,
+    type: 'BOOKING',
+    data: {
+      bookingId: booking._id,
+      bookingCode: booking.bookingCode,
+      refundStatus: 'Rejected',
+      rejectReason: data.reason.trim(),
+      rejectedAt: new Date(),
+    },
+  }).catch(() => {});
+
+  // Audit log
+  await AuditLog.create({
+    userId: requestingUser._id,
+    action: 'REJECT_REFUND',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      refundAmount: booking.refundAmount,
+      refundStatus: 'Rejected',
+      reason: data.reason.trim(),
+    },
+    timestamp: new Date(),
+  }).catch(() => {});
+
+  emitBookingStatus(booking);
+
+  const populated = await populateBookingDetails(booking._id);
+  return (populated || booking) as unknown as IBooking;
+};
+
+

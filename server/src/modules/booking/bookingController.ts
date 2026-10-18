@@ -267,3 +267,31 @@ export const counterPay = async (
   }
 };
 
+const rejectRefundSchema = z.object({
+  reason: z.string().trim().min(3, 'Lý do từ chối hoàn tiền là bắt buộc (tối thiểu 3 ký tự)'),
+});
+
+export const rejectRefund = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập quản lý.');
+    }
+
+    const data = rejectRefundSchema.parse(req.body);
+    const booking = await bookingService.rejectRefund(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: `Đã từ chối hoàn tiền cho đơn đặt xe ${booking.bookingCode}.`,
+      data: booking,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
