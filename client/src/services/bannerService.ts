@@ -34,6 +34,22 @@ export const getPublicBanners = async (): Promise<Banner[]> => {
 };
 
 /**
+ * UC-118: Soft delete banner by ID
+ */
+export const deleteBanner = async (id: string): Promise<Banner> => {
+  const response = await api.delete(`/admin/banners/${id}`);
+  return response.data.data;
+};
+
+/**
+ * Quick toggle banner active status
+ */
+export const toggleBannerStatus = async (id: string, isActive: boolean): Promise<Banner> => {
+  const response = await api.patch(`/admin/banners/${id}/status`, { isActive });
+  return response.data.data;
+};
+
+/**
  * UC-116: Create a new promotional banner (multipart)
  */
 export const createBanner = async (formData: FormData): Promise<Banner> => {

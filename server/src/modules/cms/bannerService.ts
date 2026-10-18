@@ -185,3 +185,112 @@ export const getPublicBanners = async (): Promise<IBanner[]> => {
     .limit(10)
     .select('title subtitle imageUrl linkUrl order isActive');
 };
+
+/**
+ * Helper to check if current MongoDB connection supports multi-document transactions
+ */
+export const isReplicaSetDeployment = (): boolean => {
+  try {
+    const rawConn = mongoose.connection as unknown as {
+      client?: {
+        topology?: {
+          description?: {
+            type?: string;
+            setName?: string;
+            servers?: Map<string, { setName?: string; type?: string }>;
+          };
+        };
+      };
+    };
+    const topology = rawConn.client?.topology?.description;
+    if (!topology) return false;
+    const type = String(topology.type || '');
+    if (type.includes('ReplicaSet') || type === 'Sharded') {
+      return true;
+    }
+    if (topology.setName) {
+      return true;
+    }
+    for (const server of topology.servers?.values() || []) {
+      if (server.setName || (server.type && String(server.type).startsWith('RS'))) {
+        return true;
+      }
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * UC-118: Delete Banner (Soft delete)
+ */
+export const deleteBanner = async (id: string): Promise<IBanner> => {
+  if (!mongoose.isValidObjectId(id)) {
+    throw new AppError(404, 'Banner không tồn tại hoặc đã bị xóa.');
+  }
+
+  return await bannerOrderMutex.runExclusive(async () => {
+    const banner = await Banner.findById(id);
+    if (!banner || banner.deletedAt !== null) {
+      throw new AppError(404, 'Banner không tồn tại hoặc đã bị xóa.');
+    }
+
+    const isReplica = isReplicaSetDeployment();
+
+    if (isReplica) {
+      const session = await mongoose.startSession();
+      try {
+        session.startTransaction();
+
+        // 1. Soft delete: set deletedAt = now() (do NOT delete record, do NOT delete image)
+        banner.deletedAt = new Date();
+        await banner.save({ session });
+
+        // 2. Fetch remaining non-deleted banners ordered by order ASC, then createdAt ASC
+        const remainingBanners = await Banner.find(
+          { deletedAt: null },
+          null,
+          { session }
+        ).sort({ order: 1, createdAt: 1 });
+
+        // 3. Normalize remaining banners' order to 1..n continuously
+        for (let i = 0; i < remainingBanners.length; i++) {
+          const expectedOrder = i + 1;
+          if (remainingBanners[i].order !== expectedOrder) {
+            remainingBanners[i].order = expectedOrder;
+            await remainingBanners[i].save({ session });
+          }
+        }
+
+        await session.commitTransaction();
+        return banner;
+      } catch (error) {
+        if (session.inTransaction()) {
+          try {
+            await session.abortTransaction();
+          } catch {}
+        }
+        throw error;
+      } finally {
+        await session.endSession();
+      }
+    } else {
+      // Standalone MongoDB environment (mutex guarantees atomic in-process serialization)
+      banner.deletedAt = new Date();
+      await banner.save();
+
+      const remainingBanners = await Banner.find({ deletedAt: null }).sort({ order: 1, createdAt: 1 });
+
+      for (let i = 0; i < remainingBanners.length; i++) {
+        const expectedOrder = i + 1;
+        if (remainingBanners[i].order !== expectedOrder) {
+          remainingBanners[i].order = expectedOrder;
+          await remainingBanners[i].save();
+        }
+      }
+
+      return banner;
+    }
+  });
+};

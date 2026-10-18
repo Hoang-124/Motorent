@@ -35,6 +35,15 @@ adminBannerRouter.post(
   bannerController.createBanner
 );
 
+// DELETE /admin/banners/:id - Soft delete banner (UC-118)
+adminBannerRouter.delete(
+  '/:id',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  auditLogger('DELETE_BANNER', 'Banner'),
+  bannerController.deleteBanner
+);
+
 export default {
   adminBannerRouter,
   publicBannerRouter,

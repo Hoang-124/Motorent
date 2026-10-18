@@ -28,7 +28,8 @@ import {
   CreditCard,
   Wallet,
   Banknote,
-  Receipt
+  Receipt,
+  Image as ImageIcon
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
@@ -37,9 +38,10 @@ import { getUserAvatarUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
+import { BannerManager } from '../components/BannerManager';
 
 type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
-type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit';
+type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit' | 'banners';
 
 interface PendingEkycUser {
   _id: string;
@@ -63,7 +65,7 @@ interface PendingEkycUser {
 export const CounterDesk: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const modeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
-  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit'].includes(modeParam)
+  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit', 'banners'].includes(modeParam)
     ? modeParam
     : 'bookings';
 
@@ -237,7 +239,7 @@ export const CounterDesk: React.FC = () => {
 
   useEffect(() => {
     const m = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
-    if (m && ['bookings', 'ekyc', 'chat', 'audit'].includes(m)) {
+    if (m && ['bookings', 'ekyc', 'chat', 'audit', 'banners'].includes(m)) {
       setDeskMode(m);
     }
   }, [searchParams]);
@@ -560,6 +562,19 @@ export const CounterDesk: React.FC = () => {
               >
                 <Database className="w-4 h-4" />
                 <span>04. Nhật ký Audit (UC-102)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => switchDeskMode('banners')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                  deskMode === 'banners'
+                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
+                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                }`}
+              >
+                <ImageIcon className="w-4 h-4" />
+                <span>05. Banner CMS (UC-118)</span>
               </button>
             </div>
           </div>
@@ -1386,6 +1401,8 @@ export const CounterDesk: React.FC = () => {
           </div>
         ) : deskMode === 'chat' ? (
           <StaffChatConsole />
+        ) : deskMode === 'banners' ? (
+          <BannerManager />
         ) : (
           <AuditLogViewer />
         )}

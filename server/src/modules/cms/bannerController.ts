@@ -92,3 +92,20 @@ export const getPublicBanners = async (req: Request, res: Response, next: NextFu
     next(error);
   }
 };
+
+/**
+ * UC-118: DELETE /admin/banners/:id
+ * Soft delete banner, reorders remaining banners to 1..n.
+ */
+export const deleteBanner = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const banner = await bannerService.deleteBanner(req.params.id);
+    res.json({
+      success: true,
+      message: 'Xóa banner thành công!',
+      data: banner,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
