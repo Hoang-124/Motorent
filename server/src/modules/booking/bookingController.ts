@@ -267,3 +267,39 @@ export const counterPay = async (
   }
 };
 
+export const calculatePenalty = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const simulatedReturnTime =
+      typeof req.query.simulatedReturnTime === 'string'
+        ? req.query.simulatedReturnTime
+        : req.body?.simulatedReturnTime;
+
+    const damageFee =
+      req.query.damageFee !== undefined
+        ? Number(req.query.damageFee)
+        : req.body?.damageFee !== undefined
+        ? Number(req.body.damageFee)
+        : undefined;
+
+    const result = await bookingService.calculateBookingPenalty(req.params.id, req.user, {
+      simulatedReturnTime,
+      damageFee,
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
