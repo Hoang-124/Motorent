@@ -3,6 +3,7 @@ import type {
   Complaint,
   StaffComplaint,
   StaffComplaintQueueResponse,
+  ManagerPendingComplaintsResponse,
 } from '../types';
 
 export interface ComplaintCategoryItem {
@@ -114,4 +115,55 @@ export const updateComplaintStatus = async (
   const response = await api.patch(`/staff/complaints/${id}/status`, { toStatus, note });
   return response.data;
 };
+
+// ==========================================
+// UC-85: Manager Complaints Resolution & Close API
+// ==========================================
+
+export interface GetPendingComplaintsParams {
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * UC-85: Manager retrieves complaints needing resolution (status InProgress or Resolved, not Closed)
+ */
+export const getPendingComplaints = async (
+  params?: GetPendingComplaintsParams
+): Promise<ManagerPendingComplaintsResponse> => {
+  const response = await api.get('/manager/complaints/pending', { params });
+  return response.data;
+};
+
+/**
+ * UC-85: Manager resolves complaint with final resolution conclusion (10-3000 chars)
+ */
+export const resolveComplaint = async (
+  id: string,
+  finalResolution: string
+): Promise<{ success: boolean; message: string; data: StaffComplaint }> => {
+  const response = await api.post(`/manager/complaints/${id}/resolve`, { finalResolution });
+  return response.data;
+};
+
+/**
+ * UC-85: Manager closes complaint permanently (irreversible)
+ */
+export const closeComplaint = async (
+  id: string
+): Promise<{ success: boolean; message: string; data: StaffComplaint }> => {
+  const response = await api.post(`/manager/complaints/${id}/close`);
+  return response.data;
+};
+
+/**
+ * UC-85: Get Manager complaint details
+ */
+export const getManagerComplaintById = async (
+  id: string
+): Promise<{ success: boolean; data: StaffComplaint }> => {
+  const response = await api.get(`/manager/complaints/${id}`);
+  return response.data;
+};
+
 

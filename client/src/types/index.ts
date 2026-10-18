@@ -320,3 +320,15 @@ export interface StaffComplaintQueueResponse {
   data: StaffComplaint[];
 }
 
+export interface ManagerPendingComplaintsResponse {
+  success: boolean;
+  data: StaffComplaint[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+

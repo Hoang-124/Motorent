@@ -21,6 +21,7 @@ import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
 import { StaffComplaintPage } from './pages/StaffComplaintPage';
+import { ManagerComplaintsPage } from './pages/ManagerComplaintsPage';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -68,6 +69,14 @@ export function App() {
                 element={
                   <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
                     <StaffComplaintPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/manager/complaints"
+                element={
+                  <RequireRole roles={['BranchManager', 'SystemAdmin']}>
+                    <ManagerComplaintsPage />
                   </RequireRole>
                 }
               />

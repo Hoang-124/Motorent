@@ -20,6 +20,10 @@ router.post(
   complaintController.submitComplaint
 );
 
+router.get('/', authenticateJWT, complaintController.getMyComplaints);
+router.get('/my', authenticateJWT, complaintController.getMyComplaints);
+router.get('/:id', authenticateJWT, complaintController.getComplaintDetail);
+
 export const complaintRouter = router;
 
 /**
@@ -38,5 +42,21 @@ staffComplaintRouter.get('/:id', complaintController.getStaffComplaintById);
 staffComplaintRouter.post('/:id/responses', complaintController.addStaffComplaintResponse);
 staffComplaintRouter.post('/:id/response', complaintController.addStaffComplaintResponse);
 staffComplaintRouter.patch('/:id/status', complaintController.updateComplaintStatus);
+
+/**
+ * Manager Complaints Router: /manager/complaints (UC-85)
+ * Role: BranchManager, SystemAdmin
+ */
+export const managerComplaintRouter = Router();
+
+managerComplaintRouter.use(
+  authenticateJWT,
+  authorize('BranchManager', 'SystemAdmin')
+);
+
+managerComplaintRouter.get('/pending', complaintController.getPendingComplaints);
+managerComplaintRouter.post('/:id/resolve', complaintController.resolveComplaint);
+managerComplaintRouter.post('/:id/close', complaintController.closeComplaint);
+managerComplaintRouter.get('/:id', complaintController.getStaffComplaintById);
 
 export default router;

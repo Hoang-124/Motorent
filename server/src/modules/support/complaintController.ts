@@ -112,7 +112,161 @@ export const submitComplaint = async (
 /**
  * Backward compatibility alias for submitComplaint
  */
-export const createComplaint = submitComplaint;
+/**
+ * UC-43: GET /me/complaints?status&page&limit and GET /complaints
+ * Returns list of customer's own complaints sorted newest first
+ */
+export const getMyComplaints = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user?._id) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const result = await complaintService.getMyComplaints(
+      req.user._id.toString(),
+      req.query
+    );
+
+    res.json({
+      success: true,
+      count: result.items.length,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      data: result.items,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * UC-43: GET /complaints/:id and GET /me/complaints/:id
+ * Returns detail of customer's own complaint with timeline and final resolution
+ */
+export const getComplaintDetail = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user?._id) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const detail = await complaintService.getComplaintDetail(
+      req.user._id.toString(),
+      req.params.id
+    );
+
+    res.json({
+      success: true,
+      data: detail,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * UC-85: GET /manager/complaints/pending?page&limit
+ * Manager lists pending complaints (InProgress or Resolved, not Closed)
+ */
+export const getPendingComplaints = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const result = await complaintService.getPendingComplaintsForManager(
+      req.user,
+      req.query
+    );
+
+    res.json({
+      success: true,
+      data: result.items,
+      pagination: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * UC-85: POST /manager/complaints/:id/resolve
+ * Manager updates complaint with final resolution (min 10 chars)
+ */
+export const resolveComplaint = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const { finalResolution } = req.body;
+    const complaint = await complaintService.resolveComplaintByManager(
+      req.params.id,
+      finalResolution,
+      req.user
+    );
+
+    res.json({
+      success: true,
+      message: 'Cập nhật kết luận giải quyết khiếu nại thành công.',
+      data: complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * UC-85: POST /manager/complaints/:id/close
+ * Manager officially closes the complaint (terminal action)
+ */
+export const closeComplaint = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const complaint = await complaintService.closeComplaintByManager(
+      req.params.id,
+      req.user
+    );
+
+    res.json({
+      success: true,
+      message: 'Đóng khiếu nại thành công! Khiếu nại đã chuyển sang chế độ lưu trữ vĩnh viễn.',
+      data: complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 /**
  * GET /staff/complaints/:id and /manager/complaints/:id

@@ -28,16 +28,19 @@ import {
   CreditCard,
   Wallet,
   Banknote,
-  Receipt
+  Receipt,
+  ShieldAlert
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
+import { useAuth } from '../context/AuthContext';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 import { StaffComplaintDesk } from '../components/StaffComplaintDesk';
+import { ManagerComplaintWorkspace } from '../components/ManagerComplaintWorkspace';
 
 type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
 type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'complaints' | 'audit';
@@ -67,6 +70,11 @@ export const CounterDesk: React.FC = () => {
   const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'complaints', 'audit'].includes(modeParam)
     ? modeParam
     : 'bookings';
+
+  const { user } = useAuth();
+  const isManager = Boolean(user && (user.roles === 'BranchManager' || user.roles === 'SystemAdmin'));
+  const [complaintSubTab, setComplaintSubTab] = useState<'manager' | 'queue'>(isManager ? 'manager' : 'queue');
+  const [pendingComplaintCount, setPendingComplaintCount] = useState<number>(0);
 
   const [deskMode, setDeskMode] = useState<MainDeskMode>(initialMode);
   const [searchCode, setSearchCode] = useState<string>('');
@@ -573,7 +581,12 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <AlertCircle className="w-4 h-4" />
-                <span>05. Khiếu nại (UC-65)</span>
+                <span>05. Khiếu nại {isManager ? '(UC-85)' : '(UC-65)'}</span>
+                {isManager && pendingComplaintCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-[#FF8080] text-[#101010] font-black text-[10px]">
+                    {pendingComplaintCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -1399,7 +1412,48 @@ export const CounterDesk: React.FC = () => {
             </div>
           </div>
         ) : deskMode === 'complaints' ? (
-          <StaffComplaintDesk />
+          <div className="space-y-4">
+            {isManager && (
+              <div className="flex items-center space-x-2 border-b border-white/10 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setComplaintSubTab('manager')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    complaintSubTab === 'manager'
+                      ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
+                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                  }`}
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>01. Cần kết luận (Manager UC-85)</span>
+                  {pendingComplaintCount > 0 && (
+                    <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black">
+                      {pendingComplaintCount}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setComplaintSubTab('queue')}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    complaintSubTab === 'queue'
+                      ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
+                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>02. Hàng đợi tiếp nhận &amp; xử lý (Staff UC-65)</span>
+                </button>
+              </div>
+            )}
+
+            {isManager && complaintSubTab === 'manager' ? (
+              <ManagerComplaintWorkspace onPendingCountChange={setPendingComplaintCount} />
+            ) : (
+              <StaffComplaintDesk />
+            )}
+          </div>
         ) : deskMode === 'chat' ? (
           <StaffChatConsole />
         ) : (
