@@ -19,6 +19,7 @@ import { BookingPage } from './pages/BookingPage';
 import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
+import { AdminBannersPage } from './pages/AdminBannersPage';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -74,6 +75,16 @@ export function App() {
               <Route path="/booking/:vehicleId" element={<BookingPage />} />
               <Route path="/booking" element={<BookingPage />} />
               <Route path="/vnpay-return" element={<VnPayReturnPage />} />
+
+              {/* CMS Banners (UC-116) */}
+              <Route
+                path="/admin/banners"
+                element={
+                  <RequireRole roles={['SystemAdmin']}>
+                    <AdminBannersPage />
+                  </RequireRole>
+                }
+              />
 
               {/* Fallback route */}
               <Route path="*" element={<RoleBasedHome />} />

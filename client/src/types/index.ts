@@ -192,3 +192,18 @@ export interface AuditLogEntry {
   userAgent?: string;
   timestamp: string;
 }
+
+export interface Banner {
+  _id?: string;
+  id?: string;
+  title: string;
+  subtitle?: string;
+  imageUrl: string;
+  linkUrl?: string | null;
+  order: number;
+  position?: number;
+  isActive: boolean;
+  deletedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}

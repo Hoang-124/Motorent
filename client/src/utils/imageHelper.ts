@@ -31,3 +31,18 @@ export const getUserAvatarUrl = (avatarUrl: string | undefined | null): string |
   const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
   return `${baseUrl}${cleanPath}`;
 };
+
+/**
+ * Resolve full banner image URL for banners on Home Page and Admin
+ */
+export const getBannerImageUrl = (imageUrl: string | undefined | null): string => {
+  if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.trim()) return '';
+  const trimmed = imageUrl.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:')) {
+    return trimmed;
+  }
+  const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') as string;
+  const baseUrl = apiBase.replace(/\/api\/?$/, '');
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${baseUrl}${cleanPath}`;
+};

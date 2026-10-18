@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { AppError } from './errorHandler';
 
 const uploadDir = path.resolve(__dirname, '../../uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -126,5 +127,23 @@ export const validateImageMagicBytes = async (filePath: string): Promise<boolean
     return false;
   }
 };
+
+/**
+ * Upload middleware for Home Banners (UC-116: Max 5MB, JPEG/PNG/WebP)
+ */
+export const bannerUpload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Max 5MB per UC-116 spec
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowedTypes.test(file.mimetype);
+    if (ext && mime) {
+      cb(null, true);
+    } else {
+      cb(new AppError(400, 'Chỉ chấp nhận file ảnh định dạng JPEG, PNG hoặc WebP có dung lượng tối đa 5MB.'));
+    }
+  },
+});
 
 
