@@ -22,6 +22,8 @@ export interface IVehicle extends Document {
   lastMaintenanceBucket?: number;
   isDeleted: boolean;
   images: string[];
+  averageRating: number;
+  reviewCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +59,8 @@ const VehicleSchema = new Schema<IVehicle>(
     lastMaintenanceBucket: { type: Number, default: 0 },
     isDeleted: { type: Boolean, default: false },
     images: [{ type: String }],
+    averageRating: { type: Number, default: 0 },
+    reviewCount: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

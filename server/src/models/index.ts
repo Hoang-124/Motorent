@@ -17,3 +17,4 @@ export * from './Message';
 export * from './Banner';
 export * from './StaticPage';
 export * from './Payment';
+export * from './Review';

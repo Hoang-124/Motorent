@@ -3,6 +3,8 @@ import rateLimit from 'express-rate-limit';
 import { authenticateJWT } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
 import { auditLogger } from '../../core/auditMiddleware';
+import { reviewPhotosUpload } from '../../core/uploadMiddleware';
+import * as reviewController from '../review/reviewController';
 import * as bookingController from './bookingController';
 
 const router = Router();
@@ -31,6 +33,15 @@ router.post(
 );
 
 router.get('/my', authenticateJWT, bookingController.getMyBookings);
+
+// UC-39: Create review for completed booking (Customer)
+router.post(
+  '/:bookingId/reviews',
+  authenticateJWT,
+  authorize('Customer', 'BranchManager', 'Staff', 'SystemAdmin'),
+  reviewPhotosUpload.array('photos', 5),
+  reviewController.createReview
+);
 
 // Staff / Manager counter desk endpoints
 router.get(

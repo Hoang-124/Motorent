@@ -37,6 +37,8 @@ export interface Vehicle {
   color?: string;
   requiresMaintenance: boolean;
   images: string[];
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 export interface User {
@@ -191,4 +193,39 @@ export interface AuditLogEntry {
   ipAddress?: string;
   userAgent?: string;
   timestamp: string;
+}
+
+export interface ReviewUser {
+  _id: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
+export interface Review {
+  _id: string;
+  bookingId: string | Booking;
+  userId: string | ReviewUser | User;
+  vehicleId: string | Vehicle;
+  rating: number;
+  comment?: string;
+  photos: string[];
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: ReviewUser;
+}
+
+export interface VehicleReviewsResponse {
+  reviews: Review[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  vehicleStats: {
+    averageRating: number;
+    reviewCount: number;
+    starBreakdown: Record<number, number>;
+  };
 }

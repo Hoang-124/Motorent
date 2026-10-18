@@ -7,7 +7,8 @@ import {
   Zap,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
@@ -214,10 +215,32 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
             </span>
           </div>
 
-          {/* Vehicle Model Name */}
-          <h3 className="text-lg sm:text-xl font-bold text-[#F5F5F5] group-hover:text-[#FFC799] transition-colors leading-snug mt-1">
-            {vehicle.vehicleModel}
-          </h3>
+          {/* Vehicle Model Name & Rating */}
+          <div className="flex items-start justify-between gap-2 mt-1">
+            <h3 className="text-lg sm:text-xl font-bold text-[#F5F5F5] group-hover:text-[#FFC799] transition-colors leading-snug">
+              {vehicle.vehicleModel}
+            </h3>
+
+            {/* Rating Pill */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/bikes/${vehicle._id}#reviews-section`);
+              }}
+              className="flex items-center space-x-1 bg-[#101010] hover:bg-[#1f1f1f] border border-white/10 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition-colors"
+              title="Xem đánh giá từ khách hàng"
+            >
+              <Star className="w-3 h-3 fill-[#FFC799] text-[#FFC799]" />
+              <span className="text-[11px] font-bold text-[#F5F5F5]">
+                {vehicle.averageRating && vehicle.averageRating > 0
+                  ? vehicle.averageRating.toFixed(1)
+                  : '5.0'}
+              </span>
+              <span className="text-[10px] text-[#6E6E6E]">
+                ({vehicle.reviewCount || 0})
+              </span>
+            </div>
+          </div>
 
           {/* 3 Clean Recessed Spec Pills */}
           <div className="grid grid-cols-3 gap-2 mt-3.5">

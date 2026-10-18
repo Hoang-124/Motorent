@@ -70,6 +70,27 @@ export const avatarUpload = multer({
 });
 
 /**
+ * Upload middleware for Review Photos (UC-39-41: Max 5 photos, Max 5MB each, JPEG/PNG/WebP)
+ */
+export const reviewPhotosUpload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB per photo
+    files: 5, // Max 5 photos
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowedTypes.test(file.mimetype);
+    if (ext && mime) {
+      cb(null, true);
+    } else {
+      cb(new Error('Chỉ chấp nhận file ảnh định dạng JPEG, PNG hoặc WebP có dung lượng tối đa 5MB.'));
+    }
+  },
+});
+
+/**
  * Upload middleware for eKYC Identity Documents (UC-22: CCCD front/back + driving license)
  * Stored in private directory private_uploads/ekyc - blocked from public static HTTP serving!
  */

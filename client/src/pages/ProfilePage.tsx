@@ -25,7 +25,9 @@ import {
   AlertTriangle,
   ChevronDown,
   QrCode,
-  CreditCard
+  CreditCard,
+  Star,
+  Edit2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -33,7 +35,8 @@ import axios from 'axios';
 import { calculatePasswordStrength } from '../utils/validation';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { compressEkycImage } from '../utils/watermark';
-import type { Booking, Vehicle, Branch } from '../types';
+import type { Booking, Vehicle, Branch, Review } from '../types';
+import { ReviewModal } from '../components/ReviewModal';
 
 export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password';
 
@@ -59,6 +62,11 @@ export const ProfilePage: React.FC = () => {
   const [qrPaymentType, setQrPaymentType] = useState<'Deposit30' | 'Full100'>('Deposit30');
   const [qrVerifying, setQrVerifying] = useState(false);
   const [qrVerifiedSuccess, setQrVerifiedSuccess] = useState(false);
+
+  // Reviews state (UC-39-41)
+  const [myReviews, setMyReviews] = useState<Review[]>([]);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+  const [selectedReviewForEdit, setSelectedReviewForEdit] = useState<Review | null>(null);
 
   // Form states - Info
   const [firstName, setFirstName] = useState(user?.firstName || '');
@@ -108,8 +116,20 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  const fetchMyReviews = async () => {
+    try {
+      const res = await api.get('/me/reviews');
+      if (res.data?.data && Array.isArray(res.data.data)) {
+        setMyReviews(res.data.data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải đánh giá của tôi:', err);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
+    fetchMyReviews();
     api
       .get('/auth/me')
       .then((res) => {
@@ -995,6 +1015,52 @@ export const ProfilePage: React.FC = () => {
                           </div>
 
                           <div className="flex items-center gap-2.5">
+                            {/* UC-39: Nút Đánh giá cho chuyến xe đã hoàn thành (ẩn nếu đã đánh giá) */}
+                            {(() => {
+                              const isCompleted = b.status === 'Completed';
+                              const existingReview = myReviews.find(
+                                (r) =>
+                                  (typeof r.bookingId === 'object' && r.bookingId !== null
+                                    ? (r.bookingId as any)._id
+                                    : r.bookingId) === b._id
+                              );
+                              const hasReviewed = Boolean(existingReview);
+
+                              if (isCompleted && !hasReviewed) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedBookingForReview(b)}
+                                    className="px-3.5 py-1.5 rounded-lg bg-[#FFC799] hover:bg-[#ffb67a] active:scale-95 text-[#101010] text-xs font-bold inline-flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
+                                  >
+                                    <Star className="w-3.5 h-3.5 fill-[#101010] stroke-[2]" />
+                                    <span>Đánh giá</span>
+                                  </button>
+                                );
+                              }
+
+                              if (isCompleted && hasReviewed && existingReview) {
+                                return (
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-[11px] font-semibold text-[#99FFE4] bg-[#99FFE4]/10 border border-[#99FFE4]/30 px-2.5 py-1 rounded-lg inline-flex items-center space-x-1">
+                                      <Check className="w-3 h-3 stroke-[2.5]" />
+                                      <span>Đã đánh giá ({existingReview.rating}★)</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedReviewForEdit(existingReview)}
+                                      className="p-1.5 text-[#A0A0A0] hover:text-[#FFC799] hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+                                      title="Sửa đánh giá"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5 stroke-[2]" />
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              return null;
+                            })()}
+
                             {needsDepositPayment && (
                               <button
                                 type="button"
@@ -1794,6 +1860,42 @@ export const ProfilePage: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* UC-39: Review Modal for Completed Booking */}
+      {selectedBookingForReview && (
+        <ReviewModal
+          isOpen={Boolean(selectedBookingForReview)}
+          onClose={() => setSelectedBookingForReview(null)}
+          bookingId={selectedBookingForReview._id}
+          vehicleName={
+            typeof selectedBookingForReview.vehicleId === 'object' && selectedBookingForReview.vehicleId !== null
+              ? (selectedBookingForReview.vehicleId as any).vehicleModel
+              : undefined
+          }
+          onSuccess={async () => {
+            setSuccessMsg('Cảm ơn bạn đã gửi đánh giá cho chuyến đi!');
+            await Promise.all([fetchBookings(), fetchMyReviews()]);
+          }}
+        />
+      )}
+
+      {/* UC-40: Review Modal for Editing Review */}
+      {selectedReviewForEdit && (
+        <ReviewModal
+          isOpen={Boolean(selectedReviewForEdit)}
+          onClose={() => setSelectedReviewForEdit(null)}
+          existingReview={selectedReviewForEdit}
+          vehicleName={
+            typeof selectedReviewForEdit.vehicleId === 'object' && selectedReviewForEdit.vehicleId !== null
+              ? (selectedReviewForEdit.vehicleId as any).vehicleModel
+              : undefined
+          }
+          onSuccess={async () => {
+            setSuccessMsg('Đã cập nhật đánh giá thành công!');
+            await Promise.all([fetchBookings(), fetchMyReviews()]);
+          }}
+        />
+      )}
     </div>
   );
 };

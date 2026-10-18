@@ -19,6 +19,7 @@ import { BookingPage } from './pages/BookingPage';
 import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
+import { VehicleDetailPage } from './pages/VehicleDetailPage';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -44,6 +45,7 @@ export function App() {
             <Routes>
               <Route path="/" element={<RoleBasedHome />} />
               <Route path="/bikes" element={<FleetPage />} />
+              <Route path="/bikes/:id" element={<VehicleDetailPage />} />
               <Route path="/branches" element={<BranchesPage />} />
               <Route
                 path="/counter"
