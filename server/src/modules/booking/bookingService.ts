@@ -946,3 +946,134 @@ export const cancelBooking = async (
   return result as unknown as IBooking;
 };
 
+/**
+ * UC-74: Reject Order (Manager)
+ * PUT /api/bookings/:id/reject
+ * Allows BranchManager or SystemAdmin to reject an order with a mandatory reason.
+ * - Mandatory reason check (throws 400 if empty)
+ * - Checks booking exists and manager has branch permission
+ * - Only Pending, Approved, or Confirmed orders can be rejected
+ * - Calculates full refund if customer paid any deposit or full amount
+ * - Creates Payment record type REFUND if eligible
+ * - Restores voucher/discount usedCount if applied
+ * - Sets status = 'Rejected', rejectReason, rejectedBy, rejectedAt, cancelledAt
+ * - Emits In-App Notification and real-time Socket.IO event
+ * - Records AuditLog action REJECT_BOOKING
+ */
+export const rejectBooking = async (
+  bookingId: string,
+  managerUser: IUser,
+  rejectReason: string
+) => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const cleanReason = (rejectReason || '').trim();
+  if (!cleanReason) {
+    throw new AppError(400, 'Lý do từ chối đơn đặt xe là bắt buộc.');
+  }
+
+  const booking = await Booking.findById(bookingId)
+    .populate('vehicleId')
+    .populate('userId');
+
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy thông tin đơn đặt xe.');
+  }
+
+  // Branch access authorization
+  assertBranchAccess(managerUser, booking.pickupBranchId);
+
+  // Status check: cannot reject already finished or cancelled/rejected orders
+  if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
+    throw new AppError(400, 'Không thể từ chối đơn đặt xe đã bị hủy hoặc từ chối trước đó.');
+  }
+
+  if (['Ongoing', 'Completed'].includes(booking.status)) {
+    throw new AppError(400, `Không thể từ chối đơn đặt xe đang ở trạng thái "${booking.status}".`);
+  }
+
+  const now = new Date();
+  booking.status = 'Rejected';
+  booking.rejectReason = cleanReason;
+  booking.rejectedBy = managerUser._id as mongoose.Types.ObjectId;
+  booking.rejectedAt = now;
+  booking.cancelledAt = now;
+
+  // Since rejection is initiated by Manager/System, customer is entitled to 100% refund of any paid money
+  const customerPaid = (booking.paidAmount && booking.paidAmount > 0)
+    ? booking.paidAmount
+    : (booking.depositPaid ? booking.depositAmount : 0);
+
+  if (customerPaid > 0) {
+    booking.refundAmount = customerPaid;
+    booking.refundForfeitAmount = 0;
+    booking.refundStatus = 'Pending';
+
+    // Create Payment refund record
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: `REFUND-REJECT-${booking.bookingCode}-${Date.now()}`,
+      amount: customerPaid,
+      type: 'REFUND',
+      status: 'PENDING',
+    }).catch((err: unknown) => console.error('[Refund Record Error]', err));
+  } else {
+    booking.refundAmount = 0;
+    booking.refundForfeitAmount = 0;
+    booking.refundStatus = 'None';
+  }
+
+  // Restore voucher usage if used
+  if (booking.discountId) {
+    await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
+  }
+
+  await booking.save();
+
+  // Audit log
+  await AuditLog.create({
+    userId: managerUser._id,
+    action: 'REJECT_BOOKING',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      rejectReason: cleanReason,
+      rejectedBy: managerUser._id,
+      customerPaid,
+      refundAmount: booking.refundAmount,
+      refundStatus: booking.refundStatus,
+    },
+    timestamp: now,
+  }).catch((err) => console.error('[AuditLog Error]', err));
+
+  // Send Notification to Customer
+  const customerId = (booking.userId as unknown as { _id?: mongoose.Types.ObjectId })?._id || booking.userId;
+  const refundText = booking.refundAmount && booking.refundAmount > 0
+    ? ` Số tiền đã thanh toán (${booking.refundAmount.toLocaleString('vi-VN')} đ) đang được xử lý hoàn trả 100%.`
+    : '';
+
+  await Notification.create({
+    userId: customerId,
+    title: `Đơn đặt xe ${booking.bookingCode} đã bị từ chối`,
+    body: `Đơn đặt xe #${booking.bookingCode} của bạn đã bị Quản lý chi nhánh từ chối. Lý do: "${cleanReason}".${refundText}`,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
+    isRead: false,
+    data: {
+      bookingId: booking._id,
+      bookingCode: booking.bookingCode,
+      rejectReason: cleanReason,
+      refundAmount: booking.refundAmount,
+    },
+  }).catch((err) => console.error('[Notification Error]', err));
+
+  // Socket status event
+  emitBookingStatus(booking);
+
+  return booking;
+};
+
+

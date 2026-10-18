@@ -33,6 +33,7 @@ import {
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
@@ -120,6 +121,49 @@ export const CounterDesk: React.FC = () => {
   const [counterPayMethod, setCounterPayMethod] = useState<'Cash' | 'POS' | 'DirectBank'>('Cash');
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
+
+  // UC-74: Manager Reject state
+  const { user } = useAuth();
+  const isManager = user?.roles === 'BranchManager' || user?.roles === 'SystemAdmin';
+  const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
+  const [rejectReason, setRejectReason] = useState<string>('');
+  const [rejecting, setRejecting] = useState<boolean>(false);
+
+  const handleRejectBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking) return;
+    if (!rejectReason.trim()) {
+      setStatusMessage({ type: 'error', text: 'Vui lòng nhập lý do từ chối đơn đặt xe.' });
+      return;
+    }
+
+    setRejecting(true);
+    setStatusMessage(null);
+    try {
+      const res = await api.put(`/bookings/${selectedBooking._id}/reject`, {
+        reason: rejectReason.trim(),
+      });
+      if (res.data?.success && res.data?.data) {
+        setStatusMessage({
+          type: 'success',
+          text: `Đã từ chối đơn đặt xe ${selectedBooking.bookingCode} thành công. Hệ thống đã gửi thông báo đến khách hàng.`,
+        });
+        setShowRejectModal(false);
+        setRejectReason('');
+        handleSelectBooking(res.data.data);
+        fetchBookings();
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setStatusMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Không thể từ chối đơn đặt xe.',
+        });
+      }
+    } finally {
+      setRejecting(false);
+    }
+  };
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -794,6 +838,20 @@ export const CounterDesk: React.FC = () => {
                       </div>
 
                       <div className="flex items-center space-x-2">
+                        {isManager && ['Pending', 'Approved', 'Confirmed'].includes(selectedBooking.status) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRejectReason('');
+                              setShowRejectModal(true);
+                            }}
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#FF8080]/30 hover:border-[#FF8080] text-[#FF8080] hover:bg-[#FF8080]/10 transition-colors cursor-pointer"
+                          >
+                            <XCircle className="w-3.5 h-3.5 mr-1" />
+                            <span>Từ chối đơn (UC-74)</span>
+                          </button>
+                        )}
+
                         {selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0 ? (
                           <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-[#99FFE4]/10 text-[#99FFE4] border border-[#99FFE4]/30">
                             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
@@ -1617,6 +1675,82 @@ export const CounterDesk: React.FC = () => {
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Xác nhận đã thu tiền</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* UC-74: Reject Order Modal */}
+        {showRejectModal && selectedBooking && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-[#161616] border border-white/10 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#FF8080]/15 border border-[#FF8080]/30 flex items-center justify-center text-[#FF8080]">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Từ chối đơn đặt xe (UC-74)</h3>
+                    <p className="text-xs text-[#A0A0A0]">Mã đơn: {selectedBooking.bookingCode}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowRejectModal(false)}
+                  className="text-[#6E6E6E] hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0] space-y-1">
+                <p className="font-semibold text-white">Quy chuẩn từ chối đơn của Quản lý chi nhánh:</p>
+                <p>• Lý do từ chối là <strong>bắt buộc</strong> và sẽ được gửi thông báo trực tiếp đến khách hàng.</p>
+                <p>• Nếu khách đã thanh toán cọc/toàn bộ, hệ thống sẽ tự động kích hoạt tiến trình hoàn tiền 100%.</p>
+              </div>
+
+              <form onSubmit={handleRejectBooking} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Lý do từ chối đơn đặt xe <span className="text-[#FF8080]">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="Ví dụ: Xe cần bảo dưỡng đột xuất, khách hàng không đủ điều kiện giấy phép..."
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FF8080]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRejectModal(false)}
+                    disabled={rejecting}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10 cursor-pointer"
+                  >
+                    Hủy bỏ
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={rejecting || !rejectReason.trim()}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FF8080] hover:bg-[#FF8080]/80 text-[#101010] transition-colors flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {rejecting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang xử lý...</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Xác nhận từ chối</span>
                       </>
                     )}
                   </button>

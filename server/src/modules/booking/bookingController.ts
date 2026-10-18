@@ -267,3 +267,31 @@ export const counterPay = async (
   }
 };
 
+const rejectBookingSchema = z.object({
+  reason: z.string().min(1, 'Lý do từ chối đơn đặt xe là bắt buộc'),
+});
+
+export const rejectBooking = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập quản lý.');
+    }
+
+    const { reason } = rejectBookingSchema.parse(req.body);
+    const rejected = await bookingService.rejectBooking(req.params.id, req.user, reason);
+
+    res.json({
+      success: true,
+      message: 'Từ chối đơn đặt xe thành công!',
+      data: rejected,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

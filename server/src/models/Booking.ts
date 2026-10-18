@@ -51,6 +51,8 @@ export interface IBooking extends Document {
   checkoutImages?: string[];
   cancelReason?: string;
   rejectReason?: string;
+  rejectedBy?: mongoose.Types.ObjectId;
+  rejectedAt?: Date;
   refundAmount?: number;
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
@@ -106,6 +108,8 @@ const BookingSchema = new Schema<IBooking>(
     checkoutImages: [{ type: String }],
     cancelReason: { type: String, default: '' },
     rejectReason: { type: String, default: '' },
+    rejectedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    rejectedAt: { type: Date },
     refundAmount: { type: Number, default: 0 },
     refundStatus: {
       type: String,
