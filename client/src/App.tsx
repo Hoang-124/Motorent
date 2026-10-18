@@ -19,6 +19,7 @@ import { BookingPage } from './pages/BookingPage';
 import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
+import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -74,6 +75,10 @@ export function App() {
               <Route path="/booking/:vehicleId" element={<BookingPage />} />
               <Route path="/booking" element={<BookingPage />} />
               <Route path="/vnpay-return" element={<VnPayReturnPage />} />
+
+              {/* Complaints flow (UC-42) */}
+              <Route path="/complaints/new" element={<SubmitComplaintPage />} />
+              <Route path="/complaints/submit" element={<SubmitComplaintPage />} />
 
               {/* Fallback route */}
               <Route path="*" element={<RoleBasedHome />} />

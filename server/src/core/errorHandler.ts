@@ -40,6 +40,14 @@ export const errorHandler = (
   } else if (err && typeof err === 'object' && 'code' in err && (err as { code: number }).code === 11000) {
     statusCode = 409;
     message = 'Dữ liệu đã tồn tại trên hệ thống (Trùng lặp trường duy nhất).';
+  } else if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'MulterError') {
+    statusCode = 400;
+    const code = (err as { code?: string }).code;
+    if (code === 'LIMIT_FILE_SIZE') {
+      message = 'Dung lượng file vượt quá giới hạn tối đa cho phép (5MB).';
+    } else {
+      message = (err as Error).message || 'Lỗi xử lý tải tệp lên.';
+    }
   } else if (err instanceof Error) {
     message = err.message;
     if ('statusCode' in err && typeof (err as { statusCode?: unknown }).statusCode === 'number') {

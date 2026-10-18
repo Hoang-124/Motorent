@@ -192,3 +192,56 @@ export interface AuditLogEntry {
   userAgent?: string;
   timestamp: string;
 }
+
+// UC-42 & UC-43: Complaint Tracking Types
+export type ComplaintStatus = 'Open' | 'InProgress' | 'Resolved' | 'Closed';
+
+export interface ComplaintBookingSummary {
+  _id: string;
+  bookingCode: string;
+  vehicle: string;
+  pickupDateTime?: string;
+  returnDateTime?: string;
+}
+
+export interface ComplaintTimelineActor {
+  name: string;
+  role: string;
+}
+
+export interface ComplaintTimelineItem {
+  type: 'status' | 'response';
+  content: string;
+  createdAt: string;
+  performedBy: ComplaintTimelineActor;
+  user?: ComplaintTimelineActor;
+  status?: ComplaintStatus;
+  previousStatus?: ComplaintStatus | null;
+}
+
+export interface Complaint {
+  _id: string;
+  id?: string;
+  code: string;
+  category: string;
+  title?: string;
+  description: string;
+  attachments: string[];
+  status: ComplaintStatus;
+  booking?: ComplaintBookingSummary | null;
+  finalResolution?: string | null;
+  createdAt: string;
+  closedAt?: string | null;
+  updatedAt?: string;
+  timeline?: ComplaintTimelineItem[];
+}
+
+export interface ComplaintListResponse {
+  success: boolean;
+  count: number;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Complaint[];
+}
