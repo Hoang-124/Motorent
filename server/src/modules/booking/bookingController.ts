@@ -94,11 +94,21 @@ export const getMyBookings = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const bookings = await bookingService.getMyBookings(req.user._id.toString());
+    const { status, page, limit, search } = req.query;
+
+    const result = await bookingService.getMyBookings(req.user._id.toString(), {
+      status: typeof status === 'string' ? status : undefined,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 10,
+      search: typeof search === 'string' ? search : undefined,
+    });
+
     res.json({
       success: true,
-      count: bookings.length,
-      data: bookings,
+      count: result.bookings.length,
+      data: result.bookings,
+      pagination: result.pagination,
+      counts: result.counts,
     });
   } catch (error) {
     next(error);

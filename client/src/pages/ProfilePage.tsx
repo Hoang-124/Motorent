@@ -25,7 +25,10 @@ import {
   AlertTriangle,
   ChevronDown,
   QrCode,
-  CreditCard
+  CreditCard,
+  Search,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -45,10 +48,26 @@ export const ProfilePage: React.FC = () => {
   const initialTab = (searchParams.get('tab') as ProfileTab) || 'bookings';
   const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
 
-  // Bookings state
+  // Bookings state (UC-35: Rental History)
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
+  const [bookingPage, setBookingPage] = useState<number>(1);
+  const [bookingSearch, setBookingSearch] = useState<string>('');
+  const [bookingPagination, setBookingPagination] = useState({
+    page: 1,
+    limit: 6,
+    total: 0,
+    totalPages: 1,
+    hasPrev: false,
+    hasNext: false,
+  });
+  const [bookingCounts, setBookingCounts] = useState({
+    all: 0,
+    active: 0,
+    completed: 0,
+    cancelled: 0,
+  });
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState<Booking | null>(null);
   const [cancelReasonInput, setCancelReasonInput] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -94,18 +113,53 @@ export const ProfilePage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (
+    page = bookingPage,
+    status = bookingFilter,
+    search = bookingSearch
+  ) => {
     setBookingsLoading(true);
     try {
-      const res = await api.get('/bookings/my');
+      const res = await api.get('/bookings/my', {
+        params: {
+          page,
+          status,
+          limit: 6,
+          search: search.trim() || undefined,
+        },
+      });
       if (res.data && res.data.success && Array.isArray(res.data.data)) {
         setBookings(res.data.data);
+        if (res.data.pagination) {
+          setBookingPagination(res.data.pagination);
+        }
+        if (res.data.counts) {
+          setBookingCounts(res.data.counts);
+        }
       }
     } catch (err) {
       console.error('Lỗi khi tải danh sách đơn thuê xe:', err);
     } finally {
       setBookingsLoading(false);
     }
+  };
+
+  const handleBookingFilterChange = (status: 'all' | 'active' | 'completed' | 'cancelled') => {
+    setBookingFilter(status);
+    setBookingPage(1);
+    fetchBookings(1, status, bookingSearch);
+  };
+
+  const handleBookingPageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > bookingPagination.totalPages) return;
+    setBookingPage(newPage);
+    fetchBookings(newPage, bookingFilter, bookingSearch);
+  };
+
+  const handleBookingSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingPage(1);
+    fetchBookings(1, bookingFilter, bookingSearch);
   };
 
   useEffect(() => {
@@ -484,7 +538,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   const TABS: { id: ProfileTab; num: string; label: string; count?: number; statusTag?: string }[] = [
-    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: bookings.length },
+    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: bookingCounts.all || bookings.length },
     { id: 'info', num: '02', label: 'Thông tin cá nhân' },
     {
       id: 'ekyc',
@@ -496,7 +550,7 @@ export const ProfilePage: React.FC = () => {
     { id: 'password', num: '05', label: 'Đổi mật khẩu' },
   ];
 
-  const activeBookingsCount = bookings.filter((b) =>
+  const activeBookingsCount = bookingCounts.active || bookings.filter((b) =>
     ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)
   ).length;
 
@@ -671,21 +725,21 @@ export const ProfilePage: React.FC = () => {
             ===================================================================== */}
         {activeTab === 'bookings' && (
           <div className="space-y-6">
-            {/* Filter Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {[
-                  { key: 'all' as const, label: 'Tất cả đơn', count: bookings.length },
-                  { key: 'active' as const, label: 'Đang giữ xe / Đang thuê', count: activeBookingsCount },
+                  { key: 'all' as const, label: 'Tất cả đơn', count: bookingCounts.all },
+                  { key: 'active' as const, label: 'Đang giữ xe / Đang thuê', count: bookingCounts.active },
                   {
                     key: 'completed' as const,
                     label: 'Đã hoàn thành',
-                    count: bookings.filter((b) => b.status === 'Completed').length,
+                    count: bookingCounts.completed,
                   },
                   {
                     key: 'cancelled' as const,
                     label: 'Đã hủy',
-                    count: bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length,
+                    count: bookingCounts.cancelled,
                   },
                 ].map((f) => {
                   const active = bookingFilter === f.key;
@@ -693,7 +747,7 @@ export const ProfilePage: React.FC = () => {
                     <button
                       key={f.key}
                       type="button"
-                      onClick={() => setBookingFilter(f.key)}
+                      onClick={() => handleBookingFilterChange(f.key)}
                       className={`px-3.5 py-2 rounded-xl text-xs transition-all shrink-0 cursor-pointer flex items-center space-x-2 ${
                         active
                           ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
@@ -713,14 +767,41 @@ export const ProfilePage: React.FC = () => {
                 })}
               </div>
 
-              <button
-                type="button"
-                onClick={fetchBookings}
-                className="inline-flex items-center space-x-1.5 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors self-start sm:self-auto cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${bookingsLoading ? 'animate-spin text-[#FFC799]' : ''}`} />
-                <span>Làm mới trạng thái</span>
-              </button>
+              {/* Search Bar & Refresh */}
+              <div className="flex items-center gap-2.5 self-start lg:self-auto w-full lg:w-auto">
+                <form onSubmit={handleBookingSearch} className="relative flex-1 lg:w-56">
+                  <Search className="w-3.5 h-3.5 text-[#6E6E6E] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={bookingSearch}
+                    onChange={(e) => setBookingSearch(e.target.value)}
+                    placeholder="Tìm mã hợp đồng..."
+                    className="w-full bg-[#161616] border border-white/[0.08] focus:border-[#FFC799] rounded-xl pl-9 pr-7 py-2 text-xs text-[#F5F5F5] placeholder-[#6E6E6E] outline-none font-mono-tabular transition-colors"
+                  />
+                  {bookingSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingSearch('');
+                        fetchBookings(1, bookingFilter, '');
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6E6E6E] hover:text-white text-xs p-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </form>
+
+                <button
+                  type="button"
+                  onClick={() => fetchBookings()}
+                  className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-[#161616] border border-white/[0.08] hover:border-white/20 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors shrink-0 cursor-pointer"
+                  title="Tải lại danh sách"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${bookingsLoading ? 'animate-spin text-[#FFC799]' : ''}`} />
+                  <span className="hidden sm:inline">Làm mới</span>
+                </button>
+              </div>
             </div>
 
             {/* Bookings List */}
@@ -730,34 +811,43 @@ export const ProfilePage: React.FC = () => {
                 <p className="text-xs text-[#A0A0A0]">Đang đồng bộ danh sách hợp đồng thuê xe...</p>
               </div>
             ) : (() => {
-              const filteredBookings = bookings.filter((b) => {
-                if (bookingFilter === 'active') return ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status);
-                if (bookingFilter === 'completed') return b.status === 'Completed';
-                if (bookingFilter === 'cancelled') return ['Cancelled', 'Rejected'].includes(b.status);
-                return true;
-              });
-
-              if (filteredBookings.length === 0) {
+              if (bookings.length === 0) {
                 return (
                   <div className="p-12 rounded-2xl bg-[#161616] border border-white/[0.08] text-center space-y-4">
                     <h3 className="text-base font-bold text-[#F5F5F5]">Chưa có chuyến xe nào trong mục này</h3>
                     <p className="text-xs text-[#A0A0A0] max-w-md mx-auto leading-relaxed">
-                      Chọn chiếc xe tay ga, xe điện hoặc xe số phù hợp để nhận xe nhanh trong 03 phút tại Sân bay Đà Nẵng hoặc Bãi biển Mỹ Khê.
+                      {bookingSearch
+                        ? `Không tìm thấy chuyến xe nào khớp với từ khóa "${bookingSearch}".`
+                        : 'Chọn chiếc xe tay ga, xe điện hoặc xe số phù hợp để nhận xe nhanh trong 03 phút tại Sân bay Đà Nẵng hoặc Bãi biển Mỹ Khê.'}
                     </p>
-                    <Link
-                      to="/bikes"
-                      className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all"
-                    >
-                      <span>Xem đội xe &amp; Bảng giá</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                    {bookingSearch ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingSearch('');
+                          fetchBookings(1, bookingFilter, '');
+                        }}
+                        className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        <span>Xóa bộ lọc tìm kiếm</span>
+                      </button>
+                    ) : (
+                      <Link
+                        to="/bikes"
+                        className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all"
+                      >
+                        <span>Xem đội xe &amp; Bảng giá</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
                   </div>
                 );
               }
 
               return (
-                <div className="space-y-4">
-                  {filteredBookings.map((b) => {
+                <>
+                  <div className="space-y-4">
+                    {bookings.map((b) => {
                     const v = typeof b.vehicleId === 'object' && b.vehicleId !== null ? (b.vehicleId as Vehicle) : null;
                     const pb =
                       typeof b.pickupBranchId === 'object' && b.pickupBranchId !== null
@@ -1035,7 +1125,60 @@ export const ProfilePage: React.FC = () => {
                     );
                   })}
                 </div>
-              );
+
+                {/* UC-35: Pagination Controls */}
+                {bookingPagination.totalPages > 1 && (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/[0.08]">
+                    <div className="text-xs text-[#A0A0A0]">
+                      Hiển thị trang <strong className="text-[#F5F5F5] font-mono-tabular">{bookingPagination.page}</strong> /{' '}
+                      <span className="font-mono-tabular">{bookingPagination.totalPages}</span>{' '}
+                      (Tổng cộng <strong className="text-[#FFC799] font-mono-tabular">{bookingPagination.total}</strong> chuyến xe)
+                    </div>
+
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        type="button"
+                        disabled={!bookingPagination.hasPrev || bookingsLoading}
+                        onClick={() => handleBookingPageChange(bookingPage - 1)}
+                        className="p-2 rounded-xl bg-[#161616] border border-white/10 hover:border-[#FFC799] text-[#A0A0A0] hover:text-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title="Trang trước"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+
+                      {Array.from({ length: bookingPagination.totalPages }, (_, i) => i + 1).map((p) => {
+                        const isActive = p === bookingPagination.page;
+                        return (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={bookingsLoading}
+                            onClick={() => handleBookingPageChange(p)}
+                            className={`w-8 h-8 rounded-xl text-xs font-mono-tabular font-semibold transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-[#F5F5F5] text-[#101010] shadow-sm'
+                                : 'bg-[#161616] border border-white/10 text-[#A0A0A0] hover:text-white hover:border-white/20'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        disabled={!bookingPagination.hasNext || bookingsLoading}
+                        onClick={() => handleBookingPageChange(bookingPage + 1)}
+                        className="p-2 rounded-xl bg-[#161616] border border-white/10 hover:border-[#FFC799] text-[#A0A0A0] hover:text-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title="Trang sau"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
             })()}
           </div>
         )}
