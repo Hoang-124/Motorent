@@ -40,7 +40,7 @@ import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 
-type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
+type ChecklistKey = 'idCardVerified' | 'drivingLicenseVerified' | 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
 type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit';
 
 const VEHICLE_FOUR_ANGLES = [
@@ -123,9 +123,12 @@ export const CounterDesk: React.FC = () => {
     setPreviewDocModal({ title, url });
   };
 
-  // Check-in form states
+  // Check-in form states (UC-56: 5-point handover)
   const [startOdo, setStartOdo] = useState<number>(0);
+  const [startFuel, setStartFuel] = useState<string>('100%');
   const [checklist, setChecklist] = useState<Record<ChecklistKey, boolean>>({
+    idCardVerified: true,
+    drivingLicenseVerified: true,
     tires: true,
     brakes: true,
     lights: true,
@@ -299,6 +302,7 @@ export const CounterDesk: React.FC = () => {
       : 0;
 
     setStartOdo(b.startOdometer || bikeOdo);
+    setStartFuel(b.startFuelLevel || '100%');
     setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
     setDamageFee(b.damageFee || 0);
 
@@ -516,7 +520,7 @@ export const CounterDesk: React.FC = () => {
     try {
       const res = await api.put(`/bookings/${selectedBooking._id}/checkin`, {
         startOdometer: startOdo,
-        startFuelLevel: 100,
+        startFuelLevel: startFuel,
         checklist,
         checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
@@ -1029,38 +1033,97 @@ export const CounterDesk: React.FC = () => {
                         </button>
                       </div>
                     )}
-                    {/* Odometer Input */}
-                    <div>
-                      <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                        <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                        Ghi nhận chỉ số ODO công-tơ-mét khi giao
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={startOdo}
-                        onChange={(e) => setStartOdo(Number(e.target.value))}
-                        disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
-                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
-                      />
-                      <p className="text-[11px] text-[#A0A0A0] mt-1">
-                        Chỉ số ODO làm căn cứ đối chiếu khi khách bàn giao trả xe.
-                      </p>
+                    {/* 1. Customer Identity & eKYC Verification Card */}
+                    <div className="p-3.5 rounded-xl border border-white/10 bg-[#101010] flex items-center justify-between gap-3">
+                      <div className="flex items-center space-x-2.5">
+                        <UserCheck className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
+                        <div>
+                          <div className="text-xs font-bold text-white flex items-center gap-2">
+                            Xác thực danh tính khách hàng (eKYC)
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              typeof selectedBooking.userId === 'object' && selectedBooking.userId && (selectedBooking.userId as User).identityStatus === 'Verified'
+                                ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
+                                : 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
+                            }`}>
+                              {typeof selectedBooking.userId === 'object' && selectedBooking.userId && (selectedBooking.userId as User).identityStatus === 'Verified'
+                                ? 'Đã xác minh (Verified)'
+                                : 'Chưa xác minh'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-[#A0A0A0] mt-0.5">
+                            Căn cước công dân (CCCD / Passport) & Giấy phép lái xe (GPLX)
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* 5-point Checklist */}
+                    {/* 2. Odometer Input & Fuel Level Selector */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Odometer Input */}
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
+                          <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                          Chỉ số ODO khi bàn giao (km)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={startOdo}
+                          onChange={(e) => setStartOdo(Number(e.target.value))}
+                          disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
+                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                        />
+                        <p className="text-[11px] text-[#A0A0A0] mt-1">
+                          Căn cứ đối chiếu ODO khi trả xe.
+                        </p>
+                      </div>
+
+                      {/* Fuel Level Selector */}
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
+                          <span className="flex items-center">
+                            <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                            Mức nhiên liệu / Xăng
+                          </span>
+                          <span className="text-xs font-bold text-[#FFC799]">{startFuel}</span>
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {['100%', '75%', '50%', '25%'].map((lvl) => (
+                            <button
+                              key={lvl}
+                              type="button"
+                              disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
+                              onClick={() => setStartFuel(lvl)}
+                              className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${
+                                startFuel === lvl
+                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
+                              }`}
+                            >
+                              {lvl}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-[#A0A0A0] mt-1">
+                          Ghi nhận lượng nhiên liệu thực tế khi giao xe.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 3. 5-point Handover & Safety Checklist */}
                     <div>
                       <label className="block text-xs font-semibold text-[#A0A0A0] mb-2 flex items-center">
                         <FileCheck className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                        Biên bản kiểm tra kỹ thuật an toàn trước khi rời trạm
+                        Biên bản bàn giao 5 điểm an toàn trước khi rời trạm (UC-56)
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         {[
-                          { key: 'tires' as ChecklistKey, label: 'Áp suất lốp xe & độ bám đường tốt' },
-                          { key: 'brakes' as ChecklistKey, label: 'Phanh trước & sau hoạt động nhạy' },
-                          { key: 'lights' as ChecklistKey, label: 'Đèn pha, xi nhan, còi xe hoạt động' },
-                          { key: 'fuel' as ChecklistKey, label: 'Xăng/Pin đầy bình khi giao khách' },
-                          { key: 'helmets' as ChecklistKey, label: 'Đã giao 2 nón bảo hiểm chuẩn CR + 2 áo mưa' },
+                          { key: 'idCardVerified' as ChecklistKey, label: '1. Đã đối chiếu CCCD/Passport khách hàng' },
+                          { key: 'drivingLicenseVerified' as ChecklistKey, label: '2. Đã kiểm tra GPLX xe máy còn hiệu lực' },
+                          { key: 'tires' as ChecklistKey, label: '3. Áp suất lốp xe & độ bám đường tốt' },
+                          { key: 'brakes' as ChecklistKey, label: '4. Phanh trước & sau hoạt động nhạy' },
+                          { key: 'lights' as ChecklistKey, label: '5. Đèn pha, xi nhan, còi xe hoạt động' },
+                          { key: 'helmets' as ChecklistKey, label: '6. Đã giao 2 nón bảo hiểm CR + 2 áo mưa' },
                         ].map((item) => (
                           <label
                             key={item.key}

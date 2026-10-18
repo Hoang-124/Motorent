@@ -28,6 +28,7 @@ const checkinSchema = z.object({
   startFuelLevel: z.union([z.string(), z.number()]).optional().transform((v) => v !== undefined ? String(v) : undefined),
   checkinImages: z.array(z.string()).optional(),
   eSignatureUrl: z.string().optional(),
+  checklist: z.record(z.string(), z.boolean()).optional(),
 });
 
 const checkoutSchema = z.object({
