@@ -144,7 +144,12 @@ export const Navbar: React.FC = () => {
         .get('/bookings/my')
         .then((res) => {
           if (res.data && res.data.success && Array.isArray(res.data.data)) {
-            setBookingCount(res.data.data.length);
+            const validBookings = res.data.data.filter(
+              (b: { status?: string; paymentMethod?: string; depositPaid?: boolean; isPaid?: boolean }) =>
+                !['Cancelled', 'Rejected'].includes(b.status || '') &&
+                !(b.status === 'Pending' && b.paymentMethod === 'Banking' && !b.depositPaid && !b.isPaid)
+            );
+            setBookingCount(validBookings.length);
           }
         })
         .catch(() => {});
@@ -854,10 +859,10 @@ export const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className="group h-9 inline-flex items-center space-x-2 pl-4 pr-1.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs transition-all active:scale-95"
+                className="group h-9 inline-flex items-center space-x-2 pl-4 pr-1.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs transition-all active:scale-95 whitespace-nowrap shrink-0"
               >
                 <span>Đăng nhập</span>
-                <div className="w-6 h-6 rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center transition-transform group-hover:translate-x-0.5">
+                <div className="w-6 h-6 rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center shrink-0 transition-transform group-hover:translate-x-0.5">
                   <LogIn className="w-3 h-3" />
                 </div>
               </Link>

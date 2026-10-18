@@ -69,6 +69,12 @@ const updateProfileSchema = z.object({
     .regex(/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/, 'Số điện thoại không đúng định dạng')
     .optional()
     .or(z.literal('')),
+  idCardNumber: z
+    .string()
+    .trim()
+    .regex(/^([0-9]{9}|[0-9]{12}|[A-Za-z][0-9]{7,8})$/, 'Số CCCD (12 số) hoặc Hộ chiếu không đúng định dạng')
+    .optional()
+    .or(z.literal('')),
   gender: z.enum(['Male', 'Female', 'Other']).optional(),
   dob: z.string().optional(),
 });

@@ -46,6 +46,7 @@ export interface User {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  idCardNumber?: string;
   avatarUrl?: string;
   roles: 'SystemAdmin' | 'BranchManager' | 'Staff' | 'Customer';
   status: 'Active' | 'Suspended' | 'Unverified';
@@ -93,6 +94,8 @@ export interface Booking {
   eSignatureUrl?: string;
   startOdometer: number;
   endOdometer?: number;
+  checkinImages?: string[];
+  checkoutImages?: string[];
   cancelReason?: string;
   refundAmount?: number;
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';

@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { Booking, IBooking } from '../../models/Booking';
+import { Vehicle } from '../../models/Vehicle';
 import { Payment } from '../../models/Payment';
+import { Discount } from '../../models/Discount';
 import { Notification } from '../../models/Notification';
 import { AuditLog } from '../../models/AuditLog';
 import { AppError } from '../../core/errorHandler';
@@ -358,6 +360,9 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
       return { RspCode: '02', Message: 'Order already confirmed' };
     }
 
+    // Lock vehicle status to Rented so it is hidden from public available fleet
+    await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
+
     // Record transaction row in Payment collection
     await Payment.create({
       bookingId: booking._id,
@@ -403,15 +408,48 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
     return { RspCode: '00', Message: 'Confirm Success' };
   } else {
     // Payment Failed or Cancelled by customer on gateway
-    await Payment.create({
-      bookingId: booking._id,
-      txnRef: String(txnRef),
-      vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
-      amount: expectedAmount,
-      type: booking.paymentType === 'Full100' ? 'FULL' : 'DEPOSIT',
-      status: 'FAILED',
-      rawIpn: queryParams,
-    }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+    const existingFailedPayment = await Payment.findOne({ txnRef: String(txnRef), status: 'FAILED' });
+    if (!existingFailedPayment) {
+      await Payment.create({
+        bookingId: booking._id,
+        txnRef: String(txnRef),
+        vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+        amount: expectedAmount,
+        type: booking.paymentType === 'Full100' ? 'FULL' : 'DEPOSIT',
+        status: 'FAILED',
+        rawIpn: queryParams,
+      }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+    }
+
+    // Automatically cancel unpaid Pending booking so vehicle is unlocked and not shown as active/successful
+    if (booking.status === 'Pending' && !booking.depositPaid && !booking.isPaid) {
+      const cancelReasonText =
+        responseCode === '24'
+          ? 'Khách hàng đã chủ động hủy thanh toán trên cổng VNPay Sandbox.'
+          : `Giao dịch thanh toán VNPay không thành công (Mã lỗi: ${responseCode}).`;
+
+      const cancelledBooking = await Booking.findByIdAndUpdate(
+        booking._id,
+        {
+          $set: {
+            status: 'Cancelled',
+            cancelReason: cancelReasonText,
+          },
+        },
+        { new: true }
+      );
+
+      if (booking.discountId) {
+        await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
+      }
+
+      // Remove any premature hold notification for this booking
+      await Notification.deleteMany({ relatedId: booking._id.toString() }).catch(() => {});
+
+      if (cancelledBooking) {
+        emitBookingStatus(cancelledBooking);
+      }
+    }
 
     await AuditLog.create({
       userId: booking.userId,
@@ -463,7 +501,14 @@ export const verifyReturnUrlData = async (
     };
   }
 
-  const booking = await Booking.findOne({ bookingCode });
+  // Process payment state idempotently (essential for localhost Sandbox where remote IPN cannot reach 127.0.0.1)
+  await processVnPayIpn(queryParams).catch((err: unknown) =>
+    console.error('[VNPay Return Sync Error]:', err)
+  );
+
+  const booking = await Booking.findOne({ bookingCode })
+    .populate('pickupBranchId')
+    .populate('returnBranchId');
 
   if (responseCode === '00') {
     return {
@@ -515,9 +560,11 @@ export const confirmVietQrPayment = async (options: {
   const txnRef = `${booking.bookingCode}__VIETQR_${Date.now()}`;
 
   const updatePayload: Record<string, unknown> = {
-    status: 'Approved',
+    status: 'Confirmed',
     depositPaid: true,
     depositPaidAt: new Date(),
+    paidAmount,
+    remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - paidAmount),
     paymentMethod: 'Banking',
     paymentType: isFullPay ? 'Full100' : 'Deposit30',
     vnpayTxnRef: txnRef,
@@ -526,8 +573,10 @@ export const confirmVietQrPayment = async (options: {
   if (isFullPay) {
     updatePayload.isPaid = true;
     updatePayload.paidAt = new Date();
-    updatePayload.remainingAmount = 0;
   }
+
+  // Lock vehicle status to Rented BEFORE populating so populated vehicleId reflects status: 'Rented'
+  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
 
   const updatedBooking = await Booking.findByIdAndUpdate(
     booking._id,
@@ -541,6 +590,9 @@ export const confirmVietQrPayment = async (options: {
   if (!updatedBooking) {
     throw new AppError(500, 'Không thể cập nhật trạng thái thanh toán đơn đặt xe.');
   }
+
+  // Lock vehicle status to Rented so it is hidden from public available fleet
+  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
 
   await Payment.create({
     bookingId: booking._id,

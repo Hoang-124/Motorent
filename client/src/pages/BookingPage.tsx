@@ -33,12 +33,64 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import type { Vehicle, Branch, Booking } from '../types';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
+import {
+  DateTimePicker,
+  getNextAvailableSlotForToday,
+  parseLocalDateStr,
+  formatDisplayDateVN,
+  normalizeReturnSchedule,
+} from '../components/DateTimePicker';
+import { BranchSelect } from '../components/BranchSelect';
 
 const ANGLE_VIEWS = [
   { id: 1, label: 'Ngang xe', title: 'Góc ngang thân xe' },
   { id: 0, label: '3/4 Trước', title: 'Góc 3/4 mặt trước' },
   { id: 2, label: 'Góc sau', title: 'Góc đuôi xe & khoang lái' },
 ];
+
+const AVAILABLE_VOUCHERS = [
+  {
+    code: 'THEOGIO10',
+    title: 'Giảm 10% (Tối đa 15.000đ)',
+    desc: 'Áp dụng cho mọi gói thuê theo giờ & theo ngày (đơn từ 30.000đ)',
+    discountPercent: 10,
+    maxDiscount: 15000,
+    minOrder: 30000,
+  },
+  {
+    code: 'CHAOBANMOI',
+    title: 'Giảm 20.000đ Khách mới',
+    desc: 'Áp dụng cho đơn thuê từ 1 ngày trở lên (tối thiểu 80.000đ)',
+    discountPercent: 25,
+    maxDiscount: 20000,
+    minOrder: 80000,
+  },
+  {
+    code: 'MOTORENT30',
+    title: 'Giảm 30.000đ Thuê từ 2 ngày',
+    desc: 'Áp dụng cho đơn thuê từ 150.000đ trở lên',
+    discountPercent: 20,
+    maxDiscount: 30000,
+    minOrder: 150000,
+  },
+  {
+    code: 'DANANGVIP',
+    title: 'Giảm 15% (Tối đa 100.000đ)',
+    desc: 'Áp dụng cho đơn thuê dài ngày từ 300.000đ trở lên',
+    discountPercent: 15,
+    maxDiscount: 100000,
+    minOrder: 300000,
+  },
+];
+
+const computeVoucherDiscountAmount = (code: string, baseFee: number): number => {
+  if (!code || baseFee <= 0) return 0;
+  const found = AVAILABLE_VOUCHERS.find((v) => v.code === code.toUpperCase());
+  if (!found) return 0;
+  if (baseFee < found.minOrder) return 0;
+  const raw = Math.round((baseFee * found.discountPercent) / 100);
+  return Math.min(found.maxDiscount, raw);
+};
 
 interface PaymentReceiptInfo {
   transactionId: string;
@@ -51,7 +103,7 @@ export const BookingPage: React.FC = () => {
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, updateUser } = useAuth();
 
   const pickupParam = searchParams.get('pickup') || '';
   const returnParam = searchParams.get('return') || '';
@@ -85,40 +137,53 @@ export const BookingPage: React.FC = () => {
   };
 
   const today = new Date();
+  const todayStr = formatLocalDate(today);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const dayAfter = new Date(today);
   dayAfter.setDate(dayAfter.getDate() + 3);
 
-  const [pickupDate, setPickupDate] = useState<string>(pickupDateParam || formatLocalDate(tomorrow));
-  const [pickupTime, setPickupTime] = useState<string>('08:30');
+  const resolvedInitialPickupDate = pickupDateParam || formatLocalDate(tomorrow);
+  const resolvedInitialPickupTime =
+    resolvedInitialPickupDate === todayStr && today.getHours() >= 8
+      ? getNextAvailableSlotForToday()
+      : '08:30';
+
+  const [pickupDate, setPickupDate] = useState<string>(resolvedInitialPickupDate);
+  const [pickupTime, setPickupTime] = useState<string>(resolvedInitialPickupTime);
   const [returnDate, setReturnDate] = useState<string>(returnDateParam || formatLocalDate(dayAfter));
   const [returnTime, setReturnTime] = useState<string>('18:00');
 
-  // Form Step 2: Customer Identity
+  // Form Step 2: Customer Identity & Field Validation States
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerEmail, setCustomerEmail] = useState<string>('');
   const [idCardNumber, setIdCardNumber] = useState<string>('');
   const [customerNotes, setCustomerNotes] = useState<string>('');
-
-  // Form Step 3: Perks & Discount
-  const initialVoucherCode = voucherParam === 'MOTORENT30' ? 'MOTORENT30' : 'CHAOBANMOI';
-  const initialVoucherAmount = initialVoucherCode === 'MOTORENT30' ? 30000 : 20000;
-  const [discountCodeInput, setDiscountCodeInput] = useState<string>(initialVoucherCode);
-  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>({
-    code: initialVoucherCode,
-    amount: initialVoucherAmount,
+  const [step2Touched, setStep2Touched] = useState<{
+    name: boolean;
+    phone: boolean;
+    email: boolean;
+    idCard: boolean;
+  }>({
+    name: false,
+    phone: false,
+    email: false,
+    idCard: false,
   });
-  const [discountFeedback, setDiscountFeedback] = useState<string>(
-    initialVoucherCode === 'MOTORENT30'
-      ? 'Đã tự động áp dụng mã ưu đãi MOTORENT30 (-30.000đ)'
-      : 'Đã tự động áp dụng mã ưu đãi chào bạn mới (-20.000đ)'
-  );
+  const [step2Submitted, setStep2Submitted] = useState<boolean>(false);
+
+  // Form Step 3: Perks & Interactive Voucher Selection
+  const initialVoucherCode = AVAILABLE_VOUCHERS.some((v) => v.code === voucherParam)
+    ? voucherParam
+    : 'CHAOBANMOI';
+  const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>(initialVoucherCode);
+  const [discountFeedback, setDiscountFeedback] = useState<string>('');
 
   // Form Step 4: Payment selection & QR Verification
   const [paymentOption, setPaymentOption] = useState<'VietQR' | 'VNPay' | 'Cash'>('VietQR');
   const [paymentScope, setPaymentScope] = useState<'Deposit30' | 'Full100'>('Deposit30');
+  const [vnpayBankCode, setVnpayBankCode] = useState<'NCB' | '' | 'INTCARD'>('NCB');
   const [qrChecking, setQrChecking] = useState<boolean>(false);
   const [qrVerified, setQrVerified] = useState<boolean>(false);
   const [qrPrecheckCode, setQrPrecheckCode] = useState<string>('');
@@ -179,15 +244,106 @@ export const BookingPage: React.FC = () => {
     fetchInitData();
   }, [vehicleId, pickupParam, returnParam]);
 
-  // Autofill from user profile
+  // Fetch latest profile from /auth/me on mount so verified eKYC & idCardNumber are up to date
+  useEffect(() => {
+    if (isAuthenticated) {
+      api
+        .get('/auth/me')
+        .then((res) => {
+          if (res.data?.success && res.data?.data) {
+            updateUser(res.data.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isAuthenticated]);
+
+  const applyUserProfileToForm = (targetUser = user) => {
+    if (!targetUser) return;
+    const fullName =
+      [targetUser.lastName, targetUser.firstName].filter(Boolean).join(' ') ||
+      targetUser.username ||
+      '';
+    const resolvedIdCard =
+      targetUser.idCardNumber ||
+      (targetUser.identityStatus === 'Verified' ? '048204008692' : '');
+
+    setCustomerName(fullName);
+    setCustomerPhone(targetUser.phoneNumber || '');
+    setCustomerEmail(targetUser.email || '');
+    setIdCardNumber(resolvedIdCard);
+    setErrorMsg('');
+  };
+
+  // Autofill from user profile when user object arrives or updates
   useEffect(() => {
     if (user) {
-      const fullName = [user.lastName, user.firstName].filter(Boolean).join(' ') || user.username || '';
-      setCustomerName(fullName);
-      setCustomerPhone(user.phoneNumber || '');
-      setCustomerEmail(user.email || '');
+      const fullName =
+        [user.lastName, user.firstName].filter(Boolean).join(' ') || user.username || '';
+      const resolvedIdCard =
+        user.idCardNumber || (user.identityStatus === 'Verified' ? '048204008692' : '');
+
+      setCustomerName((prev) => prev || fullName);
+      setCustomerPhone((prev) => prev || user.phoneNumber || '');
+      setCustomerEmail((prev) => prev || user.email || '');
+      setIdCardNumber((prev) => prev || resolvedIdCard);
     }
   }, [user]);
+
+  // Step 2 Field Validators
+  const validateCustomerName = (val: string): string => {
+    const trimmed = val.trim().replace(/\s+/g, ' ');
+    if (!trimmed) {
+      return 'Vui lòng nhập họ và tên đầy đủ của người nhận xe.';
+    }
+    if (/[^a-zA-ZÀ-ỹ\s'.-]/u.test(trimmed)) {
+      return 'Họ và tên chỉ được chứa chữ cái, không chứa chữ số hoặc ký tự đặc biệt.';
+    }
+    const words = trimmed.split(' ').filter(Boolean);
+    if (words.length < 2 || trimmed.length < 4) {
+      return 'Vui lòng nhập đầy đủ cả Họ và Tên (tối thiểu 2 từ, VD: Nguyễn Hoàng).';
+    }
+    return '';
+  };
+
+  const validateCustomerPhone = (val: string): string => {
+    const clean = val.replace(/[\s.-]/g, '');
+    if (!clean) {
+      return 'Vui lòng nhập số điện thoại di động để nhận mã xe.';
+    }
+    if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(clean)) {
+      return 'Số điện thoại không hợp lệ (Cần 10 số đầu 03, 05, 07, 08, 09 — VD: 0905123456).';
+    }
+    return '';
+  };
+
+  const validateCustomerEmail = (val: string): string => {
+    const trimmed = val.trim();
+    if (!trimmed) {
+      return 'Vui lòng nhập địa chỉ Email nhận hợp đồng thuê xe điện tử.';
+    }
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
+      return 'Địa chỉ Email không đúng định dạng (VD: tenban@gmail.com).';
+    }
+    return '';
+  };
+
+  const validateIdCardNumber = (val: string): string => {
+    const clean = val.replace(/\s+/g, '').toUpperCase();
+    if (!clean) {
+      return 'Vui lòng nhập số CCCD (12 chữ số) hoặc Hộ chiếu để lập hợp đồng điện tử.';
+    }
+    if (!/^([0-9]{12}|[0-9]{9}|[A-Z][0-9]{7,8})$/.test(clean)) {
+      return 'Số CCCD phải gồm đúng 12 chữ số (VD: 048204008692) hoặc Hộ chiếu hợp lệ (1 chữ cái + 7–8 số).';
+    }
+    return '';
+  };
+
+  const nameError = validateCustomerName(customerName);
+  const phoneError = validateCustomerPhone(customerPhone);
+  const emailError = validateCustomerEmail(customerEmail);
+  const idCardError = validateIdCardNumber(idCardNumber);
+  const isStep2Valid = !nameError && !phoneError && !emailError && !idCardError;
 
   // Reset QR precheck if payment scope or option changes
   useEffect(() => {
@@ -195,14 +351,48 @@ export const BookingPage: React.FC = () => {
     setQrPrecheckCode('');
   }, [paymentScope, paymentOption]);
 
-  // Calculation Logic
+  // Smart Hourly vs. Daily Pricing Calculation
   const startDateTime = new Date(`${pickupDate}T${pickupTime}:00+07:00`);
   const endDateTime = new Date(`${returnDate}T${returnTime}:00+07:00`);
   const durationMs = Math.max(0, endDateTime.getTime() - startDateTime.getTime());
-  const durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 3600 * 24)));
+  const totalHours = Math.max(2, Math.ceil(durationMs / (1000 * 3600)));
+  const durationDays = Math.max(1, Math.ceil(totalHours / 24));
 
   const dailyPrice = vehicle ? vehicle.dailyPrice : 0;
-  const baseRentalFee = durationDays * dailyPrice;
+  const hourlyPrice =
+    vehicle?.hourlyPrice || (dailyPrice ? Math.round(dailyPrice / 5 / 1000) * 1000 : 0);
+
+  const isHourlyBilling = totalHours < 24 && totalHours * hourlyPrice < dailyPrice;
+
+  let baseRentalFee = 0;
+  let billingDurationLabel = '';
+  if (totalHours < 24) {
+    baseRentalFee = Math.min(dailyPrice, totalHours * hourlyPrice);
+    billingDurationLabel = isHourlyBilling
+      ? `${totalHours} giờ (Gói theo giờ)`
+      : `1 ngày (${totalHours} giờ)`;
+  } else {
+    const fullDays = Math.floor(totalHours / 24);
+    const remHours = totalHours % 24;
+    const remFee = remHours > 0 ? Math.min(dailyPrice, remHours * hourlyPrice) : 0;
+    baseRentalFee = fullDays * dailyPrice + remFee;
+    if (remHours === 0) {
+      billingDurationLabel = `${fullDays} ngày (${totalHours} giờ)`;
+    } else if (remFee < dailyPrice) {
+      billingDurationLabel = `${fullDays} ngày + ${remHours} giờ lẻ`;
+    } else {
+      billingDurationLabel = `${fullDays + 1} ngày (${totalHours} giờ)`;
+    }
+  }
+
+  // Dynamic voucher evaluation: if selectedVoucherCode isn't eligible for current baseRentalFee,
+  // check if user explicitly picked it or fall back cleanly
+  const activeDiscountAmount = computeVoucherDiscountAmount(selectedVoucherCode, baseRentalFee);
+  const appliedDiscount =
+    selectedVoucherCode && activeDiscountAmount > 0
+      ? { code: selectedVoucherCode, amount: activeDiscountAmount }
+      : null;
+
   const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
   const totalAmount = Math.max(0, baseRentalFee - discountAmount);
   const depositAmount = Math.round(totalAmount * 0.3); // Cọc 30%
@@ -210,25 +400,27 @@ export const BookingPage: React.FC = () => {
   const activePayAmount = paymentScope === 'Full100' ? totalAmount : depositAmount;
   const activeRemainingAfterPay = paymentScope === 'Full100' ? 0 : remainingAmount;
 
-  // Discount code handler
-  const handleApplyDiscount = () => {
-    const trimmed = discountCodeInput.trim().toUpperCase();
-    if (!trimmed) {
-      setAppliedDiscount(null);
-      setDiscountFeedback('');
+  const handleSelectVoucher = (code: string) => {
+    if (!code || code === selectedVoucherCode) {
+      setSelectedVoucherCode('');
+      setDiscountFeedback('Đã gỡ mã ưu đãi.');
       return;
     }
-
-    if (trimmed === 'CHAOBANMOI') {
-      setAppliedDiscount({ code: 'CHAOBANMOI', amount: 20000 });
-      setDiscountFeedback('Áp dụng thành công mã CHAOBANMOI: Giảm ngay 20.000đ');
-    } else if (trimmed === 'MOTORENT30') {
-      setAppliedDiscount({ code: 'MOTORENT30', amount: 30000 });
-      setDiscountFeedback('Áp dụng thành công mã MOTORENT30: Giảm ngay 30.000đ');
-    } else {
-      setAppliedDiscount(null);
-      setDiscountFeedback('Mã giảm giá không tồn tại hoặc đã hết lượt áp dụng.');
+    const upper = code.toUpperCase();
+    const vObj = AVAILABLE_VOUCHERS.find((v) => v.code === upper);
+    if (!vObj) {
+      setDiscountFeedback('Mã giảm giá không tồn tại.');
+      return;
     }
+    if (baseRentalFee < vObj.minOrder) {
+      setDiscountFeedback(
+        `Mã ${upper} yêu cầu đơn thuê tối thiểu ${vObj.minOrder.toLocaleString('vi-VN')}đ (Hiện tại: ${baseRentalFee.toLocaleString('vi-VN')}đ).`
+      );
+      return;
+    }
+    const amt = computeVoucherDiscountAmount(upper, baseRentalFee);
+    setSelectedVoucherCode(upper);
+    setDiscountFeedback(`Đã áp dụng mã ${upper}: Giảm ${amt.toLocaleString('vi-VN')}đ`);
   };
 
   // Next Step Validator
@@ -251,10 +443,49 @@ export const BookingPage: React.FC = () => {
       setCurrentStep(2);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (currentStep === 2) {
-      if (!customerName.trim() || !customerPhone.trim()) {
-        setErrorMsg('Vui lòng nhập họ tên và số điện thoại liên hệ nhận xe.');
+      setStep2Submitted(true);
+      setStep2Touched({ name: true, phone: true, email: true, idCard: true });
+
+      const firstErr = nameError || phoneError || emailError || idCardError;
+      if (firstErr) {
+        setErrorMsg(firstErr);
         return;
       }
+
+      // Normalize inputs
+      const cleanPhone = customerPhone.replace(/[\s.-]/g, '');
+      const cleanIdCard = idCardNumber.replace(/\s+/g, '').toUpperCase();
+      const cleanName = customerName.trim().replace(/\s+/g, ' ');
+      setCustomerName(cleanName);
+      setCustomerPhone(cleanPhone);
+      setCustomerEmail(customerEmail.trim());
+      setIdCardNumber(cleanIdCard);
+
+      // Silently sync updated phone / idCardNumber back to user profile if authenticated
+      if (isAuthenticated && user) {
+        const nameParts = cleanName.split(' ');
+        const firstNamePart = nameParts.length > 1 ? nameParts[nameParts.length - 1] : cleanName;
+        const lastNamePart = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : '';
+        if (
+          cleanPhone !== (user.phoneNumber || '') ||
+          cleanIdCard !== (user.idCardNumber || '')
+        ) {
+          api
+            .put('/auth/me', {
+              firstName: user.firstName || firstNamePart,
+              lastName: user.lastName || lastNamePart,
+              phoneNumber: cleanPhone,
+              idCardNumber: cleanIdCard,
+            })
+            .then((res) => {
+              if (res.data?.success && res.data?.data) {
+                updateUser(res.data.data);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+
       setCurrentStep(3);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (currentStep === 3) {
@@ -311,18 +542,30 @@ export const BookingPage: React.FC = () => {
         const newBooking: Booking = res.data.data;
 
         // If paying via VNPay, create official payment URL and redirect to gateway
-        if (paymentOption === 'VNPay' && newBooking?._id) {
+        if (paymentOption === 'VNPay') {
+          if (!newBooking?._id) {
+            setErrorMsg('Không thể khởi tạo mã đơn cho cổng VNPay Sandbox.');
+            setSubmitting(false);
+            return;
+          }
           try {
             const vnpayRes = await api.post('/payments/vnpay/create', {
               bookingId: newBooking._id,
               paymentType: paymentScope,
+              bankCode: vnpayBankCode || undefined,
             });
             if (vnpayRes.data?.success && vnpayRes.data?.data?.paymentUrl) {
               window.location.href = vnpayRes.data.data.paymentUrl;
               return;
             }
+            setErrorMsg('Không nhận được liên kết chuyển hướng từ cổng VNPay Sandbox.');
+            setSubmitting(false);
+            return;
           } catch (vnpErr) {
             console.error('[VNPay Create Error]', vnpErr);
+            setErrorMsg('Không thể khởi tạo liên kết VNPay Sandbox. Vui lòng thử lại.');
+            setSubmitting(false);
+            return;
           }
         }
 
@@ -447,40 +690,84 @@ export const BookingPage: React.FC = () => {
         </nav>
 
         {/* Dynamic Stepper Header */}
-        <div className="bg-[#161616] rounded-2xl p-5 border border-white/10 mb-8">
-          <div className="flex items-center justify-between max-w-3xl mx-auto relative">
-            <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/10 -translate-y-1/2 z-0" />
-            <div
-              className="absolute top-1/2 left-0 h-0.5 bg-[#FFC799] -translate-y-1/2 z-0 transition-all duration-500"
-              style={{ width: `${((currentStep - 1) / 4) * 100}%` }}
-            />
-
+        <div className="bg-[#161616] rounded-2xl px-4 py-4 sm:px-6 sm:py-5 border border-white/10 mb-8">
+          <div className="flex items-center justify-between gap-2 overflow-x-auto">
             {[
-              { num: 1, label: '01. Lịch trình' },
-              { num: 2, label: '02. Khách hàng' },
-              { num: 3, label: '03. Gói dịch vụ' },
-              { num: 4, label: '04. Thanh toán QR' },
-              { num: 5, label: '05. Biên lai & Mã xe' },
-            ].map((st) => (
-              <div key={st.num} className="relative z-10 flex flex-col items-center">
-                <div
-                  className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black transition-all ${
-                    currentStep >= st.num
-                      ? 'bg-[#FFC799] text-[#101010] shadow-md'
-                      : 'bg-[#101010] border border-white/15 text-[#6E6E6E]'
-                  }`}
-                >
-                  {currentStep > st.num ? <Check className="w-4 h-4 stroke-[3]" /> : st.num}
-                </div>
-                <span
-                  className={`text-[11px] font-bold mt-2 whitespace-nowrap hidden sm:block ${
-                    currentStep >= st.num ? 'text-[#F5F5F5]' : 'text-[#6E6E6E]'
-                  }`}
-                >
-                  {st.label}
-                </span>
-              </div>
-            ))}
+              { num: 1, code: '01', label: 'Lịch trình', sub: 'Trạm & Giờ thuê' },
+              { num: 2, code: '02', label: 'Khách hàng', sub: 'Hồ sơ nhận xe' },
+              { num: 3, code: '03', label: 'Gói dịch vụ', sub: 'Bảo hiểm & Mã giảm' },
+              { num: 4, code: '04', label: 'Thanh toán QR', sub: 'Cọc giữ biển số' },
+              { num: 5, code: '05', label: 'Biên lai & Mã xe', sub: 'Hoàn tất đặt xe' },
+            ].map((st, idx, arr) => {
+              const isCompleted = currentStep > st.num;
+              const isActive = currentStep === st.num;
+              const canClickBack = st.num < currentStep && currentStep < 5;
+
+              return (
+                <React.Fragment key={st.num}>
+                  <button
+                    type="button"
+                    disabled={!canClickBack}
+                    onClick={() => {
+                      if (canClickBack) setCurrentStep(st.num);
+                    }}
+                    className={`group flex items-center space-x-3 px-3 py-2 rounded-xl border transition-all shrink-0 text-left ${
+                      isActive
+                        ? 'bg-[#1E1E1E] border-[#FFC799]/50 shadow-[0_4px_20px_rgba(0,0,0,0.5)]'
+                        : isCompleted
+                        ? 'bg-[#101010]/80 border-[#99FFE4]/30 hover:border-[#99FFE4]/60 cursor-pointer'
+                        : 'bg-[#101010]/40 border-white/[0.06] opacity-75 cursor-default'
+                    }`}
+                  >
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-mono font-black transition-all shrink-0 ${
+                        isActive
+                          ? 'bg-[#FFC799] text-[#101010] shadow-[0_0_16px_rgba(255,199,153,0.35)]'
+                          : isCompleted
+                          ? 'bg-[#99FFE4]/15 border border-[#99FFE4]/40 text-[#99FFE4]'
+                          : 'bg-[#1E1E1E] border border-white/12 text-[#A0A0A0]'
+                      }`}
+                    >
+                      {isCompleted ? <Check className="w-4 h-4 stroke-[2.8]" /> : st.code}
+                    </div>
+
+                    <div className="min-w-0 pr-1">
+                      <span
+                        className={`block text-[10px] font-mono font-bold uppercase tracking-wider leading-none mb-1 ${
+                          isActive
+                            ? 'text-[#FFC799]'
+                            : isCompleted
+                            ? 'text-[#99FFE4]'
+                            : 'text-[#6E6E6E]'
+                        }`}
+                      >
+                        Bước {st.code}
+                      </span>
+                      <span
+                        className={`block text-xs sm:text-[13px] font-bold whitespace-nowrap leading-tight ${
+                          isActive || isCompleted ? 'text-[#F5F5F5]' : 'text-[#A0A0A0]'
+                        }`}
+                      >
+                        {st.label}
+                      </span>
+                      <span className="hidden xl:block text-[10px] text-[#6E6E6E] whitespace-nowrap mt-0.5">
+                        {st.sub}
+                      </span>
+                    </div>
+                  </button>
+
+                  {idx < arr.length - 1 && (
+                    <div className="hidden md:flex flex-1 items-center min-w-[16px] max-w-[48px]">
+                      <div
+                        className={`h-[2px] w-full rounded-full transition-colors duration-300 ${
+                          currentStep > st.num ? 'bg-[#99FFE4]/50' : 'bg-white/10'
+                        }`}
+                      />
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </div>
         </div>
 
@@ -530,105 +817,174 @@ export const BookingPage: React.FC = () => {
 
                 {/* Branches Selection */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Chi nhánh nhận xe</span>
-                    </label>
-                    <select
-                      value={pickupBranchId}
-                      onChange={(e) => setPickupBranchId(e.target.value)}
-                      className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs font-semibold text-[#F5F5F5] focus:border-[#FFC799] outline-none cursor-pointer"
-                    >
-                      {branches.map((b) => (
-                        <option key={b._id} value={b._id} className="bg-[#161616] text-[#F5F5F5]">
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                    {pickupBranch && (
-                      <p className="text-[11px] text-[#6E6E6E] leading-tight">
-                        {pickupBranch.address} ({pickupBranch.hours_open} - {pickupBranch.hours_close})
-                      </p>
-                    )}
-                  </div>
+                  <BranchSelect
+                    label={
+                      <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
+                        <span>Chi nhánh nhận xe</span>
+                      </label>
+                    }
+                    branches={branches}
+                    value={pickupBranchId}
+                    onChange={(newId) => setPickupBranchId(newId)}
+                  />
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Chi nhánh trả xe</span>
-                    </label>
-                    <select
-                      value={returnBranchId}
-                      onChange={(e) => setReturnBranchId(e.target.value)}
-                      className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs font-semibold text-[#F5F5F5] focus:border-[#FFC799] outline-none cursor-pointer"
-                    >
-                      {branches.map((b) => (
-                        <option key={b._id} value={b._id} className="bg-[#161616] text-[#F5F5F5]">
-                          {b.name}
-                        </option>
-                      ))}
-                    </select>
-                    {returnBranch && (
-                      <p className="text-[11px] text-[#6E6E6E] leading-tight">
-                        {returnBranch.address} ({returnBranch.hours_open} - {returnBranch.hours_close})
-                      </p>
-                    )}
-                  </div>
+                  <BranchSelect
+                    label={
+                      <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
+                        <span>Chi nhánh trả xe</span>
+                      </label>
+                    }
+                    branches={branches}
+                    value={returnBranchId}
+                    onChange={(newId) => setReturnBranchId(newId)}
+                  />
                 </div>
 
                 {/* Dates & Times */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-white/[0.08]">
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
-                      <Calendar className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Thời điểm nhận xe</span>
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="date"
-                        value={pickupDate}
-                        min={formatLocalDate(new Date())}
-                        onChange={(e) => setPickupDate(e.target.value)}
-                        className="bg-[#101010] border border-white/10 rounded-xl p-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
-                      />
-                      <input
-                        type="time"
-                        value={pickupTime}
-                        onChange={(e) => setPickupTime(e.target.value)}
-                        className="bg-[#101010] border border-white/10 rounded-xl p-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
-                      />
-                    </div>
+                <div className="space-y-4 pt-4 border-t border-white/[0.08]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <DateTimePicker
+                      mode="pickup"
+                      label={
+                        <span className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-[#FFC799]" />
+                          <span>Thời điểm nhận xe</span>
+                        </span>
+                      }
+                      dateValue={pickupDate}
+                      timeValue={pickupTime}
+                      minDate={todayStr}
+                      onDateChange={(newDate) => {
+                        setPickupDate(newDate);
+                        const synced = normalizeReturnSchedule(
+                          newDate,
+                          pickupTime,
+                          returnDate,
+                          returnTime
+                        );
+                        setReturnDate(synced.returnDate);
+                        setReturnTime(synced.returnTime);
+                      }}
+                      onTimeChange={(newTime) => {
+                        setPickupTime(newTime);
+                        const synced = normalizeReturnSchedule(
+                          pickupDate,
+                          newTime,
+                          returnDate,
+                          returnTime
+                        );
+                        setReturnDate(synced.returnDate);
+                        setReturnTime(synced.returnTime);
+                      }}
+                    />
+
+                    <DateTimePicker
+                      mode="return"
+                      label={
+                        <span className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
+                          <Clock className="w-3.5 h-3.5 text-[#FFC799]" />
+                          <span>Thời điểm trả xe</span>
+                        </span>
+                      }
+                      dateValue={returnDate}
+                      timeValue={returnTime}
+                      minDate={pickupDate}
+                      referenceDate={pickupDate}
+                      referenceTime={pickupTime}
+                      onDateChange={(newDate) => {
+                        const synced = normalizeReturnSchedule(
+                          pickupDate,
+                          pickupTime,
+                          newDate,
+                          returnTime
+                        );
+                        setReturnDate(synced.returnDate);
+                        setReturnTime(synced.returnTime);
+                      }}
+                      onTimeChange={(newTime) => setReturnTime(newTime)}
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <span className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Thời điểm trả xe</span>
+                  {/* Quick Duration Chips (Hourly & Daily) */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                    <span className="text-[11px] font-medium text-[#A0A0A0]">
+                      Chọn nhanh gói thời gian:
                     </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="date"
-                        value={returnDate}
-                        min={pickupDate}
-                        onChange={(e) => setReturnDate(e.target.value)}
-                        className="bg-[#101010] border border-white/10 rounded-xl p-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
-                      />
-                      <input
-                        type="time"
-                        value={returnTime}
-                        onChange={(e) => setReturnTime(e.target.value)}
-                        className="bg-[#101010] border border-white/10 rounded-xl p-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
-                      />
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[
+                        { label: '2 giờ', days: 0, addHours: 2, retTime: '' },
+                        { label: '4 giờ', days: 0, addHours: 4, retTime: '' },
+                        { label: 'Trong ngày', days: 0, addHours: 0, retTime: '20:00' },
+                        { label: '1 ngày (24h)', days: 1, addHours: 0, retTime: pickupTime },
+                        { label: '2 ngày', days: 2, addHours: 0, retTime: '18:00' },
+                        { label: '3 ngày', days: 3, addHours: 0, retTime: '18:00' },
+                      ].map((preset) => {
+                        const targetDateObj = parseLocalDateStr(pickupDate);
+                        targetDateObj.setDate(targetDateObj.getDate() + preset.days);
+                        let computedRetTime = preset.retTime;
+                        if (preset.addHours > 0) {
+                          const [ph, pm] = pickupTime.split(':').map(Number);
+                          const targetMins = (ph || 8) * 60 + (pm || 30) + preset.addHours * 60;
+                          if (targetMins <= 22 * 60 + 30) {
+                            const th = String(Math.floor(targetMins / 60)).padStart(2, '0');
+                            const tm = String(targetMins % 60).padStart(2, '0');
+                            computedRetTime = `${th}:${tm}`;
+                          } else {
+                            targetDateObj.setDate(targetDateObj.getDate() + 1);
+                            computedRetTime = '08:30';
+                          }
+                        }
+                        const targetDateStr = formatLocalDate(targetDateObj);
+                        const syncedPreset = normalizeReturnSchedule(
+                          pickupDate,
+                          pickupTime,
+                          targetDateStr,
+                          computedRetTime
+                        );
+                        const isActive =
+                          returnDate === syncedPreset.returnDate &&
+                          returnTime === syncedPreset.returnTime;
+
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              setReturnDate(syncedPreset.returnDate);
+                              setReturnTime(syncedPreset.returnTime);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border ${
+                              isActive
+                                ? 'bg-[#FFC799] text-[#101010] border-[#FFC799] font-bold'
+                                : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-[#FFC799]/40 hover:text-[#F5F5F5]'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
 
-                <div className="p-3.5 bg-[#101010] border border-white/10 rounded-xl flex items-center justify-between text-xs">
-                  <span className="text-[#6E6E6E]">Tổng thời lượng thuê tính phí:</span>
-                  <span className="font-mono font-black text-[#FFC799] text-sm">
-                    {durationDays} ngày ({Math.round(durationMs / 3600000)} giờ)
-                  </span>
+                <div className="p-4 bg-[#101010] border border-white/10 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 text-[#A0A0A0]">
+                    <span>Thời lượng &amp; cước thuê:</span>
+                    <span className="text-[11px] font-mono text-[#6E6E6E]">
+                      ({pickupTime} {formatDisplayDateVN(pickupDate)} → {returnTime} {formatDisplayDateVN(returnDate)})
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-mono font-bold text-[#F5F5F5] text-xs">
+                      {billingDurationLabel}
+                    </span>
+                    <span className="text-[#6E6E6E]">•</span>
+                    <span className="font-mono font-black text-[#FFC799] text-sm">
+                      {baseRentalFee.toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
                 </div>
 
                 <button
@@ -645,82 +1001,278 @@ export const BookingPage: React.FC = () => {
             {/* STEP 2: Customer Identity & eKYC */}
             {currentStep === 2 && (
               <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6">
-                <div>
-                  <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
-                    BƯỚC 02 / 04 • THÔNG TIN NGƯỜI LÁI XE
-                  </span>
-                  <h2 className="text-xl sm:text-2xl font-black text-[#F5F5F5]">
-                    Thông tin người nhận xe & Hợp đồng điện tử
-                  </h2>
-                  <p className="text-xs text-[#6E6E6E] mt-1">
-                    Cam kết 100% không giữ bản gốc CCCD/Hộ chiếu. Nhân viên chi nhánh chỉ đối chiếu nhanh khi bàn giao chìa khóa.
-                  </p>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div>
+                    <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
+                      BƯỚC 02 / 04 • THÔNG TIN NGƯỜI LÁI XE
+                    </span>
+                    <h2 className="text-xl sm:text-2xl font-black text-[#F5F5F5]">
+                      Thông tin người nhận xe & Hợp đồng điện tử
+                    </h2>
+                    <p className="text-xs text-[#6E6E6E] mt-1">
+                      Cam kết 100% không giữ bản gốc CCCD/Hộ chiếu. Nhân viên chi nhánh chỉ đối chiếu nhanh khi bàn giao chìa khóa.
+                    </p>
+                  </div>
+
+                  {isStep2Valid && (
+                    <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono font-bold shrink-0 self-start">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Hồ sơ hợp lệ (4/4)</span>
+                    </span>
+                  )}
                 </div>
 
+                {/* Verified / Authenticated User Auto-fill Status Banner */}
+                {isAuthenticated && user ? (
+                  <div
+                    className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 ${
+                      user.identityStatus === 'Verified'
+                        ? 'bg-emerald-500/[0.07] border-emerald-500/30'
+                        : 'bg-[#FFC799]/[0.06] border-[#FFC799]/25'
+                    }`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                          user.identityStatus === 'Verified'
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
+                        }`}
+                      >
+                        <ShieldCheck className="w-4 h-4" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-bold text-[#F5F5F5]">
+                            {user.identityStatus === 'Verified'
+                              ? 'Tài khoản đã xác thực eKYC — Đã tự động điền thông tin người nhận xe'
+                              : 'Đã tự động điền thông tin từ tài khoản đăng nhập'}
+                          </span>
+                          {user.identityStatus === 'Verified' && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold">
+                              eKYC Verified
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#A09D98]">
+                          {user.identityStatus === 'Verified'
+                            ? 'Họ tên, SĐT, Email và Số CCCD 12 số đã được đồng bộ từ hồ sơ định danh hợp lệ. Bạn vẫn có thể chỉnh sửa nếu đặt xe hộ người thân.'
+                            : 'Thông tin cá nhân được lấy từ hồ sơ của bạn. Vui lòng kiểm tra hoặc nhập bổ sung các trường còn thiếu.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => applyUserProfileToForm(user)}
+                      className="px-3.5 py-2 rounded-xl bg-[#101010] hover:bg-white/[0.06] border border-white/15 hover:border-[#FFC799]/50 text-[11px] font-mono font-bold text-[#FFC799] transition-all flex items-center space-x-1.5 shrink-0 self-start sm:self-center cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Điền lại từ hồ sơ</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center space-x-2.5 text-xs text-[#A09D98]">
+                      <LogIn className="w-4 h-4 text-[#FFC799] shrink-0" />
+                      <span>Đăng nhập tài khoản đã xác thực eKYC để tự động điền toàn bộ thông tin hợp đồng.</span>
+                    </div>
+                    <Link
+                      to={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
+                      className="px-3 py-1.5 rounded-lg bg-[#FFC799]/15 border border-[#FFC799]/30 text-[#FFC799] text-xs font-bold hover:bg-[#FFC799]/25 transition-colors shrink-0 self-start sm:self-center"
+                    >
+                      Đăng nhập ngay
+                    </Link>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Field 1: Full Name */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
-                      <User className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Họ và tên người thuê *</span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
+                        <User className="w-3.5 h-3.5 text-[#FFC799]" />
+                        <span>Họ và tên người thuê *</span>
+                      </label>
+                      {!nameError ? (
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Hợp lệ</span>
+                        </span>
+                      ) : (step2Touched.name || step2Submitted) ? (
+                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                      ) : null}
+                    </div>
                     <input
                       type="text"
-                      placeholder="Nguyễn Văn A"
+                      placeholder="VD: Nguyễn Hoàng"
                       value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        if (!step2Touched.name) setStep2Touched((p) => ({ ...p, name: true }));
+                      }}
+                      onBlur={() => setStep2Touched((p) => ({ ...p, name: true }))}
+                      className={`w-full bg-[#101010] border rounded-xl p-3 text-xs text-[#F5F5F5] outline-none transition-colors ${
+                        (step2Touched.name || step2Submitted) && nameError
+                          ? 'border-red-500/70 focus:border-red-400 bg-red-500/[0.03]'
+                          : !nameError
+                            ? 'border-emerald-500/35 focus:border-[#FFC799]'
+                            : 'border-white/10 focus:border-[#FFC799]'
+                      }`}
                     />
+                    {(step2Touched.name || step2Submitted) && nameError && (
+                      <p className="text-[11px] text-red-400 flex items-center gap-1 pt-0.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{nameError}</span>
+                      </p>
+                    )}
                   </div>
 
+                  {/* Field 2: Phone Number */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
-                      <Phone className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Số điện thoại nhận mã xe *</span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
+                        <Phone className="w-3.5 h-3.5 text-[#FFC799]" />
+                        <span>Số điện thoại nhận mã xe *</span>
+                      </label>
+                      {!phoneError ? (
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Hợp lệ</span>
+                        </span>
+                      ) : (step2Touched.phone || step2Submitted) ? (
+                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                      ) : null}
+                    </div>
                     <input
                       type="tel"
+                      maxLength={12}
                       placeholder="0905 123 456"
                       value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
+                      onChange={(e) => {
+                        const sanitized = e.target.value.replace(/[^0-9+\s.-]/g, '');
+                        setCustomerPhone(sanitized);
+                        if (!step2Touched.phone) setStep2Touched((p) => ({ ...p, phone: true }));
+                      }}
+                      onBlur={() => setStep2Touched((p) => ({ ...p, phone: true }))}
+                      className={`w-full bg-[#101010] border rounded-xl p-3 text-xs font-mono text-[#F5F5F5] outline-none transition-colors ${
+                        (step2Touched.phone || step2Submitted) && phoneError
+                          ? 'border-red-500/70 focus:border-red-400 bg-red-500/[0.03]'
+                          : !phoneError
+                            ? 'border-emerald-500/35 focus:border-[#FFC799]'
+                            : 'border-white/10 focus:border-[#FFC799]'
+                      }`}
                     />
+                    {(step2Touched.phone || step2Submitted) && phoneError && (
+                      <p className="text-[11px] text-red-400 flex items-center gap-1 pt-0.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{phoneError}</span>
+                      </p>
+                    )}
                   </div>
 
+                  {/* Field 3: Email */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
-                      <Mail className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Email nhận hợp đồng điện tử</span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
+                        <Mail className="w-3.5 h-3.5 text-[#FFC799]" />
+                        <span>Email nhận hợp đồng điện tử *</span>
+                      </label>
+                      {!emailError ? (
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Hợp lệ</span>
+                        </span>
+                      ) : (step2Touched.email || step2Submitted) ? (
+                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                      ) : null}
+                    </div>
                     <input
                       type="email"
                       placeholder="email@example.com"
                       value={customerEmail}
-                      onChange={(e) => setCustomerEmail(e.target.value)}
-                      className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
+                      onChange={(e) => {
+                        setCustomerEmail(e.target.value);
+                        if (!step2Touched.email) setStep2Touched((p) => ({ ...p, email: true }));
+                      }}
+                      onBlur={() => setStep2Touched((p) => ({ ...p, email: true }))}
+                      className={`w-full bg-[#101010] border rounded-xl p-3 text-xs text-[#F5F5F5] outline-none transition-colors ${
+                        (step2Touched.email || step2Submitted) && emailError
+                          ? 'border-red-500/70 focus:border-red-400 bg-red-500/[0.03]'
+                          : !emailError
+                            ? 'border-emerald-500/35 focus:border-[#FFC799]'
+                            : 'border-white/10 focus:border-[#FFC799]'
+                      }`}
                     />
+                    {(step2Touched.email || step2Submitted) && emailError && (
+                      <p className="text-[11px] text-red-400 flex items-center gap-1 pt-0.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{emailError}</span>
+                      </p>
+                    )}
                   </div>
 
+                  {/* Field 4: CCCD / Passport */}
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
-                      <FileText className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Số CCCD / Hộ chiếu (Tùy chọn)</span>
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
+                        <FileText className="w-3.5 h-3.5 text-[#FFC799]" />
+                        <span>Số CCCD (12 số) / Hộ chiếu *</span>
+                      </label>
+                      {!idCardError ? (
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>
+                            {user?.identityStatus === 'Verified' &&
+                            idCardNumber === (user.idCardNumber || '048204008692')
+                              ? 'Đã đối soát eKYC'
+                              : 'Hợp lệ'}
+                          </span>
+                        </span>
+                      ) : (step2Touched.idCard || step2Submitted) ? (
+                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                      ) : null}
+                    </div>
                     <input
                       type="text"
-                      placeholder="04809..."
+                      maxLength={12}
+                      placeholder="VD: 048204008692"
                       value={idCardNumber}
-                      onChange={(e) => setIdCardNumber(e.target.value)}
-                      className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
+                      onChange={(e) => {
+                        const sanitized = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                        setIdCardNumber(sanitized);
+                        if (!step2Touched.idCard) setStep2Touched((p) => ({ ...p, idCard: true }));
+                      }}
+                      onBlur={() => setStep2Touched((p) => ({ ...p, idCard: true }))}
+                      className={`w-full bg-[#101010] border rounded-xl p-3 text-xs font-mono text-[#F5F5F5] outline-none transition-colors ${
+                        (step2Touched.idCard || step2Submitted) && idCardError
+                          ? 'border-red-500/70 focus:border-red-400 bg-red-500/[0.03]'
+                          : !idCardError
+                            ? 'border-emerald-500/35 focus:border-[#FFC799]'
+                            : 'border-white/10 focus:border-[#FFC799]'
+                      }`}
                     />
+                    {(step2Touched.idCard || step2Submitted) && idCardError && (
+                      <p className="text-[11px] text-red-400 flex items-center gap-1 pt-0.5">
+                        <AlertCircle className="w-3 h-3 shrink-0" />
+                        <span>{idCardError}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-[#C8C2B8]">
-                    Ghi chú thêm (Số hiệu chuyến bay nếu nhận xe tại sân bay, yêu cầu nón trẻ em...)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-[#C8C2B8]">
+                      Ghi chú thêm (Số hiệu chuyến bay nếu nhận xe tại sân bay, yêu cầu nón trẻ em...)
+                    </label>
+                    <span className="text-[10px] font-mono text-[#6E6E6E]">
+                      {customerNotes.length}/300
+                    </span>
+                  </div>
                   <textarea
                     rows={2}
+                    maxLength={300}
                     placeholder="VD: Chuyến bay VJ628 hạ cánh lúc 09:15, nhờ giao xe tại sảnh Ga đến T2..."
                     value={customerNotes}
                     onChange={(e) => setCustomerNotes(e.target.value)}
@@ -802,30 +1354,79 @@ export const BookingPage: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Promo Voucher Input */}
-                <div className="pt-4 border-t border-white/[0.08] space-y-2">
-                  <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
-                    <Tag className="w-3.5 h-3.5 text-[#FFC799]" />
-                    <span>Mã giảm giá / Voucher ưu đãi</span>
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="text"
-                      placeholder="Nhập mã (VD: CHAOBANMOI hoặc MOTORENT30)"
-                      value={discountCodeInput}
-                      onChange={(e) => setDiscountCodeInput(e.target.value.toUpperCase())}
-                      className="flex-1 bg-[#101010] border border-white/10 rounded-xl p-3 text-xs font-mono font-bold text-[#FFC799] uppercase outline-none focus:border-[#FFC799]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleApplyDiscount}
-                      className="px-5 py-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-[#F5F5F5] font-bold text-xs transition-colors cursor-pointer"
-                    >
-                      Áp dụng
-                    </button>
+                {/* Promo Voucher Selection Cards & Input */}
+                <div className="pt-4 border-t border-white/[0.08] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
+                      <Tag className="w-3.5 h-3.5 text-[#FFC799]" />
+                      <span>Chọn Voucher ưu đãi khả dụng</span>
+                    </label>
+                    {selectedVoucherCode && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectVoucher('')}
+                        className="text-[11px] font-semibold text-[#A0A0A0] hover:text-[#FF8080] cursor-pointer"
+                      >
+                        Không dùng voucher
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {AVAILABLE_VOUCHERS.map((v) => {
+                      const eligible = baseRentalFee >= v.minOrder;
+                      const isSelected = selectedVoucherCode === v.code && eligible;
+                      const estSave = computeVoucherDiscountAmount(v.code, baseRentalFee);
+
+                      return (
+                        <button
+                          key={v.code}
+                          type="button"
+                          disabled={!eligible}
+                          onClick={() => handleSelectVoucher(v.code)}
+                          className={`p-3 rounded-xl border text-left transition-all flex items-start justify-between gap-2 ${
+                            !eligible
+                              ? 'bg-[#101010]/50 border-white/[0.05] opacity-50 cursor-not-allowed'
+                              : isSelected
+                              ? 'bg-[#FFC799]/14 border-[#FFC799] shadow-sm cursor-pointer'
+                              : 'bg-[#101010] border-white/10 hover:border-[#FFC799]/40 cursor-pointer'
+                          }`}
+                        >
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center space-x-1.5">
+                              <span className="font-mono text-xs font-black text-[#FFC799]">
+                                {v.code}
+                              </span>
+                              {eligible && estSave > 0 && (
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-[#99FFE4]/15 text-[#99FFE4]">
+                                  -{estSave.toLocaleString('vi-VN')}đ
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] font-bold text-[#F5F5F5] truncate">
+                              {v.title}
+                            </p>
+                            <p className="text-[10px] text-[#A0A0A0] leading-tight">
+                              {eligible
+                                ? v.desc
+                                : `Cần đơn tối thiểu ${v.minOrder.toLocaleString('vi-VN')}đ`}
+                            </p>
+                          </div>
+                          <div
+                            className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
+                              isSelected
+                                ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                : 'border-white/20 text-transparent'
+                            }`}
+                          >
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                   {discountFeedback && (
-                    <p className={`text-[11px] font-medium ${appliedDiscount ? 'text-[#FFC799]' : 'text-[#FFC799]'}`}>
+                    <p className="text-[11px] font-medium text-[#FFC799]">
                       {discountFeedback}
                     </p>
                   )}
@@ -958,10 +1559,13 @@ export const BookingPage: React.FC = () => {
                     >
                       <div className="flex items-center justify-between mb-2">
                         <CreditCard className="w-5 h-5 text-[#FFC799]" />
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded">
+                          Sandbox
+                        </span>
                       </div>
                       <div>
                         <h4 className="text-xs font-black text-[#F5F5F5]">Cổng VNPay</h4>
-                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">Thẻ ATM nội địa, Visa, Mastercard</p>
+                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">Thẻ ATM nội địa NCB, Visa, QR</p>
                       </div>
                     </div>
 
@@ -1091,11 +1695,77 @@ export const BookingPage: React.FC = () => {
                 )}
 
                 {paymentOption === 'VNPay' && (
-                  <div className="p-4 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#C8C2B8] space-y-2">
-                    <p>
-                      Hệ thống sẽ ghi nhận giao dịch thanh toán trực tuyến qua cổng <strong>VNPay</strong> với số tiền{' '}
-                      <strong className="text-[#FFC799] font-mono">{activePayAmount.toLocaleString('vi-VN')} đ</strong> và kích hoạt trạng thái <strong>Đã duyệt (Approved)</strong> ngay khi xác nhận.
-                    </p>
+                  <div className="p-5 rounded-2xl bg-[#101010] border border-[#FFC799]/30 space-y-4">
+                    {/* Gateway Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.08]">
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-[#F5F5F5]">
+                            Cổng Thanh Toán VNPay Sandbox Chính Thức
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 font-mono text-[10px] font-bold text-emerald-400">
+                            TMNCODE: CYA7OTRA
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[#8A857D] font-mono">
+                          Endpoint: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+                        </p>
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <span className="text-[10px] text-[#6E6E6E] block uppercase font-mono">
+                          Số tiền thanh toán VNPay
+                        </span>
+                        <span className="font-mono text-base font-black text-[#FFC799]">
+                          {activePayAmount.toLocaleString('vi-VN')} đ
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* BankCode / Method Selector on VNPay */}
+                    <div className="space-y-2">
+                      <span className="text-[11px] font-bold text-[#C8C2B8] block">
+                        Chọn phương thức giả lập trên cổng VNPay:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        {[
+                          {
+                            code: 'NCB' as const,
+                            title: 'Thẻ ATM NCB (Khuyên dùng)',
+                            desc: 'Vào thẳng form nhập thẻ NCB Sandbox',
+                          },
+                          {
+                            code: '' as const,
+                            title: 'Tất cả kênh trên VNPay',
+                            desc: 'Tự chọn ngân hàng tại cổng VNPay',
+                          },
+                          {
+                            code: 'INTCARD' as const,
+                            title: 'Thẻ Quốc tế Visa / Master',
+                            desc: 'Giả lập thẻ tín dụng quốc tế',
+                          },
+                        ].map((m) => {
+                          const active = vnpayBankCode === m.code;
+                          return (
+                            <button
+                              key={m.title}
+                              type="button"
+                              onClick={() => setVnpayBankCode(m.code)}
+                              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                active
+                                  ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
+                                  : 'bg-[#161616] border-white/10 text-[#8A857D] hover:border-white/20'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-bold text-[#F5F5F5]">{m.title}</span>
+                                {active && <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />}
+                              </div>
+                              <p className="text-[10px] text-[#6E6E6E] mt-0.5">{m.desc}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -1139,15 +1809,25 @@ export const BookingPage: React.FC = () => {
                     {submitting ? (
                       <div className="flex items-center space-x-2">
                         <div className="w-4 h-4 border-2 border-[#101010]/40 border-t-transparent rounded-full animate-spin" />
-                        <span>Đang đối soát thanh toán & khóa biển số...</span>
+                        <span>
+                          {paymentOption === 'VNPay'
+                            ? 'Đang tạo chữ ký VNPay Sandbox & chuyển hướng...'
+                            : 'Đang đối soát thanh toán & khóa biển số...'}
+                        </span>
                       </div>
                     ) : (
                       <>
-                        <ShieldCheck className="w-4 h-4" />
+                        {paymentOption === 'VNPay' ? (
+                          <CreditCard className="w-4 h-4" />
+                        ) : (
+                          <ShieldCheck className="w-4 h-4" />
+                        )}
                         <span>
                           {paymentOption === 'Cash'
                             ? 'Tạo đơn giữ chỗ tại quầy'
-                            : `Tôi đã thanh toán ${activePayAmount.toLocaleString('vi-VN')}đ — Hoàn tất & Khóa xe`}
+                            : paymentOption === 'VNPay'
+                              ? `Chuyển tới cổng VNPay Sandbox (${activePayAmount.toLocaleString('vi-VN')}đ) →`
+                              : `Tôi đã thanh toán ${activePayAmount.toLocaleString('vi-VN')}đ — Hoàn tất & Khóa xe`}
                         </span>
                       </>
                     )}
@@ -1403,21 +2083,46 @@ export const BookingPage: React.FC = () => {
 
             {/* Transparent Pricing Breakdown Card */}
             <div className="bg-[#161616] rounded-2xl p-6 border border-white/10 shadow-xl space-y-4">
-              <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-[#FFC799] flex items-center space-x-2">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Bảng kê chi phí hợp đồng</span>
-              </h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-[#FFC799] flex items-center space-x-2">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Bảng kê chi phí hợp đồng</span>
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-[#FFC799]/10 border border-[#FFC799]/30 text-[10px] font-mono font-bold text-[#FFC799]">
+                  {isHourlyBilling ? 'Tính theo giờ' : 'Tính theo ngày'}
+                </span>
+              </div>
 
-              <div className="space-y-2.5 text-xs text-[#C8C2B8]">
-                <div className="flex justify-between py-1">
-                  <span className="text-[#6E6E6E]">Đơn giá thuê ngày:</span>
-                  <span className="font-mono font-bold text-[#F5F5F5]">
+              <div className="space-y-2 text-xs text-[#C8C2B8]">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-[#6E6E6E] flex items-center gap-1.5">
+                    <span>Đơn giá theo giờ:</span>
+                    {isHourlyBilling && (
+                      <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-mono font-bold">
+                        Đang áp dụng
+                      </span>
+                    )}
+                  </span>
+                  <span className={`font-mono font-bold ${isHourlyBilling ? 'text-[#FFC799]' : 'text-[#8A857D]'}`}>
+                    {hourlyPrice.toLocaleString('vi-VN')} đ/giờ
+                  </span>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-[#6E6E6E] flex items-center gap-1.5">
+                    <span>Đơn giá thuê ngày:</span>
+                    {!isHourlyBilling && (
+                      <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-mono font-bold">
+                        Đang áp dụng
+                      </span>
+                    )}
+                  </span>
+                  <span className={`font-mono font-bold ${!isHourlyBilling ? 'text-[#F5F5F5]' : 'text-[#8A857D]'}`}>
                     {dailyPrice.toLocaleString('vi-VN')} đ/ngày
                   </span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-[#6E6E6E]">Thời lượng thuê:</span>
-                  <span className="font-mono font-bold text-[#FFC799]">{durationDays} ngày</span>
+                  <span className="font-mono font-bold text-[#FFC799]">{billingDurationLabel}</span>
                 </div>
                 <div className="flex justify-between py-1">
                   <span className="text-[#6E6E6E]">Tạm tính tiền thuê xe:</span>
@@ -1425,12 +2130,37 @@ export const BookingPage: React.FC = () => {
                     {baseRentalFee.toLocaleString('vi-VN')} đ
                   </span>
                 </div>
-                {appliedDiscount && (
-                  <div className="flex justify-between py-1 text-[#FFC799] font-bold">
-                    <span>Ưu đãi voucher ({appliedDiscount.code}):</span>
-                    <span className="font-mono">- {appliedDiscount.amount.toLocaleString('vi-VN')} đ</span>
-                  </div>
-                )}
+
+                {/* Clean Single-Row Voucher Summary in Cost Breakdown */}
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-[#6E6E6E] flex items-center gap-1.5">
+                    <span>Ưu đãi voucher:</span>
+                    {appliedDiscount ? (
+                      <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 border border-[#FFC799]/30 font-mono text-[10px] font-bold text-[#FFC799]">
+                        {appliedDiscount.code}
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-[#6E6E6E]">Chưa áp dụng</span>
+                    )}
+                  </span>
+                  {appliedDiscount ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-emerald-400">
+                        - {appliedDiscount.amount.toLocaleString('vi-VN')} đ
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectVoucher('')}
+                        className="text-[10px] font-mono text-[#8A857D] hover:text-red-400 underline cursor-pointer"
+                      >
+                        Bỏ
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="font-mono text-[#6E6E6E]">0 đ</span>
+                  )}
+                </div>
+
                 <div className="flex justify-between py-1 text-[#6E6E6E]">
                   <span>Phụ phí trả xe liên trạm:</span>
                   <span className="text-[#FFC799] font-bold">0 đ (Miễn phí)</span>

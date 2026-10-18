@@ -28,18 +28,47 @@ import {
   CreditCard,
   Wallet,
   Banknote,
-  Receipt
+  Receipt,
+  Camera,
+  UploadCloud
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
-import { getUserAvatarUrl } from '../utils/imageHelper';
+import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 
 type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
 type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit';
+
+const VEHICLE_FOUR_ANGLES = [
+  {
+    index: 0,
+    code: 'GÓC 01',
+    title: 'Mặt trước & Đèn pha',
+    desc: 'Kiểm tra mặt nạ trước, cụm đèn pha, phuộc trước & chắn bùn',
+  },
+  {
+    index: 1,
+    code: 'GÓC 02',
+    title: 'Thân xe bên trái',
+    desc: 'Kiểm tra dàn áo trái, tay phanh trái, lốc máy & gác chân',
+  },
+  {
+    index: 2,
+    code: 'GÓC 03',
+    title: 'Thân xe bên phải',
+    desc: 'Kiểm tra dàn áo phải, ống xả (pô xe), tay ga & phanh trước',
+  },
+  {
+    index: 3,
+    code: 'GÓC 04',
+    title: 'Đuôi xe, Biển số & ODO',
+    desc: 'Kiểm tra biển số, cụm đèn hậu, lốp sau & mặt đồng hồ ODO',
+  },
+] as const;
 
 interface PendingEkycUser {
   _id: string;
@@ -103,12 +132,15 @@ export const CounterDesk: React.FC = () => {
     fuel: true,
     helmets: true,
   });
+  const [checkinPhotos, setCheckinPhotos] = useState<string[]>(['', '', '', '']);
   const [signatureData, setSignatureData] = useState<string>('');
 
   // Check-out form states
   const [endOdo, setEndOdo] = useState<number>(0);
   const [damageFee, setDamageFee] = useState<number>(0);
   const [returnNotes, setReturnNotes] = useState<string>('');
+  const [checkoutPhotos, setCheckoutPhotos] = useState<string[]>(['', '', '', '']);
+  const [uploadingAngle, setUploadingAngle] = useState<string | null>(null);
 
   // Canvas ref for digital signature
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -247,6 +279,15 @@ export const CounterDesk: React.FC = () => {
     setSearchParams({ mode });
   };
 
+  const getDefaultFourAnglesFromVehicle = (b: Booking): string[] => {
+    const v = typeof b.vehicleId === 'object' && b.vehicleId !== null ? (b.vehicleId as Vehicle) : null;
+    const rawImgs = v?.images || [];
+    const img0 = getOptimizedVehicleImageUrl(rawImgs[0] || rawImgs[1]);
+    const img1 = getOptimizedVehicleImageUrl(rawImgs[1] || rawImgs[0]);
+    const img2 = getOptimizedVehicleImageUrl(rawImgs[2] || rawImgs[1] || rawImgs[0]);
+    const img3 = getOptimizedVehicleImageUrl(rawImgs[0] || rawImgs[2] || rawImgs[1]);
+    return [img0, img1, img2, img3];
+  };
 
   const handleSelectBooking = (b: Booking) => {
     setSelectedBooking(b);
@@ -261,11 +302,119 @@ export const CounterDesk: React.FC = () => {
     setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
     setDamageFee(b.damageFee || 0);
 
+    const existingCheckin = Array.isArray(b.checkinImages) ? b.checkinImages : [];
+    setCheckinPhotos([
+      existingCheckin[0] || '',
+      existingCheckin[1] || '',
+      existingCheckin[2] || '',
+      existingCheckin[3] || '',
+    ]);
+
+    const existingCheckout = Array.isArray(b.checkoutImages) ? b.checkoutImages : [];
+    setCheckoutPhotos([
+      existingCheckout[0] || '',
+      existingCheckout[1] || '',
+      existingCheckout[2] || '',
+      existingCheckout[3] || '',
+    ]);
+
     if (b.status === 'Ongoing') {
       setActiveTab('checkout');
     } else {
       setActiveTab('checkin');
     }
+  };
+
+  // Compress and stamp uploaded angle photo with timestamp & angle code
+  const handleAnglePhotoUpload = async (
+    phase: 'checkin' | 'checkout',
+    index: number,
+    file: File
+  ) => {
+    const slotKey = `${phase}_${index}`;
+    setUploadingAngle(slotKey);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const maxDim = 960;
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+              if (w > h) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              } else {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(String(reader.result));
+              return;
+            }
+            ctx.drawImage(img, 0, 0, w, h);
+
+            // Draw timestamp inspection bar at bottom
+            const barH = Math.max(28, Math.round(h * 0.065));
+            ctx.fillStyle = 'rgba(16, 16, 16, 0.82)';
+            ctx.fillRect(0, h - barH, w, barH);
+            ctx.fillStyle = '#FFC799';
+            ctx.font = `bold ${Math.max(11, Math.round(barH * 0.45))}px monospace`;
+            const angleMeta = VEHICLE_FOUR_ANGLES[index];
+            const stampText = `MOTORENT ${phase === 'checkin' ? 'GIAO XE (CHECK-IN)' : 'NHẬN LẠI XE (CHECK-OUT)'} • ${angleMeta.code}: ${angleMeta.title.toUpperCase()} • ${new Date().toLocaleString('vi-VN')}`;
+            ctx.fillText(stampText, 12, h - Math.round(barH * 0.3));
+
+            resolve(canvas.toDataURL('image/jpeg', 0.82));
+          };
+          img.onerror = reject;
+          img.src = String(reader.result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      if (phase === 'checkin') {
+        setCheckinPhotos((prev) => {
+          const next = [...prev];
+          next[index] = dataUrl;
+          return next;
+        });
+      } else {
+        setCheckoutPhotos((prev) => {
+          const next = [...prev];
+          next[index] = dataUrl;
+          return next;
+        });
+      }
+    } catch {
+      setStatusMessage({
+        type: 'error',
+        text: 'Không thể xử lý tệp hình ảnh góc xe. Vui lòng chọn ảnh JPEG/PNG/WebP hợp lệ.',
+      });
+    } finally {
+      setUploadingAngle(null);
+    }
+  };
+
+  const handleQuickFillCheckinAngles = () => {
+    if (!selectedBooking) return;
+    setCheckinPhotos(getDefaultFourAnglesFromVehicle(selectedBooking));
+  };
+
+  const handleQuickFillCheckoutAngles = () => {
+    if (!selectedBooking) return;
+    const base =
+      checkinPhotos.filter(Boolean).length === 4
+        ? [...checkinPhotos]
+        : getDefaultFourAnglesFromVehicle(selectedBooking);
+    setCheckoutPhotos(base);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -345,6 +494,14 @@ export const CounterDesk: React.FC = () => {
   const handleCheckinSubmit = async () => {
     if (!selectedBooking) return;
 
+    if (checkinPhotos.filter(Boolean).length < 4) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Vui lòng chụp/tải đủ 4 góc xe (Mặt trước, Thân trái, Thân phải, Đuôi xe & ODO) trước khi bàn giao.',
+      });
+      return;
+    }
+
     if (!signatureData) {
       setStatusMessage({
         type: 'error',
@@ -361,13 +518,14 @@ export const CounterDesk: React.FC = () => {
         startOdometer: startOdo,
         startFuelLevel: 100,
         checklist,
+        checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
       });
 
       if (res.data?.data) {
         setStatusMessage({
           type: 'success',
-          text: `Check-in thành công cho đơn ${selectedBooking.bookingCode}! Phương tiện đã chuyển sang trạng thái Đang lưu hành.`,
+          text: `Check-in thành công cho đơn ${selectedBooking.bookingCode}! Đã lưu biên bản 4 góc xe và chuyển sang trạng thái Đang lưu hành.`,
         });
         handleSelectBooking(res.data.data);
         fetchBookings();
@@ -395,6 +553,14 @@ export const CounterDesk: React.FC = () => {
       return;
     }
 
+    if (checkoutPhotos.filter(Boolean).length < 4) {
+      setStatusMessage({
+        type: 'error',
+        text: 'Vui lòng chụp/tải đủ 4 góc xe khi thu hồi để đối chiếu tình trạng phương tiện trước khi tất toán.',
+      });
+      return;
+    }
+
     setSubmitting(true);
     setStatusMessage(null);
 
@@ -403,14 +569,18 @@ export const CounterDesk: React.FC = () => {
         endOdometer: endOdo,
         damageFee,
         returnNotes,
+        checkoutImages: checkoutPhotos.filter(Boolean),
       });
 
       if (res.data?.data) {
         const updated = res.data.data;
-        const totalPaid = (updated.remainingAmount || 0) + (updated.lateFee || 0) + (updated.damageFee || 0);
+        const totalPaid =
+          typeof updated.settlementAmount === 'number'
+            ? updated.settlementAmount
+            : (updated.remainingAmount || 0) + (updated.lateFee || 0) + (updated.damageFee || 0);
         setStatusMessage({
           type: 'success',
-          text: `Check-out thành công cho đơn ${selectedBooking.bookingCode}! Tổng tiền khách thanh toán tại quầy: ${totalPaid.toLocaleString('vi-VN')} đ (Đã gồm trễ hẹn: ${updated.lateFee?.toLocaleString('vi-VN')} đ, phụ phí: ${updated.damageFee?.toLocaleString('vi-VN')} đ). Phương tiện đã sẵn sàng khai thác.`,
+          text: `Check-out thành công cho đơn ${selectedBooking.bookingCode}! Tổng tiền khách thanh toán tại quầy: ${totalPaid.toLocaleString('vi-VN')} đ (Đã gồm trễ hẹn: ${(updated.lateFee || 0).toLocaleString('vi-VN')} đ, phụ phí: ${(updated.damageFee || 0).toLocaleString('vi-VN')} đ). Phương tiện đã sẵn sàng khai thác.`,
         });
         handleSelectBooking(updated);
         fetchBookings();
@@ -824,7 +994,7 @@ export const CounterDesk: React.FC = () => {
                         : 'border-transparent text-[#A0A0A0] hover:text-[#F5F5F5]'
                     }`}
                   >
-                    1. Check-in Bàn giao xe ({selectedBooking.status === 'Confirmed' ? 'Sẵn sàng' : selectedBooking.status})
+                    1. Check-in Bàn giao xe ({selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved' ? 'Sẵn sàng' : selectedBooking.status})
                   </button>
                   <button
                     onClick={() => setActiveTab('checkout')}
@@ -870,7 +1040,7 @@ export const CounterDesk: React.FC = () => {
                         min="0"
                         value={startOdo}
                         onChange={(e) => setStartOdo(Number(e.target.value))}
-                        disabled={selectedBooking.status !== 'Confirmed'}
+                        disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
                         className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                       />
                       <p className="text-[11px] text-[#A0A0A0] mt-1">
@@ -899,7 +1069,7 @@ export const CounterDesk: React.FC = () => {
                             <input
                               type="checkbox"
                               checked={checklist[item.key]}
-                              disabled={selectedBooking.status !== 'Confirmed'}
+                              disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
                               onChange={(e) =>
                                 setChecklist({ ...checklist, [item.key]: e.target.checked })
                               }
@@ -908,6 +1078,150 @@ export const CounterDesk: React.FC = () => {
                             <span className="text-[#A0A0A0] font-medium">{item.label}</span>
                           </label>
                         ))}
+                      </div>
+                    </div>
+
+                    {/* 4-Angle Vehicle Photo Capture Before Handover (Check-in) */}
+                    <div className="p-4 rounded-2xl border border-white/10 bg-[#101010]/90 space-y-3.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                        <div>
+                          <label className="text-xs font-bold text-[#F5F5F5] flex items-center">
+                            <Camera className="w-4 h-4 text-[#FFC799] mr-1.5 shrink-0" />
+                            <span>Chụp 4 góc xe kiểm định trước khi giao (Check-in)</span>
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                              {checkinPhotos.filter(Boolean).length}/4 góc
+                            </span>
+                          </label>
+                          <p className="text-[11px] text-[#A0A0A0] mt-0.5">
+                            Lưu bằng chứng ngoại thất 4 góc xe trước khi bàn giao để đối chiếu minh bạch khi khách trả xe.
+                          </p>
+                        </div>
+                        {(selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved') && (
+                          <button
+                            type="button"
+                            onClick={handleQuickFillCheckinAngles}
+                            className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#FFC799]/15 border border-white/10 hover:border-[#FFC799]/40 text-[11px] font-bold text-[#FFC799] transition-all cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Nạp nhanh 4 góc mẫu</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {VEHICLE_FOUR_ANGLES.map((angle) => {
+                          const photoUrl = checkinPhotos[angle.index];
+                          const isUploading = uploadingAngle === `checkin_${angle.index}`;
+                          const canEdit = selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved';
+
+                          return (
+                            <div
+                              key={angle.code}
+                              className={`rounded-xl border p-3 transition-all ${
+                                photoUrl
+                                  ? 'border-[#99FFE4]/30 bg-[#141414]'
+                                  : 'border-white/10 bg-[#141414]/60'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1.5">
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] font-mono text-[10px] font-extrabold">
+                                    {angle.code}
+                                  </span>
+                                  <span className="text-xs font-bold text-white">{angle.title}</span>
+                                </div>
+                                {photoUrl ? (
+                                  <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-[#99FFE4]">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Đã lưu</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-[#6E6E6E]">Chưa chụp</span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-[#A0A0A0] mb-2.5 line-clamp-1">{angle.desc}</p>
+
+                              {photoUrl ? (
+                                <div className="relative group aspect-video rounded-lg overflow-hidden border border-white/10 bg-black">
+                                  <img
+                                    src={photoUrl}
+                                    alt={`${angle.code} - ${angle.title}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2.5 py-1.5 flex items-center justify-between">
+                                    <span className="text-[10px] font-mono font-bold text-[#99FFE4]">
+                                      TRƯỚC KHI GIAO • {angle.code}
+                                    </span>
+                                    <div className="flex items-center space-x-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          openPreviewDoc(
+                                            `Ảnh kiểm định trước khi giao (Check-in) - ${angle.code}: ${angle.title}`,
+                                            photoUrl
+                                          )
+                                        }
+                                        className="p-1 rounded bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
+                                        title="Phóng to kiểm tra chi tiết"
+                                      >
+                                        <Eye className="w-3.5 h-3.5" />
+                                      </button>
+                                      {canEdit && (
+                                        <label
+                                          className="p-1 rounded bg-[#FFC799]/20 hover:bg-[#FFC799]/35 text-[#FFC799] transition-colors cursor-pointer"
+                                          title="Chụp hoặc tải ảnh khác"
+                                        >
+                                          <Camera className="w-3.5 h-3.5" />
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            capture="environment"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) handleAnglePhotoUpload('checkin', angle.index, file);
+                                              e.target.value = '';
+                                            }}
+                                          />
+                                        </label>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : canEdit ? (
+                                <label className="flex flex-col items-center justify-center aspect-video rounded-lg border border-dashed border-white/15 hover:border-[#FFC799]/50 bg-[#101010] hover:bg-[#FFC799]/[0.03] transition-all cursor-pointer p-3 text-center">
+                                  {isUploading ? (
+                                    <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin mb-1.5" />
+                                  ) : (
+                                    <UploadCloud className="w-5 h-5 text-[#FFC799] mb-1.5" />
+                                  )}
+                                  <span className="text-[11px] font-bold text-[#F5F5F5]">
+                                    {isUploading ? 'Đang đóng dấu thời gian...' : `Chụp / Tải ảnh ${angle.code}`}
+                                  </span>
+                                  <span className="text-[10px] text-[#6E6E6E] mt-0.5">
+                                    Tự động gắn nhãn giờ kiểm định
+                                  </span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    disabled={isUploading}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) handleAnglePhotoUpload('checkin', angle.index, file);
+                                      e.target.value = '';
+                                    }}
+                                  />
+                                </label>
+                              ) : (
+                                <div className="flex items-center justify-center aspect-video rounded-lg border border-white/5 bg-[#101010] text-[11px] text-[#6E6E6E]">
+                                  Chưa có ảnh góc này
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
 
@@ -952,7 +1266,7 @@ export const CounterDesk: React.FC = () => {
                           <button
                             type="button"
                             onClick={clearSignature}
-                            disabled={selectedBooking.status !== 'Confirmed'}
+                            disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
                             className="text-[11px] text-[#FF8080] hover:text-[#FF8080] flex items-center space-x-1 font-semibold"
                           >
                             <RotateCcw className="w-3 h-3" />
@@ -961,7 +1275,7 @@ export const CounterDesk: React.FC = () => {
                         )}
                       </div>
 
-                      {selectedBooking.status === 'Confirmed' ? (
+                      {selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved' ? (
                         <div className="relative border border-white/10 rounded-xl bg-[#101010] overflow-hidden">
                           <canvas
                             ref={canvasRef}
@@ -998,12 +1312,12 @@ export const CounterDesk: React.FC = () => {
                     </div>
 
                     {/* Complete Check-in Button */}
-                    {selectedBooking.status === 'Confirmed' ? (
+                    {selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved' ? (
                       <button
                         type="button"
                         onClick={handleCheckinSubmit}
                         disabled={submitting}
-                        className="w-full py-3.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+                        className="w-full py-3.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
                       >
                         {submitting ? (
                           <span>Đang thực hiện Check-in...</span>
@@ -1016,7 +1330,7 @@ export const CounterDesk: React.FC = () => {
                       </button>
                     ) : (
                       <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl text-center text-xs text-[#A0A0A0] font-medium">
-                        Đơn hàng hiện ở trạng thái: <strong className="text-white">{selectedBooking.status}</strong> (Chỉ thực hiện Check-in khi trạng thái là Confirmed).
+                        Đơn hàng hiện ở trạng thái: <strong className="text-white">{selectedBooking.status}</strong> (Chỉ thực hiện Check-in khi trạng thái là Confirmed / Approved).
                       </div>
                     )}
                   </div>
@@ -1042,6 +1356,179 @@ export const CounterDesk: React.FC = () => {
                       <p className="text-[11px] text-[#A0A0A0] mt-1">
                         Quãng đường khách đã di chuyển trong chuyến: ~{Math.max(0, endOdo - (selectedBooking.startOdometer || 0))} km
                       </p>
+                    </div>
+
+                    {/* 4-Angle Before & After Inspection Comparison (Check-in vs Check-out) */}
+                    <div className="p-4 rounded-2xl border border-white/10 bg-[#101010]/90 space-y-3.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                        <div>
+                          <label className="text-xs font-bold text-[#F5F5F5] flex items-center">
+                            <Camera className="w-4 h-4 text-[#FFC799] mr-1.5 shrink-0" />
+                            <span>Đối chiếu & Chụp 4 góc xe sau khi nhận lại (Check-out)</span>
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30">
+                              {checkoutPhotos.filter(Boolean).length}/4 góc thu hồi
+                            </span>
+                          </label>
+                          <p className="text-[11px] text-[#A0A0A0] mt-0.5">
+                            So sánh trực tiếp ảnh 4 góc trước khi giao (trái) và ảnh thực tế khi nhận lại xe (phải) để kiểm định trầy xước.
+                          </p>
+                        </div>
+                        {selectedBooking.status === 'Ongoing' && (
+                          <button
+                            type="button"
+                            onClick={handleQuickFillCheckoutAngles}
+                            className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#99FFE4]/15 border border-white/10 hover:border-[#99FFE4]/40 text-[11px] font-bold text-[#99FFE4] transition-all cursor-pointer"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>Xác nhận 4 góc nguyên vẹn</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {VEHICLE_FOUR_ANGLES.map((angle) => {
+                          const defaultAngles = getDefaultFourAnglesFromVehicle(selectedBooking);
+                          const beforeUrl = checkinPhotos[angle.index] || defaultAngles[angle.index];
+                          const afterUrl = checkoutPhotos[angle.index];
+                          const isUploading = uploadingAngle === `checkout_${angle.index}`;
+                          const canEdit = selectedBooking.status === 'Ongoing';
+
+                          return (
+                            <div
+                              key={angle.code}
+                              className={`rounded-xl border p-3 transition-all ${
+                                afterUrl
+                                  ? 'border-[#99FFE4]/30 bg-[#141414]'
+                                  : 'border-white/10 bg-[#141414]/60'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <div className="flex items-center space-x-1.5">
+                                  <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] font-mono text-[10px] font-extrabold">
+                                    {angle.code}
+                                  </span>
+                                  <span className="text-xs font-bold text-white">{angle.title}</span>
+                                </div>
+                                {afterUrl ? (
+                                  <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-[#99FFE4]">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>Đã đối chiếu</span>
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-semibold text-[#FFC799]">Chờ chụp thu hồi</span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-[#A0A0A0] mb-2.5 line-clamp-1">{angle.desc}</p>
+
+                              <div className="grid grid-cols-2 gap-2">
+                                {/* Left: Before (Check-in) */}
+                                <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-black">
+                                  <img
+                                    src={beforeUrl}
+                                    alt={`Trước khi giao ${angle.code}`}
+                                    className="w-full h-full object-cover opacity-90"
+                                  />
+                                  <div className="absolute inset-x-0 top-0 bg-black/70 px-1.5 py-0.5 flex items-center justify-between">
+                                    <span className="text-[9px] font-mono font-bold text-[#FFC799]">
+                                      TRƯỚC GIAO
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openPreviewDoc(
+                                          `Ảnh trước khi giao (Check-in) - ${angle.code}: ${angle.title}`,
+                                          beforeUrl
+                                        )
+                                      }
+                                      className="text-white/80 hover:text-white cursor-pointer"
+                                      title="Phóng to ảnh lúc giao"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Right: After (Check-out) */}
+                                {afterUrl ? (
+                                  <div className="relative aspect-video rounded-lg overflow-hidden border border-[#99FFE4]/40 bg-black">
+                                    <img
+                                      src={afterUrl}
+                                      alt={`Sau khi nhận ${angle.code}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute inset-x-0 top-0 bg-black/75 px-1.5 py-0.5 flex items-center justify-between">
+                                      <span className="text-[9px] font-mono font-bold text-[#99FFE4]">
+                                        SAU NHẬN
+                                      </span>
+                                      <div className="flex items-center space-x-1">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            openPreviewDoc(
+                                              `Ảnh sau khi nhận lại (Check-out) - ${angle.code}: ${angle.title}`,
+                                              afterUrl
+                                            )
+                                          }
+                                          className="text-white/80 hover:text-white cursor-pointer"
+                                          title="Phóng to ảnh lúc nhận lại"
+                                        >
+                                          <Eye className="w-3 h-3" />
+                                        </button>
+                                        {canEdit && (
+                                          <label
+                                            className="text-[#FFC799] hover:text-white cursor-pointer"
+                                            title="Chụp lại góc này"
+                                          >
+                                            <Camera className="w-3 h-3" />
+                                            <input
+                                              type="file"
+                                              accept="image/*"
+                                              capture="environment"
+                                              className="hidden"
+                                              onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) handleAnglePhotoUpload('checkout', angle.index, file);
+                                                e.target.value = '';
+                                              }}
+                                            />
+                                          </label>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : canEdit ? (
+                                  <label className="flex flex-col items-center justify-center aspect-video rounded-lg border border-dashed border-white/20 hover:border-[#99FFE4]/50 bg-[#101010] hover:bg-[#99FFE4]/[0.03] transition-all cursor-pointer p-1.5 text-center">
+                                    {isUploading ? (
+                                      <RefreshCw className="w-4 h-4 text-[#99FFE4] animate-spin mb-1" />
+                                    ) : (
+                                      <Camera className="w-4 h-4 text-[#99FFE4] mb-1" />
+                                    )}
+                                    <span className="text-[10px] font-bold text-[#F5F5F5] leading-tight">
+                                      {isUploading ? 'Đang lưu...' : 'Chụp sau nhận'}
+                                    </span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      capture="environment"
+                                      className="hidden"
+                                      disabled={isUploading}
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) handleAnglePhotoUpload('checkout', angle.index, file);
+                                        e.target.value = '';
+                                      }}
+                                    />
+                                  </label>
+                                ) : (
+                                  <div className="flex items-center justify-center aspect-video rounded-lg border border-white/5 bg-[#101010] text-[10px] text-[#6E6E6E] text-center px-1">
+                                    Chưa chụp thu hồi
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
                     {/* Damage & Additional fee input */}

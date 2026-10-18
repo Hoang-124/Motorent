@@ -44,6 +44,9 @@ export const VnPayReturnPage: React.FC = () => {
   const [responseCode, setResponseCode] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [isFullPayment, setIsFullPayment] = useState<boolean>(false);
+  const [retryVehicleId, setRetryVehicleId] = useState<string>('');
+  const [pickupBranchName, setPickupBranchName] = useState<string>('');
+  const [returnBranchName, setReturnBranchName] = useState<string>('');
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -85,9 +88,22 @@ export const VnPayReturnPage: React.FC = () => {
 
       try {
         const res = await api.get('/payments/vnpay/return', { params: vnpParams });
+        const bookingData = res.data?.data?.booking;
+        if (bookingData?.vehicleId) {
+          const vId =
+            typeof bookingData.vehicleId === 'object'
+              ? bookingData.vehicleId._id
+              : bookingData.vehicleId;
+          if (vId) setRetryVehicleId(String(vId));
+        }
+        if (bookingData?.pickupBranchId && typeof bookingData.pickupBranchId === 'object') {
+          setPickupBranchName(bookingData.pickupBranchId.name || '');
+        }
+        if (bookingData?.returnBranchId && typeof bookingData.returnBranchId === 'object') {
+          setReturnBranchName(bookingData.returnBranchId.name || '');
+        }
         if (res.data?.success) {
           setVerifySuccess(true);
-          const bookingData = res.data?.data?.booking;
           const isFull = bookingData?.paymentType === 'Full100' || bookingData?.isPaid || rawOrderInfo.includes('100%');
           if (isFull) setIsFullPayment(true);
           setStatusMessage(
@@ -142,14 +158,14 @@ export const VnPayReturnPage: React.FC = () => {
         <div
           className={`p-8 text-center border-b border-white/10 ${
             verifySuccess
-              ? 'bg-gradient-to-b from-emerald-950/40 to-transparent'
-              : 'bg-gradient-to-b from-rose-950/40 to-transparent'
+              ? 'bg-gradient-to-b from-[#99FFE4]/10 to-transparent'
+              : 'bg-gradient-to-b from-[#FF8080]/10 to-transparent'
           }`}
         >
           <div
             className={`w-16 h-16 rounded-2xl mx-auto flex items-center justify-center mb-4 border ${
               verifySuccess
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                ? 'bg-[#FFC799]/10 border-[#FFC799]/25 text-[#FFC799]'
                 : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
             }`}
           >
@@ -181,6 +197,20 @@ export const VnPayReturnPage: React.FC = () => {
                 {bookingCode || 'MV-MOTORENT'}
               </span>
             </div>
+
+            {pickupBranchName && (
+              <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
+                <span className="text-[#A0A0A0]">Chi nhánh nhận xe:</span>
+                <span className="font-bold text-[#FFC799]">{pickupBranchName}</span>
+              </div>
+            )}
+
+            {returnBranchName && (
+              <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
+                <span className="text-[#A0A0A0]">Chi nhánh trả xe:</span>
+                <span className="font-semibold text-white">{returnBranchName}</span>
+              </div>
+            )}
 
             <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
               <span className="text-[#A0A0A0]">
@@ -219,20 +249,21 @@ export const VnPayReturnPage: React.FC = () => {
                     <strong className="text-white">Xe của bạn đã được khóa giữ và thanh toán 100%.</strong> Vui
                     lòng xuất trình mã hợp đồng{' '}
                     <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
-                    quầy chi nhánh để nhận xe nhanh chóng mà không cần thanh toán thêm tiền thuê xe.
+                    quầy <strong className="text-white">{pickupBranchName || 'chi nhánh đã chọn'}</strong> để nhận xe nhanh chóng mà không cần thanh toán thêm tiền thuê xe.
                   </>
                 ) : (
                   <>
                     <strong className="text-white">Xe của bạn đã được khóa giữ an toàn.</strong> Vui
                     lòng xuất trình mã hợp đồng{' '}
                     <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
-                    quầy chi nhánh khi đến giờ nhận xe để đối soát và thanh toán 70% còn lại.
+                    quầy <strong className="text-white">{pickupBranchName || 'chi nhánh đã chọn'}</strong> khi đến giờ nhận xe để đối soát và thanh toán 70% còn lại.
                   </>
                 )
               ) : (
                 <>
-                  Giao dịch chưa được trừ tiền hoặc đã bị hủy. Xe vẫn đang ở trạng thái giữ chỗ tạm
-                  thời. Bạn có thể tiến hành thanh toán lại từ danh sách đơn hàng.
+                  Giao dịch chưa bị trừ tiền và đơn giữ chỗ tạm thời{' '}
+                  <span className="text-[#FF8080] font-mono font-bold">{bookingCode}</span> đã được
+                  hủy tự động để mở khóa biển số xe. Bạn có thể bấm nút bên dưới để đặt và thanh toán lại.
                 </>
               )}
             </p>
@@ -261,11 +292,11 @@ export const VnPayReturnPage: React.FC = () => {
               <>
                 <button
                   type="button"
-                  onClick={() => navigate(-1)}
-                  className="flex-1 py-3 px-5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs text-center transition-all flex items-center justify-center space-x-2"
+                  onClick={() => navigate(retryVehicleId ? `/booking/${retryVehicleId}` : '/bikes')}
+                  className="flex-1 py-3 px-5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs text-center transition-all flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  <span>Thử thanh toán lại</span>
+                  <span>Đặt lại &amp; Thử thanh toán lại</span>
                 </button>
                 <Link
                   to="/"

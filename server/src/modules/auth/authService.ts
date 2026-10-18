@@ -636,6 +636,7 @@ export const updateProfile = async (
     firstName?: string;
     lastName?: string;
     phoneNumber?: string;
+    idCardNumber?: string;
     gender?: 'Male' | 'Female' | 'Other';
     dob?: string;
   }
@@ -658,6 +659,7 @@ export const updateProfile = async (
 
   if (data.firstName !== undefined) user.firstName = data.firstName.trim();
   if (data.lastName !== undefined) user.lastName = data.lastName.trim();
+  if (data.idCardNumber !== undefined) user.idCardNumber = data.idCardNumber.trim().toUpperCase();
   if (data.gender !== undefined) user.gender = data.gender;
   if (data.dob) user.dob = new Date(data.dob);
 

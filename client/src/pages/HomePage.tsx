@@ -57,7 +57,9 @@ export const HomePage: React.FC = () => {
         setBranches(branchesRes.data.data);
       }
       if (vehiclesRes.data?.data) {
-        const bikeList = vehiclesRes.data.data;
+        const bikeList = (vehiclesRes.data.data as Vehicle[]).filter(
+          (b: Vehicle) => b.status === 'Available'
+        );
         setVehicles(bikeList);
         if (bikeList.length > 0) {
           const preferred =

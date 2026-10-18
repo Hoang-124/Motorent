@@ -138,6 +138,7 @@ export const FleetPage: React.FC = () => {
   // Helper to get category vehicle count and representative thumbnail
   const getCategoryMeta = (slug: string) => {
     const matched = vehicles.filter((v) => {
+      if (v.status !== 'Available') return false;
       const catSlug = typeof v.category === 'object' && v.category !== null ? v.category.slug : v.category;
       return catSlug === slug;
     });
@@ -154,10 +155,10 @@ export const FleetPage: React.FC = () => {
     };
   };
 
-  // Filter and sort logic
+  // Filter and sort logic — automatically hide any vehicle that is deposited or currently rented
   const filteredVehicles = vehicles
     .filter((v) => {
-      if (onlyAvailable && v.status !== 'Available') {
+      if (v.status !== 'Available') {
         return false;
       }
 

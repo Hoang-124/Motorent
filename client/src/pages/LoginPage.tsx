@@ -78,14 +78,17 @@ export const LoginPage: React.FC = () => {
     setErrorMsg('');
     try {
       const res = await api.post('/auth/google', { credential });
-      if (res.data && res.data.success) {
-        const u = res.data.data.user;
+      const payload = res.data?.data || res.data;
+      if (payload?.token && payload?.user) {
+        const u = payload.user;
         const name = u.firstName ? (u.lastName ? `${u.lastName} ${u.firstName}` : u.firstName) : (u.username || '');
         setLoginSuccessMsg(`Đăng nhập thành công! Chào mừng bạn quay trở lại${name ? `, ${name}` : ''}.`);
-        login(res.data.data.token, res.data.data.user);
+        login(payload.token, u);
+        const returnTo = queryParams.get('returnTo');
+        const isStaffRole = ['Staff', 'BranchManager', 'SystemAdmin'].includes(u.roles);
         setTimeout(() => {
-          navigate('/');
-        }, 400);
+          navigate(returnTo || (isStaffRole ? '/counter' : '/'));
+        }, 300);
       } else {
         setErrorMsg(res.data?.message || 'Đăng nhập Google không thành công.');
       }

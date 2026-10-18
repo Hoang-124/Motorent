@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Vehicle, IVehicle } from '../../models/Vehicle';
+import { Booking } from '../../models/Booking';
 import { Category, ICategory } from '../../models/Category';
 import { AppError } from '../../core/errorHandler';
 
@@ -13,7 +14,36 @@ export interface VehicleFilterOptions {
   sortPrice?: 'asc' | 'desc';
 }
 
+const syncVehicleAvailability = async () => {
+  try {
+    const activeBookings = await Booking.find({
+      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
+    }).select('vehicleId');
+    const lockedVehicleIds = activeBookings.map((b) => b.vehicleId);
+
+    if (lockedVehicleIds.length > 0) {
+      await Vehicle.updateMany(
+        { _id: { $in: lockedVehicleIds }, status: 'Available' },
+        { $set: { status: 'Rented' } }
+      );
+      await Vehicle.updateMany(
+        { _id: { $nin: lockedVehicleIds }, status: 'Rented' },
+        { $set: { status: 'Available' } }
+      );
+    } else {
+      await Vehicle.updateMany(
+        { status: 'Rented' },
+        { $set: { status: 'Available' } }
+      );
+    }
+  } catch {
+    // Ignore sync errors so read queries never fail
+  }
+};
+
 export const getAllVehicles = async (options: VehicleFilterOptions) => {
+  await syncVehicleAvailability();
+
   const filter: Record<string, unknown> = { isDeleted: false };
 
   if (options.branchId) {
@@ -67,6 +97,8 @@ export const getAllVehicles = async (options: VehicleFilterOptions) => {
 };
 
 export const getVehicleById = async (id: string): Promise<IVehicle> => {
+  await syncVehicleAvailability();
+
   const vehicle = await Vehicle.findOne({ _id: id, isDeleted: false })
     .populate('branchId', 'name code address phone hours_open hours_close')
     .populate('category', 'name slug description');

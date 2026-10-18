@@ -256,10 +256,26 @@ a {
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
 select,
 textarea {
+  color-scheme: dark;
   background-color: var(--bg-well) !important;
   border-color: rgba(255, 255, 255, 0.12) !important;
   color: var(--text-primary) !important;
   transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(84%) sepia(28%) saturate(748%) hue-rotate(334deg) brightness(103%) contrast(101%);
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.08);
 }
 
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
