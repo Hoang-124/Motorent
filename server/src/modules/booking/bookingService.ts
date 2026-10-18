@@ -712,11 +712,21 @@ export const checkoutBooking = async (
   // Verify branch ownership
   assertBranchAccess(staffUser, booking.returnBranchId);
 
+  // Acceptance requirement UC-57: 4 photos, ODO, fuel, damage, late fee
+  if (!input.checkoutImages || input.checkoutImages.length < 4) {
+    throw new AppError(400, 'Yêu cầu chụp và cung cấp đủ 4 góc ảnh xe (Trước, Trái, Phải, Sau/ODO) trước khi hoàn tất trả xe (Check-out).');
+  }
+
   if (input.endOdometer < booking.startOdometer) {
     throw new AppError(
       400,
       `Chỉ số ODO lúc trả (${input.endOdometer}) không thể nhỏ hơn ODO lúc nhận (${booking.startOdometer}).`
     );
+  }
+
+  const fuelLevel = input.endFuelLevel ? String(input.endFuelLevel).trim() : '100%';
+  if (!fuelLevel) {
+    throw new AppError(400, 'Vui lòng ghi nhận mức nhiên liệu thực tế lúc nhận lại xe.');
   }
 
   const now = new Date();
@@ -731,9 +741,14 @@ export const checkoutBooking = async (
   const finalDue = (booking.remainingAmount || 0) + lateFee + damageFee;
 
   booking.actualReturnDateTime = now;
+  booking.checkoutAt = now;
+  booking.checkoutBy = staffUser._id as mongoose.Types.ObjectId;
   booking.endOdometer = input.endOdometer;
-  if (input.endFuelLevel) booking.endFuelLevel = input.endFuelLevel;
-  if (input.checkoutImages) booking.checkoutImages = input.checkoutImages;
+  booking.endFuelLevel = fuelLevel;
+  booking.checkoutImages = input.checkoutImages;
+  if (input.returnNotes || input.notes) {
+    booking.returnNotes = (input.returnNotes || input.notes || '').trim();
+  }
   booking.lateFee = lateFee;
   booking.damageFee = damageFee;
   booking.settlementAmount = finalDue;
@@ -753,12 +768,12 @@ export const checkoutBooking = async (
 
   await booking.save();
 
-  // Update Vehicle: move to return branch, update ODO, set Available
+  // Update Vehicle: move to return branch, update ODO, set Available (or Maintenance if damaged)
   const vehicle = await Vehicle.findById(booking.vehicleId);
   if (vehicle) {
     vehicle.branchId = booking.returnBranchId;
     vehicle.odometer = input.endOdometer;
-    vehicle.status = 'Available';
+    vehicle.status = damageFee > 500000 ? 'Maintenance' : 'Available';
 
     // Flag maintenance: check 1500km interval bucket
     const currentBucket = Math.floor(input.endOdometer / 1500);
@@ -769,6 +784,30 @@ export const checkoutBooking = async (
     }
     await vehicle.save();
   }
+
+  // Log audit
+  await AuditLog.create({
+    userId: staffUser._id,
+    action: 'CHECKOUT_RETURN',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      vehicleId: vehicle?._id.toString(),
+      licensePlate: vehicle?.licensePlate,
+      endOdometer: input.endOdometer,
+      endFuelLevel: fuelLevel,
+      lateHours,
+      lateFee,
+      damageFee,
+      settlementAmount: finalDue,
+      photosCount: input.checkoutImages.length,
+      returnBranchId: booking.returnBranchId.toString(),
+      staffId: staffUser._id.toString(),
+    },
+    ipAddress: '127.0.0.1',
+    userAgent: 'Motorent-CounterDesk/1.0',
+  });
 
   emitBookingStatus(booking);
   const populated = await populateBookingDetails(booking._id);

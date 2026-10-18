@@ -49,6 +49,9 @@ export interface IBooking extends Document {
   endFuelLevel?: string;
   checkinImages?: string[];
   checkoutImages?: string[];
+  checkoutAt?: Date;
+  checkoutBy?: mongoose.Types.ObjectId;
+  returnNotes?: string;
   cancelReason?: string;
   rejectReason?: string;
   refundAmount?: number;
@@ -104,6 +107,9 @@ const BookingSchema = new Schema<IBooking>(
     endFuelLevel: { type: String },
     checkinImages: [{ type: String }],
     checkoutImages: [{ type: String }],
+    checkoutAt: { type: Date },
+    checkoutBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    returnNotes: { type: String, default: '' },
     cancelReason: { type: String, default: '' },
     rejectReason: { type: String, default: '' },
     refundAmount: { type: Number, default: 0 },
