@@ -506,41 +506,176 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
 };
 
 /**
- * Get customer's personal bookings
+ * Get customer bookings
  */
 export const getMyBookings = async (userId: string) => {
   return Booking.find({ userId })
-    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
+    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice images odometer status fuelType transmissionType')
     .populate('pickupBranchId', 'name code address phone hours_open hours_close')
     .populate('returnBranchId', 'name code address phone hours_open hours_close')
     .sort({ createdAt: -1 });
 };
 
+export interface BranchOrdersOptions {
+  status?: string;
+  queue?: string; // 'today' | 'upcoming' | 'overdue'
+  search?: string;
+  page?: number;
+  limit?: number;
+  branchId?: string;
+}
+
 /**
- * Get branch bookings queue for Staff/BranchManager
+ * UC-54: Get branch bookings queue for Staff/BranchManager
+ * Supports status filter ('all', 'active', 'confirmed', 'ongoing', 'completed', 'cancelled'),
+ * today's queue filter ('today'), keyword search across bookingCode/phone/plate,
+ * pagination, and aggregated counts summary.
  */
-export const getBranchBookings = async (user: IUser, statusFilter?: string) => {
-  const query: Record<string, unknown> = {};
+export const getBranchBookings = async (
+  user: IUser,
+  options: BranchOrdersOptions | string = {}
+) => {
+  // Support legacy signature getBranchBookings(user, statusFilter)
+  const opts: BranchOrdersOptions =
+    typeof options === 'string' ? { status: options } : options;
+
+  const {
+    status,
+    queue,
+    search,
+    page = 1,
+    limit = 50,
+    branchId,
+  } = opts;
+
+  const baseBranchQuery: Record<string, unknown> = {};
 
   // If user is Staff or BranchManager, require and restrict to their branch
   if (user.roles === 'Staff' || user.roles === 'BranchManager') {
     if (!user.branchId) {
       throw new AppError(403, 'Tài khoản nhân sự chưa được gán chi nhánh công tác.');
     }
-    query.$or = [{ pickupBranchId: user.branchId }, { returnBranchId: user.branchId }];
+    baseBranchQuery.$or = [{ pickupBranchId: user.branchId }, { returnBranchId: user.branchId }];
+  } else if (user.roles === 'SystemAdmin' && branchId && mongoose.isValidObjectId(branchId)) {
+    const bId = new mongoose.Types.ObjectId(branchId);
+    baseBranchQuery.$or = [{ pickupBranchId: bId }, { returnBranchId: bId }];
   }
 
-  if (statusFilter) {
-    query.status = statusFilter;
+  const query: Record<string, unknown> = { ...baseBranchQuery };
+
+  // Status Filter
+  if (status && status !== 'all') {
+    if (status.toLowerCase() === 'active') {
+      query.status = { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] };
+    } else if (status.toLowerCase() === 'completed') {
+      query.status = 'Completed';
+    } else if (status.toLowerCase() === 'cancelled') {
+      query.status = { $in: ['Cancelled', 'Rejected'] };
+    } else if (status.toLowerCase() === 'confirmed') {
+      query.status = { $in: ['Approved', 'Confirmed'] };
+    } else {
+      query.status = status;
+    }
   }
 
-  return Booking.find(query)
-    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
-    .populate('pickupBranchId', 'name code address phone')
-    .populate('returnBranchId', 'name code address phone')
-    .sort({ createdAt: -1 })
-    .limit(50);
+  // Today Queue Filter
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  if (queue === 'today') {
+    query.$and = [
+      ...(Array.isArray(query.$and) ? query.$and : []),
+      {
+        $or: [
+          { pickupDateTime: { $gte: startOfToday, $lte: endOfToday } },
+          { returnDateTime: { $gte: startOfToday, $lte: endOfToday } },
+        ],
+      },
+    ];
+  }
+
+  // Keyword Search across bookingCode, phone, vehicle plate
+  if (search && search.trim()) {
+    const cleanSearch = search.trim();
+    const [matchingVehicles, matchingUsers] = await Promise.all([
+      Vehicle.find({
+        $or: [
+          { licensePlate: { $regex: cleanSearch, $options: 'i' } },
+          { vehicleModel: { $regex: cleanSearch, $options: 'i' } },
+        ],
+      }).select('_id'),
+      User.find({
+        $or: [
+          { phoneNumber: { $regex: cleanSearch, $options: 'i' } },
+          { firstName: { $regex: cleanSearch, $options: 'i' } },
+          { lastName: { $regex: cleanSearch, $options: 'i' } },
+          { username: { $regex: cleanSearch, $options: 'i' } },
+        ],
+      }).select('_id'),
+    ]);
+
+    const searchOrConditions: Array<Record<string, unknown>> = [
+      { bookingCode: { $regex: cleanSearch, $options: 'i' } },
+    ];
+
+    if (matchingVehicles.length > 0) {
+      searchOrConditions.push({ vehicleId: { $in: matchingVehicles.map((v) => v._id) } });
+    }
+    if (matchingUsers.length > 0) {
+      searchOrConditions.push({ userId: { $in: matchingUsers.map((u) => u._id) } });
+    }
+
+    query.$and = [
+      ...(Array.isArray(query.$and) ? query.$and : []),
+      { $or: searchOrConditions },
+    ];
+  }
+
+  const skip = (Math.max(1, page) - 1) * limit;
+
+  const [bookings, total, totalCount, todayCount, pendingCount, confirmedCount, ongoingCount, completedCount, cancelledCount] =
+    await Promise.all([
+      Booking.find(query)
+        .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
+        .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
+        .populate('pickupBranchId', 'name code address phone hours_open hours_close')
+        .populate('returnBranchId', 'name code address phone hours_open hours_close')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Booking.countDocuments(query),
+      Booking.countDocuments(baseBranchQuery),
+      Booking.countDocuments({
+        ...baseBranchQuery,
+        $or: [
+          { pickupDateTime: { $gte: startOfToday, $lte: endOfToday } },
+          { returnDateTime: { $gte: startOfToday, $lte: endOfToday } },
+        ],
+      }),
+      Booking.countDocuments({ ...baseBranchQuery, status: 'Pending' }),
+      Booking.countDocuments({ ...baseBranchQuery, status: { $in: ['Approved', 'Confirmed'] } }),
+      Booking.countDocuments({ ...baseBranchQuery, status: 'Ongoing' }),
+      Booking.countDocuments({ ...baseBranchQuery, status: 'Completed' }),
+      Booking.countDocuments({ ...baseBranchQuery, status: { $in: ['Cancelled', 'Rejected'] } }),
+    ]);
+
+  return {
+    bookings,
+    total,
+    page: Math.max(1, page),
+    limit,
+    totalPages: Math.ceil(total / limit) || 1,
+    counts: {
+      total: totalCount,
+      today: todayCount,
+      pending: pendingCount,
+      confirmed: confirmedCount,
+      ongoing: ongoingCount,
+      completed: completedCount,
+      cancelled: cancelledCount,
+    },
+  };
 };
 
 /**

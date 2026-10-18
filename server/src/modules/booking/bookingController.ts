@@ -115,13 +115,33 @@ export const getBranchBookings = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const statusFilter = typeof req.query.status === 'string' ? req.query.status : undefined;
-    const bookings = await bookingService.getBranchBookings(req.user, statusFilter);
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const queue = typeof req.query.queue === 'string' ? (req.query.queue as 'all' | 'today') : undefined;
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+    const branchId = typeof req.query.branchId === 'string' ? req.query.branchId : undefined;
+    const page = req.query.page ? parseInt(String(req.query.page), 10) : 1;
+    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
+
+    const result = await bookingService.getBranchBookings(req.user, {
+      status,
+      queue,
+      search,
+      branchId,
+      page,
+      limit,
+    });
 
     res.json({
       success: true,
-      count: bookings.length,
-      data: bookings,
+      count: result.bookings.length,
+      data: result.bookings,
+      meta: {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
+        counts: result.counts,
+      },
     });
   } catch (error) {
     next(error);
