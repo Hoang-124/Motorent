@@ -512,11 +512,177 @@ export const getBookingByCode = async (code: string, requestingUser: IUser) => {
     }
   }
 
-  return booking;
+  const doc = booking.toObject ? booking.toObject() : booking;
+  const details = buildOrderDetails(booking);
+
+  return {
+    ...doc,
+    ...details,
+  };
+};
+
+export interface OrderTimelineItem {
+  key: string;
+  title: string;
+  description: string;
+  timestamp?: Date | string | null;
+  isCompleted: boolean;
+  isCurrent: boolean;
+  status: 'completed' | 'current' | 'upcoming' | 'cancelled';
+}
+
+export interface OrderPricingDetails {
+  basePrice: number;
+  dailyPrice: number;
+  durationDays: number;
+  durationHours: number;
+  discountAmount: number;
+  totalAmount: number;
+  depositAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  lateFee: number;
+  damageFee: number;
+  refundAmount?: number;
+  refundStatus?: string;
+  isPaid: boolean;
+  depositPaid: boolean;
+}
+
+export interface OrderAvailableActions {
+  canPayDeposit: boolean;
+  canPayFull: boolean;
+  canCancel: boolean;
+  canExtend: boolean;
+  canRefund: boolean;
+  canCheckin: boolean;
+  canCheckout: boolean;
+  canCounterPay: boolean;
+}
+
+export const buildOrderDetails = (booking: IBooking) => {
+  const isCancelled = ['Cancelled', 'Rejected'].includes(booking.status);
+  const isPending = booking.status === 'Pending';
+  const isApproved = booking.status === 'Approved';
+  const isConfirmed = booking.status === 'Confirmed';
+  const isOngoing = booking.status === 'Ongoing';
+  const isCompleted = booking.status === 'Completed';
+
+  const timeline: OrderTimelineItem[] = [
+    {
+      key: 'created',
+      title: 'Tạo đơn đặt xe',
+      description: 'Đơn được tạo thành công trên hệ thống',
+      timestamp: booking.createdAt,
+      isCompleted: true,
+      isCurrent: isPending,
+      status: isPending ? 'current' : 'completed',
+    },
+    {
+      key: 'deposit',
+      title: 'Đặt cọc giữ xe (30%)',
+      description: Boolean(booking.depositPaid || booking.isPaid)
+        ? `Đã thanh toán cọc ${(booking.depositAmount || 0).toLocaleString('vi-VN')} đ`
+        : 'Chờ thanh toán cọc 30% để khóa biển số xe',
+      timestamp: Boolean(booking.depositPaid || booking.isPaid) ? booking.updatedAt : null,
+      isCompleted: Boolean(booking.depositPaid || booking.isPaid),
+      isCurrent: isPending && !booking.depositPaid && !booking.isPaid,
+      status: Boolean(booking.depositPaid || booking.isPaid)
+        ? 'completed'
+        : isPending
+        ? 'current'
+        : 'upcoming',
+    },
+    {
+      key: 'confirmed',
+      title: 'Xác nhận & Khóa biển số',
+      description: isApproved || isConfirmed || isOngoing || isCompleted
+        ? 'Hệ thống đã khóa xe và chuẩn bị phương tiện tại chi nhánh'
+        : 'Chờ chi nhánh chuẩn bị xe',
+      timestamp: isApproved || isConfirmed || isOngoing || isCompleted ? booking.updatedAt : null,
+      isCompleted: isApproved || isConfirmed || isOngoing || isCompleted,
+      isCurrent: isApproved || isConfirmed,
+      status: isApproved || isConfirmed ? 'current' : isOngoing || isCompleted ? 'completed' : 'upcoming',
+    },
+    {
+      key: 'handover',
+      title: 'Bàn giao nhận xe (Check-in)',
+      description: isOngoing || isCompleted
+        ? 'Đã kiểm tra xe, ký biên bản và bàn giao xe cho khách'
+        : 'Xuất trình CCCD/GPLX tại quầy để nhận xe',
+      timestamp: isOngoing || isCompleted ? booking.pickupDateTime : null,
+      isCompleted: isOngoing || isCompleted,
+      isCurrent: isOngoing,
+      status: isOngoing ? 'current' : isCompleted ? 'completed' : 'upcoming',
+    },
+    {
+      key: 'return',
+      title: 'Thu hồi & Hoàn tất (Check-out)',
+      description: isCompleted
+        ? 'Đã kiểm tra xe, thanh toán phần còn lại và hoàn tất hợp đồng'
+        : 'Trả xe tại chi nhánh đã chọn đúng giờ hẹn',
+      timestamp: isCompleted ? booking.actualReturnDateTime || booking.returnDateTime : null,
+      isCompleted: isCompleted,
+      isCurrent: false,
+      status: isCompleted ? 'completed' : 'upcoming',
+    },
+  ];
+
+  if (isCancelled) {
+    timeline.push({
+      key: 'cancelled',
+      title: booking.status === 'Cancelled' ? 'Hủy đơn thuê' : 'Đơn bị từ chối',
+      description: booking.cancelReason || booking.rejectReason || 'Đơn đã dừng xử lý',
+      timestamp: booking.cancelledAt || booking.updatedAt,
+      isCompleted: true,
+      isCurrent: true,
+      status: 'cancelled',
+    });
+  }
+
+  const vehicle = booking.vehicleId as unknown as { dailyPrice?: number };
+  const diffHours = (new Date(booking.returnDateTime).getTime() - new Date(booking.pickupDateTime).getTime()) / (1000 * 3600);
+  const durationDays = Math.max(1, Math.ceil(diffHours / 24));
+  const dailyPrice = vehicle?.dailyPrice || Math.round(booking.totalAmount / durationDays);
+
+  const pricing: OrderPricingDetails = {
+    basePrice: booking.totalAmount + (booking.discountAmount || 0),
+    dailyPrice,
+    durationDays,
+    durationHours: Math.round(diffHours * 10) / 10,
+    discountAmount: booking.discountAmount || 0,
+    totalAmount: booking.totalAmount,
+    depositAmount: booking.depositAmount,
+    paidAmount: booking.paidAmount || 0,
+    remainingAmount: booking.remainingAmount || 0,
+    lateFee: booking.lateFee || 0,
+    damageFee: booking.damageFee || 0,
+    refundAmount: booking.refundAmount,
+    refundStatus: booking.refundStatus,
+    isPaid: Boolean(booking.isPaid),
+    depositPaid: Boolean(booking.depositPaid),
+  };
+
+  const actions: OrderAvailableActions = {
+    canPayDeposit: isPending && !booking.depositPaid && !booking.isPaid,
+    canPayFull: !booking.isPaid && (booking.remainingAmount || 0) > 0 && !isCancelled,
+    canCancel: (isPending || isApproved || isConfirmed) && !isCancelled,
+    canExtend: (isConfirmed || isOngoing) && !isCancelled,
+    canRefund: isCancelled && (booking.refundAmount || 0) > 0 && booking.refundStatus === 'Pending',
+    canCheckin: (isConfirmed || isApproved) && !isCancelled,
+    canCheckout: isOngoing && !isCompleted && !isCancelled,
+    canCounterPay: (booking.remainingAmount || 0) > 0 && !isCancelled,
+  };
+
+  return {
+    timeline,
+    pricing,
+    actions,
+  };
 };
 
 /**
- * Get booking details by ID
+ * Get booking details by ID with Timeline, Pricing, and Actions (UC-36)
  */
 export const getBookingById = async (id: string, requestingUser: IUser) => {
   if (!mongoose.isValidObjectId(id)) {
@@ -543,7 +709,13 @@ export const getBookingById = async (id: string, requestingUser: IUser) => {
     }
   }
 
-  return booking;
+  const doc = booking.toObject ? booking.toObject() : booking;
+  const details = buildOrderDetails(booking);
+
+  return {
+    ...doc,
+    ...details,
+  };
 };
 
 /**

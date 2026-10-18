@@ -1020,6 +1020,14 @@ export const ProfilePage: React.FC = () => {
                               </button>
                             )}
 
+                            <Link
+                              to={`/booking-details/${b._id}`}
+                              className="px-3.5 py-1.5 rounded-lg border border-[#FFC799]/30 hover:border-[#FFC799] bg-[#FFC799]/10 hover:bg-[#FFC799]/20 text-[#FFC799] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>Chi tiết đơn</span>
+                            </Link>
+
                             {v && (
                               <Link
                                 to={`/booking/${v._id}`}
