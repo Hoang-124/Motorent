@@ -267,3 +267,35 @@ export const counterPay = async (
   }
 };
 
+const approveRefundSchema = z.object({
+  refundAmount: z.coerce.number().positive('Số tiền hoàn trả phải lớn hơn 0').optional(),
+  note: z.string().trim().optional(),
+  bankName: z.string().trim().optional(),
+  bankAccount: z.string().trim().optional(),
+  bankAccountName: z.string().trim().optional(),
+});
+
+export const approveRefund = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập quản lý.');
+    }
+
+    const data = approveRefundSchema.parse(req.body || {});
+    const booking = await bookingService.approveRefund(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: `Đã phê duyệt hoàn tiền ${booking.refundAmount?.toLocaleString('vi-VN')} đ cho đơn đặt xe ${booking.bookingCode}.`,
+      data: booking,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
