@@ -35,6 +35,42 @@ adminBannerRouter.post(
   bannerController.createBanner
 );
 
+// PATCH /admin/banners/reorder - Reorder banners atomically (UC-117)
+adminBannerRouter.patch(
+  '/reorder',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  auditLogger('REORDER_BANNERS', 'Banner'),
+  bannerController.reorderBanners
+);
+
+// PATCH /admin/banners/:id/status - Quick toggle isActive on table (UC-117)
+adminBannerRouter.patch(
+  '/:id/status',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  auditLogger('UPDATE_BANNER_STATUS', 'Banner'),
+  bannerController.updateBannerStatus
+);
+
+// GET /admin/banners/:id - Get banner details for edit form (UC-117)
+adminBannerRouter.get(
+  '/:id',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  bannerController.getBannerById
+);
+
+// PATCH /admin/banners/:id - Edit banner fields and/or replacement image (UC-117)
+adminBannerRouter.patch(
+  '/:id',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  bannerUpload.single('image'),
+  auditLogger('UPDATE_BANNER', 'Banner'),
+  bannerController.updateBanner
+);
+
 export default {
   adminBannerRouter,
   publicBannerRouter,
