@@ -946,3 +946,90 @@ export const cancelBooking = async (
   return result as unknown as IBooking;
 };
 
+/**
+ * UC-73: Approve Order (Manager)
+ * PUT /api/bookings/:id/approve
+ * Allows BranchManager or SystemAdmin to approve an order.
+ * - Validates booking existence and manager branch permissions
+ * - Ensures order is in Pending status
+ * - Updates status to 'Approved' (or 'Confirmed' if deposit has already been paid)
+ * - Sets approvedBy = manager._id and approvedAt = now
+ * - Notifies customer via In-App Notification and Real-time Socket
+ * - Emits booking status event
+ */
+export const approveBooking = async (
+  bookingId: string,
+  managerUser: IUser,
+  notes?: string
+) => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const booking = await Booking.findById(bookingId)
+    .populate('vehicleId')
+    .populate('userId');
+
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy thông tin đơn đặt xe.');
+  }
+
+  // Branch access authorization
+  assertBranchAccess(managerUser, booking.pickupBranchId);
+
+  // Status validation: can only approve Pending bookings
+  if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
+    throw new AppError(400, 'Không thể phê duyệt đơn đặt xe đã bị hủy hoặc từ chối.');
+  }
+
+  if (['Approved', 'Confirmed', 'Ongoing', 'Completed'].includes(booking.status)) {
+    throw new AppError(400, `Đơn đặt xe đã ở trạng thái "${booking.status}", không cần phê duyệt lại.`);
+  }
+
+  const now = new Date();
+  booking.approvedBy = managerUser._id as mongoose.Types.ObjectId;
+  booking.approvedAt = now;
+
+  // If deposit or full payment is already paid, transition directly to Confirmed, else Approved
+  if (booking.depositPaid || booking.isPaid) {
+    booking.status = 'Confirmed';
+  } else {
+    booking.status = 'Approved';
+  }
+
+  await booking.save();
+
+  // Audit log
+  await AuditLog.create({
+    userId: managerUser._id,
+    action: 'APPROVE_BOOKING',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      previousStatus: 'Pending',
+      newStatus: booking.status,
+      approvedBy: managerUser._id,
+      notes: notes || '',
+    },
+    timestamp: now,
+  }).catch((err) => console.error('[AuditLog Error]', err));
+
+  // Send Notification to Customer
+  const customerId = (booking.userId as unknown as { _id?: mongoose.Types.ObjectId })?._id || booking.userId;
+  await Notification.create({
+    userId: customerId,
+    title: 'Đơn đặt xe đã được phê duyệt',
+    body: `Đơn đặt xe #${booking.bookingCode} của bạn đã được Quản lý chi nhánh phê duyệt thành công. Phương tiện đang được chuẩn bị sẵn sàng tại trạm.`,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
+    isRead: false,
+  }).catch((err) => console.error('[Notification Error]', err));
+
+  // Socket real-time status update
+  emitBookingStatus(booking);
+
+  return booking;
+};
+
+

@@ -75,6 +75,15 @@ router.put(
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 
+// UC-73: Manager approve booking
+router.put(
+  '/:id/approve',
+  authenticateJWT,
+  authorize('BranchManager', 'SystemAdmin'),
+  auditLogger('APPROVE_BOOKING', 'Booking'),
+  bookingController.approveBooking
+);
+
 router.put(
   '/:id/cancel',
   authenticateJWT,

@@ -42,6 +42,7 @@ export interface IBooking extends Document {
   vnpayBankCode?: string;
   vnpayPayDate?: Date;
   approvedBy?: mongoose.Types.ObjectId;
+  approvedAt?: Date;
   eSignatureUrl?: string;
   startOdometer: number;
   endOdometer?: number;
@@ -97,6 +98,7 @@ const BookingSchema = new Schema<IBooking>(
     vnpayBankCode: { type: String, default: '' },
     vnpayPayDate: { type: Date },
     approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    approvedAt: { type: Date },
     eSignatureUrl: { type: String, default: '' },
     startOdometer: { type: Number, default: 0 },
     endOdometer: { type: Number },

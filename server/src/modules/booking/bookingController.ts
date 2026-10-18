@@ -267,3 +267,31 @@ export const counterPay = async (
   }
 };
 
+const approveBookingSchema = z.object({
+  notes: z.string().optional(),
+});
+
+export const approveBooking = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập quản lý.');
+    }
+
+    const { notes } = approveBookingSchema.parse(req.body || {});
+    const approved = await bookingService.approveBooking(req.params.id, req.user, notes);
+
+    res.json({
+      success: true,
+      message: 'Phê duyệt đơn đặt xe thành công!',
+      data: approved,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

@@ -33,6 +33,7 @@ import {
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
@@ -120,6 +121,37 @@ export const CounterDesk: React.FC = () => {
   const [counterPayMethod, setCounterPayMethod] = useState<'Cash' | 'POS' | 'DirectBank'>('Cash');
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
+
+  // UC-73: Manager Approval state
+  const { user } = useAuth();
+  const isManager = user?.roles === 'BranchManager' || user?.roles === 'SystemAdmin';
+  const [approving, setApproving] = useState<boolean>(false);
+
+  const handleApproveBooking = async () => {
+    if (!selectedBooking) return;
+    setApproving(true);
+    setStatusMessage(null);
+    try {
+      const res = await api.put(`/bookings/${selectedBooking._id}/approve`, {});
+      if (res.data?.success && res.data?.data) {
+        setStatusMessage({
+          type: 'success',
+          text: `Đã phê duyệt thành công đơn đặt xe ${selectedBooking.bookingCode}! Đơn chuyển sang trạng thái "${res.data.data.status}".`,
+        });
+        handleSelectBooking(res.data.data);
+        fetchBookings();
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setStatusMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Không thể phê duyệt đơn đặt xe.',
+        });
+      }
+    } finally {
+      setApproving(false);
+    }
+  };
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -794,6 +826,18 @@ export const CounterDesk: React.FC = () => {
                       </div>
 
                       <div className="flex items-center space-x-2">
+                        {isManager && selectedBooking.status === 'Pending' && (
+                          <button
+                            type="button"
+                            onClick={handleApproveBooking}
+                            disabled={approving}
+                            className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-[#101010] shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                            <span>{approving ? 'Đang duyệt...' : 'Duyệt đơn (UC-73)'}</span>
+                          </button>
+                        )}
+
                         {selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0 ? (
                           <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-[#99FFE4]/10 text-[#99FFE4] border border-[#99FFE4]/30">
                             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
@@ -824,7 +868,7 @@ export const CounterDesk: React.FC = () => {
                         : 'border-transparent text-[#A0A0A0] hover:text-[#F5F5F5]'
                     }`}
                   >
-                    1. Check-in Bàn giao xe ({selectedBooking.status === 'Confirmed' ? 'Sẵn sàng' : selectedBooking.status})
+                    1. Check-in Bàn giao xe ({selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved' ? 'Sẵn sàng' : selectedBooking.status})
                   </button>
                   <button
                     onClick={() => setActiveTab('checkout')}
@@ -841,6 +885,34 @@ export const CounterDesk: React.FC = () => {
                 {/* Tab 1: Check-in Process */}
                 {activeTab === 'checkin' && (
                   <div className="p-6 space-y-5">
+                    {/* UC-73: Manager Approval Banner for Pending Bookings */}
+                    {selectedBooking.status === 'Pending' && (
+                      <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center space-x-2.5 text-amber-400">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <div>
+                            <span className="font-semibold block">Đơn đặt xe đang chờ Quản lý chi nhánh phê duyệt (UC-73)</span>
+                            <span className="text-[11px] text-amber-300/80">
+                              {isManager
+                                ? 'Bạn là Quản lý chi nhánh / Admin. Nhấn nút để phê duyệt xe và cho phép nhân viên thực hiện thủ tục Check-in bàn giao.'
+                                : 'Đơn cần được Quản lý chi nhánh phê duyệt trước khi nhân viên thực hiện thủ tục Check-in bàn giao.'}
+                            </span>
+                          </div>
+                        </div>
+                        {isManager && (
+                          <button
+                            type="button"
+                            onClick={handleApproveBooking}
+                            disabled={approving}
+                            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-md"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{approving ? 'Đang duyệt...' : 'Phê duyệt đơn đặt xe'}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Unpaid 70% Alert Banner */}
                     {!selectedBooking.isPaid && (selectedBooking.remainingAmount || 0) > 0 && (
                       <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -870,7 +942,7 @@ export const CounterDesk: React.FC = () => {
                         min="0"
                         value={startOdo}
                         onChange={(e) => setStartOdo(Number(e.target.value))}
-                        disabled={selectedBooking.status !== 'Confirmed'}
+                        disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
                         className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                       />
                       <p className="text-[11px] text-[#A0A0A0] mt-1">
