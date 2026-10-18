@@ -30,6 +30,14 @@ const updateVehicleSchema = createVehicleSchema.partial().extend({
   requiresMaintenance: z.boolean().optional(),
 });
 
+const updateVehicleStatusSchema = z.object({
+  status: z.enum(['Available', 'Rented', 'Maintenance']),
+  reason: z.string().trim().optional(),
+  maintenanceType: z.enum(['Routine', 'Repair', 'Inspection']).optional(),
+  cost: z.coerce.number().nonnegative().optional(),
+  odometer: z.coerce.number().nonnegative().optional(),
+});
+
 export const getVehicles = async (
   req: Request,
   res: Response,
@@ -204,3 +212,26 @@ export const deleteVehicle = async (
     next(error);
   }
 };
+
+export const updateVehicleStatus = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const data = updateVehicleStatusSchema.parse(req.body);
+    const vehicle = await vehicleService.updateVehicleStatus(
+      req.params.id,
+      data,
+      req.user
+    );
+    res.json({
+      success: true,
+      message: `Cập nhật trạng thái xe thành "${vehicle.status}" thành công.`,
+      data: vehicle,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

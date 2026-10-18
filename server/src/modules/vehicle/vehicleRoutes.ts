@@ -30,6 +30,14 @@ router.post(
 );
 
 router.put(
+  '/:id/status',
+  authenticateJWT,
+  authorize('Staff', 'BranchManager', 'SystemAdmin'),
+  auditLogger('UPDATE_VEHICLE_STATUS', 'Vehicle'),
+  vehicleController.updateVehicleStatus
+);
+
+router.put(
   '/:id',
   authenticateJWT,
   authorize('BranchManager', 'SystemAdmin'),
