@@ -9,6 +9,7 @@ import { FleetPage } from './pages/FleetPage';
 import { BranchesPage } from './pages/BranchesPage';
 import { CounterDesk } from './pages/CounterDesk';
 import { AuditLogPage } from './pages/AuditLogPage';
+import { RbacMatrixPage } from './pages/RbacMatrixPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
@@ -58,6 +59,22 @@ export function App() {
                 element={
                   <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
                     <AuditLogPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/admin/rbac"
+                element={
+                  <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                    <RbacMatrixPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/rbac"
+                element={
+                  <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                    <RbacMatrixPage />
                   </RequireRole>
                 }
               />
