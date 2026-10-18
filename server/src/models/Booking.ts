@@ -9,6 +9,16 @@ export type BookingStatus =
   | 'Cancelled'
   | 'Rejected';
 
+export interface IDamageRecord {
+  description: string;
+  damageFee: number;
+  photos: string[];
+  severity: 'Minor' | 'Moderate' | 'Severe';
+  partsReplaced?: string[];
+  recordedBy?: mongoose.Types.ObjectId;
+  recordedAt: Date;
+}
+
 export interface IBooking extends Document {
   bookingCode: string;
   userId: mongoose.Types.ObjectId;
@@ -25,6 +35,9 @@ export interface IBooking extends Document {
   discountAmount: number;
   lateFee: number;
   damageFee: number;
+  damageDescription?: string;
+  damagePhotos?: string[];
+  damageRecords?: IDamageRecord[];
   loyaltyPointsEarned: number;
   status: BookingStatus;
   paymentMethod: 'Banking' | 'Cash';
@@ -76,6 +89,19 @@ const BookingSchema = new Schema<IBooking>(
     discountAmount: { type: Number, default: 0 },
     lateFee: { type: Number, default: 0 },
     damageFee: { type: Number, default: 0 },
+    damageDescription: { type: String, default: '' },
+    damagePhotos: [{ type: String }],
+    damageRecords: [
+      {
+        description: { type: String, required: true },
+        damageFee: { type: Number, required: true, min: 0 },
+        photos: [{ type: String }],
+        severity: { type: String, enum: ['Minor', 'Moderate', 'Severe'], default: 'Minor' },
+        partsReplaced: [{ type: String }],
+        recordedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        recordedAt: { type: Date, default: Date.now },
+      },
+    ],
     loyaltyPointsEarned: { type: Number, default: 0 },
     status: {
       type: String,

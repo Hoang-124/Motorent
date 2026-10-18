@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { Booking, IBooking, BookingStatus } from '../../models/Booking';
+import { Booking, IBooking, BookingStatus, IDamageRecord } from '../../models/Booking';
 import { Vehicle } from '../../models/Vehicle';
 import { Branch } from '../../models/Branch';
 import { User, IUser } from '../../models/User';
@@ -57,6 +57,14 @@ export interface CheckoutDto {
   notes?: string;
   returnNotes?: string;
   settleNow?: boolean;
+}
+
+export interface RecordDamageDto {
+  description: string;
+  damageFee: number;
+  photos?: string[];
+  severity?: 'Minor' | 'Moderate' | 'Severe';
+  partsReplaced?: string[];
 }
 
 // In-process concurrency mutex per vehicle to prevent race conditions on double-booking
@@ -859,6 +867,98 @@ export const recordCounterPayment = async (
 
   emitBookingStatus(booking);
 
+  const populated = await populateBookingDetails(booking._id);
+  return populated || booking;
+};
+
+/**
+ * Record vehicle damage during rental or return (UC-58)
+ * Photos + description, damage fee, severity assessment, and vehicle status update
+ */
+export const recordBookingDamage = async (
+  bookingId: string,
+  staffUser: IUser,
+  input: RecordDamageDto
+): Promise<IBooking> => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
+  }
+
+  // Verify staff branch assignment
+  assertBranchAccess(staffUser, [booking.pickupBranchId, booking.returnBranchId]);
+
+  if (input.damageFee < 0) {
+    throw new AppError(400, 'Chi phí bồi thường hư hại không thể là số âm.');
+  }
+
+  if (!input.description || !input.description.trim()) {
+    throw new AppError(400, 'Vui lòng nhập mô tả chi tiết hư hại, trầy xước của phương tiện.');
+  }
+
+  const severity = input.severity || (input.damageFee > 500000 ? 'Severe' : input.damageFee > 100000 ? 'Moderate' : 'Minor');
+  const photos = Array.isArray(input.photos) ? input.photos : [];
+
+  const record: IDamageRecord = {
+    description: input.description.trim(),
+    damageFee: input.damageFee,
+    photos,
+    severity,
+    partsReplaced: input.partsReplaced || [],
+    recordedBy: staffUser._id as mongoose.Types.ObjectId,
+    recordedAt: new Date(),
+  };
+
+  booking.damageRecords = booking.damageRecords || [];
+  booking.damageRecords.push(record);
+
+  // Update cumulative damageFee and settlement
+  booking.damageFee = (booking.damageFee || 0) + input.damageFee;
+  booking.damageDescription = booking.damageDescription
+    ? `${booking.damageDescription}\n- ${input.description.trim()}`
+    : input.description.trim();
+  if (photos.length > 0) {
+    booking.damagePhotos = [...(booking.damagePhotos || []), ...photos];
+  }
+
+  // If settlement amount is set, adjust it with the new damage fee
+  if (booking.settlementAmount !== undefined && booking.settlementAmount > 0) {
+    booking.settlementAmount += input.damageFee;
+  }
+
+  await booking.save();
+
+  // If severe damage or high cost, flag vehicle for maintenance
+  if (severity === 'Severe' || input.damageFee >= 500000) {
+    await Vehicle.findByIdAndUpdate(booking.vehicleId, {
+      requiresMaintenance: true,
+      status: 'Maintenance',
+    });
+  }
+
+  // Audit log
+  await AuditLog.create({
+    userId: staffUser._id,
+    action: 'RECORD_DAMAGE',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      damageFee: input.damageFee,
+      severity,
+      description: input.description.trim(),
+      photosCount: photos.length,
+      staffId: staffUser._id.toString(),
+    },
+    ipAddress: '127.0.0.1',
+    userAgent: 'Motorent-CounterDesk/1.0',
+  });
+
+  emitBookingStatus(booking);
   const populated = await populateBookingDetails(booking._id);
   return populated || booking;
 };

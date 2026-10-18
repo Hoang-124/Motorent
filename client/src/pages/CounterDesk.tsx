@@ -153,6 +153,14 @@ export const CounterDesk: React.FC = () => {
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
 
+  // Damage Record modal states (UC-58)
+  const [showDamageModal, setShowDamageModal] = useState<boolean>(false);
+  const [damageDesc, setDamageDesc] = useState<string>('');
+  const [damageAmount, setDamageAmount] = useState<number>(0);
+  const [damageSeverity, setDamageSeverity] = useState<'Minor' | 'Moderate' | 'Severe'>('Minor');
+  const [damagePhotoUrl, setDamagePhotoUrl] = useState<string>('');
+  const [damageSubmitting, setDamageSubmitting] = useState<boolean>(false);
+
   const fetchBookings = async () => {
     setLoading(true);
 
@@ -648,6 +656,47 @@ export const CounterDesk: React.FC = () => {
       }
     } finally {
       setCounterPaySubmitting(false);
+    }
+  };
+
+  const handleRecordDamageSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedBooking) return;
+    if (!damageDesc.trim()) {
+      setStatusMessage({ type: 'error', text: 'Vui lòng nhập mô tả chi tiết hư hại, trầy xước.' });
+      return;
+    }
+    setDamageSubmitting(true);
+    setStatusMessage(null);
+    try {
+      const res = await api.post(`/bookings/${selectedBooking._id}/damage`, {
+        description: damageDesc.trim(),
+        damageFee: damageAmount,
+        severity: damageSeverity,
+        photos: damagePhotoUrl.trim() ? [damagePhotoUrl.trim()] : [],
+      });
+      if (res.data?.success && res.data?.data) {
+        const updated = res.data.data;
+        setStatusMessage({
+          type: 'success',
+          text: `Ghi nhận hư hỏng thành công cho đơn ${selectedBooking.bookingCode}! Phí bồi thường: ${damageAmount.toLocaleString('vi-VN')} đ.`,
+        });
+        handleSelectBooking(updated);
+        setShowDamageModal(false);
+        setDamageDesc('');
+        setDamageAmount(0);
+        setDamagePhotoUrl('');
+        fetchBookings();
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setStatusMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Không thể ghi nhận hư hỏng.',
+        });
+      }
+    } finally {
+      setDamageSubmitting(false);
     }
   };
 
@@ -1531,40 +1580,77 @@ export const CounterDesk: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Damage & Additional fee input */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
+                    {/* Damage & Additional fee input (UC-58) */}
+                    <div className="p-4 rounded-xl border border-white/10 bg-[#101010] space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-white flex items-center">
                           <DollarSign className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                          Phụ phí phát sinh (xăng / trầy xước)
+                          Hư hại & Phụ phí phát sinh
                         </label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="10000"
-                          value={damageFee}
-                          onChange={(e) => setDamageFee(Number(e.target.value))}
-                          disabled={selectedBooking.status !== 'Ongoing'}
-                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                        />
-                        <p className="text-[10px] text-[#A0A0A0] mt-1">0 đ nếu phương tiện nguyên vẹn</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDamageDesc('');
+                            setDamageAmount(damageFee || 0);
+                            setDamagePhotoUrl('');
+                            setShowDamageModal(true);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-[#FF8080]/10 hover:bg-[#FF8080]/20 border border-[#FF8080]/30 text-[11px] font-bold text-[#FF8080] transition-all flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          <span>Lập biên bản sự cố / Hư hại (UC-58)</span>
+                        </button>
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                          <Clock className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                          Ghi chú tình trạng xe lúc thu hồi
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="VD: Xe nguyên vẹn, đầy bình xăng..."
-                          value={returnNotes}
-                          onChange={(e) => setReturnNotes(e.target.value)}
-                          disabled={selectedBooking.status !== 'Ongoing'}
-                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-[#6E6E6E] disabled:opacity-50"
-                        />
-                        <p className="text-[10px] text-[#A0A0A0] mt-1">Ghi chú lưu biên bản tất toán</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-medium text-[#A0A0A0] mb-1">
+                            Tổng phụ phí bồi thường (VNĐ)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="10000"
+                            value={damageFee}
+                            onChange={(e) => setDamageFee(Number(e.target.value))}
+                            disabled={selectedBooking.status !== 'Ongoing'}
+                            className="w-full bg-[#161616] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                          />
+                          <p className="text-[10px] text-[#A0A0A0] mt-1">0 đ nếu phương tiện nguyên vẹn</p>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-medium text-[#A0A0A0] mb-1">
+                            Ghi chú tình trạng xe lúc thu hồi
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="VD: Xe nguyên vẹn, đầy bình xăng..."
+                            value={returnNotes}
+                            onChange={(e) => setReturnNotes(e.target.value)}
+                            disabled={selectedBooking.status !== 'Ongoing'}
+                            className="w-full bg-[#161616] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-[#6E6E6E] disabled:opacity-50"
+                          />
+                          <p className="text-[10px] text-[#A0A0A0] mt-1">Ghi chú lưu biên bản tất toán</p>
+                        </div>
                       </div>
+
+                      {/* Display recorded damage history if any */}
+                      {selectedBooking.damageRecords && selectedBooking.damageRecords.length > 0 && (
+                        <div className="pt-2 border-t border-white/5 space-y-1.5">
+                          <span className="text-[10px] uppercase font-bold text-[#FF8080] tracking-wider">
+                            Lịch sử biên bản sự cố đã lập:
+                          </span>
+                          <div className="space-y-1">
+                            {selectedBooking.damageRecords.map((rec, idx) => (
+                              <div key={idx} className="p-2 rounded-lg bg-black/40 border border-white/5 text-[11px] flex items-center justify-between">
+                                <span className="text-[#F5F5F5]">{rec.description}</span>
+                                <span className="font-bold text-[#FF8080]">+{rec.damageFee.toLocaleString('vi-VN')} đ</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Settlement Summary Box */}
@@ -2104,6 +2190,138 @@ export const CounterDesk: React.FC = () => {
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Xác nhận đã thu tiền</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        {/* Modal Record Damage (UC-58) */}
+        {showDamageModal && selectedBooking && (
+          <div
+            onClick={() => setShowDamageModal(false)}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#161616] border border-white/15 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
+            >
+              <div className="p-5 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center space-x-2.5">
+                  <div className="p-2 bg-[#FF8080]/10 text-[#FF8080] rounded-xl border border-[#FF8080]/20">
+                    <AlertCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-white">Lập biên bản sự cố / Hư hại xe (UC-58)</h3>
+                    <p className="text-[11px] text-[#A0A0A0]">Đơn đặt xe #{selectedBooking.bookingCode}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowDamageModal(false)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleRecordDamageSubmit} className="p-5 space-y-4">
+                {/* Description */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Mô tả chi tiết sự cố / Hư hại phương tiện <span className="text-[#FF8080]">*</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    required
+                    placeholder="VD: Trầy xước cánh yếm bên phải, gãy gương chiếu hậu trái, móp đuôi xe..."
+                    value={damageDesc}
+                    onChange={(e) => setDamageDesc(e.target.value)}
+                    className="w-full p-3 bg-[#101010] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+                  />
+                </div>
+
+                {/* Damage Fee */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Chi phí bồi thường hư hại (VNĐ) <span className="text-[#FF8080]">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="10000"
+                    value={damageAmount}
+                    onChange={(e) => setDamageAmount(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-[#101010] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-[#FFC799]"
+                    required
+                  />
+                </div>
+
+                {/* Severity */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Mức độ nghiêm trọng
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: 'Minor' as const, label: 'Nhẹ (Vết xước)' },
+                      { key: 'Moderate' as const, label: 'Vừa (Cần sửa)' },
+                      { key: 'Severe' as const, label: 'Nặng (Bảo dưỡng)' },
+                    ].map((sev) => (
+                      <button
+                        key={sev.key}
+                        type="button"
+                        onClick={() => setDamageSeverity(sev.key)}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all ${
+                          damageSeverity === sev.key
+                            ? 'bg-[#FF8080]/15 border-[#FF8080] text-[#FF8080]'
+                            : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:text-white'
+                        }`}
+                      >
+                        {sev.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Photo URL */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
+                    Hình ảnh hiện trường / Vết hỏng (URL ảnh)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="https://... ảnh hiện trường sự cố"
+                    value={damagePhotoUrl}
+                    onChange={(e) => setDamagePhotoUrl(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="pt-2 flex items-center justify-end space-x-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowDamageModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10 cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={damageSubmitting}
+                    className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FF8080] hover:bg-[#FF9999] text-[#101010] transition-colors flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    {damageSubmitting ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Đang lưu...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Lưu biên bản sự cố</span>
                       </>
                     )}
                   </button>

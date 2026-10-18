@@ -267,3 +267,34 @@ export const counterPay = async (
   }
 };
 
+const recordDamageSchema = z.object({
+  description: z.string().min(1, 'Vui lòng nhập mô tả chi tiết hư hại'),
+  damageFee: z.coerce.number().min(0, 'Chi phí bồi thường hư hại không thể là số âm'),
+  photos: z.array(z.string()).optional(),
+  severity: z.enum(['Minor', 'Moderate', 'Severe']).optional(),
+  partsReplaced: z.array(z.string()).optional(),
+});
+
+export const recordDamage = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập nhân sự.');
+    }
+
+    const data = recordDamageSchema.parse(req.body);
+    const updated = await bookingService.recordBookingDamage(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: 'Ghi nhận hư hỏng phương tiện và cập nhật chi phí bồi thường thành công!',
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
