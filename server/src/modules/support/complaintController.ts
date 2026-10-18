@@ -113,3 +113,157 @@ export const submitComplaint = async (
  * Backward compatibility alias for submitComplaint
  */
 export const createComplaint = submitComplaint;
+
+/**
+ * GET /staff/complaints/:id and /manager/complaints/:id
+ * Staff / Manager views detailed complaint with timeline
+ */
+export const getStaffOrManagerComplaintDetail = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const detail = await complaintService.getComplaintDetailsForStaffOrManager(
+      req.params.id,
+      req.user
+    );
+
+    res.json({
+      success: true,
+      data: detail,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /staff/complaints/:id/response
+ * Add a message response to complaint
+ */
+export const addComplaintResponse = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const { message } = req.body;
+    const responseDoc = await complaintService.addComplaintResponse(
+      req.params.id,
+      message,
+      req.user
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Gửi phản hồi khiếu nại thành công.',
+      data: responseDoc,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addStaffComplaintResponse = addComplaintResponse;
+
+/**
+ * UC-65: GET /staff/complaints?status&category&q&page&limit
+ * Staff and Manager retrieve complaints queue
+ */
+export const getStaffComplaints = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const result = await complaintService.getStaffComplaints(req.query);
+
+    res.json({
+      success: true,
+      count: result.items.length,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      data: result.items,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * UC-65: GET /staff/complaints/:id
+ * Staff and Manager retrieve detailed complaint with timeline and allowedTransitions
+ */
+export const getStaffComplaintById = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const complaint = await complaintService.getStaffComplaintById(
+      req.params.id,
+      req.user
+    );
+
+    res.json({
+      success: true,
+      data: complaint,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * UC-65: PATCH /staff/complaints/:id/status
+ * Body: { toStatus, note }
+ * Update complaint status using state machine with race condition protection
+ */
+export const updateComplaintStatus = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const { toStatus, note } = req.body;
+    const result = await complaintService.updateComplaintStatus(
+      req.params.id,
+      req.user,
+      toStatus,
+      note
+    );
+
+    res.json({
+      success: true,
+      message: `Đã cập nhật trạng thái khiếu nại sang ${toStatus}.`,
+      data: result.complaint,
+      statusLog: result.statusLog,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

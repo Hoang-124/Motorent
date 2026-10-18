@@ -1,6 +1,8 @@
 import { api } from './api';
 import type {
   Complaint,
+  StaffComplaint,
+  StaffComplaintQueueResponse,
 } from '../types';
 
 export interface ComplaintCategoryItem {
@@ -57,3 +59,59 @@ export const submitComplaint = async (
   });
   return response.data;
 };
+
+// ==========================================
+// UC-65: Staff Complaints API
+// ==========================================
+
+export interface GetStaffComplaintsParams {
+  status?: string;
+  category?: string;
+  q?: string;
+  page?: number;
+  limit?: number;
+}
+
+/**
+ * UC-65: Fetch staff complaints queue
+ */
+export const getStaffComplaints = async (
+  params?: GetStaffComplaintsParams
+): Promise<StaffComplaintQueueResponse> => {
+  const response = await api.get('/staff/complaints', { params });
+  return response.data;
+};
+
+/**
+ * UC-65: Fetch full complaint details for Staff / Manager with timeline and allowedTransitions
+ */
+export const getStaffComplaintById = async (
+  id: string
+): Promise<{ success: boolean; data: StaffComplaint }> => {
+  const response = await api.get(`/staff/complaints/${id}`);
+  return response.data;
+};
+
+/**
+ * UC-65: Staff sends response message
+ */
+export const addStaffComplaintResponse = async (
+  id: string,
+  message: string
+): Promise<{ success: boolean; message: string; data: unknown }> => {
+  const response = await api.post(`/staff/complaints/${id}/responses`, { message });
+  return response.data;
+};
+
+/**
+ * UC-65: Update complaint status using state machine
+ */
+export const updateComplaintStatus = async (
+  id: string,
+  toStatus: string,
+  note?: string
+): Promise<{ success: boolean; message: string; data: StaffComplaint }> => {
+  const response = await api.patch(`/staff/complaints/${id}/status`, { toStatus, note });
+  return response.data;
+};
+

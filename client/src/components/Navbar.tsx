@@ -25,7 +25,8 @@ import {
   Tag,
   Bell,
   MessageSquare,
-  CheckCheck
+  CheckCheck,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
@@ -732,6 +733,14 @@ export const Navbar: React.FC = () => {
                               {chatUnread} mới
                             </span>
                           )}
+                        </Link>
+                        <Link
+                          to="/counter?mode=complaints"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                          <span>Xử lý Khiếu nại (UC-65)</span>
                         </Link>
                         <Link
                           to="/audit"

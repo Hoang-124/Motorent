@@ -21,4 +21,22 @@ router.post(
 );
 
 export const complaintRouter = router;
+
+/**
+ * Staff Complaints Router: /staff/complaints (UC-65)
+ * Role: Staff, BranchManager, SystemAdmin
+ */
+export const staffComplaintRouter = Router();
+
+staffComplaintRouter.use(
+  authenticateJWT,
+  authorize('Staff', 'BranchManager', 'SystemAdmin')
+);
+
+staffComplaintRouter.get('/', complaintController.getStaffComplaints);
+staffComplaintRouter.get('/:id', complaintController.getStaffComplaintById);
+staffComplaintRouter.post('/:id/responses', complaintController.addStaffComplaintResponse);
+staffComplaintRouter.post('/:id/response', complaintController.addStaffComplaintResponse);
+staffComplaintRouter.patch('/:id/status', complaintController.updateComplaintStatus);
+
 export default router;
