@@ -267,3 +267,56 @@ export const counterPay = async (
   }
 };
 
+const checkAvailabilitySchema = z.object({
+  vehicleId: z.string().min(1, 'Thiếu ID phương tiện'),
+  pickupDateTime: z.string().min(1, 'Thiếu thời gian nhận xe'),
+  returnDateTime: z.string().min(1, 'Thiếu thời gian trả xe'),
+  excludeBookingId: z.string().optional(),
+});
+
+export const checkAvailability = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const data = checkAvailabilitySchema.parse(req.body);
+    const pickupDate = new Date(data.pickupDateTime);
+    const returnDate = new Date(data.returnDateTime);
+
+    if (isNaN(pickupDate.getTime()) || isNaN(returnDate.getTime())) {
+      throw new AppError(400, 'Thời gian nhận hoặc trả xe không hợp lệ.');
+    }
+
+    if (pickupDate >= returnDate) {
+      throw new AppError(400, 'Thời gian trả xe phải sau thời gian nhận xe ít nhất 2 giờ.');
+    }
+
+    const result = await bookingService.checkVehicleAvailability(
+      data.vehicleId,
+      pickupDate,
+      returnDate,
+      data.excludeBookingId
+    );
+
+    if (!result.available) {
+      res.status(409).json({
+        success: false,
+        available: false,
+        message: 'Phương tiện này đã có lịch đặt hoặc đang được sử dụng trong khung giờ bạn chọn.',
+        conflictingBookingCode: result.conflictingBooking?.bookingCode,
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      available: true,
+      message: 'Phương tiện sẵn sàng cho thuê trong khung giờ đã chọn.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

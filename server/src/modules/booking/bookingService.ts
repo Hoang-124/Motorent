@@ -120,6 +120,41 @@ const getVnHm = (d: Date): string => {
 };
 
 /**
+ * Availability Checker: Checks if a vehicle has overlapping active bookings (Rule BR-02)
+ * Formula: NOT (newPickup < existingReturn AND newReturn > existingPickup)
+ * Active blocking statuses: ['Pending', 'Approved', 'Confirmed', 'Ongoing']
+ */
+export const checkVehicleAvailability = async (
+  vehicleId: string | mongoose.Types.ObjectId,
+  pickupDateTime: Date,
+  returnDateTime: Date,
+  excludeBookingId?: string | mongoose.Types.ObjectId,
+  session?: mongoose.ClientSession | null
+): Promise<{ available: boolean; conflictingBooking?: IBooking | null }> => {
+  const query: mongoose.FilterQuery<IBooking> = {
+    vehicleId,
+    status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+    pickupDateTime: { $lt: returnDateTime },
+    returnDateTime: { $gt: pickupDateTime },
+  };
+
+  if (excludeBookingId) {
+    query._id = { $ne: excludeBookingId };
+  }
+
+  const findQuery = Booking.findOne(query);
+  if (session) {
+    findQuery.session(session);
+  }
+
+  const conflictingBooking = await findQuery;
+  return {
+    available: !conflictingBooking,
+    conflictingBooking,
+  };
+};
+
+/**
  * Create a new booking with date validation, concurrency lock, and server-side pricing
  */
 export const createBooking = async (
@@ -237,22 +272,17 @@ export const createBooking = async (
       await Notification.deleteMany({ relatedId: draft._id.toString() }).catch(() => {});
     }
 
-    // Atomic conflict check: Find any conflicting confirmed/ongoing booking or active 30-min Cash hold for the same vehicle
-    const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
-    const conflictingBooking = await Booking.findOne({
-      vehicleId: vehicle._id,
-      $or: [
-        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
-        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
-      ],
-      pickupDateTime: { $lt: returnDate },
-      returnDateTime: { $gt: pickupDate },
-    });
+    // Atomic conflict check via Availability Checker (Rule BR-02)
+    const { available, conflictingBooking } = await checkVehicleAvailability(
+      vehicle._id,
+      pickupDate,
+      returnDate
+    );
 
-    if (conflictingBooking) {
+    if (!available) {
       throw new AppError(
         409,
-        'Phương tiện này đã có lịch đặt hoặc đang được sử dụng trong khung giờ bạn chọn. Vui lòng chọn khung giờ khác hoặc xe khác.'
+        `Phương tiện này đã có lịch đặt hoặc đang được sử dụng trong khung giờ bạn chọn (Đơn ${conflictingBooking?.bookingCode || ''}). Vui lòng chọn khung giờ khác hoặc xe khác.`
       );
     }
 
