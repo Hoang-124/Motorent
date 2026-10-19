@@ -72,6 +72,15 @@ router.put(
   bookingController.counterPay
 );
 
+// UC-58: Record vehicle damage and assessment fee
+router.post(
+  '/:id/damage',
+  authenticateJWT,
+  authorize('Staff', 'BranchManager', 'SystemAdmin'),
+  auditLogger('RECORD_DAMAGE_BOOKING', 'Booking'),
+  bookingController.recordDamage
+);
+
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 

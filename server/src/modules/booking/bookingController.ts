@@ -28,7 +28,6 @@ const checkinSchema = z.object({
   startFuelLevel: z.union([z.string(), z.number()]).optional().transform((v) => v !== undefined ? String(v) : undefined),
   checkinImages: z.array(z.string()).optional(),
   eSignatureUrl: z.string().optional(),
-  checklist: z.record(z.string(), z.boolean()).optional(),
 });
 
 const checkoutSchema = z.object({
@@ -95,21 +94,11 @@ export const getMyBookings = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const { status, page, limit, search } = req.query;
-
-    const result = await bookingService.getMyBookings(req.user._id.toString(), {
-      status: typeof status === 'string' ? status : undefined,
-      page: page ? Number(page) : 1,
-      limit: limit ? Number(limit) : 10,
-      search: typeof search === 'string' ? search : undefined,
-    });
-
+    const bookings = await bookingService.getMyBookings(req.user._id.toString());
     res.json({
       success: true,
-      count: result.bookings.length,
-      data: result.bookings,
-      pagination: result.pagination,
-      counts: result.counts,
+      count: bookings.length,
+      data: bookings,
     });
   } catch (error) {
     next(error);
@@ -126,33 +115,13 @@ export const getBranchBookings = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-    const queue = typeof req.query.queue === 'string' ? (req.query.queue as 'all' | 'today') : undefined;
-    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-    const branchId = typeof req.query.branchId === 'string' ? req.query.branchId : undefined;
-    const page = req.query.page ? parseInt(String(req.query.page), 10) : 1;
-    const limit = req.query.limit ? parseInt(String(req.query.limit), 10) : 50;
-
-    const result = await bookingService.getBranchBookings(req.user, {
-      status,
-      queue,
-      search,
-      branchId,
-      page,
-      limit,
-    });
+    const statusFilter = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const bookings = await bookingService.getBranchBookings(req.user, statusFilter);
 
     res.json({
       success: true,
-      count: result.bookings.length,
-      data: result.bookings,
-      meta: {
-        total: result.total,
-        page: result.page,
-        limit: result.limit,
-        totalPages: result.totalPages,
-        counts: result.counts,
-      },
+      count: bookings.length,
+      data: bookings,
     });
   } catch (error) {
     next(error);
@@ -298,54 +267,34 @@ export const counterPay = async (
   }
 };
 
-const extendSchema = z.object({
-  newReturnDateTime: z.string().min(1, 'Vui lòng chọn thời gian trả xe mới.'),
+const recordDamageSchema = z.object({
+  description: z.string().min(1, 'Vui lòng nhập mô tả chi tiết hư hại'),
+  damageFee: z.coerce.number().min(0, 'Chi phí bồi thường hư hại không thể là số âm'),
+  photos: z.array(z.string()).optional(),
+  severity: z.enum(['Minor', 'Moderate', 'Severe']).optional(),
+  partsReplaced: z.array(z.string()).optional(),
 });
 
-export const estimateExtension = async (
+export const recordDamage = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new AppError(401, 'Yêu cầu đăng nhập.');
+      throw new AppError(401, 'Yêu cầu đăng nhập nhân sự.');
     }
 
-    const data = extendSchema.parse(req.body);
-    const estimate = await bookingService.estimateBookingExtension(req.params.id, req.user, data);
+    const data = recordDamageSchema.parse(req.body);
+    const updated = await bookingService.recordBookingDamage(req.params.id, req.user, data);
 
     res.json({
       success: true,
-      message: 'Ước tính chi phí gia hạn thành công.',
-      data: estimate,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const extend = async (
-  req: AuthenticatedRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    if (!req.user) {
-      throw new AppError(401, 'Yêu cầu đăng nhập.');
-    }
-
-    const data = extendSchema.parse(req.body);
-    const updated = await bookingService.extendBooking(req.params.id, req.user, data);
-
-    res.json({
-      success: true,
-      message: 'Gia hạn thời gian thuê xe thành công!',
+      message: 'Ghi nhận hư hỏng phương tiện và cập nhật chi phí bồi thường thành công!',
       data: updated,
     });
   } catch (error) {
     next(error);
   }
 };
-
 
