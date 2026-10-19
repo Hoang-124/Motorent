@@ -25,7 +25,9 @@ import {
   AlertTriangle,
   ChevronDown,
   QrCode,
-  CreditCard
+  CreditCard,
+  FileText,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -53,6 +55,30 @@ export const ProfilePage: React.FC = () => {
   const [cancelReasonInput, setCancelReasonInput] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+
+  const handleDownloadInvoice = async (bookingId: string, bookingCode: string) => {
+    setDownloadingInvoiceId(bookingId);
+    try {
+      const res = await api.get(`/bookings/${bookingId}/invoice`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `MOTORENT-INVOICE-${bookingCode}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      console.error('Invoice download error:', err);
+      alert('Không thể tải hóa đơn. Vui lòng thử lại sau.');
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
 
   // Interactive QR Payment Modal for Pending Bookings
   const [selectedBookingForQrPay, setSelectedBookingForQrPay] = useState<Booking | null>(null);
@@ -1132,6 +1158,27 @@ export const ProfilePage: React.FC = () => {
                                 Hủy đơn
                               </button>
                             )}
+
+                            {/* UC-38: Tải hóa đơn điện tử PDF */}
+                            <button
+                              type="button"
+                              disabled={downloadingInvoiceId === b._id}
+                              onClick={() => handleDownloadInvoice(b._id, b.bookingCode)}
+                              className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#99FFE4]/40 text-[#A0A0A0] hover:text-[#99FFE4] text-xs font-medium transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                              title="Tải hóa đơn điện tử & Biên lai thanh toán PDF (UC-38)"
+                            >
+                              {downloadingInvoiceId === b._id ? (
+                                <>
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Đang xuất PDF...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <FileText className="w-3.5 h-3.5" />
+                                  <span>Hóa đơn PDF</span>
+                                </>
+                              )}
+                            </button>
 
                             {v &&
                               ['Completed', 'Cancelled', 'Rejected'].includes(b.status) &&

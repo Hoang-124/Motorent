@@ -83,4 +83,7 @@ router.put(
   bookingController.cancel
 );
 
+// UC-38: Download PDF invoice
+router.get('/:id/invoice', authenticateJWT, bookingController.downloadInvoice);
+
 export default router;
