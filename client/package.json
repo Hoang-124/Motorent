@@ -11,6 +11,9 @@
     "test": "echo \"Client check passed\""
   },
   "dependencies": {
+    "@tiptap/extension-link": "^3.32.0",
+    "@tiptap/react": "^3.32.0",
+    "@tiptap/starter-kit": "^3.32.0",
     "axios": "^1.7.9",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",

@@ -153,9 +153,13 @@ const inferEntityAndAction = (method: string, path: string): { entity: string; a
     chat: 'Conversation',
     finance: 'Finance',
     audit: 'AuditLog',
+    pages: 'StaticPage',
   };
 
-  const entity = entityMap[rootSegment] || 'System';
+  const isPagePath = cleanPath.includes('pages');
+  const entity = isPagePath
+    ? 'StaticPage'
+    : entityMap[rootSegment] || 'System';
   const upperMethod = method.toUpperCase();
 
   // Specific semantic action mappings

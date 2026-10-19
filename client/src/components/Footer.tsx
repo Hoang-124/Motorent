@@ -131,21 +131,35 @@ export const Footer: React.FC = () => {
             {/* Column 3: Service Principles (3 cols) */}
             <div className="lg:col-span-3">
               <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
-                Chuẩn mực phục vụ
+                Chuẩn mực phục vụ &amp; Chính sách
               </h4>
               <ul className="space-y-2.5 text-xs">
                 <li>
-                  <button
-                    onClick={() => setIsFaqOpen(true)}
-                    className="w-full text-left inline-flex items-center space-x-1.5 text-[#F5F5F5] hover:text-[#FFC799] font-medium transition-colors cursor-pointer"
+                  <Link
+                    to="/faq"
+                    className="w-full text-left inline-flex items-center space-x-1.5 text-[#F5F5F5] hover:text-[#FFC799] font-medium transition-colors"
                   >
-                    <span>Giải đáp thủ tục &amp; Chính sách (FAQ)</span>
+                    <span>Giải đáp thủ tục &amp; Câu hỏi thường gặp (FAQ)</span>
                     <ArrowUpRight className="w-3.5 h-3.5 text-[#FFC799]" />
-                  </button>
+                  </Link>
                 </li>
-                <li className="flex items-center space-x-2 text-[#A0A0A0]">
-                  <FileCheck2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                  <span>Đặt cọc 30% khóa đích danh biển số xe</span>
+                <li>
+                  <Link
+                    to="/terms"
+                    className="hover:text-[#F5F5F5] transition-colors flex items-center space-x-1.5"
+                  >
+                    <FileCheck2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                    <span>Điều khoản dịch vụ &amp; Hợp đồng điện tử</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/privacy"
+                    className="hover:text-[#F5F5F5] transition-colors flex items-center space-x-1.5"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                    <span>Chính sách bảo mật thông tin &amp; eKYC</span>
+                  </Link>
                 </li>
                 <li className="flex items-center space-x-2 text-[#A0A0A0]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
@@ -153,9 +167,6 @@ export const Footer: React.FC = () => {
                 </li>
                 <li className="text-[#A0A0A0]">
                   Trang bị tiêu chuẩn: 02 mũ 3/4 khử khuẩn UV &amp; 02 áo mưa
-                </li>
-                <li className="text-[#A0A0A0]">
-                  Miễn phí chuyển trạm một chiều Sân bay — Mỹ Khê
                 </li>
               </ul>
             </div>
@@ -195,10 +206,16 @@ export const Footer: React.FC = () => {
           {/* Bottom Colophon */}
           <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-[#6E6E6E] space-y-4 sm:space-y-0">
             <p>© 2026 Motorent Đà Nẵng. Chế tác dành riêng cho những hành trình tự lái tử tế.</p>
-            <div className="flex space-x-6 text-[11px]">
-              <button onClick={() => setIsFaqOpen(true)} className="hover:text-[#F5F5F5] transition-colors cursor-pointer">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px]">
+              <Link to="/faq" className="hover:text-[#F5F5F5] transition-colors">
                 Hỏi đáp FAQ
-              </button>
+              </Link>
+              <Link to="/terms" className="hover:text-[#F5F5F5] transition-colors">
+                Điều khoản dịch vụ
+              </Link>
+              <Link to="/privacy" className="hover:text-[#F5F5F5] transition-colors">
+                Chính sách bảo mật
+              </Link>
               <Link to="/branches" className="hover:text-[#F5F5F5] transition-colors">
                 Bản đồ trạm
               </Link>

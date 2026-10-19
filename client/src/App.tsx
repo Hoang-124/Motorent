@@ -19,7 +19,8 @@ import { BookingPage } from './pages/BookingPage';
 import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
-import { AdminBannersPage } from './pages/AdminBannersPage';
+import { AdminPagesPage } from './pages/AdminPagesPage';
+import { StaticPageView } from './pages/StaticPageView';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -76,15 +77,19 @@ export function App() {
               <Route path="/booking" element={<BookingPage />} />
               <Route path="/vnpay-return" element={<VnPayReturnPage />} />
 
-              {/* CMS Banners (UC-116) */}
+              {/* CMS Static Pages (UC-119) */}
               <Route
-                path="/admin/banners"
+                path="/admin/pages"
                 element={
                   <RequireRole roles={['SystemAdmin']}>
-                    <AdminBannersPage />
+                    <AdminPagesPage />
                   </RequireRole>
                 }
               />
+              <Route path="/faq" element={<StaticPageView />} />
+              <Route path="/terms" element={<StaticPageView />} />
+              <Route path="/privacy" element={<StaticPageView />} />
+              <Route path="/pages/:slug" element={<StaticPageView />} />
 
               {/* Fallback route */}
               <Route path="*" element={<RoleBasedHome />} />

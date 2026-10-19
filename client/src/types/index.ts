@@ -193,17 +193,22 @@ export interface AuditLogEntry {
   timestamp: string;
 }
 
-export interface Banner {
-  _id?: string;
-  id?: string;
+export type StaticPageType = 'FAQ' | 'Terms' | 'Privacy' | 'Other';
+
+export interface StaticPage {
+  _id: string;
   title: string;
-  subtitle?: string;
-  imageUrl: string;
-  linkUrl?: string | null;
-  order: number;
-  position?: number;
-  isActive: boolean;
-  deletedAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
+  slug: string;
+  content: string;
+  type: StaticPageType;
+  isPublished: boolean;
+  updatedBy?: {
+    _id: string;
+    username: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+  } | string;
+  createdAt: string;
+  updatedAt: string;
 }
