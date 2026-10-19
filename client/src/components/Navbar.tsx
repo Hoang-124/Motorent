@@ -26,7 +26,7 @@ import {
   Bell,
   MessageSquare,
   CheckCheck,
-  AlertCircle
+  Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
@@ -344,6 +344,11 @@ export const Navbar: React.FC = () => {
         ...(user?.roles === 'SystemAdmin'
           ? [
               {
+                name: 'Quản trị Admin',
+                path: '/admin',
+                icon: Building2,
+              },
+              {
                 name: 'Nhật ký Audit',
                 path: '/audit',
                 icon: ShieldCheck,
@@ -512,8 +517,8 @@ export const Navbar: React.FC = () => {
                 }`}
                 title={
                   isStaffOrAdmin
-                    ? 'Hộp thư Chat Khách hàng tại Chi nhánh (UC-66)'
-                    : 'Trò chuyện trực tuyến với Chi nhánh (UC-44)'
+                    ? 'Hộp thư Chat Khách hàng tại Chi nhánh'
+                    : 'Trò chuyện trực tuyến với Chi nhánh'
                 }
               >
                 <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${chatIsOpen ? 'text-[#101010]' : 'text-[#FFC799]'}`} />
@@ -726,7 +731,7 @@ export const Navbar: React.FC = () => {
                         >
                           <div className="flex items-center space-x-2.5">
                             <MessageSquare className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span>Tổng đài Live Chat (UC-66)</span>
+                            <span>Tổng đài Live Chat</span>
                           </div>
                           {chatUnread > 0 && (
                             <span className="px-1.5 py-0.5 rounded bg-[#FF8080] text-[#101010] font-mono text-[10px] font-bold">
@@ -735,20 +740,12 @@ export const Navbar: React.FC = () => {
                           )}
                         </Link>
                         <Link
-                          to={user?.roles === 'Staff' ? '/counter?mode=complaints' : '/manager/complaints'}
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>{user?.roles === 'Staff' ? 'Xử lý Khiếu nại (UC-65)' : 'Kết luận Khiếu nại (UC-85)'}</span>
-                        </Link>
-                        <Link
                           to="/audit"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
                         >
                           <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Nhật ký Bảo mật Audit (UC-102)</span>
+                          <span>Nhật ký Bảo mật Audit</span>
                         </Link>
 
                         <div className="border-t border-white/10 pt-1.5 space-y-1">

@@ -9,6 +9,7 @@ import systemRoutes from '../modules/system/systemRoutes';
 import auditRoutes from '../modules/audit/auditRoutes';
 import chatRoutes from '../modules/chat/chatRoutes';
 import financeRoutes from '../modules/finance/financeRoutes';
+import adminRoutes from '../modules/admin/adminRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
 import { adminPageRouter, publicPageRouter } from '../modules/cms/pageRoutes';
 import { autoCrudAuditMiddleware } from '../core/auditMiddleware';
@@ -26,6 +27,7 @@ router.use('/', systemRoutes);
 
 // Modular Monolith feature routes
 router.use('/auth', authRoutes);
+router.use('/admin', adminRoutes);
 router.use('/branches', branchRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/bookings', bookingRoutes);

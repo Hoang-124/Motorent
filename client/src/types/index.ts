@@ -9,8 +9,14 @@ export interface Branch {
   location_lat?: number;
   hours_open: string;
   hours_close: string;
+  managerId?: string | User;
   isActive: boolean;
   description?: string;
+  availableVehiclesCount?: number;
+  totalVehiclesCount?: number;
+  distanceKm?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Category {
