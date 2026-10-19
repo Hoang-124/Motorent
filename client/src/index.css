@@ -141,6 +141,49 @@
   animation: drawElevationLine 1.1s var(--ease-out-expo) both;
 }
 
+@keyframes shimmerSlide {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes pulseRingGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 199, 153, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 199, 153, 0);
+  }
+}
+
+@keyframes stepFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmerSlide 1.8s infinite linear;
+}
+
+.animate-pulse-ring {
+  animation: pulseRingGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-step-fade {
+  animation: stepFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Smooth Interactive Card & Button Physics */
 .smooth-card-hover {
   transition:
