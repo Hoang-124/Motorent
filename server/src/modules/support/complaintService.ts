@@ -23,359 +23,6 @@ export const VALID_COMPLAINT_STATUSES: readonly ComplaintStatus[] = [
   'Closed',
 ] as const;
 
-export const VALID_COMPLAINT_STATUSES: readonly ComplaintStatus[] = [
-  'Open',
-  'InProgress',
-  'Resolved',
-  'Closed',
-] as const;
-
-export interface GetMyComplaintsQuery {
-  status?: string;
-  page?: number | string;
-  limit?: number | string;
-}
-
-export interface TimelineActor {
-  name: string;
-  role: string;
-}
-
-export interface TimelineItem {
-  type: 'status' | 'response';
-  content: string;
-  createdAt: Date;
-  performedBy: TimelineActor;
-  user: TimelineActor;
-  status?: string;
-  previousStatus?: string | null;
-}
-
-export interface FormattedBookingSummary {
-  _id: string;
-  bookingCode: string;
-  vehicle: string;
-  pickupDateTime?: Date;
-  returnDateTime?: Date;
-}
-
-export interface FormattedComplaintDetail {
-  _id: string;
-  id: string;
-  code: string;
-  category: string;
-  title: string;
-  description: string;
-  attachments: string[];
-  status: ComplaintStatus;
-  booking: FormattedBookingSummary | null;
-  finalResolution?: string | null;
-  createdAt: Date;
-  closedAt: Date | null;
-  updatedAt: Date;
-  timeline: TimelineItem[];
-}
-
-/**
- * Format user display name without leaking employee PII
- */
-const formatDisplayName = (user?: IUser | Record<string, unknown> | null): string => {
-  if (!user) return 'Hệ thống';
-  const firstName = (user as { firstName?: string }).firstName || '';
-  const lastName = (user as { lastName?: string }).lastName || '';
-  const fullName = `${firstName} ${lastName}`.trim();
-  if (fullName) return fullName;
-  const username = (user as { username?: string }).username;
-  if (username) return username;
-  return 'Nhân viên hỗ trợ';
-};
-
-/**
- * Helper to build vehicle summary string from booking
- */
-const buildVehicleSummary = (vehicleObj: unknown): string => {
-  if (!vehicleObj || typeof vehicleObj !== 'object') return 'Chưa xác định';
-  const v = vehicleObj as { vehicleModel?: string; brand?: string; licensePlate?: string };
-  const model = v.vehicleModel || v.brand || 'Xe máy';
-  const plate = v.licensePlate ? ` (${v.licensePlate})` : '';
-  return `${model}${plate}`.trim();
-};
-
-/**
- * UC-43: List customer's own complaints
- * Rules:
- * - Only complaints with customerId = current user
- * - Filter status strictly by enum: Open | InProgress | Resolved | Closed (unknown -> 400)
- * - Sort: newest first (createdAt: -1)
- */
-export const getMyComplaints = async (
-  userId: string,
-  query: GetMyComplaintsQuery
-) => {
-  if (!userId || !mongoose.isValidObjectId(userId)) {
-    throw new AppError(401, 'Yêu cầu đăng nhập.');
-  }
-
-  // Validate status query if provided
-  if (query.status !== undefined && query.status !== null && String(query.status).trim() !== '') {
-    const rawStatus = String(query.status).trim();
-    if (!VALID_COMPLAINT_STATUSES.includes(rawStatus as ComplaintStatus)) {
-      throw new AppError(
-        400,
-        `Trạng thái khiếu nại không hợp lệ: "${rawStatus}". Các giá trị hợp lệ: Open, InProgress, Resolved, Closed.`
-      );
-    }
-  }
-
-  const page = Math.max(1, parseInt(String(query.page || '1'), 10) || 1);
-  const limit = Math.max(1, Math.min(100, parseInt(String(query.limit || '10'), 10) || 10));
-  const skip = (page - 1) * limit;
-
-  const filter: Record<string, unknown> = {
-    customerId: new mongoose.Types.ObjectId(userId),
-  };
-
-  if (query.status && String(query.status).trim() !== '') {
-    filter.status = String(query.status).trim();
-  }
-
-  const [rawComplaints, total] = await Promise.all([
-    Complaint.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate({
-        path: 'bookingId',
-        select: 'bookingCode vehicleId pickupDateTime returnDateTime',
-        populate: {
-          path: 'vehicleId',
-          select: 'vehicleModel licensePlate brand color',
-        },
-      })
-      .lean(),
-    Complaint.countDocuments(filter),
-  ]);
-
-  const items = rawComplaints.map((c: any) => {
-    let bookingSummary: FormattedBookingSummary | null = null;
-    if (c.bookingId && typeof c.bookingId === 'object') {
-      bookingSummary = {
-        _id: c.bookingId._id?.toString() || '',
-        bookingCode: c.bookingId.bookingCode || `MV-${c.bookingId._id?.toString().slice(-6).toUpperCase()}`,
-        vehicle: buildVehicleSummary(c.bookingId.vehicleId),
-        pickupDateTime: c.bookingId.pickupDateTime,
-        returnDateTime: c.bookingId.returnDateTime,
-      };
-    }
-
-    const isResolvedOrClosed = c.status === 'Resolved' || c.status === 'Closed';
-    const finalResolution = isResolvedOrClosed ? c.finalResolution || c.resolutionNotes || null : undefined;
-
-    return {
-      _id: c._id?.toString(),
-      id: c._id?.toString(),
-      code: c.code,
-      category: c.category,
-      title: c.title || '',
-      description: c.description,
-      attachments: c.attachments || [],
-      status: c.status,
-      booking: bookingSummary,
-      finalResolution,
-      createdAt: c.createdAt,
-      closedAt: c.closedAt || null,
-      updatedAt: c.updatedAt,
-    };
-  });
-
-  return {
-    items,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit) || 1,
-  };
-};
-
-/**
- * UC-43: Get detailed complaint information and sanitized timeline
- * Rules:
- * - Only complaint belonging to current user (other user's complaint -> 404, never 403)
- * - Summary booking (booking code, vehicle)
- * - finalResolution ONLY visible when Resolved or Closed (hidden otherwise)
- * - Timeline: merged ComplaintStatusLog + ComplaintResponse, sorted by createdAt ASC
- * - Timeline actors ONLY have display name + role. NO email, phone, or employee IDs.
- */
-export const getComplaintDetail = async (
-  userId: string,
-  complaintId: string
-): Promise<FormattedComplaintDetail> => {
-  if (!userId || !mongoose.isValidObjectId(userId)) {
-    throw new AppError(401, 'Yêu cầu đăng nhập.');
-  }
-
-  if (!complaintId || !mongoose.isValidObjectId(complaintId)) {
-    throw new AppError(404, 'Khiếu nại không tồn tại.');
-  }
-
-  const complaint: any = await Complaint.findById(complaintId)
-    .populate({
-      path: 'bookingId',
-      select: 'bookingCode vehicleId pickupDateTime returnDateTime',
-      populate: {
-        path: 'vehicleId',
-        select: 'vehicleModel licensePlate brand color',
-      },
-    })
-    .populate('customerId', 'firstName lastName username roles')
-    .lean();
-
-  if (!complaint) {
-    throw new AppError(404, 'Khiếu nại không tồn tại.');
-  }
-
-  // Security check: Only customer who filed the complaint can view it.
-  // Other customer's complaint MUST return 404 (do not use 403 to avoid leaking existence)
-  const complaintOwnerId =
-    typeof complaint.customerId === 'object' && complaint.customerId?._id
-      ? complaint.customerId._id.toString()
-      : complaint.customerId?.toString();
-
-  if (complaintOwnerId !== userId.toString()) {
-    throw new AppError(404, 'Khiếu nại không tồn tại.');
-  }
-
-  // Fetch status logs and responses concurrently
-  const [statusLogs, responses] = await Promise.all([
-    ComplaintStatusLog.find({ complaintId: complaint._id })
-      .populate('changedBy', 'firstName lastName roles username')
-      .lean(),
-    ComplaintResponse.find({ complaintId: complaint._id })
-      .populate('authorId', 'firstName lastName roles username')
-      .populate('respondedBy', 'firstName lastName roles username')
-      .lean(),
-  ]);
-
-  // Build merged timeline
-  const timeline: TimelineItem[] = [];
-
-  // Add status logs
-  for (const log of statusLogs as any[]) {
-    const rawUser = log.changedBy && typeof log.changedBy === 'object' ? log.changedBy : null;
-    const actorName = formatDisplayName(rawUser);
-    const actorRole = rawUser?.roles || log.changedByRole || 'Staff';
-
-    let content = log.note || '';
-    if (!content) {
-      if (log.fromStatus) {
-        content = `Trạng thái chuyển từ ${log.fromStatus} sang ${log.toStatus || log.newStatus}`;
-      } else {
-        content = `Tiếp nhận khiếu nại với trạng thái ${log.toStatus || log.newStatus || 'Open'}`;
-      }
-    }
-
-    timeline.push({
-      type: 'status',
-      status: log.toStatus || log.newStatus || 'Open',
-      previousStatus: log.fromStatus || log.previousStatus || null,
-      content,
-      createdAt: log.createdAt,
-      performedBy: {
-        name: actorName,
-        role: actorRole,
-      },
-      user: {
-        name: actorName,
-        role: actorRole,
-      },
-    });
-  }
-
-  // Add responses
-  for (const resp of responses as any[]) {
-    const rawUser =
-      (resp.authorId && typeof resp.authorId === 'object' ? resp.authorId : null) ||
-      (resp.respondedBy && typeof resp.respondedBy === 'object' ? resp.respondedBy : null);
-    const actorName = formatDisplayName(rawUser);
-    const actorRole = rawUser?.roles || resp.authorRole || 'Staff';
-
-    timeline.push({
-      type: 'response',
-      content: resp.message || resp.content || '',
-      createdAt: resp.createdAt,
-      performedBy: {
-        name: actorName,
-        role: actorRole,
-      },
-      user: {
-        name: actorName,
-        role: actorRole,
-      },
-    });
-  }
-
-  // If no Open status log was created, add initial creation event at complaint.createdAt
-  const hasOpenEvent = timeline.some((t) => t.type === 'status' && t.status === 'Open');
-  if (!hasOpenEvent) {
-    const customerUser = complaint.customerId;
-    const actorName = formatDisplayName(customerUser);
-    timeline.unshift({
-      type: 'status',
-      status: 'Open',
-      content: 'Khách hàng gửi khiếu nại lên hệ thống',
-      createdAt: complaint.createdAt,
-      performedBy: {
-        name: actorName,
-        role: 'Customer',
-      },
-      user: {
-        name: actorName,
-        role: 'Customer',
-      },
-    });
-  }
-
-  // Sort timeline chronologically (createdAt ASC)
-  timeline.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-  // Format booking summary
-  let bookingSummary: FormattedBookingSummary | null = null;
-  if (complaint.bookingId && typeof complaint.bookingId === 'object') {
-    bookingSummary = {
-      _id: complaint.bookingId._id?.toString() || '',
-      bookingCode:
-        complaint.bookingId.bookingCode ||
-        `MV-${complaint.bookingId._id?.toString().slice(-6).toUpperCase()}`,
-      vehicle: buildVehicleSummary(complaint.bookingId.vehicleId),
-      pickupDateTime: complaint.bookingId.pickupDateTime,
-      returnDateTime: complaint.bookingId.returnDateTime,
-    };
-  }
-
-  // Rule: finalResolution ONLY visible when Resolved or Closed
-  const isResolvedOrClosed = complaint.status === 'Resolved' || complaint.status === 'Closed';
-  const finalResolution = isResolvedOrClosed
-    ? complaint.finalResolution || complaint.resolutionNotes || null
-    : undefined;
-
-  return {
-    _id: complaint._id?.toString(),
-    id: complaint._id?.toString(),
-    code: complaint.code,
-    category: complaint.category,
-    title: complaint.title || '',
-    description: complaint.description,
-    attachments: complaint.attachments || [],
-    status: complaint.status,
-    booking: bookingSummary,
-    finalResolution,
-    createdAt: complaint.createdAt,
-    closedAt: complaint.closedAt || null,
-    updatedAt: complaint.updatedAt,
-    timeline,
-  };
-};
-
 export const VALID_COMPLAINT_CATEGORIES = [
   'Vehicle',
   'Service',
@@ -1433,12 +1080,6 @@ export const getPendingComplaintsForManager = async (
 /**
  * UC-85: POST /manager/complaints/:id/resolve
  * Manager provides final resolution
- * Rules:
- * - finalResolution is required, trimmed, 10-3000 chars -> 400
- * - complaint Open -> 409
- * - complaint Closed -> 409
- * - complaint InProgress -> Resolved (canTransition check, conditional update, log status change)
- * - complaint Resolved -> update finalResolution + resolvedBy (no status log)
  */
 export const resolveComplaintByManager = async (
   complaintId: string,
@@ -1470,7 +1111,6 @@ export const resolveComplaintByManager = async (
     throw new AppError(404, 'Không tìm thấy thông tin khiếu nại.');
   }
 
-  // Branch authorization check for BranchManager
   if (user.roles === 'BranchManager' && user.branchId && existing.branchId) {
     const userBranchStr = user.branchId.toString();
     const complaintBranchStr = existing.branchId.toString();
@@ -1479,7 +1119,6 @@ export const resolveComplaintByManager = async (
     }
   }
 
-  // Rule: Complaint Open -> 409 (phải qua bước xử lý của staff trước).
   if (existing.status === 'Open') {
     throw new AppError(
       409,
@@ -1487,7 +1126,6 @@ export const resolveComplaintByManager = async (
     );
   }
 
-  // Rule: Complaint Closed -> 409, finalResolution không được sửa nữa.
   if (existing.status === 'Closed') {
     throw new AppError(
       409,
@@ -1495,7 +1133,6 @@ export const resolveComplaintByManager = async (
     );
   }
 
-  // If complaint is InProgress -> transition to Resolved via canTransition & log status change
   if (existing.status === 'InProgress') {
     if (!canTransition('InProgress', 'Resolved', user.roles)) {
       throw new AppError(409, 'Không thể chuyển trạng thái khiếu nại từ InProgress sang Resolved.');
@@ -1524,7 +1161,6 @@ export const resolveComplaintByManager = async (
       throw new AppError(409, 'Xung đột trạng thái: Khiếu nại đã được cập nhật bởi phiên làm việc khác.');
     }
 
-    // Record status log: InProgress -> Resolved
     await ComplaintStatusLog.create({
       complaintId: updated._id,
       fromStatus: 'InProgress',
@@ -1538,7 +1174,6 @@ export const resolveComplaintByManager = async (
     return updated;
   }
 
-  // If complaint is already Resolved (staff or previous manager resolve)
   if (existing.status === 'Resolved') {
     const updated = await Complaint.findOneAndUpdate(
       { _id: complaintId, status: 'Resolved' },
@@ -1571,13 +1206,6 @@ export const resolveComplaintByManager = async (
 /**
  * UC-85: POST /manager/complaints/:id/close
  * Manager officially closes the complaint (terminal action)
- * Rules:
- * - only from Resolved -> Closed
- * - finalResolution must already exist, else 400
- * - InProgress -> 409
- * - Closed -> 409
- * - Open -> 409
- * - Set closedAt = now(), log status change
  */
 export const closeComplaintByManager = async (
   complaintId: string,
@@ -1596,7 +1224,6 @@ export const closeComplaintByManager = async (
     throw new AppError(404, 'Không tìm thấy thông tin khiếu nại.');
   }
 
-  // Branch authorization check for BranchManager
   if (user.roles === 'BranchManager' && user.branchId && existing.branchId) {
     const userBranchStr = user.branchId.toString();
     const complaintBranchStr = existing.branchId.toString();
@@ -1673,4 +1300,3 @@ export const closeComplaintByManager = async (
 
   return updated;
 };
-

@@ -1,6 +1,7 @@
 import { api } from './api';
 import type {
   Complaint,
+  ComplaintListResponse,
   StaffComplaint,
   StaffComplaintQueueResponse,
   ManagerPendingComplaintsResponse,
@@ -58,6 +59,32 @@ export const submitComplaint = async (
       'Content-Type': 'multipart/form-data',
     },
   });
+  return response.data;
+};
+
+// ==========================================
+// UC-43: Customer Complaint Tracking API
+// ==========================================
+
+/**
+ * UC-43: Fetch customer's complaints list
+ */
+export const getMyComplaints = async (params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+}): Promise<ComplaintListResponse> => {
+  const response = await api.get('/me/complaints', { params });
+  return response.data;
+};
+
+/**
+ * UC-43: Fetch detailed complaint info with timeline
+ */
+export const getComplaintDetail = async (
+  id: string
+): Promise<{ success: boolean; data: Complaint }> => {
+  const response = await api.get(`/me/complaints/${id}`);
   return response.data;
 };
 
@@ -165,5 +192,3 @@ export const getManagerComplaintById = async (
   const response = await api.get(`/manager/complaints/${id}`);
   return response.data;
 };
-
-

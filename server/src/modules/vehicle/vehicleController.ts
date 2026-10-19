@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
 import * as vehicleService from './vehicleService';
+import * as reviewService from '../review/reviewService';
+import { Review } from '../../models/Review';
+import { Feedback } from '../../models/Feedback';
 import { AppError } from '../../core/errorHandler';
 
 const createCategorySchema = z.object({
@@ -23,12 +26,33 @@ const createVehicleSchema = z.object({
   yearManufactured: z.coerce.number().int().min(1950).max(new Date().getFullYear() + 1).optional(),
   color: z.string().trim().max(80).optional(),
   odometer: z.coerce.number().finite().nonnegative().optional(),
-  images: z.array(z.string().url('Ảnh cần là một URL hợp lệ').regex(/^https?:\/\//i, 'Chỉ chấp nhận URL ảnh http/https')).max(10, 'Mỗi xe có tối đa 10 ảnh').optional(),
+  images: z
+    .array(
+      z
+        .string()
+        .url('Ảnh cần là một URL hợp lệ')
+        .regex(/^https?:\/\//i, 'Chỉ chấp nhận URL ảnh http/https')
+    )
+    .max(10, 'Mỗi xe có tối đa 10 ảnh')
+    .optional(),
 });
 
-const updateVehicleSchema = createVehicleSchema.omit({ licensePlate: true }).partial().extend({
-  status: z.enum(['Available', 'Rented', 'Maintenance', 'Transferring']).optional(),
-}).strict();
+const updateVehicleSchema = createVehicleSchema
+  .omit({ licensePlate: true })
+  .partial()
+  .extend({
+    status: z.enum(['Available', 'Rented', 'Maintenance', 'Transferring']).optional(),
+    requiresMaintenance: z.boolean().optional(),
+  })
+  .strict();
+
+const updateVehicleStatusSchema = z.object({
+  status: z.enum(['Available', 'Rented', 'Maintenance']),
+  reason: z.string().trim().optional(),
+  maintenanceType: z.enum(['Routine', 'Repair', 'Inspection']).optional(),
+  cost: z.coerce.number().nonnegative().optional(),
+  odometer: z.coerce.number().nonnegative().optional(),
+});
 
 const readQueryString = (value: unknown, label: string): string | undefined => {
   if (value === undefined) return undefined;
@@ -57,14 +81,6 @@ const readPrice = (value: unknown, label: string): number | undefined => {
   }
   return price;
 };
-
-const updateVehicleStatusSchema = z.object({
-  status: z.enum(['Available', 'Rented', 'Maintenance']),
-  reason: z.string().trim().optional(),
-  maintenanceType: z.enum(['Routine', 'Repair', 'Inspection']).optional(),
-  cost: z.coerce.number().nonnegative().optional(),
-  odometer: z.coerce.number().nonnegative().optional(),
-});
 
 export const getVehicles = async (
   req: Request,
@@ -149,13 +165,47 @@ export const getVehicleReviews = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    const vehicleId = req.params.id || req.params.vehicleId;
     const page = readPositiveInteger(req.query.page, 1);
     const limit = Math.min(readPositiveInteger(req.query.limit, 6), 50);
     if (!Number.isSafeInteger((page - 1) * limit)) {
       throw new AppError(400, 'Số trang vượt quá phạm vi cho phép.');
     }
-    const result = await vehicleService.getVehicleReviews(req.params.id, page, limit);
-    res.json({ success: true, data: result.reviews, pagination: result.pagination });
+
+    // Verify vehicle exists and is not deleted (throws 404 if not found/deleted)
+    const feedbackResult = await vehicleService.getVehicleReviews(vehicleId, page, limit);
+    const activeReviewCount = await Review.countDocuments({ vehicleId, deletedAt: null });
+    const publicFeedbackCount = await Feedback.countDocuments({
+      vehicleId,
+      isPublic: true,
+      isBlocked: false,
+    });
+
+    // If Feedback entries exist and no Review entries exist, return legacy/fleet Feedback array contract
+    if (activeReviewCount === 0 && publicFeedbackCount > 0) {
+      res.json({
+        success: true,
+        data: feedbackResult.reviews,
+        pagination: feedbackResult.pagination,
+      });
+      return;
+    }
+
+    // Otherwise return UC-39-41 Review contract (also includes top-level pagination for compatibility)
+    const reviewData = await reviewService.getVehicleReviews({
+      vehicleId,
+      page,
+      limit,
+    });
+
+    res.json({
+      success: true,
+      data: reviewData,
+      pagination: {
+        ...reviewData.pagination,
+        pages: reviewData.pagination.totalPages,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -247,15 +297,18 @@ export const updateVehicle = async (
       throw new AppError(400, 'Biển số xe là duy nhất và không được thay đổi sau khi tạo.');
     }
     const data = updateVehicleSchema.parse(req.body);
-    if (Object.keys(data).length === 0) throw new AppError(400, 'Chưa có thông tin cần cập nhật.');
+    if (Object.keys(data).length === 0) {
+      throw new AppError(400, 'Chưa có thông tin cần cập nhật.');
+    }
 
     // Check existing vehicle branch if user is BranchManager
     if (req.user?.roles === 'BranchManager') {
       const existing = await vehicleService.getVehicleById(req.params.id);
       const rawBranch = existing.branchId as unknown;
-      const vehicleBranch = rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
-        ? (rawBranch as { _id: { toString(): string } })._id.toString()
-        : String(rawBranch);
+      const vehicleBranch =
+        rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+          ? (rawBranch as { _id: { toString(): string } })._id.toString()
+          : String(rawBranch);
 
       if (!req.user.branchId || req.user.branchId.toString() !== vehicleBranch) {
         throw new AppError(403, 'Bạn chỉ có quyền cập nhật xe thuộc chi nhánh do bạn quản lý.');
@@ -276,16 +329,28 @@ export const updateVehicle = async (
   }
 };
 
-export const getManagedVehicles = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+export const getManagedVehicles = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
   try {
     if (!req.user) throw new AppError(401, 'Vui lòng đăng nhập.');
-    const branchId = req.user.roles === 'SystemAdmin'
-      ? readQueryString(req.query.branchId, 'Chi nhánh')
-      : req.user.branchId?.toString();
-    if (req.user.roles !== 'SystemAdmin' && !branchId) throw new AppError(403, 'Tài khoản chưa được phân công chi nhánh.');
-    const result = await vehicleService.getAllVehicles({ branchId, q: readQueryString(req.query.q, 'Từ khóa') });
+    const branchId =
+      req.user.roles === 'SystemAdmin'
+        ? readQueryString(req.query.branchId, 'Chi nhánh')
+        : req.user.branchId?.toString();
+    if (req.user.roles !== 'SystemAdmin' && !branchId) {
+      throw new AppError(403, 'Tài khoản chưa được phân công chi nhánh.');
+    }
+    const result = await vehicleService.getAllVehicles({
+      branchId,
+      q: readQueryString(req.query.q, 'Từ khóa'),
+    });
     res.json({ success: true, data: result.vehicles });
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  }
 };
 
 export const deleteVehicle = async (
@@ -297,9 +362,10 @@ export const deleteVehicle = async (
     if (req.user?.roles === 'BranchManager') {
       const existing = await vehicleService.getVehicleById(req.params.id);
       const rawBranch = existing.branchId as unknown;
-      const vehicleBranch = rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
-        ? (rawBranch as { _id: { toString(): string } })._id.toString()
-        : String(rawBranch);
+      const vehicleBranch =
+        rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+          ? (rawBranch as { _id: { toString(): string } })._id.toString()
+          : String(rawBranch);
 
       if (!req.user.branchId || req.user.branchId.toString() !== vehicleBranch) {
         throw new AppError(403, 'Bạn chỉ có quyền xóa xe thuộc chi nhánh do bạn quản lý.');
@@ -324,11 +390,7 @@ export const updateVehicleStatus = async (
 ): Promise<void> => {
   try {
     const data = updateVehicleStatusSchema.parse(req.body);
-    const vehicle = await vehicleService.updateVehicleStatus(
-      req.params.id,
-      data,
-      req.user
-    );
+    const vehicle = await vehicleService.updateVehicleStatus(req.params.id, data, req.user);
     res.json({
       success: true,
       message: `Cập nhật trạng thái xe thành "${vehicle.status}" thành công.`,
@@ -338,4 +400,3 @@ export const updateVehicleStatus = async (
     next(error);
   }
 };
-

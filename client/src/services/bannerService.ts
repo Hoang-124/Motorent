@@ -34,18 +34,48 @@ export const getPublicBanners = async (): Promise<Banner[]> => {
 };
 
 /**
- * UC-118: Soft delete banner by ID
+ * UC-117: Fetch single banner by ID for Admin edit form
  */
-export const deleteBanner = async (id: string): Promise<Banner> => {
-  const response = await api.delete(`/admin/banners/${id}`);
+export const getBannerById = async (id: string): Promise<Banner> => {
+  const response = await api.get(`/admin/banners/${id}`);
   return response.data.data;
 };
 
 /**
- * Quick toggle banner active status
+ * UC-117: Quick toggle banner active status
  */
 export const toggleBannerStatus = async (id: string, isActive: boolean): Promise<Banner> => {
   const response = await api.patch(`/admin/banners/${id}/status`, { isActive });
+  return response.data.data;
+};
+
+/**
+ * UC-117: Reorder banners atomically
+ */
+export const reorderBanners = async (
+  items: Array<{ id: string; order: number }>
+): Promise<Banner[]> => {
+  const response = await api.patch('/admin/banners/reorder', items);
+  return response.data.data;
+};
+
+/**
+ * UC-117: Update banner fields and/or replacement image (multipart)
+ */
+export const updateBanner = async (id: string, formData: FormData): Promise<Banner> => {
+  const response = await api.patch(`/admin/banners/${id}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data.data;
+};
+
+/**
+ * UC-118: Soft delete banner by ID
+ */
+export const deleteBanner = async (id: string): Promise<Banner> => {
+  const response = await api.delete(`/admin/banners/${id}`);
   return response.data.data;
 };
 

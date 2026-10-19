@@ -4,6 +4,8 @@ import {
   ArrowUp,
   ArrowDown,
   Edit3,
+  Trash2,
+  AlertTriangle,
   Plus,
   Check,
   X,
@@ -20,6 +22,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { deleteBanner } from '../services/bannerService';
 import type { Banner } from '../types';
 import { getBannerImageUrl } from '../utils/imageHelper';
 
@@ -44,8 +47,10 @@ export const AdminBannersPage: React.FC = () => {
 
   // Modal States
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [bannerToDelete, setBannerToDelete] = useState<Banner | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Edit Form Fields
@@ -251,7 +256,7 @@ export const AdminBannersPage: React.FC = () => {
   };
 
   // ==========================================
-  // Open Edit Modal & Prefill Data
+  // Open Edit Modal & Prefill Data (UC-117)
   // ==========================================
   const handleOpenEdit = (banner: Banner) => {
     setEditingBanner(banner);
@@ -353,6 +358,36 @@ export const AdminBannersPage: React.FC = () => {
       setFormError(errMsg);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // ==========================================
+  // UC-118: Execute Soft Delete Banner
+  // ==========================================
+  const handleConfirmDelete = async () => {
+    if (!bannerToDelete) return;
+    const bannerId = bannerToDelete._id || bannerToDelete.id;
+    if (!bannerId) return;
+
+    setIsDeleting(true);
+    try {
+      await deleteBanner(bannerId);
+      showToast(`Đã xóa banner "${bannerToDelete.title}" thành công.`);
+      setBannerToDelete(null);
+
+      // Rule: Nếu xóa hết bản ghi của trang hiện tại thì lùi về trang trước
+      if (banners.length === 1 && currentPage > 1) {
+        setCurrentPage((prev) => prev - 1);
+      } else {
+        await fetchBanners();
+      }
+    } catch (err: unknown) {
+      const errorMsg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Không thể xóa banner. Vui lòng thử lại sau.';
+      showToast(errorMsg, 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -493,13 +528,13 @@ export const AdminBannersPage: React.FC = () => {
             <SlidersHorizontal className="w-4 h-4" />
             <span>CMS Quản trị Hệ Thống</span>
             <span className="text-white/30">•</span>
-            <span>UC-116 & UC-117</span>
+            <span>UC-116, UC-117 &amp; UC-118</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center space-x-3">
             <span>Quản Lý Banner Trang Chủ</span>
           </h1>
           <p className="text-sm text-[#A0A0A0] mt-1 max-w-2xl">
-            Sửa mọi trường dữ liệu, đổi ảnh với cơ chế rollback an toàn, sắp xếp thứ tự hiển thị bằng kéo-thả
+            Thêm mới, chỉnh sửa, xóa mềm tự động chuẩn hóa thứ tự (1..n), sắp xếp hiển thị bằng kéo-thả
             hoặc nút lên/xuống, và bật/tắt nhanh trạng thái hiển thị trực tiếp trên danh sách.
           </p>
         </div>
@@ -673,7 +708,7 @@ export const AdminBannersPage: React.FC = () => {
                   <th className="py-3.5 px-4">Thông tin Banner</th>
                   <th className="py-3.5 px-4 w-40">Đường dẫn</th>
                   <th className="py-3.5 px-4 w-36 text-center">Trạng thái</th>
-                  <th className="py-3.5 px-4 w-44 text-right">Thao tác</th>
+                  <th className="py-3.5 px-4 w-48 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06]">
@@ -742,7 +777,6 @@ export const AdminBannersPage: React.FC = () => {
                             alt={banner.title}
                             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                             onError={(e) => {
-                              // Fallback on broken image
                               (e.target as HTMLImageElement).src =
                                 'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=600&q=80';
                             }}
@@ -796,7 +830,7 @@ export const AdminBannersPage: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Column 5: Interactive isActive Switch (Rule FE: Công tắc isActive ngay trên bảng) */}
+                      {/* Column 5: Interactive isActive Switch */}
                       <td className="py-3.5 px-4 text-center">
                         <div className="inline-flex flex-col items-center space-y-1">
                           <button
@@ -825,7 +859,7 @@ export const AdminBannersPage: React.FC = () => {
                         </div>
                       </td>
 
-                      {/* Column 6: Action Buttons (Edit & Delete - UC-118) */}
+                      {/* Column 6: Action Buttons (Edit UC-117 & Delete UC-118) */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="inline-flex items-center space-x-1.5 justify-end">
                           <button
@@ -836,9 +870,18 @@ export const AdminBannersPage: React.FC = () => {
                             <Edit3 className="w-3.5 h-3.5" />
                             <span>Sửa</span>
                           </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setBannerToDelete(banner)}
+                            title="Xóa banner"
+                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-semibold transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Xóa</span>
+                          </button>
                         </div>
                       </td>
-
                     </tr>
                   );
                 })}
@@ -901,7 +944,7 @@ export const AdminBannersPage: React.FC = () => {
       </div>
 
       {/* ==========================================
-          EDIT BANNER MODAL (Rule FE: Prefill dữ liệu, preview ảnh hiện tại, cho phép thay ảnh)
+          EDIT BANNER MODAL (UC-117)
           ========================================== */}
       {editingBanner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -940,7 +983,7 @@ export const AdminBannersPage: React.FC = () => {
               {/* Image Preview & Replacement Section */}
               <div className="space-y-2">
                 <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
-                  Hình ảnh Banner <span className="text-zinc-500 font-normal">(Ảnh hiện tại & thay thế)</span>
+                  Hình ảnh Banner <span className="text-zinc-500 font-normal">(Ảnh hiện tại &amp; thay thế)</span>
                 </label>
 
                 <div className="relative w-full h-44 sm:h-52 rounded-2xl overflow-hidden bg-black/60 border border-white/10 flex items-center justify-center group shadow-inner">
@@ -999,7 +1042,7 @@ export const AdminBannersPage: React.FC = () => {
                       }}
                       className="text-xs text-red-400 hover:underline cursor-pointer"
                     >
-                      Hủy ảnh mới & giữ ảnh cũ
+                      Hủy ảnh mới &amp; giữ ảnh cũ
                     </button>
                   )}
                 </div>
@@ -1332,10 +1375,97 @@ export const AdminBannersPage: React.FC = () => {
         </div>
       )}
 
-      {/* UC-118: Delete modal is in UC-118 */}
+      {/* ==========================================
+          DELETE CONFIRMATION MODAL (UC-118)
+          ========================================== */}
+      {bannerToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-[#181818] border border-red-500/30 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5">
+            {/* Modal Header */}
+            <div className="flex items-start space-x-4">
+              <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-white">Xác nhận xóa banner (UC-118)</h3>
+                <p className="text-xs text-[#A0A0A0]">
+                  Thao tác này sẽ gỡ bỏ banner khỏi giao diện trang chủ theo chính sách xóa mềm (soft delete).
+                </p>
+              </div>
+            </div>
+
+            {/* Banner Preview Card inside confirmation modal */}
+            <div className="bg-[#121212] border border-white/10 rounded-xl p-4 flex items-center space-x-4">
+              <div className="w-20 h-14 rounded-lg overflow-hidden border border-white/10 bg-[#202020] shrink-0">
+                <img
+                  src={getBannerImageUrl(bannerToDelete.imageUrl)}
+                  alt={bannerToDelete.title}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=600&q=80';
+                  }}
+                />
+              </div>
+              <div className="space-y-1 min-w-0 flex-1">
+                <p className="text-xs text-[#FFC799] font-mono font-bold">
+                  Thứ tự hiện tại: #{bannerToDelete.order}
+                </p>
+                <h4 className="text-sm font-bold text-white truncate">
+                  {bannerToDelete.title}
+                </h4>
+                {bannerToDelete.subtitle && (
+                  <p className="text-xs text-[#808080] truncate">{bannerToDelete.subtitle}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Business Rule Warning Note */}
+            <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-3 text-xs text-red-300 space-y-1">
+              <p className="font-semibold text-red-200">
+                Bạn có chắc chắn muốn xóa banner &ldquo;{bannerToDelete.title}&rdquo; không?
+              </p>
+              <p className="text-red-300/80 leading-relaxed">
+                Hệ thống sẽ cập nhật trạng thái xóa mềm (set <code className="text-white">deletedAt = now()</code>), giữ nguyên hình ảnh để phục vụ tra cứu sau này và tự động chuẩn hóa lại thứ tự (1..n) cho các banner còn lại.
+              </p>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setBannerToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2.5 rounded-xl border border-white/10 bg-[#222222] hover:bg-[#2c2c2c] text-white text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <X className="w-4 h-4" />
+                <span>Hủy bỏ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold flex items-center space-x-2 transition-all shadow-lg shadow-red-900/30 cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Đang xóa...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Xác nhận xóa</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
 
 export default AdminBannersPage;

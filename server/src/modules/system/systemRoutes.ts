@@ -93,6 +93,8 @@ const PERMISSION_METADATA: Record<Permission, { label: string; module: string; d
   BOOKING_CHECKOUT: { label: 'Thực hiện Check-out', module: 'Vận hành đơn hàng', description: 'Thu hồi xe, kiểm tra hư tổn, tính phụ phí và tất toán' },
   BOOKING_CANCEL: { label: 'Hủy đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Hủy đơn theo chính sách hủy hoàn BR-06' },
   BOOKING_COUNTER_PAY: { label: 'Thu tiền tại quầy', module: 'Vận hành đơn hàng', description: 'Ghi nhận thanh toán tiền mặt / POS tại quầy chi nhánh' },
+  BOOKING_APPROVE: { label: 'Phê duyệt đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Quản lý phê duyệt đơn đặt xe tại chi nhánh (UC-73)' },
+  BOOKING_REJECT: { label: 'Từ chối đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Quản lý từ chối đơn đặt xe kèm lý do và hoàn tiền 100% (UC-74)' },
 
   FINANCE_RECONCILE: { label: 'Đối soát tài chính trạm', module: 'Tài chính & Kế toán', description: 'Đối chiếu doanh thu tiền mặt, POS và ngân hàng theo ca' },
   FINANCE_TAX_REPORT: { label: 'Báo cáo thuế & Lợi nhuận', module: 'Tài chính & Kế toán', description: 'Xuất dữ liệu hóa đơn, thuế GTGT và tổng quan tài chính' },

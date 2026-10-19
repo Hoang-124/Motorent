@@ -10,7 +10,7 @@ const router = Router();
 // Categories endpoint (Accessible for dropdown)
 router.get('/categories', complaintController.getCategories);
 
-// Customer endpoints
+// Customer endpoints (UC-42, UC-43)
 router.post(
   '/',
   authenticateJWT,
@@ -25,6 +25,25 @@ router.get('/my', authenticateJWT, complaintController.getMyComplaints);
 router.get('/:id', authenticateJWT, complaintController.getComplaintDetail);
 
 export const complaintRouter = router;
+
+/**
+ * Customer Complaint Tracking Router: /me/complaints & /api/me/complaints (UC-43)
+ */
+export const customerComplaintRouter = Router();
+
+customerComplaintRouter.get(
+  ['/', ''],
+  authenticateJWT,
+  authorize('Customer', 'Staff', 'BranchManager', 'SystemAdmin'),
+  complaintController.getMyComplaints
+);
+
+customerComplaintRouter.get(
+  '/:id',
+  authenticateJWT,
+  authorize('Customer', 'Staff', 'BranchManager', 'SystemAdmin'),
+  complaintController.getComplaintDetail
+);
 
 /**
  * Staff Complaints Router: /staff/complaints (UC-65)

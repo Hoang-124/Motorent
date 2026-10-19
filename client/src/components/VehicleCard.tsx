@@ -8,11 +8,13 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
+  Heart,
   Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
 import { getOptimizedVehicleImageUrl, getVehicleImageProps } from '../utils/imageHelper';
+import { useWishlist } from '../context/WishlistContext';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -27,12 +29,20 @@ const ANGLE_VIEWS = [
   { id: 2, label: 'Góc sau', title: 'Góc đuôi xe & khoang lái' },
 ];
 
-export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow, onViewDetails, viewMode = 'grid' }) => {
+export const VehicleCard: React.FC<VehicleCardProps> = ({
+  vehicle,
+  onBookNow,
+  onViewDetails,
+  viewMode = 'grid',
+}) => {
   const navigate = useNavigate();
+  const { isInWishlist, toggleWishlist, isToggling } = useWishlist();
   const [activeAngle, setActiveAngle] = useState<number>(vehicle.images?.[1] ? 1 : 0);
   const [imgError, setImgError] = useState<boolean>(false);
 
-  useEffect(() => { setActiveAngle(vehicle.images?.[1] ? 1 : 0); }, [vehicle._id]);
+  useEffect(() => {
+    setActiveAngle(vehicle.images?.[1] ? 1 : 0);
+  }, [vehicle._id]);
 
   useEffect(() => {
     setImgError(false);
@@ -56,7 +66,10 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow, on
       : 'Xe số tiết kiệm';
 
   const handleCardClick = () => {
-    if (onViewDetails) { onViewDetails(vehicle); return; }
+    if (onViewDetails) {
+      onViewDetails(vehicle);
+      return;
+    }
     navigate(`/bikes/${vehicle._id}`);
   };
 
@@ -73,13 +86,21 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow, on
       ? getOptimizedVehicleImageUrl(vehicle.images[activeAngle] || vehicle.images[0])
       : '';
 
+  const avgRating = vehicle.averageRating ?? vehicle.ratingAverage ?? 0;
+
   return (
     <div
       onClick={handleCardClick}
-      className={`group bg-[#161616] rounded-2xl border border-white/10 smooth-card-hover flex flex-col overflow-hidden relative cursor-pointer ${viewMode === 'list' ? 'md:flex-row' : ''}`}
+      className={`group bg-[#161616] rounded-2xl border border-white/10 smooth-card-hover flex flex-col overflow-hidden relative cursor-pointer ${
+        viewMode === 'list' ? 'md:flex-row' : ''
+      }`}
     >
       {/* Top Studio Showroom Stage */}
-      <div className={`relative w-full h-56 sm:h-60 studio-paper-backdrop overflow-hidden flex items-center justify-center ${viewMode === 'list' ? 'md:w-80 md:h-72 md:shrink-0' : ''}`}>
+      <div
+        className={`relative w-full h-56 sm:h-60 studio-paper-backdrop overflow-hidden flex items-center justify-center ${
+          viewMode === 'list' ? 'md:w-80 md:h-72 md:shrink-0' : ''
+        }`}
+      >
         {/* Top Floating Status & License Plate Bar */}
         <div className="absolute top-3.5 left-3.5 right-3.5 z-20 flex items-center justify-between pointer-events-none">
           <span
@@ -104,12 +125,39 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow, on
               ? 'Sẵn sàng tại trạm'
               : vehicle.status === 'Rented'
               ? 'Đang có khách thuê'
-              : vehicle.status === 'Transferring' ? 'Đang điều chuyển' : 'Cần bảo dưỡng'}
+              : vehicle.status === 'Transferring'
+              ? 'Đang điều chuyển'
+              : 'Cần bảo dưỡng'}
           </span>
 
-          <span className="font-mono-tabular text-[11px] font-bold text-[#101010] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-300/80 shadow-sm">
-            {vehicle.licensePlate}
-          </span>
+          <div className="flex items-center space-x-1.5 pointer-events-auto">
+            <span className="font-mono-tabular text-[11px] font-bold text-[#101010] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-300/80 shadow-sm">
+              {vehicle.licensePlate}
+            </span>
+
+            {/* UC-25-26 Wishlist Heart Toggle */}
+            <button
+              type="button"
+              disabled={isToggling(vehicle._id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleWishlist(vehicle._id);
+              }}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-sm ${
+                isInWishlist(vehicle._id)
+                  ? 'bg-[#FF8080] text-white hover:bg-[#ff6666]'
+                  : 'bg-[#101010]/80 hover:bg-[#101010] text-white/80 hover:text-white border border-white/20'
+              } ${isToggling(vehicle._id) ? 'opacity-50 cursor-not-allowed' : 'active:scale-90'}`}
+              title={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
+              aria-label={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
+            >
+              <Heart
+                className={`w-3.5 h-3.5 transition-colors ${
+                  isInWishlist(vehicle._id) ? 'fill-white stroke-white' : 'stroke-current'
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Subtle Hover Prev/Next Angle Arrows */}
@@ -226,17 +274,50 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow, on
             </span>
           </div>
 
-          {/* Vehicle Model Name */}
-          <h3 className="text-lg sm:text-xl font-bold text-[#F5F5F5] group-hover:text-[#FFC799] transition-colors leading-snug mt-1">
-            <button type="button" onClick={(event) => { event.stopPropagation(); handleCardClick(); }} className="text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FFC799]">{vehicle.vehicleModel}<span className="sr-only"> · Xem chi tiết xe</span></button>
-          </h3>
+          {/* Vehicle Model Name & Rating */}
+          <div className="flex items-start justify-between gap-2 mt-1">
+            <h3 className="text-lg sm:text-xl font-bold text-[#F5F5F5] group-hover:text-[#FFC799] transition-colors leading-snug">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleCardClick();
+                }}
+                className="text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FFC799]"
+              >
+                {vehicle.vehicleModel}
+                <span className="sr-only"> · Xem chi tiết xe</span>
+              </button>
+            </h3>
+
+            {/* Rating Pill */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/bikes/${vehicle._id}#reviews-section`);
+              }}
+              className="flex items-center space-x-1 bg-[#101010] hover:bg-[#1f1f1f] border border-white/10 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition-colors"
+              title="Xem đánh giá từ khách hàng"
+            >
+              <Star className="w-3 h-3 fill-[#FFC799] text-[#FFC799]" />
+              <span className="text-[11px] font-bold text-[#F5F5F5]">
+                {avgRating > 0 ? avgRating.toFixed(1) : '5.0'}
+              </span>
+              <span className="text-[10px] text-[#6E6E6E]">
+                ({vehicle.reviewCount || 0})
+              </span>
+            </div>
+          </div>
+
           <p className="mt-2 flex items-center gap-1 text-xs text-[#A0A0A0]">
             <Star className="h-3.5 w-3.5 text-[#FFC799]" />
-            {(vehicle.reviewCount ?? 0) > 0 ? `${(vehicle.ratingAverage ?? 0).toFixed(1)} / 5 (${vehicle.reviewCount} đánh giá)` : 'Chưa có đánh giá'}
+            {(vehicle.reviewCount ?? 0) > 0
+              ? `${avgRating.toFixed(1)} / 5 (${vehicle.reviewCount} đánh giá)`
+              : 'Chưa có đánh giá'}
           </p>
 
-          {/* 3 Clean Recessed Spec Pills */}
-          <div className="grid grid-cols-2 gap-2 mt-3.5">
+          {/* Clean Recessed Spec Pills */}
+          <div className="grid grid-cols-3 gap-2 mt-3.5">
             <div className="bg-[#101010]/70 border border-white/[0.07] rounded-xl px-2.5 py-2">
               <span className="text-[10px] text-[#6E6E6E] block">Đồng hồ ODO</span>
               <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
@@ -299,7 +380,9 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow, on
                 : 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
             }`}
           >
-            <span>{isAvailable ? 'Đặt xe' : vehicle.status === 'Rented' ? 'Đang thuê' : 'Chưa sẵn sàng'}</span>
+            <span>
+              {isAvailable ? 'Đặt xe' : vehicle.status === 'Rented' ? 'Đang thuê' : 'Chưa sẵn sàng'}
+            </span>
             {isAvailable && (
               <ArrowRight className="w-3.5 h-3.5 stroke-[2.2] transition-transform group-hover:translate-x-0.5" />
             )}

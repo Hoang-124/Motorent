@@ -476,6 +476,30 @@ const seedDatabase = async (): Promise<void> => {
   // 7. Seed Static Pages & Banners
   await StaticPage.create([
     {
+      slug: 'faq',
+      title: 'Câu Hỏi Thường Gặp (FAQ)',
+      type: 'FAQ',
+      isPublished: true,
+      content: '<h2>1. Thủ tục thuê xe máy cần những gì?</h2><p>Khách hàng chỉ cần xuất trình CCCD/Hộ chiếu và Giấy phép lái xe hợp lệ (A1/A2) để thực hiện đối chiếu eKYC trực tuyến. Motorent cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng.</p>',
+      lastUpdatedBy: userAdmin._id,
+    },
+    {
+      slug: 'terms',
+      title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
+      type: 'Terms',
+      isPublished: true,
+      content: '<h2>1. Quy định chung</h2><p>Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.</p>',
+      lastUpdatedBy: userAdmin._id,
+    },
+    {
+      slug: 'privacy',
+      title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
+      type: 'Privacy',
+      isPublished: true,
+      content: '<h2>1. Cam kết bảo mật dữ liệu</h2><p>Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được đóng dấu bảo mật và lưu trữ theo tiêu chuẩn an toàn cao cấp.</p>',
+      lastUpdatedBy: userAdmin._id,
+    },
+    {
       slug: 'dieu-khoan-dich-vu',
       isPublished: true,
       title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
@@ -484,6 +508,7 @@ const seedDatabase = async (): Promise<void> => {
     },
     {
       slug: 'chinh-sach-bao-mat',
+      isPublished: true,
       title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
       content: 'Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa lưu trữ theo tiêu chuẩn bảo mật cao cấp.',
       lastUpdatedBy: userAdmin._id,

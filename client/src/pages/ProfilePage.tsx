@@ -26,6 +26,11 @@ import {
   ChevronDown,
   QrCode,
   CreditCard,
+  FileText,
+  Download,
+  Search,
+  ChevronLeft,
+  ChevronRight,
   Star,
   Edit2
 } from 'lucide-react';
@@ -49,14 +54,54 @@ export const ProfilePage: React.FC = () => {
   const initialTab = (searchParams.get('tab') as ProfileTab) || 'bookings';
   const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
 
-  // Bookings state
+  // Bookings state (UC-35: Rental History)
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingsLoading, setBookingsLoading] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
+  const [bookingPage, setBookingPage] = useState<number>(1);
+  const [bookingSearch, setBookingSearch] = useState<string>('');
+  const [bookingPagination, setBookingPagination] = useState({
+    page: 1,
+    limit: 6,
+    total: 0,
+    totalPages: 1,
+    hasPrev: false,
+    hasNext: false,
+  });
+  const [bookingCounts, setBookingCounts] = useState({
+    all: 0,
+    active: 0,
+    completed: 0,
+    cancelled: 0,
+  });
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState<Booking | null>(null);
   const [cancelReasonInput, setCancelReasonInput] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
+
+  const handleDownloadInvoice = async (bookingId: string, bookingCode: string) => {
+    setDownloadingInvoiceId(bookingId);
+    try {
+      const res = await api.get(`/bookings/${bookingId}/invoice`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `MOTORENT-INVOICE-${bookingCode}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      console.error('Invoice download error:', err);
+      alert('Không thể tải hóa đơn. Vui lòng thử lại sau.');
+    } finally {
+      setDownloadingInvoiceId(null);
+    }
+  };
 
   // Interactive QR Payment Modal for Pending Bookings
   const [selectedBookingForQrPay, setSelectedBookingForQrPay] = useState<Booking | null>(null);
@@ -64,6 +109,21 @@ export const ProfilePage: React.FC = () => {
   const [qrVerifying, setQrVerifying] = useState(false);
   const [qrVerifiedSuccess, setQrVerifiedSuccess] = useState(false);
   const [isSocketLive, setIsSocketLive] = useState(false);
+
+  // Extend Rental Modal State (UC-34)
+  const [selectedBookingForExtend, setSelectedBookingForExtend] = useState<Booking | null>(null);
+  const [extendNewDate, setExtendNewDate] = useState<string>('');
+  const [extendEstimate, setExtendEstimate] = useState<{
+    addedHours: number;
+    addedDays: number;
+    addedAmount: number;
+    newTotalAmount: number;
+    newRemainingAmount: number;
+    isAvailable: boolean;
+  } | null>(null);
+  const [extendLoading, setExtendLoading] = useState(false);
+  const [extendEstimating, setExtendEstimating] = useState(false);
+  const [extendError, setExtendError] = useState<string>('');
 
   // Reviews state (UC-39-41)
   const [myReviews, setMyReviews] = useState<Review[]>([]);
@@ -74,6 +134,7 @@ export const ProfilePage: React.FC = () => {
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
+  const [idCardNumber, setIdCardNumber] = useState(user?.idCardNumber || '');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>(user?.gender || 'Other');
   const [dob, setDob] = useState(user?.dob ? user.dob.split('T')[0] : '');
 
@@ -104,18 +165,61 @@ export const ProfilePage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const fetchBookings = async () => {
+  // Form states - Refund (UC-33)
+  const [selectedBookingForRefund, setSelectedBookingForRefund] = useState<Booking | null>(null);
+  const [bankNameInput, setBankNameInput] = useState('');
+  const [bankAccountNumberInput, setBankAccountNumberInput] = useState('');
+  const [bankAccountNameInput, setBankAccountNameInput] = useState('');
+  const [refundReasonInput, setRefundReasonInput] = useState('');
+  const [refundLoading, setRefundLoading] = useState(false);
+
+  const fetchBookings = async (
+    page = bookingPage,
+    status = bookingFilter,
+    search = bookingSearch
+  ) => {
     setBookingsLoading(true);
     try {
-      const res = await api.get('/bookings/my');
+      const res = await api.get('/bookings/my', {
+        params: {
+          page,
+          status,
+          limit: 6,
+          search: search.trim() || undefined,
+        },
+      });
       if (res.data && res.data.success && Array.isArray(res.data.data)) {
         setBookings(res.data.data);
+        if (res.data.pagination) {
+          setBookingPagination(res.data.pagination);
+        }
+        if (res.data.counts) {
+          setBookingCounts(res.data.counts);
+        }
       }
     } catch (err) {
       console.error('Lỗi khi tải danh sách đơn thuê xe:', err);
     } finally {
       setBookingsLoading(false);
     }
+  };
+
+  const handleBookingFilterChange = (status: 'all' | 'active' | 'completed' | 'cancelled') => {
+    setBookingFilter(status);
+    setBookingPage(1);
+    fetchBookings(1, status, bookingSearch);
+  };
+
+  const handleBookingPageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > bookingPagination.totalPages) return;
+    setBookingPage(newPage);
+    fetchBookings(newPage, bookingFilter, bookingSearch);
+  };
+
+  const handleBookingSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setBookingPage(1);
+    fetchBookings(1, bookingFilter, bookingSearch);
   };
 
   const fetchMyReviews = async () => {
@@ -218,6 +322,7 @@ export const ProfilePage: React.FC = () => {
       setFirstName(user.firstName || '');
       setLastName(user.lastName || '');
       setPhoneNumber(user.phoneNumber || '');
+      setIdCardNumber(user.idCardNumber || '');
       setGender(user.gender || 'Other');
       if (user.dob) setDob(user.dob.split('T')[0]);
     }
@@ -257,6 +362,110 @@ export const ProfilePage: React.FC = () => {
       }
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  // Request refund for cancelled booking (UC-33)
+  const handleRequestRefund = async () => {
+    if (!selectedBookingForRefund) return;
+    if (!bankNameInput.trim() || !bankAccountNumberInput.trim() || !bankAccountNameInput.trim()) {
+      setErrorMsg('Vui lòng điền đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản nhận tiền.');
+      return;
+    }
+    setRefundLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await api.post(`/bookings/${selectedBookingForRefund._id}/refund`, {
+        bankName: bankNameInput.trim(),
+        bankAccountNumber: bankAccountNumberInput.trim(),
+        bankAccountName: bankAccountNameInput.trim(),
+        reason: refundReasonInput.trim() || undefined,
+      });
+      if (res.data && res.data.success) {
+        setSelectedBookingForRefund(null);
+        await fetchBookings();
+        setSuccessMsg(
+          `Đã tiếp nhận yêu cầu hoàn tiền cho đơn ${selectedBookingForRefund.bookingCode}. Quản lý sẽ phê duyệt trong 24 giờ!`
+        );
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setErrorMsg(err.response.data.message);
+      } else {
+        setErrorMsg('Không thể gửi thông tin hoàn tiền. Vui lòng thử lại.');
+      }
+    } finally {
+      setRefundLoading(false);
+    }
+  };
+
+  const handleOpenExtendModal = (b: Booking) => {
+    setSelectedBookingForExtend(b);
+    setExtendError('');
+    setExtendEstimate(null);
+
+    const curr = new Date(b.returnDateTime);
+    const def = new Date(curr.getTime() + 24 * 3600 * 1000);
+    const tzOffset = def.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(def.getTime() - tzOffset).toISOString().slice(0, 16);
+    setExtendNewDate(localISOTime);
+
+    fetchExtendEstimate(b._id, localISOTime);
+  };
+
+  const fetchExtendEstimate = async (bookingId: string, newDateTime: string) => {
+    setExtendEstimating(true);
+    setExtendError('');
+    try {
+      const res = await api.post(`/bookings/${bookingId}/estimate-extension`, {
+        newReturnDateTime: new Date(newDateTime).toISOString(),
+      });
+      if (res.data?.success && res.data.data) {
+        setExtendEstimate(res.data.data);
+      } else {
+        setExtendError(res.data?.message || 'Không thể tính giá gia hạn.');
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setExtendError(err.response?.data?.message || 'Lỗi khi kiểm tra lịch xe trống.');
+      } else {
+        setExtendError('Lỗi kiểm tra lịch xe trống.');
+      }
+      setExtendEstimate(null);
+    } finally {
+      setExtendEstimating(false);
+    }
+  };
+
+  const handleConfirmExtend = async () => {
+    if (!selectedBookingForExtend || !extendNewDate) return;
+    setExtendLoading(true);
+    setExtendError('');
+    try {
+      const res = await api.put(`/bookings/${selectedBookingForExtend._id}/extend`, {
+        newReturnDateTime: new Date(extendNewDate).toISOString(),
+      });
+      if (res.data?.success && res.data.data) {
+        const updated = res.data.data;
+        setBookings((prev) =>
+          prev.map((b) => (b._id === updated._id ? { ...b, ...updated } : b))
+        );
+        const addedText = updated.extensionSummary?.addedAmount
+          ? ` Phí phát sinh: ${Number(updated.extensionSummary.addedAmount).toLocaleString('vi-VN')} đ.`
+          : '';
+        setSuccessMsg(`Gia hạn chuyến xe thành công!${addedText}`);
+        setSelectedBookingForExtend(null);
+      } else {
+        setExtendError(res.data?.message || 'Gia hạn thất bại.');
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setExtendError(err.response?.data?.message || 'Gia hạn thất bại.');
+      } else {
+        setExtendError('Gia hạn thất bại.');
+      }
+    } finally {
+      setExtendLoading(false);
     }
   };
 
@@ -305,6 +514,7 @@ export const ProfilePage: React.FC = () => {
         firstName,
         lastName,
         phoneNumber,
+        idCardNumber,
         gender,
         dob,
       });
@@ -570,7 +780,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   const TABS: { id: ProfileTab; num: string; label: string; count?: number; statusTag?: string }[] = [
-    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: bookings.length },
+    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: bookingCounts.all || bookings.length },
     { id: 'info', num: '02', label: 'Thông tin cá nhân' },
     {
       id: 'ekyc',
@@ -582,9 +792,9 @@ export const ProfilePage: React.FC = () => {
     { id: 'password', num: '05', label: 'Đổi mật khẩu' },
   ];
 
-  const activeBookingsCount = bookings.filter((b) =>
-    ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)
-  ).length;
+  const activeBookingsCount =
+    bookingCounts.active ||
+    bookings.filter((b) => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length;
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 sm:py-12 bg-editorial-grain">
@@ -757,21 +967,23 @@ export const ProfilePage: React.FC = () => {
             ===================================================================== */}
         {activeTab === 'bookings' && (
           <div className="space-y-6">
-            {/* Filter Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {[
-                  { key: 'all' as const, label: 'Tất cả đơn', count: bookings.length },
+                  { key: 'all' as const, label: 'Tất cả đơn', count: bookingCounts.all || bookings.length },
                   { key: 'active' as const, label: 'Đang giữ xe / Đang thuê', count: activeBookingsCount },
                   {
                     key: 'completed' as const,
                     label: 'Đã hoàn thành',
-                    count: bookings.filter((b) => b.status === 'Completed').length,
+                    count: bookingCounts.completed || bookings.filter((b) => b.status === 'Completed').length,
                   },
                   {
                     key: 'cancelled' as const,
                     label: 'Đã hủy',
-                    count: bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length,
+                    count:
+                      bookingCounts.cancelled ||
+                      bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length,
                   },
                 ].map((f) => {
                   const active = bookingFilter === f.key;
@@ -779,7 +991,7 @@ export const ProfilePage: React.FC = () => {
                     <button
                       key={f.key}
                       type="button"
-                      onClick={() => setBookingFilter(f.key)}
+                      onClick={() => handleBookingFilterChange(f.key)}
                       className={`px-3.5 py-2 rounded-xl text-xs transition-all shrink-0 cursor-pointer flex items-center space-x-2 ${
                         active
                           ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
@@ -799,9 +1011,33 @@ export const ProfilePage: React.FC = () => {
                 })}
               </div>
 
-              <div className="flex items-center space-x-3 self-start sm:self-auto">
+              {/* Search Bar, Live Sync & Refresh */}
+              <div className="flex items-center gap-2.5 self-start lg:self-auto w-full lg:w-auto">
+                <form onSubmit={handleBookingSearch} className="relative flex-1 lg:w-56">
+                  <Search className="w-3.5 h-3.5 text-[#6E6E6E] absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={bookingSearch}
+                    onChange={(e) => setBookingSearch(e.target.value)}
+                    placeholder="Tìm mã hợp đồng..."
+                    className="w-full bg-[#161616] border border-white/[0.08] focus:border-[#FFC799] rounded-xl pl-9 pr-7 py-2 text-xs text-[#F5F5F5] placeholder-[#6E6E6E] outline-none font-mono-tabular transition-colors"
+                  />
+                  {bookingSearch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBookingSearch('');
+                        fetchBookings(1, bookingFilter, '');
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[#6E6E6E] hover:text-white text-xs p-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </form>
+
                 <div
-                  className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[11px] font-mono-tabular select-none"
+                  className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[11px] font-mono-tabular select-none shrink-0"
                   title={isSocketLive ? 'Máy chủ đang đồng bộ thời gian thực qua WebSocket' : 'Đang ở chế độ tải thủ công'}
                 >
                   <span
@@ -816,11 +1052,12 @@ export const ProfilePage: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={fetchBookings}
-                  className="inline-flex items-center space-x-1.5 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
+                  onClick={() => fetchBookings()}
+                  className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-[#161616] border border-white/[0.08] hover:border-white/20 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors shrink-0 cursor-pointer"
+                  title="Tải lại danh sách"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${bookingsLoading ? 'animate-spin text-[#FFC799]' : ''}`} />
-                  <span>Làm mới</span>
+                  <span className="hidden sm:inline">Làm mới</span>
                 </button>
               </div>
             </div>
@@ -832,374 +1069,604 @@ export const ProfilePage: React.FC = () => {
                 <p className="text-xs text-[#A0A0A0]">Đang đồng bộ danh sách hợp đồng thuê xe...</p>
               </div>
             ) : (() => {
-              const filteredBookings = bookings.filter((b) => {
-                if (bookingFilter === 'active') return ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status);
-                if (bookingFilter === 'completed') return b.status === 'Completed';
-                if (bookingFilter === 'cancelled') return ['Cancelled', 'Rejected'].includes(b.status);
-                return true;
-              });
-
-              if (filteredBookings.length === 0) {
+              if (bookings.length === 0) {
                 return (
                   <div className="p-12 rounded-2xl bg-[#161616] border border-white/[0.08] text-center space-y-4">
                     <h3 className="text-base font-bold text-[#F5F5F5]">Chưa có chuyến xe nào trong mục này</h3>
                     <p className="text-xs text-[#A0A0A0] max-w-md mx-auto leading-relaxed">
-                      Chọn chiếc xe tay ga, xe điện hoặc xe số phù hợp để nhận xe nhanh trong 03 phút tại Sân bay Đà Nẵng hoặc Bãi biển Mỹ Khê.
+                      {bookingSearch
+                        ? `Không tìm thấy chuyến xe nào khớp với từ khóa "${bookingSearch}".`
+                        : 'Chọn chiếc xe tay ga, xe điện hoặc xe số phù hợp để nhận xe nhanh trong 03 phút tại Sân bay Đà Nẵng hoặc Bãi biển Mỹ Khê.'}
                     </p>
-                    <Link
-                      to="/bikes"
-                      className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all"
-                    >
-                      <span>Xem đội xe &amp; Bảng giá</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </Link>
+                    {bookingSearch ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBookingSearch('');
+                          fetchBookings(1, bookingFilter, '');
+                        }}
+                        className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                      >
+                        <span>Xóa bộ lọc tìm kiếm</span>
+                      </button>
+                    ) : (
+                      <Link
+                        to="/bikes"
+                        className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all"
+                      >
+                        <span>Xem đội xe &amp; Bảng giá</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    )}
                   </div>
                 );
               }
 
               return (
-                <div className="space-y-4">
-                  {filteredBookings.map((b) => {
-                    const v = typeof b.vehicleId === 'object' && b.vehicleId !== null ? (b.vehicleId as Vehicle) : null;
-                    const pb =
-                      typeof b.pickupBranchId === 'object' && b.pickupBranchId !== null
-                        ? (b.pickupBranchId as Branch)
-                        : null;
-                    const rb =
-                      typeof b.returnBranchId === 'object' && b.returnBranchId !== null
-                        ? (b.returnBranchId as Branch)
-                        : null;
+                <>
+                  <div className="space-y-4">
+                    {bookings.map((b) => {
+                      const v = typeof b.vehicleId === 'object' && b.vehicleId !== null ? (b.vehicleId as Vehicle) : null;
+                      const pb =
+                        typeof b.pickupBranchId === 'object' && b.pickupBranchId !== null
+                          ? (b.pickupBranchId as Branch)
+                          : null;
+                      const rb =
+                        typeof b.returnBranchId === 'object' && b.returnBranchId !== null
+                          ? (b.returnBranchId as Branch)
+                          : null;
 
-                    const vehicleName = v?.vehicleModel || 'Xe máy Motorent';
-                    const vehicleBrand = v?.brand || '';
-                    const licensePlate = v?.licensePlate || 'Chờ bàn giao';
-                    const vehicleImg =
-                      v?.images && v.images.length > 0
-                        ? getOptimizedVehicleImageUrl(v.images[1] || v.images[0])
-                        : '';
+                      const vehicleName = v?.vehicleModel || 'Xe máy Motorent';
+                      const vehicleBrand = v?.brand || '';
+                      const licensePlate = v?.licensePlate || 'Chờ bàn giao';
+                      const vehicleImg =
+                        v?.images && v.images.length > 0
+                          ? getOptimizedVehicleImageUrl(v.images[1] || v.images[0])
+                          : '';
 
-                    const canCancel = b.status === 'Pending' || b.status === 'Approved' || b.status === 'Confirmed';
-                    const needsDepositPayment = b.status === 'Pending' && !b.depositPaid && !b.isPaid;
+                      const canCancel = b.status === 'Pending' || b.status === 'Approved' || b.status === 'Confirmed';
+                      const canExtend = b.status === 'Confirmed' || b.status === 'Ongoing';
+                      const needsDepositPayment = b.status === 'Pending' && !b.depositPaid && !b.isPaid;
 
-                    return (
-                      <div
-                        key={b._id}
-                        className="rounded-2xl bg-[#161616] border border-white/10 hover:border-white/20 transition-all overflow-hidden"
-                      >
-                        {/* Top Ticket Bar: Booking Code, Created Date & Status */}
-                        <div className="px-5 py-3.5 bg-[#101010]/60 border-b border-white/[0.07] flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-center space-x-3">
-                            <span className="text-[11px] uppercase tracking-wider text-[#6E6E6E] font-semibold">
-                              Mã hợp đồng
-                            </span>
-                            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#161616] border border-white/12">
-                              <span className="font-mono-tabular font-bold text-xs text-[#FFC799]">
-                                {b.bookingCode}
+                      return (
+                        <div
+                          key={b._id}
+                          className="rounded-2xl bg-[#161616] border border-white/10 hover:border-white/20 transition-all overflow-hidden"
+                        >
+                          {/* Top Ticket Bar: Booking Code, Created Date & Status */}
+                          <div className="px-5 py-3.5 bg-[#101010]/60 border-b border-white/[0.07] flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center space-x-3">
+                              <span className="text-[11px] uppercase tracking-wider text-[#6E6E6E] font-semibold">
+                                Mã hợp đồng
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyCode(b.bookingCode)}
-                                className="text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
-                                title="Sao chép mã đơn"
-                              >
-                                {copiedCode === b.bookingCode ? (
-                                  <Check className="w-3.5 h-3.5 text-[#FFC799]" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                            {b.createdAt && (
-                              <span className="text-xs text-[#6E6E6E] hidden sm:inline">
-                                Đặt ngày {new Date(b.createdAt).toLocaleDateString('vi-VN')}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Status Badge */}
-                          <div className="flex items-center gap-2">
-                            {b.status === 'Pending' && (
-                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
-                                Chờ xác nhận cọc 30%
-                              </span>
-                            )}
-                            {(b.status === 'Approved' || b.status === 'Confirmed') && (
-                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                                Đã xác nhận cọc &amp; Khóa biển số
-                              </span>
-                            )}
-                            {b.status === 'Ongoing' && (
-                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
-                                Đang bàn giao lưu hành
-                              </span>
-                            )}
-                            {b.status === 'Completed' && (
-                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
-                                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                                Đã hoàn thành chuyến đi
-                              </span>
-                            )}
-                            {(b.status === 'Cancelled' || b.status === 'Rejected') && (
-                              <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FF8080]/12 text-[#FF8080] border border-[#FF8080]/30">
-                                Đã hủy đơn
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Main Ticket Body: 12-Column Architectural Grid */}
-                        <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-                          {/* Col 1-5: Vehicle Studio Photo + Full Name + Single-Line License Plate */}
-                          <div className="lg:col-span-5 flex items-center space-x-4">
-                            <div className="w-28 h-20 rounded-xl studio-paper-backdrop border border-white/10 overflow-hidden shrink-0 flex items-center justify-center p-2">
-                              {vehicleImg ? (
-                                <img
-                                  src={vehicleImg}
-                                  alt={vehicleName}
-                                  className="w-full h-full object-contain scale-110 mix-blend-multiply"
-                                />
-                              ) : (
-                                <span className="text-[10px] font-bold text-slate-600">MOTORENT</span>
+                              <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#161616] border border-white/12">
+                                <span className="font-mono-tabular font-bold text-xs text-[#FFC799]">
+                                  {b.bookingCode}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyCode(b.bookingCode)}
+                                  className="text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
+                                  title="Sao chép mã đơn"
+                                >
+                                  {copiedCode === b.bookingCode ? (
+                                    <Check className="w-3.5 h-3.5 text-[#FFC799]" />
+                                  ) : (
+                                    <Copy className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
+                              {b.createdAt && (
+                                <span className="text-xs text-[#6E6E6E] hidden sm:inline">
+                                  Đặt ngày {new Date(b.createdAt).toLocaleDateString('vi-VN')}
+                                </span>
+                              )}
+                              {pb?.name && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/10 text-[11px] font-semibold text-[#F5F5F5]">
+                                  <MapPin className="w-3 h-3 text-[#FFC799] shrink-0" />
+                                  <span>{pb.name}</span>
+                                </span>
                               )}
                             </div>
 
-                            <div className="min-w-0 flex-1 space-y-1.5">
-                              <div className="text-[11px] uppercase tracking-wider text-[#A0A0A0] font-medium">
-                                {vehicleBrand}
+                            {/* Status Badge */}
+                            <div className="flex items-center gap-2">
+                              {b.status === 'Pending' && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
+                                  Chờ xác nhận cọc 30%
+                                </span>
+                              )}
+                              {(b.status === 'Approved' || b.status === 'Confirmed') && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                  Đã xác nhận cọc &amp; Khóa biển số
+                                </span>
+                              )}
+                              {b.status === 'Ongoing' && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
+                                  Đang bàn giao lưu hành
+                                </span>
+                              )}
+                              {b.status === 'Completed' && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                  Đã hoàn thành chuyến đi
+                                </span>
+                              )}
+                              {(b.status === 'Cancelled' || b.status === 'Rejected') && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FF8080]/12 text-[#FF8080] border border-[#FF8080]/30">
+                                  Đã hủy đơn
+                                </span>
+                              )}
+                              {Boolean(b.extensionCount && b.extensionCount > 0) && (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30 font-mono-tabular">
+                                  <Clock className="w-3 h-3" />
+                                  <span>Đã gia hạn {b.extensionCount} lần</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Main Ticket Body: 12-Column Architectural Grid */}
+                          <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                            {/* Col 1-5: Vehicle Studio Photo + Full Name + Single-Line License Plate */}
+                            <div className="lg:col-span-5 flex items-center space-x-4">
+                              <div className="w-28 h-20 rounded-xl studio-paper-backdrop border border-white/10 overflow-hidden shrink-0 flex items-center justify-center p-2">
+                                {vehicleImg ? (
+                                  <img
+                                    src={vehicleImg}
+                                    alt={vehicleName}
+                                    className="w-full h-full object-contain scale-110 mix-blend-multiply"
+                                  />
+                                ) : (
+                                  <span className="text-[10px] font-bold text-slate-600">MOTORENT</span>
+                                )}
                               </div>
-                              <h3 className="text-base font-bold text-[#F5F5F5] leading-snug">
-                                {vehicleName}
-                              </h3>
-                              <div className="pt-0.5">
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-[#101010] border border-white/12 text-xs font-mono-tabular font-semibold text-[#FFC799] whitespace-nowrap">
-                                  Biển số: {licensePlate}
+
+                              <div className="min-w-0 flex-1 space-y-1.5">
+                                <div className="text-[11px] uppercase tracking-wider text-[#A0A0A0] font-medium">
+                                  {vehicleBrand}
+                                </div>
+                                <h3 className="text-base font-bold text-[#F5F5F5] leading-snug">
+                                  {vehicleName}
+                                </h3>
+                                <div className="pt-0.5">
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-[#101010] border border-white/12 text-xs font-mono-tabular font-semibold text-[#FFC799] whitespace-nowrap">
+                                    Biển số: {licensePlate}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Col 6-9: Pickup & Return Schedule */}
+                            <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5 border-y lg:border-y-0 lg:border-x border-white/[0.07] py-4 lg:py-0 lg:px-5 text-xs">
+                              <div className="flex items-start space-x-2.5">
+                                <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                  <div className="text-[#A0A0A0]">
+                                    Nhận xe:{' '}
+                                    <strong className="text-[#F5F5F5] font-mono-tabular">
+                                      {new Date(b.pickupDateTime).toLocaleString('vi-VN', {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                      })}
+                                    </strong>
+                                  </div>
+                                  <div className="text-xs font-semibold text-[#FFC799]">
+                                    {pb?.name || 'Trạm giao nhận Motorent'}
+                                  </div>
+                                  {pb?.address && (
+                                    <div className="text-[11px] text-[#8A857D] leading-snug">
+                                      {pb.address}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-start space-x-2.5">
+                                <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center flex-wrap gap-1.5 text-[#A0A0A0]">
+                                    <span>
+                                      Trả xe:{' '}
+                                      <strong className="text-[#F5F5F5] font-mono-tabular">
+                                        {new Date(b.returnDateTime).toLocaleString('vi-VN', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                        })}
+                                      </strong>
+                                    </span>
+                                    {pb?._id && rb?._id && pb._id !== rb._id && (
+                                      <span className="px-1.5 py-0.2 rounded bg-[#FFC799]/15 border border-[#FFC799]/30 text-[10px] font-semibold text-[#FFC799]">
+                                        Trả khác trạm
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs font-semibold text-[#F5F5F5]">
+                                    {rb?.name || 'Trạm giao nhận Motorent'}
+                                  </div>
+                                  {rb?.address && (
+                                    <div className="text-[11px] text-[#8A857D] leading-snug">
+                                      {rb.address}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Col 10-12: Financial Breakdown */}
+                            <div className="lg:col-span-3 flex flex-row lg:flex-col items-center lg:items-end justify-between gap-2 text-xs">
+                              <div className="lg:text-right">
+                                <span className="text-[11px] text-[#6E6E6E] block">Tổng chi phí thuê</span>
+                                <span className="text-lg font-bold text-[#F5F5F5] font-mono-tabular">
+                                  {b.totalAmount.toLocaleString('vi-VN')} đ
                                 </span>
                               </div>
-                            </div>
-                          </div>
 
-                          {/* Col 6-9: Pickup & Return Schedule */}
-                          <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 border-y lg:border-y-0 lg:border-x border-white/[0.07] py-4 lg:py-0 lg:px-5 text-xs">
-                            <div className="flex items-start space-x-2.5">
-                              <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
-                              <div>
-                                <div className="text-[#A0A0A0]">
-                                  Nhận xe:{' '}
-                                  <strong className="text-[#F5F5F5] font-mono-tabular">
-                                    {new Date(b.pickupDateTime).toLocaleString('vi-VN', {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      day: '2-digit',
-                                      month: '2-digit',
-                                      year: 'numeric',
-                                    })}
-                                  </strong>
-                                </div>
-                                <div className="text-[11px] text-[#6E6E6E] mt-0.5">
-                                  {pb?.name || 'Trạm giao nhận Motorent'}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-start space-x-2.5">
-                              <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
-                              <div>
-                                <div className="text-[#A0A0A0]">
-                                  Trả xe:{' '}
-                                  <strong className="text-[#F5F5F5] font-mono-tabular">
-                                    {new Date(b.returnDateTime).toLocaleString('vi-VN', {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      day: '2-digit',
-                                      month: '2-digit',
-                                      year: 'numeric',
-                                    })}
-                                  </strong>
-                                </div>
-                                <div className="text-[11px] text-[#6E6E6E] mt-0.5">
-                                  {rb?.name || 'Trạm giao nhận Motorent'}
-                                </div>
+                              <div className="text-right space-y-0.5 text-[11px]">
+                                {b.isPaid ? (
+                                  <p className="text-[#FFC799] font-semibold">Đã thanh toán đủ 100%</p>
+                                ) : b.depositPaid || b.status === 'Approved' || b.status === 'Confirmed' ? (
+                                  <>
+                                    <p className="text-[#FFC799] font-semibold font-mono-tabular">
+                                      Đã cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
+                                    </p>
+                                    <p className="text-[#A0A0A0] font-mono-tabular">
+                                      Còn lại khi nhận xe: {b.remainingAmount.toLocaleString('vi-VN')} đ
+                                    </p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p className="text-[#FFC799] font-semibold font-mono-tabular">
+                                      Cần cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
+                                    </p>
+                                    <p className="text-[#6E6E6E] font-mono-tabular">
+                                      Còn lại 70%: {b.remainingAmount.toLocaleString('vi-VN')} đ
+                                    </p>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
 
-                          {/* Col 10-12: Financial Breakdown */}
-                          <div className="lg:col-span-3 flex flex-row lg:flex-col items-center lg:items-end justify-between gap-2 text-xs">
-                            <div className="lg:text-right">
-                              <span className="text-[11px] text-[#6E6E6E] block">Tổng chi phí thuê</span>
-                              <span className="text-lg font-bold text-[#F5F5F5] font-mono-tabular">
-                                {b.totalAmount.toLocaleString('vi-VN')} đ
-                              </span>
-                            </div>
+                          {/* 4-Angle Vehicle Inspection Record (Before Handover & Upon Return) */}
+                          {((b.checkinImages && b.checkinImages.length > 0) ||
+                            (b.checkoutImages && b.checkoutImages.length > 0)) && (
+                            <div className="px-5 py-3.5 bg-[#121212] border-t border-white/[0.06] space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-[#FFC799] flex items-center gap-1.5">
+                                  <Camera className="w-3.5 h-3.5" />
+                                  Biên bản hình ảnh 4 góc xe (Trước khi giao &amp; Sau khi nhận)
+                                </span>
+                                <span className="text-[11px] text-[#8A857D]">
+                                  Đối chiếu minh bạch tình trạng ngoại thất
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {b.checkinImages && b.checkinImages.length > 0 && (
+                                  <div className="p-2.5 rounded-xl bg-[#161616] border border-white/10">
+                                    <p className="text-[11px] font-bold text-[#F5F5F5] mb-2 flex items-center justify-between">
+                                      <span>4 góc xe trước khi bàn giao (Check-in)</span>
+                                      <span className="text-[10px] text-[#99FFE4] font-mono">
+                                        ODO: {(b.startOdometer ?? 0).toLocaleString('vi-VN')} km
+                                      </span>
+                                    </p>
+                                    <div className="grid grid-cols-4 gap-1.5">
+                                      {b.checkinImages.slice(0, 4).map((imgUrl, idx) => (
+                                        <a
+                                          key={`ci-${idx}`}
+                                          href={imgUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="group relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-black block"
+                                          title={`Xem góc 0${idx + 1} trước khi giao`}
+                                        >
+                                          <img
+                                            src={imgUrl}
+                                            alt={`Check-in góc ${idx + 1}`}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                          />
+                                          <span className="absolute bottom-0.5 left-1 text-[9px] font-mono font-bold text-[#FFC799] bg-black/75 px-1 rounded">
+                                            G0{idx + 1}
+                                          </span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
 
-                            <div className="text-right space-y-0.5 text-[11px]">
-                              {b.isPaid ? (
-                                <p className="text-[#FFC799] font-semibold">Đã thanh toán đủ 100%</p>
-                              ) : b.depositPaid || b.status === 'Approved' || b.status === 'Confirmed' ? (
-                                <>
-                                  <p className="text-[#FFC799] font-semibold font-mono-tabular">
-                                    Đã cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
-                                  </p>
-                                  <p className="text-[#A0A0A0] font-mono-tabular">
-                                    Còn lại khi nhận xe: {b.remainingAmount.toLocaleString('vi-VN')} đ
-                                  </p>
-                                </>
+                                {b.checkoutImages && b.checkoutImages.length > 0 && (
+                                  <div className="p-2.5 rounded-xl bg-[#161616] border border-[#99FFE4]/25">
+                                    <p className="text-[11px] font-bold text-[#F5F5F5] mb-2 flex items-center justify-between">
+                                      <span>4 góc xe sau khi thu hồi (Check-out)</span>
+                                      <span className="text-[10px] text-[#99FFE4] font-mono">
+                                        ODO: {(b.endOdometer ?? 0).toLocaleString('vi-VN')} km
+                                      </span>
+                                    </p>
+                                    <div className="grid grid-cols-4 gap-1.5">
+                                      {b.checkoutImages.slice(0, 4).map((imgUrl, idx) => (
+                                        <a
+                                          key={`co-${idx}`}
+                                          href={imgUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="group relative aspect-video rounded-lg overflow-hidden border border-[#99FFE4]/30 bg-black block"
+                                          title={`Xem góc 0${idx + 1} sau khi nhận lại`}
+                                        >
+                                          <img
+                                            src={imgUrl}
+                                            alt={`Check-out góc ${idx + 1}`}
+                                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                          />
+                                          <span className="absolute bottom-0.5 left-1 text-[9px] font-mono font-bold text-[#99FFE4] bg-black/75 px-1 rounded">
+                                            G0{idx + 1}
+                                          </span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Bottom Action Strip */}
+                          <div className="px-5 py-3 bg-[#101010]/40 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
+                            <div className="text-xs text-[#A0A0A0] flex flex-wrap items-center gap-2">
+                              {b.status === 'Cancelled' ? (
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[#FF8080] font-medium">Đơn đã hủy</span>
+                                  {b.cancelReason && (
+                                    <span className="text-[#A0A0A0]">
+                                      • Lý do: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
+                                    </span>
+                                  )}
+                                  {(b.refundAmount ?? 0) > 0 && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-[#FFC799]/15 border border-[#FFC799]/25 text-[#FFC799] font-semibold font-mono-tabular">
+                                      Hoàn tiền BR-06: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
+                                    </span>
+                                  )}
+                                  {(b.refundForfeitAmount ?? 0) > 0 && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold font-mono-tabular">
+                                      Khấu trừ &lt; 24h: {(b.refundForfeitAmount ?? 0).toLocaleString('vi-VN')} đ
+                                    </span>
+                                  )}
+                                </div>
+                              ) : b.cancelReason ? (
+                                <span className="text-[#A0A0A0]">
+                                  Ghi chú hủy đơn: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
+                                </span>
+                              ) : needsDepositPayment ? (
+                                <span className="text-[#FFC799]">
+                                  Vui lòng hoàn tất quét mã QR thanh toán cọc 30% để hệ thống khóa biển số xe tại{' '}
+                                  <strong>{pb?.name || 'quầy chi nhánh'}</strong>.
+                                </span>
                               ) : (
-                                <>
-                                  <p className="text-[#FFC799] font-semibold font-mono-tabular">
-                                    Cần cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
-                                  </p>
-                                  <p className="text-[#6E6E6E] font-mono-tabular">
-                                    Còn lại 70%: {b.remainingAmount.toLocaleString('vi-VN')} đ
-                                  </p>
-                                </>
+                                <span>
+                                  Xuất trình mã hợp đồng{' '}
+                                  <strong className="text-[#FFC799] font-mono-tabular">{b.bookingCode}</strong> tại quầy{' '}
+                                  <strong className="text-[#F5F5F5]">{pb?.name || 'Chi nhánh nhận xe'}</strong>
+                                  {pb?.address ? <span className="text-[#8A857D]"> ({pb.address})</span> : null} để nhận xe trong 03 phút.
+                                </span>
                               )}
                             </div>
-                          </div>
-                        </div>
 
-                        {/* Bottom Action Strip */}
-                        <div className="px-5 py-3 bg-[#101010]/40 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
-                          <div className="text-xs text-[#A0A0A0] flex flex-wrap items-center gap-2">
-                            {b.status === 'Cancelled' ? (
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[#FF8080] font-medium">Đơn đã hủy</span>
-                                {b.cancelReason && (
-                                  <span className="text-[#A0A0A0]">
-                                    • Lý do: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
-                                  </span>
-                                )}
-                                {(b.refundAmount ?? 0) > 0 && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold font-mono-tabular">
-                                    Hoàn tiền BR-06: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
-                                  </span>
-                                )}
-                                {(b.refundForfeitAmount ?? 0) > 0 && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold font-mono-tabular">
-                                    Khấu trừ &lt; 24h: {(b.refundForfeitAmount ?? 0).toLocaleString('vi-VN')} đ
-                                  </span>
-                                )}
-                              </div>
-                            ) : b.cancelReason ? (
-                              <span className="text-[#A0A0A0]">
-                                Ghi chú hủy đơn: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
-                              </span>
-                            ) : needsDepositPayment ? (
-                              <span className="text-[#FFC799]">
-                                Vui lòng hoàn tất quét mã QR thanh toán cọc 30% để hệ thống khóa biển số xe.
-                              </span>
-                            ) : (
-                              <span>Xuất trình mã hợp đồng {b.bookingCode} tại quầy để nhận xe trong 03 phút.</span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2.5">
-                            {/* UC-39: Nút Đánh giá cho chuyến xe đã hoàn thành (ẩn nếu đã đánh giá) */}
-                            {(() => {
-                              const isCompleted = b.status === 'Completed';
-                              const existingReview = myReviews.find(
-                                (r) =>
-                                  (typeof r.bookingId === 'object' && r.bookingId !== null
-                                    ? (r.bookingId as any)._id
-                                    : r.bookingId) === b._id
-                              );
-                              const hasReviewed = Boolean(existingReview);
-
-                              if (isCompleted && !hasReviewed) {
-                                return (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedBookingForReview(b)}
-                                    className="px-3.5 py-1.5 rounded-lg bg-[#FFC799] hover:bg-[#ffb67a] active:scale-95 text-[#101010] text-xs font-bold inline-flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
-                                  >
-                                    <Star className="w-3.5 h-3.5 fill-[#101010] stroke-[2]" />
-                                    <span>Đánh giá</span>
-                                  </button>
+                            <div className="flex flex-wrap items-center gap-2.5">
+                              {/* UC-39: Nút Đánh giá cho chuyến xe đã hoàn thành */}
+                              {(() => {
+                                const isCompleted = b.status === 'Completed';
+                                const existingReview = myReviews.find(
+                                  (r) =>
+                                    (typeof r.bookingId === 'object' && r.bookingId !== null
+                                      ? (r.bookingId as { _id?: string })._id
+                                      : r.bookingId) === b._id
                                 );
-                              }
+                                const hasReviewed = Boolean(existingReview);
 
-                              if (isCompleted && hasReviewed && existingReview) {
-                                return (
-                                  <div className="flex items-center space-x-2">
-                                    <span className="text-[11px] font-semibold text-[#99FFE4] bg-[#99FFE4]/10 border border-[#99FFE4]/30 px-2.5 py-1 rounded-lg inline-flex items-center space-x-1">
-                                      <Check className="w-3 h-3 stroke-[2.5]" />
-                                      <span>Đã đánh giá ({existingReview.rating}★)</span>
-                                    </span>
+                                if (isCompleted && !hasReviewed) {
+                                  return (
                                     <button
                                       type="button"
-                                      onClick={() => setSelectedReviewForEdit(existingReview)}
-                                      className="p-1.5 text-[#A0A0A0] hover:text-[#FFC799] hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
-                                      title="Sửa đánh giá"
+                                      onClick={() => setSelectedBookingForReview(b)}
+                                      className="px-3.5 py-1.5 rounded-lg bg-[#FFC799] hover:bg-[#ffb67a] active:scale-95 text-[#101010] text-xs font-bold inline-flex items-center space-x-1.5 transition-colors cursor-pointer shadow-sm"
                                     >
-                                      <Edit2 className="w-3.5 h-3.5 stroke-[2]" />
+                                      <Star className="w-3.5 h-3.5 fill-[#101010] stroke-[2]" />
+                                      <span>Đánh giá</span>
                                     </button>
-                                  </div>
-                                );
-                              }
+                                  );
+                                }
 
-                              return null;
-                            })()}
+                                if (isCompleted && hasReviewed && existingReview) {
+                                  return (
+                                    <div className="flex items-center space-x-2">
+                                      <span className="text-[11px] font-semibold text-[#99FFE4] bg-[#99FFE4]/10 border border-[#99FFE4]/30 px-2.5 py-1 rounded-lg inline-flex items-center space-x-1">
+                                        <Check className="w-3 h-3 stroke-[2.5]" />
+                                        <span>Đã đánh giá ({existingReview.rating}/5)</span>
+                                        <Star className="w-3 h-3 fill-[#99FFE4] text-[#99FFE4]" />
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedReviewForEdit(existingReview)}
+                                        className="p-1.5 text-[#A0A0A0] hover:text-[#FFC799] hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+                                        title="Sửa đánh giá"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5 stroke-[2]" />
+                                      </button>
+                                    </div>
+                                  );
+                                }
 
-                            {needsDepositPayment && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setQrPaymentType('Deposit30');
-                                  setQrVerifiedSuccess(false);
-                                  setSelectedBookingForQrPay(b);
-                                }}
-                                className="px-3.5 py-1.5 rounded-lg bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
-                              >
-                                <QrCode className="w-3.5 h-3.5" />
-                                <span>Thanh toán cọc QR ngay</span>
-                              </button>
-                            )}
+                                return null;
+                              })()}
 
-                            {canCancel && (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedBookingForCancel(b)}
-                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#FF8080]/30 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-colors cursor-pointer"
-                              >
-                                Hủy đơn
-                              </button>
-                            )}
+                              {needsDepositPayment && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setQrPaymentType('Deposit30');
+                                    setQrVerifiedSuccess(false);
+                                    setSelectedBookingForQrPay(b);
+                                  }}
+                                  className="px-3.5 py-1.5 rounded-lg bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" />
+                                  <span>Thanh toán cọc QR ngay</span>
+                                </button>
+                              )}
 
-                            <Link
-                              to={`/booking-details/${b._id}`}
-                              className="px-3.5 py-1.5 rounded-lg border border-[#FFC799]/30 hover:border-[#FFC799] bg-[#FFC799]/10 hover:bg-[#FFC799]/20 text-[#FFC799] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Chi tiết đơn</span>
-                            </Link>
+                              {canCancel && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedBookingForCancel(b)}
+                                  className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#FF8080]/30 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-colors cursor-pointer"
+                                >
+                                  Hủy đơn
+                                </button>
+                              )}
 
-                            {v && (
+                              {b.status === 'Cancelled' && (b.refundAmount ?? 0) > 0 && b.refundStatus !== 'Approved' && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedBookingForRefund(b);
+                                    setBankNameInput(b.refundBankInfo?.bankName || '');
+                                    setBankAccountNumberInput(b.refundBankInfo?.bankAccountNumber || '');
+                                    setBankAccountNameInput(b.refundBankInfo?.bankAccountName || '');
+                                    setRefundReasonInput(b.refundBankInfo?.reason || '');
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center space-x-1.5"
+                                >
+                                  <span>{b.refundBankInfo?.bankAccountNumber ? 'Cập nhật STK hoàn cọc' : 'Gửi STK nhận hoàn cọc'}</span>
+                                </button>
+                              )}
+
+                              {canExtend && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenExtendModal(b)}
+                                  className="px-3.5 py-1.5 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/30 text-[#FFC799] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
+                                >
+                                  <Clock className="w-3.5 h-3.5" />
+                                  <span>Gia hạn thuê xe</span>
+                                </button>
+                              )}
+
                               <Link
-                                to={`/booking/${v._id}`}
-                                className="px-3.5 py-1.5 rounded-lg bg-[#161616] border border-white/12 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                                to={`/booking-details/${b._id}`}
+                                className="px-3.5 py-1.5 rounded-lg border border-[#FFC799]/30 hover:border-[#FFC799] bg-[#FFC799]/10 hover:bg-[#FFC799]/20 text-[#FFC799] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors"
                               >
-                                <RotateCcw className="w-3 h-3 text-[#FFC799]" />
-                                <span>Thuê lại xe này</span>
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Chi tiết đơn</span>
                               </Link>
-                            )}
 
-                            <Link
-                              to={`/complaints/new?bookingId=${b._id}`}
-                              className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 text-[#A0A0A0] hover:text-amber-400 text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
-                              title="Gửi khiếu nại về chuyến xe này"
-                            >
-                              <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
-                              <span>Khiếu nại</span>
-                            </Link>
+                              {/* UC-38: Tải hóa đơn điện tử PDF */}
+                              <button
+                                type="button"
+                                disabled={downloadingInvoiceId === b._id}
+                                onClick={() => handleDownloadInvoice(b._id, b.bookingCode)}
+                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#99FFE4]/40 text-[#A0A0A0] hover:text-[#99FFE4] text-xs font-medium transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                                title="Tải hóa đơn điện tử & Biên lai thanh toán PDF (UC-38)"
+                              >
+                                {downloadingInvoiceId === b._id ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>Đang xuất PDF...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="w-3.5 h-3.5" />
+                                    <span>Hóa đơn PDF</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {v &&
+                                ['Completed', 'Cancelled', 'Rejected'].includes(b.status) &&
+                                v.status === 'Available' && (
+                                  <Link
+                                    to={`/booking/${v._id}`}
+                                    className="px-3.5 py-1.5 rounded-lg bg-[#161616] border border-white/12 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                                  >
+                                    <RotateCcw className="w-3 h-3 text-[#FFC799]" />
+                                    <span>Thuê lại xe này</span>
+                                  </Link>
+                                )}
+
+                              <Link
+                                to={`/complaints/new?bookingId=${b._id}`}
+                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 text-[#A0A0A0] hover:text-amber-400 text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                                title="Gửi khiếu nại về chuyến xe này"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
+                                <span>Khiếu nại</span>
+                              </Link>
+                            </div>
                           </div>
                         </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* UC-35: Pagination Controls */}
+                  {bookingPagination.totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/[0.08]">
+                      <div className="text-xs text-[#A0A0A0]">
+                        Hiển thị trang <strong className="text-[#F5F5F5] font-mono-tabular">{bookingPagination.page}</strong> /{' '}
+                        <span className="font-mono-tabular">{bookingPagination.totalPages}</span>{' '}
+                        (Tổng cộng <strong className="text-[#FFC799] font-mono-tabular">{bookingPagination.total}</strong> chuyến xe)
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          disabled={!bookingPagination.hasPrev || bookingsLoading}
+                          onClick={() => handleBookingPageChange(bookingPage - 1)}
+                          className="p-2 rounded-xl bg-[#161616] border border-white/10 hover:border-[#FFC799] text-[#A0A0A0] hover:text-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          title="Trang trước"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        {Array.from({ length: bookingPagination.totalPages }, (_, i) => i + 1).map((p) => {
+                          const isActive = p === bookingPagination.page;
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              disabled={bookingsLoading}
+                              onClick={() => handleBookingPageChange(p)}
+                              className={`w-8 h-8 rounded-xl text-xs font-mono-tabular font-semibold transition-all cursor-pointer ${
+                                isActive
+                                  ? 'bg-[#F5F5F5] text-[#101010] shadow-sm'
+                                  : 'bg-[#161616] border border-white/10 text-[#A0A0A0] hover:text-white hover:border-white/20'
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        })}
+
+                        <button
+                          type="button"
+                          disabled={!bookingPagination.hasNext || bookingsLoading}
+                          onClick={() => handleBookingPageChange(bookingPage + 1)}
+                          className="p-2 rounded-xl bg-[#161616] border border-white/10 hover:border-[#FFC799] text-[#A0A0A0] hover:text-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                          title="Trang sau"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               );
             })()}
           </div>
@@ -1278,7 +1745,21 @@ export const ProfilePage: React.FC = () => {
                     placeholder="VD: 0905 123 456"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] outline-none transition-colors"
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#F5F5F5] outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
+                    Số CCCD (12 số) / Hộ chiếu
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={12}
+                    placeholder="VD: 048204008692"
+                    value={idCardNumber}
+                    onChange={(e) => setIdCardNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())}
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#F5F5F5] outline-none transition-colors"
                   />
                 </div>
 
@@ -1806,9 +2287,6 @@ export const ProfilePage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          MODAL 2: CANCEL BOOKING CONFIRMATION
-          ===================================================================== */}
-      {/* =====================================================================
           MODAL 2: CANCEL BOOKING CONFIRMATION WITH BR-06 POLICY
           ===================================================================== */}
       {selectedBookingForCancel && (() => {
@@ -1844,7 +2322,7 @@ export const ProfilePage: React.FC = () => {
               <div
                 className={`p-4 rounded-xl border space-y-2 text-xs ${
                   paid > 0 && isMoreThan24h
-                    ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
+                    ? 'bg-emerald-950/20 border-[#FFC799]/25 text-emerald-200'
                     : paid > 0
                     ? 'bg-amber-950/20 border-amber-500/30 text-amber-200'
                     : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
@@ -1863,7 +2341,7 @@ export const ProfilePage: React.FC = () => {
 
                 {paid > 0 ? (
                   isMoreThan24h ? (
-                    <p className="leading-relaxed text-emerald-300">
+                    <p className="leading-relaxed text-[#FFC799]">
                       Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách BR-06, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.
                     </p>
                   ) : (
@@ -1891,7 +2369,7 @@ export const ProfilePage: React.FC = () => {
                     </div>
                     <div className="bg-black/30 p-2 rounded-lg">
                       <div className="text-[#A0A0A0] text-[10px]">Tiền hoàn dự kiến</div>
-                      <div className="font-bold text-emerald-400">
+                      <div className="font-bold text-[#FFC799]">
                         {refundEstimate.toLocaleString('vi-VN')} đ
                       </div>
                     </div>
@@ -1960,6 +2438,252 @@ export const ProfilePage: React.FC = () => {
         );
       })()}
 
+      {/* =====================================================================
+          MODAL 3: REQUEST REFUND MODAL (UC-33)
+          ===================================================================== */}
+      {selectedBookingForRefund && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#161616] rounded-2xl max-w-md w-full p-6 border border-white/15 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Yêu cầu hoàn tiền đơn {selectedBookingForRefund.bookingCode}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForRefund(null)}
+                className="text-[#A0A0A0] hover:text-[#F5F5F5] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-1">
+              <div className="flex justify-between text-emerald-300">
+                <span>Số tiền hoàn theo BR-06:</span>
+                <strong className="font-mono-tabular text-sm text-emerald-400">
+                  {(selectedBookingForRefund.refundAmount || 0).toLocaleString('vi-VN')} đ
+                </strong>
+              </div>
+              <p className="text-[11px] text-[#A0A0A0]">
+                Số tiền sẽ được chuyển khoản trực tiếp qua ngân hàng sau khi ban quản lý duyệt yêu cầu.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Ngân hàng thụ hưởng <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankNameInput}
+                  onChange={(e) => setBankNameInput(e.target.value)}
+                  placeholder="Ví dụ: MB Bank, Vietcombank, Techcombank..."
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Số tài khoản nhận tiền <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNumberInput}
+                  onChange={(e) => setBankAccountNumberInput(e.target.value)}
+                  placeholder="Nhập số tài khoản ngân hàng"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs font-mono-tabular text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Tên chủ tài khoản (viết hoa không dấu) <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNameInput}
+                  onChange={(e) => setBankAccountNameInput(e.target.value.toUpperCase())}
+                  placeholder="NGUYEN VAN A"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs font-mono-tabular uppercase text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#A0A0A0] mb-1">
+                  Ghi chú bổ sung (nếu có)
+                </label>
+                <input
+                  type="text"
+                  value={refundReasonInput}
+                  onChange={(e) => setRefundReasonInput(e.target.value)}
+                  placeholder="Lý do hoặc số điện thoại liên hệ đối soát"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                disabled={refundLoading}
+                onClick={() => setSelectedBookingForRefund(null)}
+                className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={refundLoading}
+                onClick={handleRequestRefund}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#101010] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {refundLoading ? 'Đang gửi...' : 'Gửi yêu cầu hoàn tiền'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL 4: EXTEND RENTAL MODAL (UC-34)
+          ===================================================================== */}
+      {selectedBookingForExtend && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-[#161616] border border-white/12 rounded-2xl w-full max-w-lg p-6 space-y-5 text-[#F5F5F5] shadow-2xl relative">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-2.5">
+                <Clock className="w-5 h-5 text-[#FFC799]" />
+                <h3 className="text-base font-bold text-[#F5F5F5]">
+                  Gia hạn thời gian thuê xe
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForExtend(null)}
+                className="text-[#A0A0A0] hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs space-y-2">
+              <div className="flex justify-between text-[#A0A0A0]">
+                <span>Mã đơn:</span>
+                <span className="text-[#FFC799] font-mono-tabular font-bold">
+                  {selectedBookingForExtend.bookingCode}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#A0A0A0]">
+                <span>Thời gian trả xe hiện tại:</span>
+                <span className="text-[#F5F5F5] font-mono-tabular font-semibold">
+                  {new Date(selectedBookingForExtend.returnDateTime).toLocaleString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-[#F5F5F5]">
+                Chọn mốc thời gian trả xe mới *
+              </label>
+              <input
+                type="datetime-local"
+                value={extendNewDate}
+                min={new Date(new Date(selectedBookingForExtend.returnDateTime).getTime() + 3600 * 1000)
+                  .toISOString()
+                  .slice(0, 16)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setExtendNewDate(val);
+                  if (val) {
+                    fetchExtendEstimate(selectedBookingForExtend._id, val);
+                  }
+                }}
+                className="w-full px-3.5 py-2.5 bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl text-xs text-[#F5F5F5] outline-none [color-scheme:dark]"
+              />
+              <p className="text-[11px] text-[#A0A0A0]">
+                Khung giờ trả xe mới phải nằm trong giờ mở cửa của chi nhánh và tối đa 30 ngày.
+              </p>
+            </div>
+
+            {/* Live Pricing Breakdown / Error */}
+            {extendEstimating ? (
+              <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] text-center space-y-2">
+                <RefreshCw className="w-4 h-4 text-[#FFC799] animate-spin mx-auto" />
+                <span className="text-xs text-[#A0A0A0]">Đang kiểm tra lịch trống và tính toán lại chi phí...</span>
+              </div>
+            ) : extendError ? (
+              <div className="p-3.5 rounded-xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-xs text-[#FF8080] flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>{extendError}</span>
+              </div>
+            ) : extendEstimate ? (
+              <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] space-y-2.5 text-xs">
+                <div className="flex justify-between items-center text-[#A0A0A0]">
+                  <span>Thời gian thuê thêm:</span>
+                  <span className="text-[#F5F5F5] font-mono-tabular font-medium">
+                    {extendEstimate.addedDays > 0 ? `${extendEstimate.addedDays} ngày ` : ''}
+                    ({extendEstimate.addedHours} giờ)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[#A0A0A0]">
+                  <span>Chi phí phát sinh thêm:</span>
+                  <span className="text-[#FFC799] font-mono-tabular font-bold text-sm">
+                    +{extendEstimate.addedAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+                <div className="pt-2 border-t border-white/[0.06] flex justify-between items-center">
+                  <span className="text-[#A0A0A0]">Tổng tiền thuê mới:</span>
+                  <span className="text-white font-mono-tabular font-bold">
+                    {extendEstimate.newTotalAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-[#A0A0A0]">
+                  <span>Số dư còn lại cần thanh toán:</span>
+                  <span className="text-[#99FFE4] font-mono-tabular font-semibold">
+                    {extendEstimate.newRemainingAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Actions */}
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                disabled={extendLoading}
+                onClick={() => setSelectedBookingForExtend(null)}
+                className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={extendLoading || extendEstimating || !extendEstimate?.isAvailable}
+                onClick={handleConfirmExtend}
+                className="flex-1 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-bold transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center justify-center space-x-2"
+              >
+                {extendLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {extendLoading
+                    ? 'Đang xử lý...'
+                    : extendEstimate
+                    ? `Xác nhận gia hạn (+${extendEstimate.addedAmount.toLocaleString('vi-VN')} đ)`
+                    : 'Xác nhận gia hạn'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* UC-39: Review Modal for Completed Booking */}
       {selectedBookingForReview && (
         <ReviewModal
@@ -1968,7 +2692,7 @@ export const ProfilePage: React.FC = () => {
           bookingId={selectedBookingForReview._id}
           vehicleName={
             typeof selectedBookingForReview.vehicleId === 'object' && selectedBookingForReview.vehicleId !== null
-              ? (selectedBookingForReview.vehicleId as any).vehicleModel
+              ? (selectedBookingForReview.vehicleId as { vehicleModel?: string }).vehicleModel
               : undefined
           }
           onSuccess={async () => {
@@ -1986,7 +2710,7 @@ export const ProfilePage: React.FC = () => {
           existingReview={selectedReviewForEdit}
           vehicleName={
             typeof selectedReviewForEdit.vehicleId === 'object' && selectedReviewForEdit.vehicleId !== null
-              ? (selectedReviewForEdit.vehicleId as any).vehicleModel
+              ? (selectedReviewForEdit.vehicleId as { vehicleModel?: string }).vehicleModel
               : undefined
           }
           onSuccess={async () => {

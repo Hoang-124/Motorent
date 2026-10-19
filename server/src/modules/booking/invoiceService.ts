@@ -7,7 +7,7 @@ import { assertBranchAccess } from '../../core/permissions';
 
 export const streamBookingInvoicePdf = async (
   bookingId: string,
-  requestingUser: { _id: string; roles: string; fullName?: string; email?: string; branchId?: string },
+  requestingUser: { _id: unknown; roles: string; fullName?: string; email?: string; branchId?: unknown },
   res: Response
 ): Promise<void> => {
   const booking = await Booking.findById(bookingId)
@@ -23,7 +23,7 @@ export const streamBookingInvoicePdf = async (
   // Permission check
   if (requestingUser.roles === 'Customer') {
     const customerId = (booking.userId as any)?._id?.toString() || booking.userId?.toString();
-    if (customerId !== requestingUser._id.toString()) {
+    if (customerId !== String(requestingUser._id)) {
       throw new AppError(403, 'Bạn không có quyền truy cập hóa đơn của khách hàng khác.');
     }
   } else if (['BranchManager', 'Staff'].includes(requestingUser.roles)) {
@@ -123,7 +123,7 @@ export const streamBookingInvoicePdf = async (
   // Table Rows
   let y = 360;
   const days = Math.max(1, Math.ceil((new Date(booking.returnDateTime).getTime() - new Date(booking.pickupDateTime).getTime()) / (1000 * 3600 * 24)));
-  const dailyRate = booking.dailyPrice || vehicleObj.dailyPrice || 0;
+  const dailyRate = (booking as unknown as { dailyPrice?: number }).dailyPrice || vehicleObj.dailyPrice || 0;
 
   // Row 1: Tiền thuê xe
   doc.fillColor('#333333').font(primaryFont).fontSize(9);

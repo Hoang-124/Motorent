@@ -15,7 +15,14 @@ import { User } from './models/User';
 import { Booking } from './models/Booking';
 import { Conversation } from './models/Conversation';
 import * as chatService from './modules/chat/chatService';
+import { adminBannerRouter, publicBannerRouter } from './modules/cms/bannerRoutes';
 import { adminPageRouter, publicPageRouter } from './modules/cms/pageRoutes';
+import {
+  complaintRouter,
+  customerComplaintRouter,
+  staffComplaintRouter,
+  managerComplaintRouter,
+} from './modules/support/complaintRoutes';
 import apiRouter from './routes';
 
 export const app = express();
@@ -79,18 +86,28 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: '15mb' }));
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-// Serve uploaded static files (avatars)
+// Serve uploaded static files (avatars, banners, reviews, complaints)
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Mount Central Modular Monolith API
 app.use('/api', apiRouter);
 
+// Direct root route aliases for CMS Banners (UC-116, UC-117, UC-118)
+app.use('/admin/banners', adminBannerRouter);
+app.use('/banners', publicBannerRouter);
+
 // Direct root route aliases for CMS Static Pages (UC-119)
 app.use('/admin/pages', adminPageRouter);
 app.use('/pages', publicPageRouter);
+
+// Direct root route aliases for Complaints (UC-42, UC-43, UC-65, UC-85)
+app.use('/me/complaints', customerComplaintRouter);
+app.use('/complaints', complaintRouter);
+app.use('/manager/complaints', managerComplaintRouter);
+app.use('/staff/complaints', staffComplaintRouter);
 
 // Reusable Socket.IO JWT Authentication Middleware
 const socketAuthMiddleware = async (socket: Socket, next: (err?: Error) => void) => {
@@ -146,25 +163,42 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       }
     });
 
-    socket.on('join_booking', async (bookingId: string) => {
-      if (!bookingId || !user) return;
-      const booking = await Booking.findById(bookingId);
-      if (!booking) return;
+    socket.on(
+      'join_booking',
+      async (bookingId: string, ack?: (res: { success: boolean; message?: string }) => void) => {
+        if (!bookingId || !user) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Yêu cầu đăng nhập xác thực.' });
+          return;
+        }
+        const booking = await Booking.findById(bookingId);
+        if (!booking) {
+          if (typeof ack === 'function') ack({ success: false, message: 'Không tìm thấy đơn đặt xe.' });
+          return;
+        }
 
-      const isOwner = booking.userId.toString() === user._id.toString();
-      const isBranchStaff =
-        ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
-        (!user.branchId ||
-          booking.pickupBranchId.toString() === user.branchId.toString() ||
-          booking.returnBranchId.toString() === user.branchId.toString());
+        const isOwner = booking.userId.toString() === user._id.toString();
+        const isBranchStaff =
+          ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
+          (!user.branchId ||
+            booking.pickupBranchId.toString() === user.branchId.toString() ||
+            booking.returnBranchId.toString() === user.branchId.toString());
 
-      if (isOwner || isBranchStaff) {
-        socket.join(`booking:${bookingId}`);
+        if (isOwner || isBranchStaff) {
+          socket.join(`booking:${bookingId}`);
+          if (typeof ack === 'function') {
+            ack({ success: true, message: `Đã kết nối theo dõi thời gian thực đơn ${booking.bookingCode}.` });
+          }
+        } else {
+          if (typeof ack === 'function') {
+            ack({ success: false, message: 'Bạn không có quyền theo dõi đơn đặt xe này.' });
+          }
+        }
       }
-    });
+    );
 
-    socket.on('leave_booking', (bookingId: string) => {
+    socket.on('leave_booking', (bookingId: string, ack?: () => void) => {
       socket.leave(`booking:${bookingId}`);
+      if (typeof ack === 'function') ack();
     });
 
     socket.on('join_conversation', async (conversationId: string) => {
@@ -279,24 +313,32 @@ export const startServer = async () => {
   if (server.listening) return;
   await connectDatabase();
   await new Promise<void>((resolve, reject) => {
-    const onError = (error: Error) => { server.off('listening', onListening); reject(error); };
-    const onListening = () => { server.off('error', onError); resolve(); };
+    const onError = (error: Error) => {
+      server.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      resolve();
+    };
     server.once('error', onError);
     server.once('listening', onListening);
     server.listen(PORT);
   });
   startBookingExpiryJob();
   startOdometerAlertJob();
-    console.log(`[SERVER] MOTORENT Server running on http://localhost:${PORT}`);
-    console.log(`[SECURITY] Active: Helmet, Rate Limiter, CORS whitelist, Trust Proxy: ${env.TRUST_PROXY || 1}`);
-    console.log(`[HEALTH] Health check endpoint: http://localhost:${PORT}/api/health`);
+  console.log(`[SERVER] MOTORENT Server running on http://localhost:${PORT}`);
+  console.log(`[SECURITY] Active: Helmet, Rate Limiter, CORS whitelist, Trust Proxy: ${env.TRUST_PROXY || 1}`);
+  console.log(`[HEALTH] Health check endpoint: http://localhost:${PORT}/api/health`);
 };
 
 if (process.env.NODE_ENV !== 'test') {
   void startServer().catch(async (error: NodeJS.ErrnoException) => {
-    console.error(error.code === 'EADDRINUSE'
-      ? `[SERVER] Cổng ${PORT} đang được sử dụng. Dừng lần chạy cũ bằng Ctrl+C hoặc dùng npm run dev tại thư mục gốc.`
-      : `[SERVER] Không khởi động được: ${error.message}`);
+    console.error(
+      error.code === 'EADDRINUSE'
+        ? `[SERVER] Cổng ${PORT} đang được sử dụng. Dừng lần chạy cũ bằng Ctrl+C hoặc dùng npm run dev tại thư mục gốc.`
+        : `[SERVER] Không khởi động được: ${error.message}`
+    );
     await import('mongoose').then(({ default: mongoose }) => mongoose.disconnect());
     process.exitCode = 1;
   });

@@ -9,6 +9,14 @@ export type BookingStatus =
   | 'Cancelled'
   | 'Rejected';
 
+export interface IRefundBankInfo {
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+  reason?: string;
+  requestedAt?: Date;
+}
+
 export interface IDamageRecord {
   description: string;
   damageFee: number;
@@ -63,6 +71,9 @@ export interface IBooking extends Document {
   endFuelLevel?: string;
   checkinImages?: string[];
   checkoutImages?: string[];
+  checkinAt?: Date;
+  checkinBy?: mongoose.Types.ObjectId;
+  checkinChecklist?: Record<string, boolean>;
   checkoutAt?: Date;
   checkoutBy?: mongoose.Types.ObjectId;
   returnNotes?: string;
@@ -74,6 +85,10 @@ export interface IBooking extends Document {
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
   cancelledAt?: Date;
+  refundBankInfo?: IRefundBankInfo;
+  extensionCount?: number;
+  lastExtendedAt?: Date;
+  originalReturnDateTime?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -137,6 +152,9 @@ const BookingSchema = new Schema<IBooking>(
     endFuelLevel: { type: String },
     checkinImages: [{ type: String }],
     checkoutImages: [{ type: String }],
+    checkinAt: { type: Date },
+    checkinBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    checkinChecklist: { type: Schema.Types.Mixed },
     checkoutAt: { type: Date },
     checkoutBy: { type: Schema.Types.ObjectId, ref: 'User' },
     returnNotes: { type: String, default: '' },
@@ -152,6 +170,16 @@ const BookingSchema = new Schema<IBooking>(
     },
     refundForfeitAmount: { type: Number, default: 0 },
     cancelledAt: { type: Date },
+    refundBankInfo: {
+      bankName: { type: String, trim: true },
+      bankAccountNumber: { type: String, trim: true },
+      bankAccountName: { type: String, trim: true },
+      reason: { type: String, trim: true },
+      requestedAt: { type: Date },
+    },
+    extensionCount: { type: Number, default: 0 },
+    lastExtendedAt: { type: Date },
+    originalReturnDateTime: { type: Date },
   },
   { timestamps: true }
 );

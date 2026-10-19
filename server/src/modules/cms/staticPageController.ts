@@ -1,6 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../../core/errorHandler';
 import { getPublishedStaticPage } from './staticPageService';
+import {
+  getAdminPages,
+  getAdminPageById,
+  createAdminPage,
+  updateAdminPage,
+  deleteAdminPage,
+  getPublicPageBySlug,
+} from './pageController';
+
+export {
+  getAdminPages,
+  getAdminPageById,
+  createAdminPage,
+  updateAdminPage,
+  deleteAdminPage,
+  getPublicPageBySlug,
+};
 
 export const getPublicPage = async (
   req: Request,

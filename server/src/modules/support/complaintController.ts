@@ -112,6 +112,8 @@ export const submitComplaint = async (
 /**
  * Backward compatibility alias for submitComplaint
  */
+export const createComplaint = submitComplaint;
+
 /**
  * UC-43: GET /me/complaints?status&page&limit and GET /complaints
  * Returns list of customer's own complaints sorted newest first
@@ -267,7 +269,6 @@ export const closeComplaint = async (
   }
 };
 
-
 /**
  * GET /staff/complaints/:id and /manager/complaints/:id
  * Staff / Manager views detailed complaint with timeline
@@ -420,4 +421,3 @@ export const updateComplaintStatus = async (
     next(error);
   }
 };
-

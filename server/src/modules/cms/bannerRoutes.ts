@@ -14,7 +14,7 @@ export const publicBannerRouter = Router();
 publicBannerRouter.get('/', bannerController.getPublicBanners);
 
 // ==========================================
-// Protected Admin Banner Routes (UC-116)
+// Protected Admin Banner Routes (UC-116, UC-117, UC-118)
 // ==========================================
 
 // GET /admin/banners - List all banners with pagination and filter (UC-116)
@@ -33,6 +33,42 @@ adminBannerRouter.post(
   bannerUpload.single('image'),
   auditLogger('CREATE_BANNER', 'Banner'),
   bannerController.createBanner
+);
+
+// PATCH /admin/banners/reorder - Reorder banners atomically (UC-117)
+adminBannerRouter.patch(
+  '/reorder',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  auditLogger('REORDER_BANNERS', 'Banner'),
+  bannerController.reorderBanners
+);
+
+// PATCH /admin/banners/:id/status - Quick toggle isActive on table (UC-117)
+adminBannerRouter.patch(
+  '/:id/status',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  auditLogger('UPDATE_BANNER_STATUS', 'Banner'),
+  bannerController.updateBannerStatus
+);
+
+// GET /admin/banners/:id - Get banner details for edit form (UC-117)
+adminBannerRouter.get(
+  '/:id',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  bannerController.getBannerById
+);
+
+// PATCH /admin/banners/:id - Edit banner fields and/or replacement image (UC-117)
+adminBannerRouter.patch(
+  '/:id',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  bannerUpload.single('image'),
+  auditLogger('UPDATE_BANNER', 'Banner'),
+  bannerController.updateBanner
 );
 
 // DELETE /admin/banners/:id - Soft delete banner (UC-118)
