@@ -1,768 +1,1341 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  ArrowLeft,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
+  Edit3,
   Plus,
-  Image as ImageIcon,
+  Check,
+  X,
   ExternalLink,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  RefreshCw,
+  Image as ImageIcon,
+  Upload,
+  SlidersHorizontal,
+  Sparkles,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  UploadCloud,
-  X,
-  Loader2,
-  RotateCcw,
-  Sparkles,
-  Layers
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Banner } from '../types';
 import { getBannerImageUrl } from '../utils/imageHelper';
 
+interface ToastState {
+  message: string;
+  type: 'success' | 'error';
+}
+
 export const AdminBannersPage: React.FC = () => {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
 
-  // Pagination & Filtering
-  const [page, setPage] = useState<number>(1);
-  const [limit] = useState<number>(10);
+  // Pagination States
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize] = useState<number>(10);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(0);
-  const [activeFilter, setActiveFilter] = useState<'all' | 'true' | 'false'>('all');
 
-  // Modal State
-  const [showAddModal, setShowAddModal] = useState<boolean>(false);
-  const [submitting, setSubmitting] = useState<boolean>(false);
-
-  // Form Fields
-  const [formTitle, setFormTitle] = useState<string>('');
-  const [formLinkUrl, setFormLinkUrl] = useState<string>('');
-  const [formOrder, setFormOrder] = useState<string>('');
-  const [formIsActive, setFormIsActive] = useState<boolean>(true);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Modal States
+  const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Edit Form Fields
+  const [editTitle, setEditTitle] = useState<string>('');
+  const [editSubtitle, setEditSubtitle] = useState<string>('');
+  const [editLinkUrl, setEditLinkUrl] = useState<string>('');
+  const [editOrder, setEditOrder] = useState<number>(1);
+  const [editIsActive, setEditIsActive] = useState<boolean>(true);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string>('');
+
+  // Add Form Fields
+  const [addTitle, setAddTitle] = useState<string>('');
+  const [addSubtitle, setAddSubtitle] = useState<string>('');
+  const [addLinkUrl, setAddLinkUrl] = useState<string>('/bikes');
+  const [addOrder, setAddOrder] = useState<number>(1);
+  const [addIsActive, setAddIsActive] = useState<boolean>(true);
+  const [addImageFile, setAddImageFile] = useState<File | null>(null);
+  const [addImagePreview, setAddImagePreview] = useState<string>('');
+
+  // Drag and drop tracking
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 3500);
+  }, []);
 
   const fetchBanners = useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-
       const params = new URLSearchParams();
-      params.set('page', String(page));
-      params.set('limit', String(limit));
-      if (activeFilter !== 'all') {
-        params.set('isActive', activeFilter);
-      }
+      params.set('page', String(currentPage));
+      params.set('limit', String(pageSize));
+      if (filterStatus === 'active') params.set('isActive', 'true');
+      if (filterStatus === 'inactive') params.set('isActive', 'false');
 
       const res = await api.get(`/admin/banners?${params.toString()}`);
-      if (res.data?.success && res.data.data) {
-        setBanners(res.data.data.items || []);
-        setTotalPages(res.data.data.totalPages || 1);
-        setTotalCount(res.data.data.total || 0);
+      if (res.data?.success && res.data.data?.items) {
+        const sorted = (res.data.data.items as Banner[]).sort((a, b) => (a.order || 0) - (b.order || 0));
+        setBanners(sorted);
+        setTotalCount(res.data.data.total ?? sorted.length);
+        setTotalPages(res.data.data.totalPages ?? Math.max(1, Math.ceil((res.data.data.total ?? sorted.length) / pageSize)));
       } else {
         setBanners([]);
+        setTotalCount(0);
+        setTotalPages(1);
       }
-    } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err && (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          ? (err as { response: { data: { message: string } } }).response.data.message
-          : 'Không thể tải danh sách banner từ máy chủ.';
-      setError(msg);
+    } catch {
+      setError('Không thể tải danh sách banner từ máy chủ. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
-  }, [page, limit, activeFilter]);
+  }, [currentPage, pageSize, filterStatus]);
 
   useEffect(() => {
     fetchBanners();
-  }, [fetchBanners]);
-
-  // Clean up object URL when modal closes or file changes
-  useEffect(() => {
     return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
       }
     };
-  }, [previewUrl]);
+  }, [fetchBanners]);
 
-  // Handle immediate file validation and preview
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Clean object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (editImagePreview && editImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(editImagePreview);
+      }
+      if (addImagePreview && addImagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(addImagePreview);
+      }
+    };
+  }, [editImagePreview, addImagePreview]);
+
+  // ==========================================
+  // Optimistic Quick Toggle isActive
+  // ==========================================
+  const handleToggleStatus = async (bannerId: string, currentStatus: boolean) => {
+    const previousBanners = [...banners];
+    const nextStatus = !currentStatus;
+
+    // Optimistic local update
+    setBanners((prev) =>
+      prev.map((b) => ((b._id || b.id) === bannerId ? { ...b, isActive: nextStatus } : b))
+    );
+
+    try {
+      const res = await api.patch(`/admin/banners/${bannerId}/status`, { isActive: nextStatus });
+      if (res.data?.success) {
+        showToast(
+          nextStatus ? 'Đã bật hiển thị banner trên trang chủ.' : 'Đã tạm ẩn banner khỏi trang chủ.'
+        );
+      } else {
+        throw new Error(res.data?.message || 'Lỗi cập nhật');
+      }
+    } catch {
+      // Rollback on error
+      setBanners(previousBanners);
+      showToast('Không thể cập nhật trạng thái banner. Đã hoàn tác.', 'error');
+    }
+  };
+
+  // ==========================================
+  // Atomic Reorder API caller with optimistic update
+  // ==========================================
+  const applyNewOrder = async (newOrderBanners: Banner[], successMessage = 'Đã cập nhật thứ tự hiển thị banner.') => {
+    const previousBanners = [...banners];
+
+    // Recalculate continuous order numbers 1..n
+    const continuousBanners = newOrderBanners.map((b, idx) => ({
+      ...b,
+      order: idx + 1,
+    }));
+
+    // Optimistic local update
+    setBanners(continuousBanners);
+
+    const payload = continuousBanners.map((b) => ({
+      id: b._id || b.id,
+      order: b.order,
+    }));
+
+    try {
+      const res = await api.patch('/admin/banners/reorder', payload);
+      if (res.data?.success) {
+        showToast(successMessage);
+      } else {
+        throw new Error(res.data?.message || 'Lỗi reorder');
+      }
+    } catch {
+      // Rollback on error
+      setBanners(previousBanners);
+      showToast('Lỗi cập nhật thứ tự banner. Đã hoàn tác dữ liệu.', 'error');
+    }
+  };
+
+  // Button Reorder: Move Up
+  const handleMoveUp = (index: number) => {
+    if (index <= 0) return;
+    const updated = [...banners];
+    const temp = updated[index];
+    updated[index] = updated[index - 1];
+    updated[index - 1] = temp;
+    applyNewOrder(updated, `Đã chuyển "${temp.title}" lên vị trí ${index}.`);
+  };
+
+  // Button Reorder: Move Down
+  const handleMoveDown = (index: number) => {
+    if (index >= banners.length - 1) return;
+    const updated = [...banners];
+    const temp = updated[index];
+    updated[index] = updated[index + 1];
+    updated[index + 1] = temp;
+    applyNewOrder(updated, `Đã chuyển "${temp.title}" xuống vị trí ${index + 2}.`);
+  };
+
+  // HTML5 Drag and Drop Reordering
+  const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetIndex: number) => {
+    e.preventDefault();
+    setDragOverIndex(null);
+
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null);
+      return;
+    }
+
+    const updated = [...banners];
+    const [movedItem] = updated.splice(draggedIndex, 1);
+    updated.splice(targetIndex, 0, movedItem);
+
+    setDraggedIndex(null);
+    applyNewOrder(updated, `Đã kéo-thả "${movedItem.title}" sang vị trí ${targetIndex + 1}.`);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // ==========================================
+  // Open Edit Modal & Prefill Data
+  // ==========================================
+  const handleOpenEdit = (banner: Banner) => {
+    setEditingBanner(banner);
+    setEditTitle(banner.title);
+    setEditSubtitle(banner.subtitle || '');
+    setEditLinkUrl(banner.linkUrl || '');
+    setEditOrder(banner.order);
+    setEditIsActive(banner.isActive);
+    setEditImageFile(null);
+    setEditImagePreview(getBannerImageUrl(banner.imageUrl));
     setFormError(null);
+  };
+
+  const handleCloseEdit = () => {
+    setEditingBanner(null);
+    setEditImageFile(null);
+    setEditImagePreview('');
+    setFormError(null);
+  };
+
+  // Handle Edit Image File Selection
+  const handleEditFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type (JPEG, JPG, PNG, WebP)
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    const validExt = /\.(jpe?g|png|webp)$/i.test(file.name);
-    if (!allowedTypes.includes(file.type.toLowerCase()) && !validExt) {
-      setFormError('Định dạng tệp không hợp lệ! Chỉ chấp nhận ảnh JPG, PNG hoặc WebP.');
-      setSelectedFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      setFormError('Chỉ chấp nhận file ảnh định dạng JPEG, PNG hoặc WebP.');
       return;
     }
 
-    // Validate file size (max 5MB)
-    const MAX_SIZE = 5 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      setFormError('Dung lượng tệp quá lớn! Vui lòng chọn tệp dưới 5MB.');
-      setSelectedFile(null);
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError('Dung lượng ảnh tối đa cho phép là 5MB.');
       return;
     }
 
-    // Set file and preview
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFormError(null);
+    setEditImageFile(file);
     const objectUrl = URL.createObjectURL(file);
-    setSelectedFile(file);
-    setPreviewUrl(objectUrl);
+    setEditImagePreview(objectUrl);
   };
 
-  const handleRemoveSelectedFile = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setSelectedFile(null);
-    setPreviewUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const handleOpenAddModal = () => {
-    setFormTitle('');
-    setFormLinkUrl('');
-    setFormOrder('');
-    setFormIsActive(true);
-    handleRemoveSelectedFile();
-    setFormError(null);
-    setShowAddModal(true);
-  };
-
-  const handleCloseAddModal = () => {
-    handleRemoveSelectedFile();
-    setFormError(null);
-    setShowAddModal(false);
-  };
-
-  const handleSubmitBanner = async (e: React.FormEvent) => {
+  // Submit Edit Form (PATCH /admin/banners/:id)
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editingBanner) return;
+
+    const trimmedTitle = editTitle.trim();
+    if (!trimmedTitle) {
+      setFormError('Tiêu đề banner không được để trống.');
+      return;
+    }
+
+    if (trimmedTitle.length > 100) {
+      setFormError('Tiêu đề banner tối đa 100 ký tự.');
+      return;
+    }
+
+    const trimmedLink = editLinkUrl.trim();
+    if (trimmedLink && !trimmedLink.startsWith('/') && !/^https?:\/\//i.test(trimmedLink)) {
+      setFormError('Đường dẫn phải bắt đầu bằng "/" hoặc là URL hợp lệ (http/https).');
+      return;
+    }
+
+    setIsSubmitting(true);
     setFormError(null);
 
-    // Validate Title
-    const trimmedTitle = formTitle.trim();
-    if (!trimmedTitle) {
-      setFormError('Vui lòng nhập tiêu đề cho banner.');
-      return;
-    }
-    if (trimmedTitle.length > 100) {
-      setFormError('Tiêu đề banner không được vượt quá 100 ký tự.');
-      return;
-    }
-
-    // Validate Image
-    if (!selectedFile) {
-      setFormError('Vui lòng chọn hình ảnh banner.');
-      return;
-    }
-
-    // Validate LinkUrl if provided
-    if (formLinkUrl.trim()) {
-      const link = formLinkUrl.trim().toLowerCase();
-      if (
-        link.startsWith('javascript:') ||
-        link.startsWith('data:') ||
-        link.startsWith('vbscript:') ||
-        link.startsWith('//')
-      ) {
-        setFormError('Đường dẫn linkUrl không an toàn hoặc chứa mã thực thi.');
-        return;
-      }
-      if (!link.startsWith('/') && !link.startsWith('http://') && !link.startsWith('https://')) {
-        setFormError('Đường dẫn phải bắt đầu bằng "/" (nội bộ) hoặc URL đầy đủ (http://, https://).');
-        return;
-      }
-    }
-
-    // Validate Order if provided
-    if (formOrder.trim()) {
-      const ord = Number(formOrder.trim());
-      if (isNaN(ord) || ord < 1 || !Number.isInteger(ord)) {
-        setFormError('Thứ tự hiển thị phải là số nguyên dương lớn hơn hoặc bằng 1.');
-        return;
-      }
-    }
+    const bannerId = editingBanner._id || editingBanner.id;
 
     try {
-      setSubmitting(true);
       const formData = new FormData();
       formData.append('title', trimmedTitle);
-      formData.append('image', selectedFile);
-      if (formLinkUrl.trim()) {
-        formData.append('linkUrl', formLinkUrl.trim());
-      }
-      if (formOrder.trim()) {
-        formData.append('order', formOrder.trim());
-      }
-      formData.append('isActive', String(formIsActive));
+      formData.append('subtitle', editSubtitle.trim());
+      formData.append('linkUrl', trimmedLink);
+      formData.append('order', String(editOrder));
+      formData.append('isActive', String(editIsActive));
 
-      const res = await api.post('/admin/banners', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      if (editImageFile) {
+        formData.append('image', editImageFile);
+      }
+
+      const res = await api.patch(`/admin/banners/${bannerId}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      if (res.data?.success) {
-        setSuccessMsg(`Thêm banner "${trimmedTitle}" thành công!`);
-        setTimeout(() => setSuccessMsg(null), 4000);
-        handleCloseAddModal();
-        fetchBanners();
+      if (res.data?.success && res.data.data) {
+        const updatedBanner = res.data.data as Banner;
+        setBanners((prev) =>
+          prev.map((b) => ((b._id || b.id) === bannerId ? updatedBanner : b))
+        );
+        showToast('Cập nhật thông tin banner thành công!');
+        handleCloseEdit();
+      } else {
+        throw new Error(res.data?.message || 'Cập nhật thất bại.');
       }
     } catch (err: unknown) {
-      const msg =
-        err && typeof err === 'object' && 'response' in err && (err as { response?: { data?: { message?: string } } }).response?.data?.message
-          ? (err as { response: { data: { message: string } } }).response.data.message
-          : 'Không thể thêm banner. Vui lòng kiểm tra lại thông tin.';
-      setFormError(msg);
+      const errMsg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Không thể lưu thay đổi. Vui lòng kiểm tra lại dữ liệu.';
+      setFormError(errMsg);
     } finally {
-      setSubmitting(false);
+      setIsSubmitting(false);
     }
   };
 
+  // ==========================================
+  // Open Add Modal & Submit (POST /admin/banners)
+  // ==========================================
+  const handleOpenAdd = () => {
+    const nextOrder = banners.length > 0 ? Math.max(...banners.map((b) => b.order || 0)) + 1 : 1;
+    setAddTitle('');
+    setAddSubtitle('');
+    setAddLinkUrl('/bikes');
+    setAddOrder(nextOrder);
+    setAddIsActive(true);
+    setAddImageFile(null);
+    setAddImagePreview('');
+    setFormError(null);
+    setIsAddModalOpen(true);
+  };
+
+  const handleCloseAdd = () => {
+    setIsAddModalOpen(false);
+    setAddImageFile(null);
+    setAddImagePreview('');
+    setFormError(null);
+  };
+
+  const handleAddFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.match(/^image\/(jpeg|png|webp)$/)) {
+      setFormError('Chỉ chấp nhận file ảnh định dạng JPEG, PNG hoặc WebP.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError('Dung lượng ảnh tối đa cho phép là 5MB.');
+      return;
+    }
+
+    setFormError(null);
+    setAddImageFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setAddImagePreview(objectUrl);
+  };
+
+  const handleSaveAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const trimmedTitle = addTitle.trim();
+    if (!trimmedTitle) {
+      setFormError('Tiêu đề banner là bắt buộc.');
+      return;
+    }
+
+    if (!addImageFile) {
+      setFormError('Vui lòng chọn hình ảnh banner để tải lên.');
+      return;
+    }
+
+    const trimmedLink = addLinkUrl.trim();
+    if (trimmedLink && !trimmedLink.startsWith('/') && !/^https?:\/\//i.test(trimmedLink)) {
+      setFormError('Đường dẫn phải bắt đầu bằng "/" hoặc là URL hợp lệ (http/https).');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFormError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('title', trimmedTitle);
+      formData.append('subtitle', addSubtitle.trim());
+      formData.append('linkUrl', trimmedLink);
+      formData.append('order', String(addOrder));
+      formData.append('isActive', String(addIsActive));
+      formData.append('image', addImageFile);
+
+      const res = await api.post('/admin/banners', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      if (res.data?.success && res.data.data) {
+        const createdBanner = res.data.data as Banner;
+        setBanners((prev) => [...prev, createdBanner].sort((a, b) => (a.order || 0) - (b.order || 0)));
+        showToast('Thêm banner mới thành công!');
+        handleCloseAdd();
+      } else {
+        throw new Error(res.data?.message || 'Thêm banner thất bại.');
+      }
+    } catch (err: unknown) {
+      const errMsg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Không thể thêm banner. Vui lòng kiểm tra lại kết nối mạng.';
+      setFormError(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Filtered list based on search and status tabs
+  const filteredBanners = banners.filter((b) => {
+    const matchQuery =
+      b.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (b.subtitle && b.subtitle.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (b.linkUrl && b.linkUrl.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (!matchQuery) return false;
+    if (filterStatus === 'active') return b.isActive;
+    if (filterStatus === 'inactive') return !b.isActive;
+    return true;
+  });
+
   return (
-    <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-[#101010] text-[#F5F5F5] pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      {/* Toast Alert */}
+      {toast && (
+        <div
+          className={`fixed top-20 right-6 z-50 flex items-center space-x-3 px-4 py-3 rounded-xl border shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-top-4 ${
+            toast.type === 'success'
+              ? 'bg-[#18261E] border-emerald-500/30 text-emerald-300'
+              : 'bg-[#2A1616] border-red-500/30 text-red-300'
+          }`}
+        >
+          {toast.type === 'success' ? (
+            <Check className="w-5 h-5 text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+          )}
+          <span className="text-sm font-medium">{toast.message}</span>
+        </div>
+      )}
 
-        {/* Top Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-white/10">
+      {/* Header & Breadcrumb */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+        <div>
+          <div className="flex items-center space-x-2 text-xs uppercase tracking-wider text-[#FFC799] font-medium mb-1.5">
+            <SlidersHorizontal className="w-4 h-4" />
+            <span>CMS Quản trị Hệ Thống</span>
+            <span className="text-white/30">•</span>
+            <span>UC-116 & UC-117</span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center space-x-3">
+            <span>Quản Lý Banner Trang Chủ</span>
+          </h1>
+          <p className="text-sm text-[#A0A0A0] mt-1 max-w-2xl">
+            Sửa mọi trường dữ liệu, đổi ảnh với cơ chế rollback an toàn, sắp xếp thứ tự hiển thị bằng kéo-thả
+            hoặc nút lên/xuống, và bật/tắt nhanh trạng thái hiển thị trực tiếp trên danh sách.
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <button
+            type="button"
+            onClick={fetchBanners}
+            disabled={loading}
+            className="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-sm text-[#F5F5F5] transition-all cursor-pointer disabled:opacity-50"
+            title="Tải lại danh sách"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-[#FFC799]' : ''}`} />
+            <span>Làm mới</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#FFC799] hover:bg-[#FFB77D] text-[#101010] font-semibold text-sm transition-all cursor-pointer shadow-lg shadow-[#FFC799]/10"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>Thêm Banner Mới</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats and Filter Controls */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mb-6">
+        <div className="bg-[#181818] border border-white/10 rounded-2xl p-4 flex items-center justify-between">
           <div>
-            <div className="flex items-center space-x-2 text-xs font-mono font-bold uppercase tracking-widest text-[#FFC799]">
-              <Layers className="w-4 h-4 text-[#FFC799]" />
-              <span>HỆ THỐNG QUẢN TRỊ CMS • HOME BANNER</span>
+            <div className="text-xs text-[#A0A0A0] uppercase font-medium">Tổng Banner</div>
+            <div className="text-2xl font-bold text-white mt-0.5">{banners.length}</div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-[#FFC799]">
+            <ImageIcon className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-[#181818] border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-[#A0A0A0] uppercase font-medium">Đang Hiển Thị</div>
+            <div className="text-2xl font-bold text-emerald-400 mt-0.5">
+              {banners.filter((b) => b.isActive).length}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#F5F5F5] mt-1">
-              Quản lý Banner Trang Chủ (UC-116)
-            </h1>
-            <p className="text-xs text-[#A0A0A0] mt-1">
-              Thêm banner mới, cấu hình đường dẫn liên kết và quản lý trạng thái hiển thị trên giao diện trang chủ.
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <Eye className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-[#181818] border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <div className="text-xs text-[#A0A0A0] uppercase font-medium">Tạm Ẩn</div>
+            <div className="text-2xl font-bold text-zinc-400 mt-0.5">
+              {banners.filter((b) => !b.isActive).length}
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-white/[0.05] border border-white/10 flex items-center justify-center text-zinc-400">
+            <EyeOff className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Tabs & Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6 bg-[#181818] border border-white/10 rounded-2xl p-2.5">
+        <div className="flex items-center space-x-1.5 bg-black/40 p-1 rounded-xl border border-white/5">
+          <button
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              filterStatus === 'all'
+                ? 'bg-[#FFC799] text-[#101010] font-semibold'
+                : 'text-[#A0A0A0] hover:text-white'
+            }`}
+          >
+            Tất cả ({banners.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('active')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              filterStatus === 'active'
+                ? 'bg-emerald-500 text-white font-semibold'
+                : 'text-[#A0A0A0] hover:text-white'
+            }`}
+          >
+            Đang hiển thị ({banners.filter((b) => b.isActive).length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('inactive')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+              filterStatus === 'inactive'
+                ? 'bg-zinc-700 text-white font-semibold'
+                : 'text-[#A0A0A0] hover:text-white'
+            }`}
+          >
+            Tạm ẩn ({banners.filter((b) => !b.isActive).length})
+          </button>
+        </div>
+
+        <div className="relative flex-1 sm:max-w-xs">
+          <input
+            type="text"
+            placeholder="Tìm theo tiêu đề, link..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-black/40 border border-white/10 rounded-xl px-3.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#FFC799] transition-colors"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Table Container */}
+      <div className="bg-[#181818] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center space-y-3">
+            <RefreshCw className="w-8 h-8 animate-spin text-[#FFC799]" />
+            <span className="text-sm text-[#A0A0A0]">Đang tải danh sách banner...</span>
+          </div>
+        ) : error ? (
+          <div className="py-16 px-4 text-center">
+            <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
+            <p className="text-sm text-red-300 font-medium">{error}</p>
+            <button
+              type="button"
+              onClick={fetchBanners}
+              className="mt-4 px-4 py-2 bg-white/[0.08] hover:bg-white/[0.12] rounded-xl text-xs text-white border border-white/10"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : filteredBanners.length === 0 ? (
+          <div className="py-20 px-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center mx-auto mb-3 text-zinc-500">
+              <ImageIcon className="w-7 h-7" />
+            </div>
+            <h3 className="text-base font-semibold text-white">Chưa có banner nào</h3>
+            <p className="text-xs text-[#A0A0A0] mt-1 max-w-sm mx-auto">
+              {searchQuery || filterStatus !== 'all'
+                ? 'Không tìm thấy banner nào phù hợp với bộ lọc hiện tại.'
+                : 'Bấm nút "Thêm Banner Mới" để tạo banner quảng cáo đầu tiên trên trang chủ.'}
             </p>
+            {!searchQuery && filterStatus === 'all' && (
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="mt-4 inline-flex items-center space-x-2 px-4 py-2 bg-[#FFC799] text-[#101010] font-semibold rounded-xl text-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Thêm banner ngay</span>
+              </button>
+            )}
           </div>
-
-          <div className="flex items-center space-x-3">
-            <Link
-              to="/counter"
-              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#161616] hover:bg-white/[0.08] border border-white/10 text-xs font-bold text-[#F5F5F5] transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4 text-[#FFC799]" />
-              <span>Quay lại Bàn giao</span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={handleOpenAddModal}
-              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#ffb67a] text-[#101010] font-bold text-xs transition-colors cursor-pointer shadow-md"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>Thêm Banner mới</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Global Feedback Messages */}
-        {successMsg && (
-          <div className="p-4 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/40 flex items-center space-x-3 text-xs sm:text-sm text-[#FFC799] animate-fade-in">
-            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
-        {error && (
-          <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/40 flex items-center justify-between text-xs sm:text-sm text-red-200">
-            <div className="flex items-center space-x-3">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-400" />
-              <span>{error}</span>
-            </div>
-            <button
-              onClick={fetchBanners}
-              className="px-3 py-1 rounded bg-red-900/60 hover:bg-red-800 text-xs font-semibold flex items-center space-x-1"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Thử lại</span>
-            </button>
-          </div>
-        )}
-
-        {/* Filter & Control Bar */}
-        <div className="bg-[#161616] rounded-2xl border border-white/10 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-[#A0A0A0] font-medium mr-1">Bộ lọc hiển thị:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFilter('all');
-                setPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeFilter === 'all'
-                  ? 'bg-[#F5F5F5] text-[#101010]'
-                  : 'bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5]'
-              }`}
-            >
-              Tất cả ({totalCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFilter('true');
-                setPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeFilter === 'true'
-                  ? 'bg-[#FFC799] text-[#101010]'
-                  : 'bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5]'
-              }`}
-            >
-              Đang hiển thị
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setActiveFilter('false');
-                setPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                activeFilter === 'false'
-                  ? 'bg-white/20 text-[#F5F5F5]'
-                  : 'bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5]'
-              }`}
-            >
-              Tạm ẩn
-            </button>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <button
-              type="button"
-              onClick={fetchBanners}
-              disabled={loading}
-              className="p-2 rounded-lg bg-[#1E1E1E] hover:bg-white/10 text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
-              title="Tải lại danh sách"
-            >
-              <RotateCcw className={`w-4 h-4 ${loading ? 'animate-spin text-[#FFC799]' : ''}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Banner Table */}
-        <div className="bg-[#161616] rounded-2xl border border-white/10 overflow-hidden shadow-xl">
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-[#121212] border-b border-white/10 text-[#A0A0A0] uppercase font-mono-tabular tracking-wider text-[11px]">
-                  <th className="py-3.5 px-4 font-semibold w-12 text-center">#</th>
-                  <th className="py-3.5 px-4 font-semibold w-36">Ảnh Banner</th>
-                  <th className="py-3.5 px-4 font-semibold">Tiêu đề Banner</th>
-                  <th className="py-3.5 px-4 font-semibold">Đường dẫn liên kết</th>
-                  <th className="py-3.5 px-4 font-semibold w-24 text-center">Thứ tự</th>
-                  <th className="py-3.5 px-4 font-semibold w-32 text-center">Trạng thái</th>
-                  <th className="py-3.5 px-4 font-semibold w-36 text-right">Ngày tạo</th>
+                <tr className="bg-white/[0.02] border-b border-white/10 text-[#A0A0A0] uppercase font-semibold text-[11px] tracking-wider">
+                  <th className="py-3.5 px-4 w-28 text-center">Thứ tự</th>
+                  <th className="py-3.5 px-4 w-44">Ảnh xem trước</th>
+                  <th className="py-3.5 px-4">Thông tin Banner</th>
+                  <th className="py-3.5 px-4 w-40">Đường dẫn</th>
+                  <th className="py-3.5 px-4 w-36 text-center">Trạng thái</th>
+                  <th className="py-3.5 px-4 w-44 text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06]">
-                {loading && banners.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-16 text-center text-[#A0A0A0]">
-                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#FFC799] mb-3" />
-                      <p>Đang tải danh sách banner hệ thống...</p>
-                    </td>
-                  </tr>
-                ) : banners.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-16 text-center text-[#6E6E6E]">
-                      <ImageIcon className="w-12 h-12 mx-auto stroke-1 text-white/20 mb-3" />
-                      <p className="text-sm font-semibold text-[#A0A0A0]">Chưa có banner nào</p>
-                      <p className="text-xs text-[#6E6E6E] mt-1">
-                        Nhấn nút "Thêm Banner mới" ở góc phải trên để tạo banner đầu tiên cho trang chủ.
-                      </p>
-                    </td>
-                  </tr>
-                ) : (
-                  banners.map((item, index) => {
-                    const rowNum = (page - 1) * limit + index + 1;
-                    const bannerImg = getBannerImageUrl(item.imageUrl);
-                    return (
-                      <tr
-                        key={item._id || item.id || index}
-                        className="hover:bg-white/[0.02] transition-colors"
-                      >
-                        <td className="py-3.5 px-4 font-mono-tabular text-center text-[#6E6E6E]">
-                          {rowNum}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="w-28 h-16 rounded-lg bg-[#101010] border border-white/10 overflow-hidden flex items-center justify-center relative group">
-                            {bannerImg ? (
-                              <img
-                                src={bannerImg}
-                                alt={item.title}
-                                loading="lazy"
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              />
-                            ) : (
-                              <ImageIcon className="w-6 h-6 text-white/20" />
-                            )}
+                {filteredBanners.map((banner, index) => {
+                  const bannerId = banner._id || banner.id || '';
+                  const isDragged = draggedIndex === index;
+                  const isDragOver = dragOverIndex === index;
+
+                  return (
+                    <tr
+                      key={bannerId}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDrop={(e) => handleDrop(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className={`group transition-colors ${
+                        isDragged ? 'opacity-30 bg-[#FFC799]/5' : ''
+                      } ${isDragOver ? 'bg-[#FFC799]/10 border-t-2 border-[#FFC799]' : 'hover:bg-white/[0.02]'}`}
+                    >
+                      {/* Column 1: Order with Drag Handle & Up/Down Arrows */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center justify-center space-x-1.5">
+                          {/* Drag Handle */}
+                          <div
+                            className="p-1 rounded-md text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing hover:bg-white/[0.05]"
+                            title="Kéo-thả để đổi thứ tự"
+                          >
+                            <GripVertical className="w-4 h-4" />
                           </div>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <p className="font-bold text-[#F5F5F5] text-sm line-clamp-2">{item.title}</p>
-                          <p className="text-[10px] font-mono text-[#6E6E6E] mt-0.5">
-                            ID: {item._id || item.id}
-                          </p>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          {item.linkUrl ? (
-                            <a
-                              href={item.linkUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center space-x-1.5 text-xs text-[#FFC799] hover:underline font-mono truncate max-w-xs"
+
+                          {/* Order Badge */}
+                          <div className="w-7 h-7 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center font-bold text-white text-xs">
+                            {banner.order}
+                          </div>
+
+                          {/* Up / Down Controls */}
+                          <div className="flex flex-col space-y-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveUp(index)}
+                              disabled={index === 0}
+                              className="p-0.5 rounded text-zinc-400 hover:text-[#FFC799] hover:bg-white/[0.08] disabled:opacity-20 disabled:hover:text-zinc-400 cursor-pointer disabled:cursor-not-allowed"
+                              title="Di chuyển lên"
                             >
-                              <span className="truncate">{item.linkUrl}</span>
-                              <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                            </a>
-                          ) : (
-                            <span className="text-[11px] text-[#6E6E6E] italic">Không liên kết</span>
+                              <ArrowUp className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveDown(index)}
+                              disabled={index === banners.length - 1}
+                              className="p-0.5 rounded text-zinc-400 hover:text-[#FFC799] hover:bg-white/[0.08] disabled:opacity-20 disabled:hover:text-zinc-400 cursor-pointer disabled:cursor-not-allowed"
+                              title="Di chuyển xuống"
+                            >
+                              <ArrowDown className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Column 2: Image Preview Thumbnail */}
+                      <td className="py-3.5 px-4">
+                        <div className="relative w-36 h-20 rounded-xl overflow-hidden bg-black/50 border border-white/10 group-hover:border-white/20 transition-all shadow-inner">
+                          <img
+                            src={getBannerImageUrl(banner.imageUrl)}
+                            alt={banner.title}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            onError={(e) => {
+                              // Fallback on broken image
+                              (e.target as HTMLImageElement).src =
+                                'https://images.unsplash.com/photo-1558981806-ec527fa84c39?auto=format&fit=crop&w=600&q=80';
+                            }}
+                          />
+                          {!banner.isActive && (
+                            <div className="absolute inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-400 bg-black/80 px-2 py-0.5 rounded-full border border-white/10">
+                                Đã ẩn
+                              </span>
+                            </div>
                           )}
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <span className="inline-block px-2.5 py-1 rounded-md bg-[#101010] border border-white/10 font-mono-tabular font-bold text-xs text-[#F5F5F5]">
-                            {item.order}
+                        </div>
+                      </td>
+
+                      {/* Column 3: Title & Subtitle */}
+                      <td className="py-3.5 px-4">
+                        <div className="max-w-md">
+                          <div className="font-semibold text-white text-sm line-clamp-1 group-hover:text-[#FFC799] transition-colors">
+                            {banner.title}
+                          </div>
+                          {banner.subtitle ? (
+                            <div className="text-xs text-[#A0A0A0] line-clamp-1 mt-0.5">
+                              {banner.subtitle}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-zinc-600 italic mt-0.5">
+                              Chưa có phụ đề
+                            </div>
+                          )}
+                          <div className="text-[10px] text-zinc-500 mt-1 font-mono">
+                            ID: {bannerId}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Column 4: Link URL */}
+                      <td className="py-3.5 px-4">
+                        {banner.linkUrl ? (
+                          <a
+                            href={banner.linkUrl}
+                            target={banner.linkUrl.startsWith('http') ? '_blank' : '_self'}
+                            rel="noreferrer"
+                            className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-[#FFC799] border border-white/5 text-xs transition-colors max-w-[150px] truncate"
+                            title={banner.linkUrl}
+                          >
+                            <span className="truncate">{banner.linkUrl}</span>
+                            <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                          </a>
+                        ) : (
+                          <span className="text-zinc-600 text-xs italic">Không có link</span>
+                        )}
+                      </td>
+
+                      {/* Column 5: Interactive isActive Switch (Rule FE: Công tắc isActive ngay trên bảng) */}
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="inline-flex flex-col items-center space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(bannerId, banner.isActive)}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              banner.isActive ? 'bg-emerald-500' : 'bg-zinc-700'
+                            }`}
+                            role="switch"
+                            aria-checked={banner.isActive}
+                            title={banner.isActive ? 'Bấm để ẩn banner' : 'Bấm để hiển thị banner'}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                banner.isActive ? 'translate-x-5' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                          <span
+                            className={`text-[10px] font-medium ${
+                              banner.isActive ? 'text-emerald-400' : 'text-zinc-500'
+                            }`}
+                          >
+                            {banner.isActive ? 'Đang bật' : 'Tắt'}
                           </span>
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          {item.isActive ? (
-                            <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                              <span>Hiển thị</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[#A0A0A0] text-[11px] font-medium">
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#6E6E6E]" />
-                              <span>Tạm ẩn</span>
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4 text-right font-mono-tabular text-[#A0A0A0]">
-                          {item.createdAt
-                            ? new Date(item.createdAt).toLocaleDateString('vi-VN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                              })
-                            : '-'}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
+                        </div>
+                      </td>
+
+                      {/* Column 6: Action Buttons (Edit & Delete - UC-118) */}
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="inline-flex items-center space-x-1.5 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(banner)}
+                            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-[#FFC799] text-[#F5F5F5] hover:text-[#101010] border border-white/10 hover:border-[#FFC799] text-xs font-semibold transition-all cursor-pointer"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Sửa</span>
+                          </button>
+                        </div>
+                      </td>
+
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+        )}
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="p-4 bg-[#121212] border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#A0A0A0]">
-              <div>
-                Hiển thị trang <span className="font-bold text-[#F5F5F5]">{page}</span> /{' '}
-                <span className="font-bold text-[#F5F5F5]">{totalPages}</span> (Tổng cộng {totalCount} banner)
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1 || loading}
-                  className="px-3 py-1.5 rounded-lg bg-[#1E1E1E] hover:bg-white/10 text-[#F5F5F5] disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-1 transition-colors cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span>Trước</span>
-                </button>
-
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: totalPages }).map((_, i) => {
-                    const pNum = i + 1;
-                    return (
-                      <button
-                        key={pNum}
-                        type="button"
-                        onClick={() => setPage(pNum)}
-                        className={`w-8 h-8 rounded-lg font-mono-tabular text-xs font-bold transition-colors cursor-pointer ${
-                          pNum === page
-                            ? 'bg-[#FFC799] text-[#101010]'
-                            : 'bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5]'
-                        }`}
-                      >
-                        {pNum}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages || loading}
-                  className="px-3 py-1.5 rounded-lg bg-[#1E1E1E] hover:bg-white/10 text-[#F5F5F5] disabled:opacity-40 disabled:cursor-not-allowed flex items-center space-x-1 transition-colors cursor-pointer"
-                >
-                  <span>Sau</span>
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+        {/* Pagination Bar */}
+        {totalPages > 1 && (
+          <div className="p-4 bg-white/[0.02] border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[#A0A0A0]">
+            <div>
+              Hiển thị trang <span className="font-bold text-white">{currentPage}</span> /{' '}
+              <span className="font-bold text-white">{totalPages}</span> (Tổng cộng {totalCount} banner)
             </div>
-          )}
-        </div>
 
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1 || loading}
+                className="px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white disabled:opacity-30 disabled:cursor-not-allowed flex items-center space-x-1 transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Trước</span>
+              </button>
+
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: totalPages }).map((_, i) => {
+                  const pNum = i + 1;
+                  return (
+                    <button
+                      key={pNum}
+                      type="button"
+                      onClick={() => setCurrentPage(pNum)}
+                      className={`w-7 h-7 rounded-lg font-mono text-xs font-bold transition-colors cursor-pointer ${
+                        pNum === currentPage
+                          ? 'bg-[#FFC799] text-[#101010]'
+                          : 'bg-white/[0.05] text-[#A0A0A0] hover:text-white'
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= totalPages || loading}
+                className="px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white disabled:opacity-30 disabled:cursor-not-allowed flex items-center space-x-1 transition-colors cursor-pointer"
+              >
+                <span>Sau</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* =========================================================================
-          ADD BANNER MODAL (FORM THÊM CÓ PREVIEW & VALIDATE TYPE/SIZE NGAY KHI CHỌN)
-          ========================================================================= */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-xl bg-[#161616] border border-white/15 rounded-3xl p-6 sm:p-8 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/30 flex items-center justify-center text-[#FFC799]">
-                  <Plus className="w-5 h-5 stroke-[2.2]" />
+      {/* ==========================================
+          EDIT BANNER MODAL (Rule FE: Prefill dữ liệu, preview ảnh hiện tại, cho phép thay ảnh)
+          ========================================== */}
+      {editingBanner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#181818] border border-white/15 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 sm:p-8">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex items-center justify-center text-[#FFC799]">
+                  <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-[#F5F5F5]">Thêm Banner Mới</h3>
-                  <p className="text-xs text-[#A0A0A0]">Thiết lập hình ảnh và thông số hiển thị trang chủ</p>
+                  <h3 className="text-lg font-bold text-white">Chỉnh Sửa Banner (UC-117)</h3>
+                  <p className="text-xs text-[#A0A0A0]">
+                    Mã banner: <span className="font-mono text-[#FFC799]">{editingBanner._id || editingBanner.id}</span>
+                  </p>
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={handleCloseAddModal}
-                disabled={submitting}
-                className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
+                onClick={handleCloseEdit}
+                disabled={isSubmitting}
+                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
               >
-                <X className="w-4 h-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Error Alert */}
             {formError && (
-              <div className="mb-5 p-3.5 rounded-xl bg-red-950/40 border border-red-500/40 flex items-start space-x-2.5 text-xs text-red-200">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400 mt-0.5" />
+              <div className="mb-6 p-3.5 rounded-xl bg-red-950/40 border border-red-500/30 flex items-center space-x-3 text-red-300 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
                 <span>{formError}</span>
               </div>
             )}
 
-            {/* Add Banner Form */}
-            <form onSubmit={handleSubmitBanner} className="space-y-5">
+            <form onSubmit={handleSaveEdit} className="space-y-5">
+              {/* Image Preview & Replacement Section */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Hình ảnh Banner <span className="text-zinc-500 font-normal">(Ảnh hiện tại & thay thế)</span>
+                </label>
 
-              {/* Title Field (Required, 1-100 chars, with live counter) */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-[#F5F5F5] uppercase tracking-wider">
-                    Tiêu đề Banner <span className="text-[#FFC799]">*</span>
-                  </label>
-                  <span
-                    className={`text-[11px] font-mono-tabular ${
-                      formTitle.length > 100 ? 'text-red-400 font-bold' : 'text-[#6E6E6E]'
-                    }`}
-                  >
-                    {formTitle.length} / 100
-                  </span>
+                <div className="relative w-full h-44 sm:h-52 rounded-2xl overflow-hidden bg-black/60 border border-white/10 flex items-center justify-center group shadow-inner">
+                  {editImagePreview ? (
+                    <img
+                      src={editImagePreview}
+                      alt="Banner Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-zinc-600 flex flex-col items-center space-y-2">
+                      <ImageIcon className="w-10 h-10" />
+                      <span className="text-xs">Chưa có ảnh</span>
+                    </div>
+                  )}
+
+                  {/* Overlay upload button */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4">
+                    <label
+                      htmlFor="edit-banner-file"
+                      className="px-4 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-bold text-xs cursor-pointer flex items-center space-x-2 shadow-lg hover:bg-[#FFB77D] transition-colors"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>{editImageFile ? 'Đổi tệp ảnh khác' : 'Tải lên ảnh mới thay thế'}</span>
+                    </label>
+                    <span className="text-[11px] text-zinc-300 mt-2">Hỗ trợ JPEG, PNG, WebP tối đa 5MB</span>
+                  </div>
                 </div>
+
+                <div className="flex items-center justify-between text-xs text-zinc-400 pt-1">
+                  <div>
+                    {editImageFile ? (
+                      <span className="text-emerald-400 font-medium flex items-center space-x-1.5">
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Đã chọn ảnh mới: {editImageFile.name} ({(editImageFile.size / 1024).toFixed(0)} KB)</span>
+                      </span>
+                    ) : (
+                      <span>Đang hiển thị hình ảnh hiện tại trên máy chủ</span>
+                    )}
+                  </div>
+
+                  <input
+                    id="edit-banner-file"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleEditFileChange}
+                    className="hidden"
+                  />
+
+                  {editImageFile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditImageFile(null);
+                        setEditImagePreview(getBannerImageUrl(editingBanner.imageUrl));
+                      }}
+                      className="text-xs text-red-400 hover:underline cursor-pointer"
+                    >
+                      Hủy ảnh mới & giữ ảnh cũ
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Title input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Tiêu đề Banner <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="text"
                   required
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="Ví dụ: Khám Phá Đà Nẵng Trọn Vẹn Cùng Motorent"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Nhập tiêu đề banner khuyến mãi..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors"
                   maxLength={100}
-                  className="w-full px-4 py-3 rounded-xl bg-[#101010] border border-white/15 focus:border-[#FFC799] focus:outline-none text-sm text-[#F5F5F5] placeholder-[#6E6E6E] transition-colors"
                 />
+                <div className="flex justify-between text-[11px] text-zinc-500">
+                  <span>Tiêu đề chính hiển thị trên slider trang chủ</span>
+                  <span>{editTitle.length}/100</span>
+                </div>
               </div>
 
-              {/* Image Upload Area with Immediate Validation & Preview */}
-              <div>
-                <label className="block text-xs font-semibold text-[#F5F5F5] uppercase tracking-wider mb-1.5">
-                  Hình ảnh Banner <span className="text-[#FFC799]">*</span>
-                </label>
-
-                {previewUrl ? (
-                  /* Image Preview Box */
-                  <div className="relative rounded-2xl border border-[#FFC799]/40 bg-[#101010] p-3 overflow-hidden group">
-                    <div className="w-full h-48 sm:h-56 rounded-xl overflow-hidden bg-black/40 flex items-center justify-center relative">
-                      <img
-                        src={previewUrl}
-                        alt="Xem trước banner"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-3">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-3.5 py-1.5 rounded-lg bg-[#FFC799] text-[#101010] text-xs font-bold transition-transform active:scale-95 cursor-pointer shadow-lg"
-                        >
-                          Đổi ảnh khác
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRemoveSelectedFile}
-                          className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-transform active:scale-95 cursor-pointer shadow-lg"
-                        >
-                          Xóa ảnh
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-2.5 px-1 flex items-center justify-between text-xs text-[#A0A0A0]">
-                      <span className="truncate max-w-[280px] font-mono text-[11px] text-[#F5F5F5]">
-                        {selectedFile?.name}
-                      </span>
-                      <span className="font-mono text-[11px] text-[#FFC799]">
-                        {selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(2) : '0'} MB
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  /* Upload Dropzone / Picker */
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-44 rounded-2xl border-2 border-dashed border-white/20 hover:border-[#FFC799] bg-[#101010]/60 hover:bg-[#101010] transition-all flex flex-col items-center justify-center p-6 text-center cursor-pointer group"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-white/5 group-hover:bg-[#FFC799]/15 flex items-center justify-center text-[#A0A0A0] group-hover:text-[#FFC799] transition-colors mb-2.5">
-                      <UploadCloud className="w-6 h-6 stroke-[1.8]" />
-                    </div>
-                    <p className="text-sm font-bold text-[#F5F5F5] group-hover:text-[#FFC799] transition-colors">
-                      Nhấp để chọn ảnh tải lên
-                    </p>
-                    <p className="text-xs text-[#6E6E6E] mt-1">
-                      Định dạng JPG, PNG hoặc WebP • Dung lượng tối đa 5MB
-                    </p>
-                  </div>
-                )}
-
-                {/* Hidden File Input with accept filter */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </div>
-
-              {/* Link URL Field (Optional) */}
-              <div>
-                <label className="block text-xs font-semibold text-[#F5F5F5] uppercase tracking-wider mb-1.5">
-                  Đường dẫn liên kết (linkUrl) <span className="text-[#6E6E6E] font-normal lowercase">(tùy chọn)</span>
+              {/* Subtitle input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Phụ đề / Thông điệp phụ
                 </label>
                 <input
                   type="text"
-                  value={formLinkUrl}
-                  onChange={(e) => setFormLinkUrl(e.target.value)}
-                  placeholder="Ví dụ: /bikes hoặc https://motorent.vn/khuyen-mai"
-                  className="w-full px-4 py-3 rounded-xl bg-[#101010] border border-white/15 focus:border-[#FFC799] focus:outline-none text-sm text-[#F5F5F5] placeholder-[#6E6E6E] transition-colors"
+                  value={editSubtitle}
+                  onChange={(e) => setEditSubtitle(e.target.value)}
+                  placeholder="Ví dụ: Nhận xe sân bay 0đ, nhập mã CHAOBANMOI..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors"
                 />
-                <p className="text-[11px] text-[#6E6E6E] mt-1">
-                  Đường dẫn nội bộ phải bắt đầu bằng "/" hoặc URL hợp lệ có http(s)://
+              </div>
+
+              {/* Link URL input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Đường dẫn liên kết (linkUrl)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={editLinkUrl}
+                    onChange={(e) => setEditLinkUrl(e.target.value)}
+                    placeholder="/bikes hoặc https://example.com"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors pr-10"
+                  />
+                  <ExternalLink className="w-4 h-4 text-zinc-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+                <p className="text-[11px] text-zinc-500">
+                  Đường dẫn nội bộ bắt đầu bằng "/" hoặc URL trang ngoài (http/https).
                 </p>
               </div>
 
-              {/* Order & Active Switch Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                {/* Order Input */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#F5F5F5] uppercase tracking-wider mb-1.5">
-                    Thứ tự hiển thị (order) <span className="text-[#6E6E6E] font-normal lowercase">(tùy chọn)</span>
+              {/* Order & Status row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                    Thứ tự hiển thị (Order)
                   </label>
                   <input
                     type="number"
-                    min="1"
-                    step="1"
-                    value={formOrder}
-                    onChange={(e) => setFormOrder(e.target.value)}
-                    placeholder="Mặc định: Tự động tăng"
-                    className="w-full px-4 py-3 rounded-xl bg-[#101010] border border-white/15 focus:border-[#FFC799] focus:outline-none text-sm text-[#F5F5F5] placeholder-[#6E6E6E] font-mono transition-colors"
+                    min={1}
+                    value={editOrder}
+                    onChange={(e) => setEditOrder(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors font-mono"
                   />
-                  <p className="text-[10px] text-[#6E6E6E] mt-1">
-                    Nếu để trống = số lớn nhất hiện tại + 1
-                  </p>
                 </div>
 
-                {/* IsActive Toggle Box */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#F5F5F5] uppercase tracking-wider mb-1.5">
-                    Trạng thái kích hoạt
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                    Trạng thái hiển thị
                   </label>
-                  <label className="flex items-center justify-between p-3 rounded-xl bg-[#101010] border border-white/15 cursor-pointer hover:border-white/25 transition-colors">
-                    <span className="text-xs text-[#F5F5F5] font-medium">Bật hiển thị ngay</span>
-                    <input
-                      type="checkbox"
-                      checked={formIsActive}
-                      onChange={(e) => setFormIsActive(e.target.checked)}
-                      className="w-4 h-4 rounded text-[#FFC799] bg-[#1E1E1E] border-white/20 focus:ring-0 focus:ring-offset-0 cursor-pointer accent-[#FFC799]"
-                    />
-                  </label>
-                  <p className="text-[10px] text-[#6E6E6E] mt-1">
-                    Trang chủ chỉ hiển thị các banner đang bật
-                  </p>
+                  <div className="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl px-4 py-2">
+                    <span className="text-xs text-white">
+                      {editIsActive ? 'Hiển thị công khai' : 'Tạm ẩn banner'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setEditIsActive(!editIsActive)}
+                      className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        editIsActive ? 'bg-emerald-500' : 'bg-zinc-700'
+                      }`}
+                      role="switch"
+                      aria-checked={editIsActive}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          editIsActive ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
-
               </div>
 
               {/* Modal Actions */}
-              <div className="pt-4 border-t border-white/10 flex items-center justify-end space-x-3">
+              <div className="flex items-center justify-end space-x-3 pt-6 border-t border-white/10">
                 <button
                   type="button"
-                  onClick={handleCloseAddModal}
-                  disabled={submitting}
-                  className="px-5 py-2.5 rounded-xl bg-[#1E1E1E] hover:bg-white/10 text-[#F5F5F5] text-xs font-semibold transition-colors cursor-pointer"
+                  onClick={handleCloseEdit}
+                  disabled={isSubmitting}
+                  className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-sm text-white transition-colors cursor-pointer disabled:opacity-50"
                 >
                   Hủy bỏ
                 </button>
 
                 <button
                   type="submit"
-                  disabled={submitting}
-                  className="px-6 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#ffb67a] text-[#101010] text-xs font-bold transition-all flex items-center space-x-2 disabled:opacity-50 cursor-pointer shadow-lg active:scale-95"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFB77D] text-[#101010] font-bold text-sm transition-all cursor-pointer shadow-lg shadow-[#FFC799]/10 disabled:opacity-50 flex items-center space-x-2"
                 >
-                  {submitting ? (
+                  {isSubmitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-[#101010]" />
-                      <span>Đang tải lên &amp; lưu...</span>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Đang lưu...</span>
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-4 h-4 stroke-[2.2]" />
-                      <span>Lưu Banner</span>
+                      <Check className="w-4 h-4 stroke-[2.5]" />
+                      <span>Lưu Thay Đổi</span>
                     </>
                   )}
                 </button>
               </div>
-
             </form>
-
           </div>
         </div>
       )}
 
+      {/* ==========================================
+          ADD NEW BANNER MODAL (UC-116)
+          ========================================== */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#181818] border border-white/15 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 sm:p-8">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex items-center justify-center text-[#FFC799]">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Thêm Banner Khuyến Mãi Mới</h3>
+                  <p className="text-xs text-[#A0A0A0]">Đăng tải hình ảnh banner và cấu hình vị trí hiển thị</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCloseAdd}
+                disabled={isSubmitting}
+                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {formError && (
+              <div className="mb-6 p-3.5 rounded-xl bg-red-950/40 border border-red-500/30 flex items-center space-x-3 text-red-300 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveAdd} className="space-y-5">
+              {/* File upload section */}
+              <div className="space-y-2">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Hình ảnh Banner <span className="text-red-400">*</span>
+                </label>
+
+                {addImagePreview ? (
+                  <div className="relative w-full h-44 sm:h-52 rounded-2xl overflow-hidden bg-black/60 border border-white/10 flex items-center justify-center group">
+                    <img src={addImagePreview} alt="New Banner" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <label
+                        htmlFor="add-banner-file"
+                        className="px-4 py-2 rounded-xl bg-[#FFC799] text-[#101010] font-bold text-xs cursor-pointer flex items-center space-x-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        <span>Chọn ảnh khác</span>
+                      </label>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="add-banner-file"
+                    className="w-full h-40 rounded-2xl border-2 border-dashed border-white/15 hover:border-[#FFC799]/50 bg-black/30 hover:bg-black/50 transition-all flex flex-col items-center justify-center cursor-pointer p-4 group"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-white/[0.05] group-hover:bg-[#FFC799]/10 text-zinc-400 group-hover:text-[#FFC799] flex items-center justify-center transition-colors mb-2">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <span className="text-sm font-semibold text-white">Bấm để tải lên ảnh banner</span>
+                    <span className="text-xs text-zinc-500 mt-1">Định dạng JPEG, PNG, WebP (Tối đa 5MB)</span>
+                  </label>
+                )}
+
+                <input
+                  id="add-banner-file"
+                  type="file"
+                  required={!addImageFile}
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleAddFileChange}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Title input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Tiêu đề Banner <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={addTitle}
+                  onChange={(e) => setAddTitle(e.target.value)}
+                  placeholder="Ví dụ: Ưu đãi chào hè Đà Nẵng 2026..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors"
+                  maxLength={100}
+                />
+              </div>
+
+              {/* Subtitle input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Phụ đề / Khẩu hiệu
+                </label>
+                <input
+                  type="text"
+                  value={addSubtitle}
+                  onChange={(e) => setAddSubtitle(e.target.value)}
+                  placeholder="Ví dụ: Giảm 20.000đ khi cọc online qua VNPay..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors"
+                />
+              </div>
+
+              {/* Link URL input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                  Đường dẫn liên kết (linkUrl)
+                </label>
+                <input
+                  type="text"
+                  value={addLinkUrl}
+                  onChange={(e) => setAddLinkUrl(e.target.value)}
+                  placeholder="/bikes hoặc https://..."
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors"
+                />
+              </div>
+
+              {/* Order & Status row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                    Thứ tự hiển thị (Order)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={addOrder}
+                    onChange={(e) => setAddOrder(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#FFC799] transition-colors font-mono"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
+                    Trạng thái kích hoạt
+                  </label>
+                  <div className="flex items-center justify-between bg-black/40 border border-white/10 rounded-xl px-4 py-2">
+                    <span className="text-xs text-white">
+                      {addIsActive ? 'Hiển thị ngay lập tức' : 'Tạo ở trạng thái ẩn'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAddIsActive(!addIsActive)}
+                      className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                        addIsActive ? 'bg-emerald-500' : 'bg-zinc-700'
+                      }`}
+                      role="switch"
+                      aria-checked={addIsActive}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          addIsActive ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end space-x-3 pt-6 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={handleCloseAdd}
+                  disabled={isSubmitting}
+                  className="px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-sm text-white transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Hủy bỏ
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFB77D] text-[#101010] font-bold text-sm transition-all cursor-pointer shadow-lg shadow-[#FFC799]/10 disabled:opacity-50 flex items-center space-x-2"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Đang tạo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 stroke-[2.5]" />
+                      <span>Tạo Banner Mới</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* UC-118: Delete modal is in UC-118 */}
     </div>
   );
 };
+
 
 export default AdminBannersPage;
