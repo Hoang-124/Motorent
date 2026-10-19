@@ -384,6 +384,7 @@ const seedDatabase = async (): Promise<void> => {
       yearManufactured: 2024,
       color: item.color,
       requiresMaintenance: false,
+      lastMaintenanceBucket: Math.floor((1500 + index * 280) / 1500),
       images: item.images,
     };
   });

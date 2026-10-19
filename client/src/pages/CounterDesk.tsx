@@ -1038,8 +1038,9 @@ export const CounterDesk: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        value={startOdo}
-                        onChange={(e) => setStartOdo(Number(e.target.value))}
+                        value={startOdo || ''}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onChange={(e) => setStartOdo(e.target.value === '' ? 0 : Number(e.target.value))}
                         disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
                         className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                       />
@@ -1348,8 +1349,9 @@ export const CounterDesk: React.FC = () => {
                       <input
                         type="number"
                         min={selectedBooking.startOdometer || 0}
-                        value={endOdo}
-                        onChange={(e) => setEndOdo(Number(e.target.value))}
+                        value={endOdo || ''}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onChange={(e) => setEndOdo(e.target.value === '' ? 0 : Number(e.target.value))}
                         disabled={selectedBooking.status !== 'Ongoing'}
                         className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                       />
@@ -1543,6 +1545,7 @@ export const CounterDesk: React.FC = () => {
                           min="0"
                           step="10000"
                           value={damageFee}
+                          onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) => setDamageFee(Number(e.target.value))}
                           disabled={selectedBooking.status !== 'Ongoing'}
                           className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"

@@ -145,8 +145,8 @@ export const createBooking = async (
       throw new AppError(404, 'Không tìm thấy phương tiện yêu cầu hoặc xe đã ngừng hoạt động.');
     }
 
-    if (vehicle.requiresMaintenance || vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
-      throw new AppError(400, 'Phương tiện hiện đang cần bảo dưỡng định kỳ hoặc đang điều chuyển và chưa sẵn sàng bàn giao.');
+    if (vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
+      throw new AppError(400, 'Phương tiện hiện đang bảo dưỡng định kỳ hoặc đang điều chuyển và chưa sẵn sàng bàn giao.');
     }
 
     const activeDepositedOrRented = await Booking.findOne({
@@ -440,8 +440,7 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   const isAvailable =
     !conflictingBooking &&
     !activeDepositedOrRented &&
-    vehicle.status === 'Available' &&
-    !vehicle.requiresMaintenance;
+    vehicle.status === 'Available';
 
   const roundedHours = Math.max(2, Math.ceil(diffHours));
   const effectiveHourly = vehicle.hourlyPrice || Math.round(vehicle.dailyPrice / 5 / 1000) * 1000;
@@ -756,17 +755,18 @@ export const checkoutBooking = async (
   // Update Vehicle: move to return branch, update ODO, set Available
   const vehicle = await Vehicle.findById(booking.vehicleId);
   if (vehicle) {
-    vehicle.branchId = booking.returnBranchId;
-    vehicle.odometer = input.endOdometer;
-    vehicle.status = 'Available';
-
-    // Flag maintenance: check 1500km interval bucket
+    const baselineOdo = booking.startOdometer || vehicle.odometer || 0;
     const currentBucket = Math.floor(input.endOdometer / 1500);
-    const lastBucket = vehicle.lastMaintenanceBucket || 0;
+    const lastBucket = vehicle.lastMaintenanceBucket || Math.floor(baselineOdo / 1500);
     if (currentBucket > lastBucket) {
       vehicle.requiresMaintenance = true;
       vehicle.lastMaintenanceBucket = currentBucket;
+    } else if (!vehicle.lastMaintenanceBucket) {
+      vehicle.lastMaintenanceBucket = lastBucket;
     }
+    vehicle.branchId = booking.returnBranchId;
+    vehicle.odometer = input.endOdometer;
+    vehicle.status = 'Available';
     await vehicle.save();
   }
 

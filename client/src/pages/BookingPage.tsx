@@ -563,7 +563,11 @@ export const BookingPage: React.FC = () => {
             return;
           } catch (vnpErr) {
             console.error('[VNPay Create Error]', vnpErr);
-            setErrorMsg('Không thể khởi tạo liên kết VNPay Sandbox. Vui lòng thử lại.');
+            const vnpMsg =
+              axios.isAxiosError(vnpErr) && vnpErr.response?.data?.message
+                ? vnpErr.response.data.message
+                : 'Không thể khởi tạo liên kết VNPay Sandbox. Vui lòng thử lại.';
+            setErrorMsg(vnpMsg);
             setSubmitting(false);
             return;
           }
@@ -1789,6 +1793,13 @@ export const BookingPage: React.FC = () => {
                     • Biển số xe <strong className="text-[#F5F5F5] font-mono">{vehicle.licensePlate}</strong> được khóa độc quyền cho bạn ngay sau khi hoàn tất.
                   </p>
                 </div>
+
+                {errorMsg && (
+                  <div className="p-3.5 rounded-xl bg-[#FF8080]/12 border border-[#FF8080]/30 text-[#FF8080] text-xs flex items-center space-x-2.5">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#FF8080]" />
+                    <span>{errorMsg}</span>
+                  </div>
+                )}
 
                 <div className="flex items-center space-x-3 pt-2">
                   <button
