@@ -29,21 +29,19 @@ import {
   Wallet,
   Banknote,
   Receipt,
-  ShieldAlert
+  Image as ImageIcon
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
-import { useAuth } from '../context/AuthContext';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
-import { StaffComplaintDesk } from '../components/StaffComplaintDesk';
-import { ManagerComplaintWorkspace } from '../components/ManagerComplaintWorkspace';
+import { BannerManager } from '../components/BannerManager';
 
 type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
-type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'complaints' | 'audit';
+type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit' | 'banners';
 
 interface PendingEkycUser {
   _id: string;
@@ -67,14 +65,9 @@ interface PendingEkycUser {
 export const CounterDesk: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const modeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
-  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'complaints', 'audit'].includes(modeParam)
+  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit', 'banners'].includes(modeParam)
     ? modeParam
     : 'bookings';
-
-  const { user } = useAuth();
-  const isManager = Boolean(user && (user.roles === 'BranchManager' || user.roles === 'SystemAdmin'));
-  const [complaintSubTab, setComplaintSubTab] = useState<'manager' | 'queue'>(isManager ? 'manager' : 'queue');
-  const [pendingComplaintCount, setPendingComplaintCount] = useState<number>(0);
 
   const [deskMode, setDeskMode] = useState<MainDeskMode>(initialMode);
   const [searchCode, setSearchCode] = useState<string>('');
@@ -246,7 +239,7 @@ export const CounterDesk: React.FC = () => {
 
   useEffect(() => {
     const m = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
-    if (m && ['bookings', 'ekyc', 'chat', 'complaints', 'audit'].includes(m)) {
+    if (m && ['bookings', 'ekyc', 'chat', 'audit', 'banners'].includes(m)) {
       setDeskMode(m);
     }
   }, [searchParams]);
@@ -573,20 +566,15 @@ export const CounterDesk: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => switchDeskMode('complaints')}
+                onClick={() => switchDeskMode('banners')}
                 className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'complaints'
+                  deskMode === 'banners'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
                 }`}
               >
-                <AlertCircle className="w-4 h-4" />
-                <span>05. Khiếu nại {isManager ? '(UC-85)' : '(UC-65)'}</span>
-                {isManager && pendingComplaintCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-[#FF8080] text-[#101010] font-black text-[10px]">
-                    {pendingComplaintCount}
-                  </span>
-                )}
+                <ImageIcon className="w-4 h-4" />
+                <span>05. Banner CMS (UC-118)</span>
               </button>
             </div>
           </div>
@@ -1411,51 +1399,10 @@ export const CounterDesk: React.FC = () => {
               )}
             </div>
           </div>
-        ) : deskMode === 'complaints' ? (
-          <div className="space-y-4">
-            {isManager && (
-              <div className="flex items-center space-x-2 border-b border-white/10 pb-3">
-                <button
-                  type="button"
-                  onClick={() => setComplaintSubTab('manager')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    complaintSubTab === 'manager'
-                      ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
-                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
-                >
-                  <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>01. Cần kết luận (Manager UC-85)</span>
-                  {pendingComplaintCount > 0 && (
-                    <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black">
-                      {pendingComplaintCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setComplaintSubTab('queue')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    complaintSubTab === 'queue'
-                      ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
-                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>02. Hàng đợi tiếp nhận &amp; xử lý (Staff UC-65)</span>
-                </button>
-              </div>
-            )}
-
-            {isManager && complaintSubTab === 'manager' ? (
-              <ManagerComplaintWorkspace onPendingCountChange={setPendingComplaintCount} />
-            ) : (
-              <StaffComplaintDesk />
-            )}
-          </div>
         ) : deskMode === 'chat' ? (
           <StaffChatConsole />
+        ) : deskMode === 'banners' ? (
+          <BannerManager />
         ) : (
           <AuditLogViewer />
         )}
