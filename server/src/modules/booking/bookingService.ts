@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import mongoose from 'mongoose';
-import { Booking, IBooking, BookingStatus, IDamageRecord } from '../../models/Booking';
+import { Booking, IBooking, BookingStatus } from '../../models/Booking';
 import { Vehicle } from '../../models/Vehicle';
 import { Branch } from '../../models/Branch';
 import { User, IUser } from '../../models/User';
@@ -57,14 +57,6 @@ export interface CheckoutDto {
   notes?: string;
   returnNotes?: string;
   settleNow?: boolean;
-}
-
-export interface RecordDamageDto {
-  description: string;
-  damageFee: number;
-  photos?: string[];
-  severity?: 'Minor' | 'Moderate' | 'Severe';
-  partsReplaced?: string[];
 }
 
 // In-process concurrency mutex per vehicle to prevent race conditions on double-booking
@@ -153,19 +145,8 @@ export const createBooking = async (
       throw new AppError(404, 'Không tìm thấy phương tiện yêu cầu hoặc xe đã ngừng hoạt động.');
     }
 
-    if (vehicle.requiresMaintenance || vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
-      throw new AppError(400, 'Phương tiện hiện đang cần bảo dưỡng định kỳ hoặc đang điều chuyển và chưa sẵn sàng bàn giao.');
-    }
-
-    const activeDepositedOrRented = await Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    });
-    if (activeDepositedOrRented || vehicle.status === 'Rented') {
-      throw new AppError(
-        409,
-        'Phương tiện này hiện đã được đặt cọc hoặc đang trong kỳ cho thuê. Vui lòng chọn phương tiện khác.'
-      );
+    if (vehicle.requiresMaintenance) {
+      throw new AppError(400, 'Phương tiện hiện đang cần bảo dưỡng định kỳ và chưa sẵn sàng bàn giao.');
     }
 
     const [pickupBranch, returnBranch] = await Promise.all([
@@ -227,32 +208,10 @@ export const createBooking = async (
       }
     }
 
-    // Auto-cancel any stale unpaid online banking draft on this vehicle so retries or abandoned gateway tabs never conflict
-    const staleUserDrafts = await Booking.find({
-      vehicleId: vehicle._id,
-      status: 'Pending',
-      depositPaid: false,
-      isPaid: false,
-      paymentMethod: 'Banking',
-    });
-    for (const draft of staleUserDrafts) {
-      draft.status = 'Cancelled';
-      draft.cancelReason = 'Hủy tự động đơn nháp chưa thanh toán để tạo giao dịch mới.';
-      await draft.save();
-      if (draft.discountId) {
-        await Discount.findByIdAndUpdate(draft.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
-      }
-      await Notification.deleteMany({ relatedId: draft._id.toString() }).catch(() => {});
-    }
-
-    // Atomic conflict check: Find any conflicting confirmed/ongoing booking or active 30-min Cash hold for the same vehicle
-    const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
+    // Atomic conflict check: Find any conflicting booking for the same vehicle
     const conflictingBooking = await Booking.findOne({
       vehicleId: vehicle._id,
-      $or: [
-        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
-        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
-      ],
+      status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
       pickupDateTime: { $lt: returnDate },
       returnDateTime: { $gt: pickupDate },
     });
@@ -264,17 +223,13 @@ export const createBooking = async (
       );
     }
 
-    // Server-side price calculation (Hourly for < 24h capped at dailyPrice; Full days + capped extra hours for >= 24h)
-    const roundedHours = Math.max(2, Math.ceil(diffHours));
-    const effectiveHourly = vehicle.hourlyPrice || Math.round(vehicle.dailyPrice / 5 / 1000) * 1000;
+    // Server-side price calculation
     let basePrice = 0;
-    if (roundedHours < 24) {
-      basePrice = Math.min(vehicle.dailyPrice, roundedHours * effectiveHourly);
+    if (diffHours < 24 && vehicle.hourlyPrice) {
+      basePrice = Math.ceil(diffHours) * vehicle.hourlyPrice;
     } else {
-      const fullDays = Math.floor(roundedHours / 24);
-      const remHours = roundedHours % 24;
-      const remFee = remHours > 0 ? Math.min(vehicle.dailyPrice, remHours * effectiveHourly) : 0;
-      basePrice = fullDays * vehicle.dailyPrice + remFee;
+      const diffDays = Math.max(1, Math.ceil(diffHours / 24));
+      basePrice = diffDays * vehicle.dailyPrice;
     }
 
     let discountAmount = 0;
@@ -337,17 +292,15 @@ export const createBooking = async (
         startOdometer: vehicle.odometer || 0,
       });
 
-      // Only send immediate notification for Cash hold at counter; online Banking notifications are sent after VNPay/VietQR payment succeeds
-      if (data.paymentMethod === 'Cash') {
-        Notification.create({
-          userId: user._id,
-          title: 'Đã giữ chỗ tạm thời tại quầy (30 phút)',
-          body: `Đơn thuê ${bookingCode} (${vehicle.vehicleModel}) đang được giữ chỗ 30 phút. Vui lòng đến quầy chi nhánh thanh toán cọc 30% (${depositAmount.toLocaleString('vi-VN')} đ) để khóa xe.`,
-          type: 'BOOKING',
-          relatedId: newBooking._id.toString(),
-          isRead: false,
-        }).catch((err: unknown) => console.error('[Notification error]', err));
-      }
+      // Create In-App Notification
+      Notification.create({
+        userId: user._id,
+        title: 'Đặt giữ xe thành công',
+        body: `Đơn thuê ${bookingCode} (${vehicle.vehicleModel}) đã được khởi tạo. Vui lòng thanh toán cọc 30% (${depositAmount.toLocaleString('vi-VN')} đ) để xác nhận khóa xe.`,
+        type: 'BOOKING',
+        relatedId: newBooking._id.toString(),
+        isRead: false,
+      }).catch((err: unknown) => console.error('[Notification error]', err));
 
       // Schedule pickup reminder
       const reminderTime = new Date(pickupDate.getTime() - 2 * 3600 * 1000);
@@ -428,39 +381,21 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   }
 
   // Conflict check
-  const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
-  const [conflictingBooking, activeDepositedOrRented] = await Promise.all([
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      $or: [
-        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
-        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
-      ],
-      pickupDateTime: { $lt: returnDate },
-      returnDateTime: { $gt: pickupDate },
-    }),
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    }),
-  ]);
+  const conflictingBooking = await Booking.findOne({
+    vehicleId: vehicle._id,
+    status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+    pickupDateTime: { $lt: returnDate },
+    returnDateTime: { $gt: pickupDate },
+  });
 
-  const isAvailable =
-    !conflictingBooking &&
-    !activeDepositedOrRented &&
-    vehicle.status === 'Available' &&
-    !vehicle.requiresMaintenance;
+  const isAvailable = !conflictingBooking;
 
-  const roundedHours = Math.max(2, Math.ceil(diffHours));
-  const effectiveHourly = vehicle.hourlyPrice || Math.round(vehicle.dailyPrice / 5 / 1000) * 1000;
   let basePrice = 0;
-  if (roundedHours < 24) {
-    basePrice = Math.min(vehicle.dailyPrice, roundedHours * effectiveHourly);
+  if (diffHours < 24 && vehicle.hourlyPrice) {
+    basePrice = Math.ceil(diffHours) * vehicle.hourlyPrice;
   } else {
-    const fullDays = Math.floor(roundedHours / 24);
-    const remHours = roundedHours % 24;
-    const remFee = remHours > 0 ? Math.min(vehicle.dailyPrice, remHours * effectiveHourly) : 0;
-    basePrice = fullDays * vehicle.dailyPrice + remFee;
+    const rentalDays = Math.max(1, Math.ceil(diffHours / 24));
+    basePrice = rentalDays * vehicle.dailyPrice;
   }
 
   let discountAmount = 0;
@@ -514,176 +449,41 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
 };
 
 /**
- * Get customer bookings
+ * Get customer's personal bookings
  */
 export const getMyBookings = async (userId: string) => {
   return Booking.find({ userId })
-    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice images odometer status fuelType transmissionType')
+    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
     .populate('pickupBranchId', 'name code address phone hours_open hours_close')
     .populate('returnBranchId', 'name code address phone hours_open hours_close')
     .sort({ createdAt: -1 });
 };
 
-export interface BranchOrdersOptions {
-  status?: string;
-  queue?: string; // 'today' | 'upcoming' | 'overdue'
-  search?: string;
-  page?: number;
-  limit?: number;
-  branchId?: string;
-}
-
 /**
- * UC-54: Get branch bookings queue for Staff/BranchManager
- * Supports status filter ('all', 'active', 'confirmed', 'ongoing', 'completed', 'cancelled'),
- * today's queue filter ('today'), keyword search across bookingCode/phone/plate,
- * pagination, and aggregated counts summary.
+ * Get branch bookings queue for Staff/BranchManager
  */
-export const getBranchBookings = async (
-  user: IUser,
-  options: BranchOrdersOptions | string = {}
-) => {
-  // Support legacy signature getBranchBookings(user, statusFilter)
-  const opts: BranchOrdersOptions =
-    typeof options === 'string' ? { status: options } : options;
-
-  const {
-    status,
-    queue,
-    search,
-    page = 1,
-    limit = 50,
-    branchId,
-  } = opts;
-
-  const baseBranchQuery: Record<string, unknown> = {};
+export const getBranchBookings = async (user: IUser, statusFilter?: string) => {
+  const query: Record<string, unknown> = {};
 
   // If user is Staff or BranchManager, require and restrict to their branch
   if (user.roles === 'Staff' || user.roles === 'BranchManager') {
     if (!user.branchId) {
       throw new AppError(403, 'Tài khoản nhân sự chưa được gán chi nhánh công tác.');
     }
-    baseBranchQuery.$or = [{ pickupBranchId: user.branchId }, { returnBranchId: user.branchId }];
-  } else if (user.roles === 'SystemAdmin' && branchId && mongoose.isValidObjectId(branchId)) {
-    const bId = new mongoose.Types.ObjectId(branchId);
-    baseBranchQuery.$or = [{ pickupBranchId: bId }, { returnBranchId: bId }];
+    query.$or = [{ pickupBranchId: user.branchId }, { returnBranchId: user.branchId }];
   }
 
-  const query: Record<string, unknown> = { ...baseBranchQuery };
-
-  // Status Filter
-  if (status && status !== 'all') {
-    if (status.toLowerCase() === 'active') {
-      query.status = { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] };
-    } else if (status.toLowerCase() === 'completed') {
-      query.status = 'Completed';
-    } else if (status.toLowerCase() === 'cancelled') {
-      query.status = { $in: ['Cancelled', 'Rejected'] };
-    } else if (status.toLowerCase() === 'confirmed') {
-      query.status = { $in: ['Approved', 'Confirmed'] };
-    } else {
-      query.status = status;
-    }
+  if (statusFilter) {
+    query.status = statusFilter;
   }
 
-  // Today Queue Filter
-  const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-  if (queue === 'today') {
-    query.$and = [
-      ...(Array.isArray(query.$and) ? query.$and : []),
-      {
-        $or: [
-          { pickupDateTime: { $gte: startOfToday, $lte: endOfToday } },
-          { returnDateTime: { $gte: startOfToday, $lte: endOfToday } },
-        ],
-      },
-    ];
-  }
-
-  // Keyword Search across bookingCode, phone, vehicle plate
-  if (search && search.trim()) {
-    const cleanSearch = search.trim();
-    const [matchingVehicles, matchingUsers] = await Promise.all([
-      Vehicle.find({
-        $or: [
-          { licensePlate: { $regex: cleanSearch, $options: 'i' } },
-          { vehicleModel: { $regex: cleanSearch, $options: 'i' } },
-        ],
-      }).select('_id'),
-      User.find({
-        $or: [
-          { phoneNumber: { $regex: cleanSearch, $options: 'i' } },
-          { firstName: { $regex: cleanSearch, $options: 'i' } },
-          { lastName: { $regex: cleanSearch, $options: 'i' } },
-          { username: { $regex: cleanSearch, $options: 'i' } },
-        ],
-      }).select('_id'),
-    ]);
-
-    const searchOrConditions: Array<Record<string, unknown>> = [
-      { bookingCode: { $regex: cleanSearch, $options: 'i' } },
-    ];
-
-    if (matchingVehicles.length > 0) {
-      searchOrConditions.push({ vehicleId: { $in: matchingVehicles.map((v) => v._id) } });
-    }
-    if (matchingUsers.length > 0) {
-      searchOrConditions.push({ userId: { $in: matchingUsers.map((u) => u._id) } });
-    }
-
-    query.$and = [
-      ...(Array.isArray(query.$and) ? query.$and : []),
-      { $or: searchOrConditions },
-    ];
-  }
-
-  const skip = (Math.max(1, page) - 1) * limit;
-
-  const [bookings, total, totalCount, todayCount, pendingCount, confirmedCount, ongoingCount, completedCount, cancelledCount] =
-    await Promise.all([
-      Booking.find(query)
-        .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-        .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
-        .populate('pickupBranchId', 'name code address phone hours_open hours_close')
-        .populate('returnBranchId', 'name code address phone hours_open hours_close')
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Booking.countDocuments(query),
-      Booking.countDocuments(baseBranchQuery),
-      Booking.countDocuments({
-        ...baseBranchQuery,
-        $or: [
-          { pickupDateTime: { $gte: startOfToday, $lte: endOfToday } },
-          { returnDateTime: { $gte: startOfToday, $lte: endOfToday } },
-        ],
-      }),
-      Booking.countDocuments({ ...baseBranchQuery, status: 'Pending' }),
-      Booking.countDocuments({ ...baseBranchQuery, status: { $in: ['Approved', 'Confirmed'] } }),
-      Booking.countDocuments({ ...baseBranchQuery, status: 'Ongoing' }),
-      Booking.countDocuments({ ...baseBranchQuery, status: 'Completed' }),
-      Booking.countDocuments({ ...baseBranchQuery, status: { $in: ['Cancelled', 'Rejected'] } }),
-    ]);
-
-  return {
-    bookings,
-    total,
-    page: Math.max(1, page),
-    limit,
-    totalPages: Math.ceil(total / limit) || 1,
-    counts: {
-      total: totalCount,
-      today: todayCount,
-      pending: pendingCount,
-      confirmed: confirmedCount,
-      ongoing: ongoingCount,
-      completed: completedCount,
-      cancelled: cancelledCount,
-    },
-  };
+  return Booking.find(query)
+    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
+    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
+    .populate('pickupBranchId', 'name code address phone')
+    .populate('returnBranchId', 'name code address phone')
+    .sort({ createdAt: -1 })
+    .limit(50);
 };
 
 /**
@@ -746,15 +546,6 @@ export const getBookingById = async (id: string, requestingUser: IUser) => {
   return booking;
 };
 
-const populateBookingDetails = async (bookingId: mongoose.Types.ObjectId | string) => {
-  return Booking.findById(bookingId)
-    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
-    .populate('pickupBranchId', 'name code address phone hours_open hours_close')
-    .populate('returnBranchId', 'name code address phone hours_open hours_close')
-    .populate('counterPaidBy', 'username firstName lastName');
-};
-
 /**
  * Check-in handover workflow at counter (UC-56)
  */
@@ -767,7 +558,7 @@ export const checkinBooking = async (
     throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
   }
 
-  const booking = await Booking.findById(bookingId);
+  const booking = await Booking.findById(bookingId).populate('vehicleId');
   if (!booking) {
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
@@ -783,23 +574,10 @@ export const checkinBooking = async (
   // Verify staff branch assignment
   assertBranchAccess(staffUser, booking.pickupBranchId);
 
-  // 5-Point Handover Verification (UC-56: ID, license, 4 photos, ODO, fuel)
-  // Point 1: Verify customer eKYC identity status (CCCD/Passport)
+  // Verify customer eKYC identity status
   const customer = await User.findById(booking.userId);
   if (!customer || customer.identityStatus !== 'Verified') {
-    throw new AppError(403, 'Khách hàng chưa hoàn tất xác minh danh tính eKYC (CCCD/Passport). Không thể tiến hành bàn giao xe.');
-  }
-
-  // Point 2: Verify driving license (GPLX)
-  if (!customer.drivingLicenseUrl && (!input.checklist || input.checklist.drivingLicenseVerified === false)) {
-    if (customer.identityStatus !== 'Verified' && !input.checklist?.drivingLicenseVerified) {
-      throw new AppError(403, 'Khách hàng chưa xác minh giấy phép lái xe hợp lệ.');
-    }
-  }
-
-  // Point 3: 4 photos handover check
-  if (!input.checkinImages || input.checkinImages.length < 4) {
-    throw new AppError(400, 'Yêu cầu chụp và cung cấp đủ 4 góc ảnh xe (Trước, Trái, Phải, Sau/ODO) trước khi hoàn tất bàn giao.');
+    throw new AppError(403, 'Khách hàng chưa hoàn tất xác minh danh tính eKYC (CCCD/GPLX). Không thể tiến hành bàn giao xe.');
   }
 
   const vehicle = await Vehicle.findById(booking.vehicleId);
@@ -807,32 +585,13 @@ export const checkinBooking = async (
     throw new AppError(404, 'Phương tiện liên quan không tồn tại.');
   }
 
-  if (vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
+  if (vehicle.status !== 'Available') {
     throw new AppError(409, `Phương tiện hiện không ở trạng thái sẵn sàng bàn giao (Trạng thái hiện tại: ${vehicle.status}).`);
   }
 
-  // Point 4: Odometer verification
-  if (input.startOdometer === undefined || input.startOdometer === null || input.startOdometer < 0) {
-    throw new AppError(400, 'Chỉ số ODO bắt đầu không hợp lệ.');
-  }
-  if (vehicle.odometer && input.startOdometer < vehicle.odometer) {
-    throw new AppError(400, `Chỉ số ODO lúc bàn giao (${input.startOdometer}) không thể nhỏ hơn ODO hiện tại của xe (${vehicle.odometer}).`);
-  }
-
-  // Point 5: Fuel level check
-  const fuelLevel = input.startFuelLevel ? String(input.startFuelLevel).trim() : '100%';
-  if (!fuelLevel) {
-    throw new AppError(400, 'Vui lòng ghi nhận mức nhiên liệu trước khi bàn giao xe.');
-  }
-
   booking.startOdometer = input.startOdometer;
-  booking.startFuelLevel = fuelLevel;
-  booking.checkinImages = input.checkinImages;
-  booking.checkinAt = new Date();
-  booking.checkinBy = staffUser._id as mongoose.Types.ObjectId;
-  if (input.checklist) {
-    booking.checkinChecklist = input.checklist;
-  }
+  if (input.startFuelLevel) booking.startFuelLevel = input.startFuelLevel;
+  if (input.checkinImages) booking.checkinImages = input.checkinImages;
   if (input.eSignatureUrl) {
     if (input.eSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
       try {
@@ -853,34 +612,13 @@ export const checkinBooking = async (
   booking.status = 'Ongoing';
   await booking.save();
 
-  // Set vehicle status to Rented and update odometer
+  // Set vehicle status to Rented
   vehicle.status = 'Rented';
   vehicle.odometer = input.startOdometer;
   await vehicle.save();
 
-  // Log audit
-  await AuditLog.create({
-    userId: staffUser._id,
-    action: 'CHECKIN_HANDOVER',
-    entity: 'Booking',
-    entityId: booking._id.toString(),
-    details: {
-      bookingCode: booking.bookingCode,
-      vehicleId: vehicle._id.toString(),
-      licensePlate: vehicle.licensePlate,
-      startOdometer: input.startOdometer,
-      startFuelLevel: fuelLevel,
-      photosCount: input.checkinImages.length,
-      staffId: staffUser._id.toString(),
-      branchId: booking.pickupBranchId.toString(),
-    },
-    ipAddress: '127.0.0.1',
-    userAgent: 'Motorent-CounterDesk/1.0',
-  });
-
   emitBookingStatus(booking);
-  const populated = await populateBookingDetails(booking._id);
-  return populated || booking;
+  return booking;
 };
 
 /**
@@ -907,21 +645,11 @@ export const checkoutBooking = async (
   // Verify branch ownership
   assertBranchAccess(staffUser, booking.returnBranchId);
 
-  // Acceptance requirement UC-57: 4 photos, ODO, fuel, damage, late fee
-  if (!input.checkoutImages || input.checkoutImages.length < 4) {
-    throw new AppError(400, 'Yêu cầu chụp và cung cấp đủ 4 góc ảnh xe (Trước, Trái, Phải, Sau/ODO) trước khi hoàn tất trả xe (Check-out).');
-  }
-
   if (input.endOdometer < booking.startOdometer) {
     throw new AppError(
       400,
       `Chỉ số ODO lúc trả (${input.endOdometer}) không thể nhỏ hơn ODO lúc nhận (${booking.startOdometer}).`
     );
-  }
-
-  const fuelLevel = input.endFuelLevel ? String(input.endFuelLevel).trim() : '100%';
-  if (!fuelLevel) {
-    throw new AppError(400, 'Vui lòng ghi nhận mức nhiên liệu thực tế lúc nhận lại xe.');
   }
 
   const now = new Date();
@@ -936,14 +664,9 @@ export const checkoutBooking = async (
   const finalDue = (booking.remainingAmount || 0) + lateFee + damageFee;
 
   booking.actualReturnDateTime = now;
-  booking.checkoutAt = now;
-  booking.checkoutBy = staffUser._id as mongoose.Types.ObjectId;
   booking.endOdometer = input.endOdometer;
-  booking.endFuelLevel = fuelLevel;
-  booking.checkoutImages = input.checkoutImages;
-  if (input.returnNotes || input.notes) {
-    booking.returnNotes = (input.returnNotes || input.notes || '').trim();
-  }
+  if (input.endFuelLevel) booking.endFuelLevel = input.endFuelLevel;
+  if (input.checkoutImages) booking.checkoutImages = input.checkoutImages;
   booking.lateFee = lateFee;
   booking.damageFee = damageFee;
   booking.settlementAmount = finalDue;
@@ -963,12 +686,12 @@ export const checkoutBooking = async (
 
   await booking.save();
 
-  // Update Vehicle: move to return branch, update ODO, set Available (or Maintenance if damaged)
+  // Update Vehicle: move to return branch, update ODO, set Available
   const vehicle = await Vehicle.findById(booking.vehicleId);
   if (vehicle) {
     vehicle.branchId = booking.returnBranchId;
     vehicle.odometer = input.endOdometer;
-    vehicle.status = damageFee > 500000 ? 'Maintenance' : 'Available';
+    vehicle.status = 'Available';
 
     // Flag maintenance: check 1500km interval bucket
     const currentBucket = Math.floor(input.endOdometer / 1500);
@@ -980,33 +703,8 @@ export const checkoutBooking = async (
     await vehicle.save();
   }
 
-  // Log audit
-  await AuditLog.create({
-    userId: staffUser._id,
-    action: 'CHECKOUT_RETURN',
-    entity: 'Booking',
-    entityId: booking._id.toString(),
-    details: {
-      bookingCode: booking.bookingCode,
-      vehicleId: vehicle?._id.toString(),
-      licensePlate: vehicle?.licensePlate,
-      endOdometer: input.endOdometer,
-      endFuelLevel: fuelLevel,
-      lateHours,
-      lateFee,
-      damageFee,
-      settlementAmount: finalDue,
-      photosCount: input.checkoutImages.length,
-      returnBranchId: booking.returnBranchId.toString(),
-      staffId: staffUser._id.toString(),
-    },
-    ipAddress: '127.0.0.1',
-    userAgent: 'Motorent-CounterDesk/1.0',
-  });
-
   emitBookingStatus(booking);
-  const populated = await populateBookingDetails(booking._id);
-  return populated || booking;
+  return booking;
 };
 
 /**
@@ -1059,12 +757,9 @@ export const recordCounterPayment = async (
   if (booking.status === 'Pending') {
     booking.status = 'Confirmed';
   }
-  booking.depositPaid = true;
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
   booking.counterPaidAt = new Date();
   await booking.save();
-
-  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
 
   await AuditLog.create({
     userId: staffUser._id,
@@ -1093,173 +788,13 @@ export const recordCounterPayment = async (
 
   emitBookingStatus(booking);
 
-  const populated = await populateBookingDetails(booking._id);
-  return populated || booking;
-};
+  const populated = await Booking.findById(booking._id)
+    .populate('userId', 'username email firstName lastName phoneNumber')
+    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('pickupBranchId', 'name address phone')
+    .populate('returnBranchId', 'name address phone')
+    .populate('counterPaidBy', 'username firstName lastName');
 
-export interface PenaltyPreviewOptions {
-  simulatedReturnTime?: Date | string;
-  damageFee?: number;
-}
-
-/**
- * UC-59: Calculate penalty fees (late fee + damage fee)
- * Formula: 30,000 VND / hour ceil overdue after 15 min grace period + damage fee
- */
-export const calculateBookingPenalty = async (
-  bookingId: string,
-  requestingUser: IUser,
-  options: PenaltyPreviewOptions = {}
-) => {
-  if (!mongoose.isValidObjectId(bookingId)) {
-    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
-  }
-
-  const booking = await Booking.findById(bookingId);
-  if (!booking) {
-    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
-  }
-
-  // Authorization: Customer can check their own booking; Staff/Manager/Admin can check branch bookings
-  if (requestingUser.roles === 'Customer') {
-    if (booking.userId.toString() !== requestingUser._id.toString()) {
-      throw new AppError(403, 'Bạn không có quyền xem chi phí phạt của đơn đặt xe này.');
-    }
-  } else {
-    assertBranchAccess(requestingUser, [booking.pickupBranchId, booking.returnBranchId]);
-  }
-
-  const returnTime = options.simulatedReturnTime
-    ? new Date(options.simulatedReturnTime)
-    : (booking.actualReturnDateTime || new Date());
-
-  const scheduledReturn = new Date(booking.returnDateTime);
-  const graceMinutes = 15;
-  const overdueMs = returnTime.getTime() - scheduledReturn.getTime();
-  const isOverdue = overdueMs > graceMinutes * 60 * 1000;
-
-  let lateHoursCeil = 0;
-  let overdueMinutes = 0;
-  if (isOverdue) {
-    overdueMinutes = Math.max(0, Math.ceil(overdueMs / (60 * 1000)));
-    lateHoursCeil = Math.ceil(overdueMs / (3600 * 1000));
-  }
-
-  const hourlyLateRate = 30000; // 30,000 VND / hour
-  const calculatedLateFee = lateHoursCeil * hourlyLateRate;
-  const currentDamageFee = options.damageFee !== undefined ? Math.max(0, options.damageFee) : (booking.damageFee || 0);
-  const remainingAmount = booking.remainingAmount || 0;
-  const totalPenalty = calculatedLateFee + currentDamageFee;
-  const totalSettlementDue = remainingAmount + totalPenalty;
-
-  return {
-    bookingId: booking._id,
-    bookingCode: booking.bookingCode,
-    status: booking.status,
-    scheduledReturnDateTime: scheduledReturn,
-    returnDateTimeUsed: returnTime,
-    graceMinutes,
-    isOverdue,
-    overdueMinutes,
-    lateHoursCeil,
-    hourlyLateRate,
-    lateFee: calculatedLateFee,
-    damageFee: currentDamageFee,
-    remainingAmount,
-    totalPenalty,
-    totalSettlementDue,
-  };
-};
-
-/**
- * Record vehicle damage during rental or return (UC-58)
- * Photos + description, damage fee, severity assessment, and vehicle status update
- */
-export const recordBookingDamage = async (
-  bookingId: string,
-  staffUser: IUser,
-  input: RecordDamageDto
-): Promise<IBooking> => {
-  if (!mongoose.isValidObjectId(bookingId)) {
-    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
-  }
-
-  const booking = await Booking.findById(bookingId);
-  if (!booking) {
-    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
-  }
-
-  // Verify staff branch assignment
-  assertBranchAccess(staffUser, [booking.pickupBranchId, booking.returnBranchId]);
-
-  if (input.damageFee < 0) {
-    throw new AppError(400, 'Chi phí bồi thường hư hại không thể là số âm.');
-  }
-
-  if (!input.description || !input.description.trim()) {
-    throw new AppError(400, 'Vui lòng nhập mô tả chi tiết hư hại, trầy xước của phương tiện.');
-  }
-
-  const severity = input.severity || (input.damageFee > 500000 ? 'Severe' : input.damageFee > 100000 ? 'Moderate' : 'Minor');
-  const photos = Array.isArray(input.photos) ? input.photos : [];
-
-  const record: IDamageRecord = {
-    description: input.description.trim(),
-    damageFee: input.damageFee,
-    photos,
-    severity,
-    partsReplaced: input.partsReplaced || [],
-    recordedBy: staffUser._id as mongoose.Types.ObjectId,
-    recordedAt: new Date(),
-  };
-
-  booking.damageRecords = booking.damageRecords || [];
-  booking.damageRecords.push(record);
-
-  // Update cumulative damageFee and settlement
-  booking.damageFee = (booking.damageFee || 0) + input.damageFee;
-  booking.damageDescription = booking.damageDescription
-    ? `${booking.damageDescription}\n- ${input.description.trim()}`
-    : input.description.trim();
-  if (photos.length > 0) {
-    booking.damagePhotos = [...(booking.damagePhotos || []), ...photos];
-  }
-
-  // If settlement amount is set, adjust it with the new damage fee
-  if (booking.settlementAmount !== undefined && booking.settlementAmount > 0) {
-    booking.settlementAmount += input.damageFee;
-  }
-
-  await booking.save();
-
-  // If severe damage or high cost, flag vehicle for maintenance
-  if (severity === 'Severe' || input.damageFee >= 500000) {
-    await Vehicle.findByIdAndUpdate(booking.vehicleId, {
-      requiresMaintenance: true,
-      status: 'Maintenance',
-    });
-  }
-
-  // Audit log
-  await AuditLog.create({
-    userId: staffUser._id,
-    action: 'RECORD_DAMAGE',
-    entity: 'Booking',
-    entityId: booking._id.toString(),
-    details: {
-      bookingCode: booking.bookingCode,
-      damageFee: input.damageFee,
-      severity,
-      description: input.description.trim(),
-      photosCount: photos.length,
-      staffId: staffUser._id.toString(),
-    },
-    ipAddress: '127.0.0.1',
-    userAgent: 'Motorent-CounterDesk/1.0',
-  });
-
-  emitBookingStatus(booking);
-  const populated = await populateBookingDetails(booking._id);
   return populated || booking;
 };
 
@@ -1394,7 +929,11 @@ export const cancelBooking = async (
 
   emitBookingStatus(booking);
 
-  const populated = await populateBookingDetails(booking._id);
+  const populated = await Booking.findById(booking._id)
+    .populate('userId', 'username email firstName lastName phoneNumber')
+    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('pickupBranchId', 'name address phone')
+    .populate('returnBranchId', 'name address phone');
 
   const result = populated ? populated.toObject() : booking.toObject();
   (result as unknown as Record<string, unknown>).policySummary = {
@@ -1408,23 +947,31 @@ export const cancelBooking = async (
 };
 
 /**
- * UC-73: Approve Order (Manager)
- * PUT /api/bookings/:id/approve
- * Allows BranchManager or SystemAdmin to approve an order.
- * - Validates booking existence and manager branch permissions
- * - Ensures order is in Pending status
- * - Updates status to 'Approved' (or 'Confirmed' if deposit has already been paid)
- * - Sets approvedBy = manager._id and approvedAt = now
- * - Notifies customer via In-App Notification and Real-time Socket
- * - Emits booking status event
+ * UC-74: Reject Order (Manager)
+ * PUT /api/bookings/:id/reject
+ * Allows BranchManager or SystemAdmin to reject an order with a mandatory reason.
+ * - Mandatory reason check (throws 400 if empty)
+ * - Checks booking exists and manager has branch permission
+ * - Only Pending, Approved, or Confirmed orders can be rejected
+ * - Calculates full refund if customer paid any deposit or full amount
+ * - Creates Payment record type REFUND if eligible
+ * - Restores voucher/discount usedCount if applied
+ * - Sets status = 'Rejected', rejectReason, rejectedBy, rejectedAt, cancelledAt
+ * - Emits In-App Notification and real-time Socket.IO event
+ * - Records AuditLog action REJECT_BOOKING
  */
-export const approveBooking = async (
+export const rejectBooking = async (
   bookingId: string,
   managerUser: IUser,
-  notes?: string
+  rejectReason: string
 ) => {
   if (!mongoose.isValidObjectId(bookingId)) {
     throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const cleanReason = (rejectReason || '').trim();
+  if (!cleanReason) {
+    throw new AppError(400, 'Lý do từ chối đơn đặt xe là bắt buộc.');
   }
 
   const booking = await Booking.findById(bookingId)
@@ -1438,24 +985,49 @@ export const approveBooking = async (
   // Branch access authorization
   assertBranchAccess(managerUser, booking.pickupBranchId);
 
-  // Status validation: can only approve Pending bookings
+  // Status check: cannot reject already finished or cancelled/rejected orders
   if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
-    throw new AppError(400, 'Không thể phê duyệt đơn đặt xe đã bị hủy hoặc từ chối.');
+    throw new AppError(400, 'Không thể từ chối đơn đặt xe đã bị hủy hoặc từ chối trước đó.');
   }
 
-  if (['Approved', 'Confirmed', 'Ongoing', 'Completed'].includes(booking.status)) {
-    throw new AppError(400, `Đơn đặt xe đã ở trạng thái "${booking.status}", không cần phê duyệt lại.`);
+  if (['Ongoing', 'Completed'].includes(booking.status)) {
+    throw new AppError(400, `Không thể từ chối đơn đặt xe đang ở trạng thái "${booking.status}".`);
   }
 
   const now = new Date();
-  booking.approvedBy = managerUser._id as mongoose.Types.ObjectId;
-  booking.approvedAt = now;
+  booking.status = 'Rejected';
+  booking.rejectReason = cleanReason;
+  booking.rejectedBy = managerUser._id as mongoose.Types.ObjectId;
+  booking.rejectedAt = now;
+  booking.cancelledAt = now;
 
-  // If deposit or full payment is already paid, transition directly to Confirmed, else Approved
-  if (booking.depositPaid || booking.isPaid) {
-    booking.status = 'Confirmed';
+  // Since rejection is initiated by Manager/System, customer is entitled to 100% refund of any paid money
+  const customerPaid = (booking.paidAmount && booking.paidAmount > 0)
+    ? booking.paidAmount
+    : (booking.depositPaid ? booking.depositAmount : 0);
+
+  if (customerPaid > 0) {
+    booking.refundAmount = customerPaid;
+    booking.refundForfeitAmount = 0;
+    booking.refundStatus = 'Pending';
+
+    // Create Payment refund record
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: `REFUND-REJECT-${booking.bookingCode}-${Date.now()}`,
+      amount: customerPaid,
+      type: 'REFUND',
+      status: 'PENDING',
+    }).catch((err: unknown) => console.error('[Refund Record Error]', err));
   } else {
-    booking.status = 'Approved';
+    booking.refundAmount = 0;
+    booking.refundForfeitAmount = 0;
+    booking.refundStatus = 'None';
+  }
+
+  // Restore voucher usage if used
+  if (booking.discountId) {
+    await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
   }
 
   await booking.save();
@@ -1463,31 +1035,42 @@ export const approveBooking = async (
   // Audit log
   await AuditLog.create({
     userId: managerUser._id,
-    action: 'APPROVE_BOOKING',
+    action: 'REJECT_BOOKING',
     entity: 'Booking',
     entityId: booking._id.toString(),
     details: {
       bookingCode: booking.bookingCode,
-      previousStatus: 'Pending',
-      newStatus: booking.status,
-      approvedBy: managerUser._id,
-      notes: notes || '',
+      rejectReason: cleanReason,
+      rejectedBy: managerUser._id,
+      customerPaid,
+      refundAmount: booking.refundAmount,
+      refundStatus: booking.refundStatus,
     },
     timestamp: now,
   }).catch((err) => console.error('[AuditLog Error]', err));
 
   // Send Notification to Customer
   const customerId = (booking.userId as unknown as { _id?: mongoose.Types.ObjectId })?._id || booking.userId;
+  const refundText = booking.refundAmount && booking.refundAmount > 0
+    ? ` Số tiền đã thanh toán (${booking.refundAmount.toLocaleString('vi-VN')} đ) đang được xử lý hoàn trả 100%.`
+    : '';
+
   await Notification.create({
     userId: customerId,
-    title: 'Đơn đặt xe đã được phê duyệt',
-    body: `Đơn đặt xe #${booking.bookingCode} của bạn đã được Quản lý chi nhánh phê duyệt thành công. Phương tiện đang được chuẩn bị sẵn sàng tại trạm.`,
+    title: `Đơn đặt xe ${booking.bookingCode} đã bị từ chối`,
+    body: `Đơn đặt xe #${booking.bookingCode} của bạn đã bị Quản lý chi nhánh từ chối. Lý do: "${cleanReason}".${refundText}`,
     type: 'BOOKING',
     relatedId: booking._id.toString(),
     isRead: false,
+    data: {
+      bookingId: booking._id,
+      bookingCode: booking.bookingCode,
+      rejectReason: cleanReason,
+      refundAmount: booking.refundAmount,
+    },
   }).catch((err) => console.error('[Notification Error]', err));
 
-  // Socket real-time status update
+  // Socket status event
   emitBookingStatus(booking);
 
   return booking;

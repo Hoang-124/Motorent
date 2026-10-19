@@ -15,7 +15,7 @@ export type Permission =
   | 'BOOKING_CHECKOUT'
   | 'BOOKING_CANCEL'
   | 'BOOKING_COUNTER_PAY'
-  | 'BOOKING_APPROVE'
+  | 'BOOKING_REJECT'
   | 'EKYC_VIEW'
   | 'EKYC_REVIEW'
   | 'AUDIT_VIEW'
@@ -42,7 +42,7 @@ export const PERMISSION_MATRIX: Record<Permission, readonly UserRole[]> = {
   BOOKING_CHECKOUT: ['SystemAdmin', 'BranchManager', 'Staff'],
   BOOKING_CANCEL: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
   BOOKING_COUNTER_PAY: ['SystemAdmin', 'BranchManager', 'Staff'],
-  BOOKING_APPROVE: ['SystemAdmin', 'BranchManager'],
+  BOOKING_REJECT: ['SystemAdmin', 'BranchManager'],
   EKYC_VIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
   EKYC_REVIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
   AUDIT_VIEW: ['SystemAdmin'],

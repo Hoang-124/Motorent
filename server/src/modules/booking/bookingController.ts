@@ -267,11 +267,11 @@ export const counterPay = async (
   }
 };
 
-const approveBookingSchema = z.object({
-  notes: z.string().optional(),
+const rejectBookingSchema = z.object({
+  reason: z.string().min(1, 'Lý do từ chối đơn đặt xe là bắt buộc'),
 });
 
-export const approveBooking = async (
+export const rejectBooking = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
@@ -281,13 +281,13 @@ export const approveBooking = async (
       throw new AppError(401, 'Yêu cầu đăng nhập quản lý.');
     }
 
-    const { notes } = approveBookingSchema.parse(req.body || {});
-    const approved = await bookingService.approveBooking(req.params.id, req.user, notes);
+    const { reason } = rejectBookingSchema.parse(req.body);
+    const rejected = await bookingService.rejectBooking(req.params.id, req.user, reason);
 
     res.json({
       success: true,
-      message: 'Phê duyệt đơn đặt xe thành công!',
-      data: approved,
+      message: 'Từ chối đơn đặt xe thành công!',
+      data: rejected,
     });
   } catch (error) {
     next(error);
