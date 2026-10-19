@@ -96,6 +96,32 @@ export const setupTestEnvironment = async (): Promise<void> => {
     await admin.save();
   }
 
+  // Find or create manager_dad
+  const managerPass = await bcrypt.hash('Manager@123456', 10);
+  let managerDad = await User.findOne({ username: 'manager_dad' });
+  if (!managerDad) {
+    managerDad = await User.create({
+      username: 'manager_dad',
+      email: 'manager.dad@motorent.vn',
+      passwordHash: managerPass,
+      firstName: 'Lê Hoàng',
+      lastName: 'Quản Lý Sân Bay',
+      phoneNumber: '0903333444',
+      roles: 'BranchManager',
+      status: 'Active',
+      branchId: branchDAD._id,
+      identityStatus: 'Verified',
+      tokenVersion: 0,
+      isEmailVerified: true,
+    });
+  } else {
+    managerDad.passwordHash = managerPass;
+    managerDad.status = 'Active';
+    managerDad.roles = 'BranchManager';
+    managerDad.branchId = branchDAD._id;
+    await managerDad.save();
+  }
+
   // Find or create staff_dad
   let staffDad = await User.findOne({ username: 'staff_dad' });
   if (!staffDad) {
