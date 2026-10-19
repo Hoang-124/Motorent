@@ -26,7 +26,7 @@ import {
   Bell,
   MessageSquare,
   CheckCheck,
-  ShieldAlert
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
@@ -735,6 +735,14 @@ export const Navbar: React.FC = () => {
                           )}
                         </Link>
                         <Link
+                          to="/counter?mode=complaints"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                        >
+                          <AlertCircle className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                          <span>Xử lý Khiếu nại (UC-65)</span>
+                        </Link>
+                        <Link
                           to="/audit"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
@@ -777,17 +785,6 @@ export const Navbar: React.FC = () => {
                           <span className="text-[10px] text-[#A0A0A0] font-mono-tabular shrink-0 ml-2">
                             {bookingCount} chuyến
                           </span>
-                        </Link>
-
-                        <Link
-                          to="/complaints"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <ShieldAlert className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span className="truncate">Khiếu nại &amp; Hỗ trợ</span>
-                          </div>
                         </Link>
 
                         <Link
@@ -965,15 +962,6 @@ export const Navbar: React.FC = () => {
                       <span>Chuyến xe của tôi</span>
                     </div>
                     <span className="text-[10px] text-[#6E6E6E] font-medium">{bookingCount} chuyến</span>
-                  </Link>
-
-                  <Link
-                    to="/complaints"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center space-x-2 p-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                  >
-                    <ShieldAlert className="w-3.5 h-3.5 text-[#FFC799]" />
-                    <span>Khiếu nại &amp; Hỗ trợ</span>
                   </Link>
 
                   <Link

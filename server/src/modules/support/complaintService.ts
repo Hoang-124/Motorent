@@ -9,6 +9,18 @@ import {
 import { Booking } from '../../models/Booking';
 import { IUser } from '../../models/User';
 import { AppError } from '../../core/errorHandler';
+import {
+  canTransition,
+  getAllowedTransitions,
+  isStaffOrManagerRole,
+} from './complaint-status';
+
+export const VALID_COMPLAINT_STATUSES: readonly ComplaintStatus[] = [
+  'Open',
+  'InProgress',
+  'Resolved',
+  'Closed',
+] as const;
 
 export const VALID_COMPLAINT_STATUSES: readonly ComplaintStatus[] = [
   'Open',
@@ -373,6 +385,35 @@ export const VALID_COMPLAINT_CATEGORIES = [
 
 export type ComplaintCategoryType = (typeof VALID_COMPLAINT_CATEGORIES)[number];
 
+export interface TimelineActor {
+  name: string;
+  role: string;
+}
+
+export interface TimelineItem {
+  type: 'status' | 'response';
+  content: string;
+  createdAt: Date;
+  performedBy: TimelineActor;
+  user: TimelineActor;
+  status?: string;
+  previousStatus?: string | null;
+}
+
+/**
+ * Format user display name without leaking employee PII
+ */
+const formatDisplayName = (user?: IUser | Record<string, unknown> | null): string => {
+  if (!user) return 'Hệ thống';
+  const firstName = (user as { firstName?: string }).firstName || '';
+  const lastName = (user as { lastName?: string }).lastName || '';
+  const fullName = `${firstName} ${lastName}`.trim();
+  if (fullName) return fullName;
+  const username = (user as { username?: string }).username;
+  if (username) return username;
+  return 'Nhân viên hỗ trợ';
+};
+
 /**
  * UC-28 Stub: Verify if a booking belongs to a given customer
  */
@@ -421,7 +462,6 @@ export interface SubmitComplaintInput {
   description: string;
   attachments?: string[];
   title?: string;
-  // Ignore any status or customerId passed by client
   status?: unknown;
   customerId?: unknown;
 }
@@ -437,7 +477,6 @@ export const submitComplaint = async (
     throw new AppError(401, 'Yêu cầu đăng nhập.');
   }
 
-  // 1. Anti-spam check: max 5 complaints per user per day
   const startOfDay = new Date();
   startOfDay.setHours(0, 0, 0, 0);
   const dailyCount = await Complaint.countDocuments({
@@ -453,7 +492,6 @@ export const submitComplaint = async (
     );
   }
 
-  // 2. Validate booking ownership via getBookingForCustomer stub
   if (!input.bookingId) {
     throw new AppError(404, 'Vui lòng chọn đơn đặt xe cần khiếu nại.');
   }
@@ -466,7 +504,6 @@ export const submitComplaint = async (
     );
   }
 
-  // 3. Validate category enum
   const trimmedCategory = (input.category || '').trim();
   if (!VALID_COMPLAINT_CATEGORIES.includes(trimmedCategory as ComplaintCategoryType)) {
     throw new AppError(
@@ -475,7 +512,6 @@ export const submitComplaint = async (
     );
   }
 
-  // 4. Validate description
   const trimmedDescription = (input.description || '').trim();
   if (!trimmedDescription || trimmedDescription.length < 10) {
     throw new AppError(400, 'Nội dung khiếu nại phải có ít nhất 10 ký tự.');
@@ -484,10 +520,8 @@ export const submitComplaint = async (
     throw new AppError(400, 'Nội dung khiếu nại không được vượt quá 2000 ký tự.');
   }
 
-  // 5. Generate unique code
   const code = await generateUniqueComplaintCode();
 
-  // 6. Execute atomic transaction (with standalone MongoDB fallback)
   let session: mongoose.ClientSession | null = null;
   try {
     session = await mongoose.startSession();
@@ -506,7 +540,7 @@ export const submitComplaint = async (
       title: (input.title || `Khiếu nại đơn ${booking.bookingCode || booking._id}`).trim(),
       description: trimmedDescription,
       attachments: input.attachments || [],
-      status: 'Open' as const, // Forced to Open, ignore client
+      status: 'Open' as const,
       priority: 'Medium' as const,
       finalResolution: null,
       handledBy: null,
@@ -580,3 +614,468 @@ export const submitComplaint = async (
 };
 
 export const createComplaint = submitComplaint;
+
+/**
+ * UC-65: Details for Staff/Manager
+ */
+export const getComplaintDetailsForStaffOrManager = async (
+  complaintId: string,
+  user: IUser
+) => {
+  if (!user) {
+    throw new AppError(401, 'Yêu cầu đăng nhập.');
+  }
+
+  if (!mongoose.isValidObjectId(complaintId)) {
+    throw new AppError(400, 'ID khiếu nại không hợp lệ.');
+  }
+
+  const complaint = (await Complaint.findById(complaintId)
+    .populate('customerId', 'username firstName lastName email phoneNumber avatarUrl')
+    .populate('bookingId', 'bookingCode pickupDateTime returnDateTime totalAmount vehicleId')
+    .populate('branchId', 'name code address phone')
+    .populate('resolvedBy', 'username firstName lastName email roles')
+    .lean()) as any;
+
+  if (!complaint) {
+    throw new AppError(404, 'Không tìm thấy khiếu nại.');
+  }
+
+  if (user.roles === 'Customer') {
+    const ownerId =
+      typeof complaint.customerId === 'object' && (complaint.customerId as any)?._id
+        ? (complaint.customerId as any)._id.toString()
+        : complaint.customerId?.toString();
+    if (ownerId !== user._id.toString()) {
+      throw new AppError(404, 'Không tìm thấy khiếu nại.');
+    }
+  }
+
+  const [statusLogs, responses] = await Promise.all([
+    ComplaintStatusLog.find({ complaintId: complaint._id })
+      .populate('changedBy', 'username firstName lastName roles avatarUrl')
+      .sort({ createdAt: 1 })
+      .lean(),
+    ComplaintResponse.find({ complaintId: complaint._id })
+      .populate('authorId', 'username firstName lastName roles avatarUrl')
+      .populate('respondedBy', 'username firstName lastName roles avatarUrl')
+      .sort({ createdAt: 1 })
+      .lean(),
+  ]);
+
+  return {
+    ...complaint,
+    statusLogs,
+    responses,
+  };
+};
+
+/**
+ * UC-65: Add message response to complaint (staff/manager)
+ */
+export const addComplaintResponse = async (
+  complaintId: string,
+  message: string,
+  user: IUser
+) => {
+  if (!user) {
+    throw new AppError(401, 'Yêu cầu đăng nhập.');
+  }
+
+  if (!mongoose.isValidObjectId(complaintId)) {
+    throw new AppError(400, 'ID khiếu nại không hợp lệ.');
+  }
+
+  const trimmedMessage = (message || '').trim();
+  if (!trimmedMessage || trimmedMessage.length < 1) {
+    throw new AppError(400, 'Nội dung phản hồi không được để trống.');
+  }
+  if (trimmedMessage.length > 2000) {
+    throw new AppError(400, 'Nội dung phản hồi không được vượt quá 2000 ký tự.');
+  }
+
+  const complaint = await Complaint.findById(complaintId);
+  if (!complaint) {
+    throw new AppError(404, 'Không tìm thấy khiếu nại.');
+  }
+
+  if (complaint.status === 'Closed') {
+    throw new AppError(409, 'Khiếu nại đã đóng (Closed), không thể gửi thêm phản hồi.');
+  }
+
+  if (complaint.status === 'Open' && isStaffOrManagerRole(user.roles)) {
+    if (canTransition('Open', 'InProgress', user.roles)) {
+      complaint.status = 'InProgress';
+      if (!complaint.handledBy) {
+        complaint.handledBy = user._id;
+      }
+
+      await complaint.save();
+
+      await ComplaintStatusLog.create({
+        complaintId: complaint._id,
+        fromStatus: 'Open',
+        toStatus: 'InProgress',
+        changedBy: user._id,
+        changedByRole: user.roles,
+        note: 'Nhân viên tiếp nhận và phản hồi khiếu nại',
+        createdAt: new Date(),
+      });
+    }
+  }
+
+  const responseDoc = await ComplaintResponse.create({
+    complaintId: complaint._id,
+    authorId: user._id,
+    authorRole: user.roles,
+    message: trimmedMessage,
+    content: trimmedMessage,
+    createdAt: new Date(),
+  });
+
+  return responseDoc;
+};
+
+export interface GetStaffComplaintsQuery {
+  status?: string;
+  category?: string;
+  q?: string;
+  page?: number | string;
+  limit?: number | string;
+}
+
+/**
+ * UC-65: GET /staff/complaints?status&category&q&page&limit - Staff, Manager
+ */
+export const getStaffComplaints = async (query: GetStaffComplaintsQuery = {}) => {
+  if (query.status !== undefined && query.status !== null && String(query.status).trim() !== '') {
+    const rawStatus = String(query.status).trim();
+    if (!VALID_COMPLAINT_STATUSES.includes(rawStatus as ComplaintStatus)) {
+      throw new AppError(
+        400,
+        `Trạng thái khiếu nại không hợp lệ: "${rawStatus}". Các giá trị hợp lệ: Open, InProgress, Resolved, Closed.`
+      );
+    }
+  }
+
+  const page = Math.max(1, parseInt(String(query.page || '1'), 10) || 1);
+  const limit = Math.max(1, Math.min(100, parseInt(String(query.limit || '10'), 10) || 10));
+  const skip = (page - 1) * limit;
+
+  const matchStage: Record<string, any> = {};
+  if (query.status && String(query.status).trim() !== '') {
+    matchStage.status = String(query.status).trim();
+  }
+  if (query.category && String(query.category).trim() !== '') {
+    matchStage.category = String(query.category).trim();
+  }
+  if (query.q && String(query.q).trim() !== '') {
+    matchStage.code = { $regex: String(query.q).trim(), $options: 'i' };
+  }
+
+  const aggregateResult = await Complaint.aggregate([
+    { $match: matchStage },
+    {
+      $addFields: {
+        statusPriority: {
+          $cond: [{ $eq: ['$status', 'Open'] }, 0, 1],
+        },
+      },
+    },
+    {
+      $sort: {
+        statusPriority: 1,
+        createdAt: 1,
+      },
+    },
+    {
+      $facet: {
+        metadata: [{ $count: 'total' }],
+        ids: [{ $skip: skip }, { $limit: limit }, { $project: { _id: 1 } }],
+      },
+    },
+  ]);
+
+  const total = aggregateResult[0]?.metadata[0]?.total || 0;
+  const ids = aggregateResult[0]?.ids?.map((item: any) => item._id) || [];
+
+  const rawItems = await Complaint.find({ _id: { $in: ids } })
+    .populate('customerId', 'firstName lastName username email phoneNumber avatarUrl roles')
+    .populate({
+      path: 'bookingId',
+      select: 'bookingCode vehicleId pickupDateTime returnDateTime status totalAmount',
+      populate: {
+        path: 'vehicleId',
+        select: 'vehicleModel licensePlate brand color',
+      },
+    })
+    .populate('handledBy', 'firstName lastName username roles')
+    .populate('branchId', 'name address code')
+    .lean();
+
+  const itemMap = new Map(rawItems.map((i: any) => [i._id.toString(), i]));
+  const items = ids.map((id: any) => itemMap.get(id.toString())).filter(Boolean);
+
+  return {
+    items,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit) || 1,
+  };
+};
+
+/**
+ * UC-65: GET /staff/complaints/:id - Staff, Manager
+ */
+export const getStaffComplaintById = async (
+  complaintId: string,
+  user: IUser
+) => {
+  if (!user) {
+    throw new AppError(401, 'Yêu cầu đăng nhập.');
+  }
+
+  if (!complaintId || !mongoose.isValidObjectId(complaintId)) {
+    throw new AppError(404, 'Khiếu nại không tồn tại.');
+  }
+
+  const complaint: any = await Complaint.findById(complaintId)
+    .populate('customerId', 'firstName lastName username email phoneNumber avatarUrl roles')
+    .populate({
+      path: 'bookingId',
+      select: 'bookingCode vehicleId pickupDateTime returnDateTime status totalAmount',
+      populate: {
+        path: 'vehicleId',
+        select: 'vehicleModel licensePlate brand color',
+      },
+    })
+    .populate('handledBy', 'firstName lastName username roles')
+    .populate('branchId', 'name address code phone')
+    .populate('resolvedBy', 'firstName lastName username roles')
+    .lean();
+
+  if (!complaint) {
+    throw new AppError(404, 'Khiếu nại không tồn tại.');
+  }
+
+  const [statusLogs, responses] = await Promise.all([
+    ComplaintStatusLog.find({ complaintId: complaint._id })
+      .populate('changedBy', 'firstName lastName username roles avatarUrl')
+      .sort({ createdAt: 1 })
+      .lean(),
+    ComplaintResponse.find({ complaintId: complaint._id })
+      .populate('authorId', 'firstName lastName username roles avatarUrl')
+      .populate('respondedBy', 'firstName lastName username roles avatarUrl')
+      .sort({ createdAt: 1 })
+      .lean(),
+  ]);
+
+  const timeline: TimelineItem[] = [];
+
+  for (const log of statusLogs as any[]) {
+    const rawUser = log.changedBy && typeof log.changedBy === 'object' ? log.changedBy : null;
+    const actorName = formatDisplayName(rawUser);
+    const actorRole = rawUser?.roles || log.changedByRole || 'Staff';
+
+    let content = log.note || '';
+    if (!content) {
+      if (log.fromStatus) {
+        content = `Trạng thái chuyển từ ${log.fromStatus} sang ${log.toStatus || log.newStatus}`;
+      } else {
+        content = `Tiếp nhận khiếu nại với trạng thái ${log.toStatus || log.newStatus || 'Open'}`;
+      }
+    }
+
+    timeline.push({
+      type: 'status',
+      status: log.toStatus || log.newStatus || 'Open',
+      previousStatus: log.fromStatus || log.previousStatus || null,
+      content,
+      createdAt: log.createdAt,
+      performedBy: {
+        name: actorName,
+        role: actorRole,
+      },
+      user: {
+        name: actorName,
+        role: actorRole,
+      },
+    });
+  }
+
+  for (const resp of responses as any[]) {
+    const rawUser =
+      (resp.authorId && typeof resp.authorId === 'object' ? resp.authorId : null) ||
+      (resp.respondedBy && typeof resp.respondedBy === 'object' ? resp.respondedBy : null);
+    const actorName = formatDisplayName(rawUser);
+    const actorRole = rawUser?.roles || resp.authorRole || 'Staff';
+
+    timeline.push({
+      type: 'response',
+      content: resp.message || resp.content || '',
+      createdAt: resp.createdAt,
+      performedBy: {
+        name: actorName,
+        role: actorRole,
+      },
+      user: {
+        name: actorName,
+        role: actorRole,
+      },
+    });
+  }
+
+  const hasOpenEvent = timeline.some((t) => t.type === 'status' && t.status === 'Open');
+  if (!hasOpenEvent) {
+    const customerUser = complaint.customerId;
+    const actorName = formatDisplayName(customerUser);
+    timeline.unshift({
+      type: 'status',
+      status: 'Open',
+      content: 'Khách hàng gửi khiếu nại lên hệ thống',
+      createdAt: complaint.createdAt,
+      performedBy: {
+        name: actorName,
+        role: 'Customer',
+      },
+      user: {
+        name: actorName,
+        role: 'Customer',
+      },
+    });
+  }
+
+  timeline.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+  const allowedTransitions = getAllowedTransitions(complaint.status, user.roles);
+
+  return {
+    ...complaint,
+    timeline,
+    statusLogs,
+    responses,
+    allowedTransitions,
+  };
+};
+
+/**
+ * UC-65: PATCH /staff/complaints/:id/status body: { toStatus, note } - Staff, Manager
+ */
+export const updateComplaintStatus = async (
+  complaintId: string,
+  user: IUser,
+  toStatus: string,
+  note?: string
+) => {
+  if (!user) {
+    throw new AppError(401, 'Yêu cầu đăng nhập.');
+  }
+
+  if (!complaintId || !mongoose.isValidObjectId(complaintId)) {
+    throw new AppError(404, 'Khiếu nại không tồn tại.');
+  }
+
+  if (!toStatus || !VALID_COMPLAINT_STATUSES.includes(toStatus as ComplaintStatus)) {
+    throw new AppError(400, `Trạng thái chuyển đổi không hợp lệ: "${toStatus}".`);
+  }
+
+  const complaint = await Complaint.findById(complaintId);
+  if (!complaint) {
+    throw new AppError(404, 'Khiếu nại không tồn tại.');
+  }
+
+  const fromStatus = complaint.status;
+
+  if (toStatus === 'Closed' && user.roles === 'Staff') {
+    throw new AppError(403, 'Chỉ Quản lý (BranchManager, SystemAdmin) mới có quyền đóng khiếu nại.');
+  }
+
+  if (!canTransition(fromStatus, toStatus, user.roles)) {
+    throw new AppError(
+      409,
+      `Không thể chuyển trạng thái khiếu nại từ "${fromStatus}" sang "${toStatus}".`
+    );
+  }
+
+  if (user.roles === 'Staff' && complaint.handledBy) {
+    const handledById =
+      typeof complaint.handledBy === 'object' && (complaint.handledBy as any)._id
+        ? (complaint.handledBy as any)._id.toString()
+        : complaint.handledBy.toString();
+    if (handledById !== user._id.toString()) {
+      throw new AppError(
+        403,
+        'Bạn không có quyền thay đổi trạng thái khiếu nại do nhân viên khác đang phụ trách.'
+      );
+    }
+  }
+
+  if (fromStatus === 'InProgress' && toStatus === 'Resolved') {
+    const staffResponseCount = await ComplaintResponse.countDocuments({
+      complaintId: complaint._id,
+      authorRole: { $in: ['Staff', 'BranchManager', 'SystemAdmin'] },
+    });
+    if (staffResponseCount === 0) {
+      throw new AppError(
+        400,
+        'Cần có ít nhất 1 phản hồi từ nhân viên trước khi chuyển trạng thái sang Đã giải quyết (Resolved).'
+      );
+    }
+  }
+
+  const updatePayload: Record<string, any> = {
+    status: toStatus,
+    updatedAt: new Date(),
+  };
+
+  if (fromStatus === 'Open' && toStatus === 'InProgress' && !complaint.handledBy) {
+    updatePayload.handledBy = user._id;
+  }
+  if (toStatus === 'Closed') {
+    updatePayload.closedAt = new Date();
+  }
+
+  const updateResult = await Complaint.updateOne(
+    { _id: complaint._id, status: fromStatus },
+    { $set: updatePayload }
+  );
+
+  if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
+    throw new AppError(
+      409,
+      'Khiếu nại đã được cập nhật bởi người khác. Vui lòng tải lại.'
+    );
+  }
+
+  const statusLog = await ComplaintStatusLog.create({
+    complaintId: complaint._id,
+    fromStatus,
+    previousStatus: fromStatus,
+    toStatus,
+    newStatus: toStatus,
+    changedBy: user._id,
+    changedByRole: user.roles,
+    note: (note || '').trim() || `Chuyển trạng thái từ ${fromStatus} sang ${toStatus}`,
+    createdAt: new Date(),
+  });
+
+  const updatedComplaint = await Complaint.findById(complaint._id)
+    .populate('customerId', 'firstName lastName username email phoneNumber avatarUrl roles')
+    .populate({
+      path: 'bookingId',
+      select: 'bookingCode vehicleId pickupDateTime returnDateTime status totalAmount',
+      populate: {
+        path: 'vehicleId',
+        select: 'vehicleModel licensePlate brand color',
+      },
+    })
+    .populate('handledBy', 'firstName lastName username roles')
+    .populate('branchId', 'name address code')
+    .lean();
+
+  return {
+    complaint: updatedComplaint,
+    statusLog,
+  };
+};

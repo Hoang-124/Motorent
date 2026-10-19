@@ -20,7 +20,7 @@ import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
-import { ComplaintsPage } from './pages/ComplaintsPage';
+import { StaffComplaintPage } from './pages/StaffComplaintPage';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -63,6 +63,14 @@ export function App() {
                   </RequireRole>
                 }
               />
+              <Route
+                path="/staff/complaints"
+                element={
+                  <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                    <StaffComplaintPage />
+                  </RequireRole>
+                }
+              />
 
               {/* Auth & Profile Routes */}
               <Route path="/login" element={<LoginPage />} />
@@ -77,8 +85,7 @@ export function App() {
               <Route path="/booking" element={<BookingPage />} />
               <Route path="/vnpay-return" element={<VnPayReturnPage />} />
 
-              {/* Complaints flow (UC-42, UC-43) */}
-              <Route path="/complaints" element={<ComplaintsPage />} />
+              {/* Complaints flow (UC-42) */}
               <Route path="/complaints/new" element={<SubmitComplaintPage />} />
               <Route path="/complaints/submit" element={<SubmitComplaintPage />} />
 

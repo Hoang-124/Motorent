@@ -14,7 +14,7 @@ import { User } from './models/User';
 import { Booking } from './models/Booking';
 import { Conversation } from './models/Conversation';
 import * as chatService from './modules/chat/chatService';
-import { complaintRouter, customerComplaintRouter } from './modules/support/complaintRoutes';
+import { complaintRouter, staffComplaintRouter } from './modules/support/complaintRoutes';
 import apiRouter from './routes';
 
 export const app = express();
@@ -78,8 +78,8 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Serve uploaded static files (avatars)
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
@@ -87,9 +87,9 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 // Mount Central Modular Monolith API
 app.use('/api', apiRouter);
 
-// Direct root route aliases for Complaints (UC-42, UC-43)
-app.use('/me/complaints', customerComplaintRouter);
+// Direct root route aliases for Complaints (UC-42, UC-65)
 app.use('/complaints', complaintRouter);
+app.use('/staff/complaints', staffComplaintRouter);
 
 // Reusable Socket.IO JWT Authentication Middleware
 const socketAuthMiddleware = async (socket: Socket, next: (err?: Error) => void) => {
@@ -145,42 +145,25 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       }
     });
 
-    socket.on(
-      'join_booking',
-      async (bookingId: string, ack?: (res: { success: boolean; message?: string }) => void) => {
-        if (!bookingId || !user) {
-          if (typeof ack === 'function') ack({ success: false, message: 'Yêu cầu đăng nhập xác thực.' });
-          return;
-        }
-        const booking = await Booking.findById(bookingId);
-        if (!booking) {
-          if (typeof ack === 'function') ack({ success: false, message: 'Không tìm thấy đơn đặt xe.' });
-          return;
-        }
+    socket.on('join_booking', async (bookingId: string) => {
+      if (!bookingId || !user) return;
+      const booking = await Booking.findById(bookingId);
+      if (!booking) return;
 
-        const isOwner = booking.userId.toString() === user._id.toString();
-        const isBranchStaff =
-          ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
-          (!user.branchId ||
-            booking.pickupBranchId.toString() === user.branchId.toString() ||
-            booking.returnBranchId.toString() === user.branchId.toString());
+      const isOwner = booking.userId.toString() === user._id.toString();
+      const isBranchStaff =
+        ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles) &&
+        (!user.branchId ||
+          booking.pickupBranchId.toString() === user.branchId.toString() ||
+          booking.returnBranchId.toString() === user.branchId.toString());
 
-        if (isOwner || isBranchStaff) {
-          socket.join(`booking:${bookingId}`);
-          if (typeof ack === 'function') {
-            ack({ success: true, message: `Đã kết nối theo dõi thời gian thực đơn ${booking.bookingCode}.` });
-          }
-        } else {
-          if (typeof ack === 'function') {
-            ack({ success: false, message: 'Bạn không có quyền theo dõi đơn đặt xe này.' });
-          }
-        }
+      if (isOwner || isBranchStaff) {
+        socket.join(`booking:${bookingId}`);
       }
-    );
+    });
 
-    socket.on('leave_booking', (bookingId: string, ack?: () => void) => {
+    socket.on('leave_booking', (bookingId: string) => {
       socket.leave(`booking:${bookingId}`);
-      if (typeof ack === 'function') ack();
     });
 
     socket.on('join_conversation', async (conversationId: string) => {

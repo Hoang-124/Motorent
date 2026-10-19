@@ -245,3 +245,78 @@ export interface ComplaintListResponse {
   totalPages: number;
   data: Complaint[];
 }
+
+// UC-65: Staff Complaint Handling Types
+export interface StaffComplaintCustomer {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  email?: string;
+  phoneNumber?: string;
+  avatarUrl?: string;
+  roles?: string;
+}
+
+export interface StaffComplaintBooking {
+  _id: string;
+  bookingCode?: string;
+  pickupDateTime?: string;
+  returnDateTime?: string;
+  status?: string;
+  totalAmount?: number;
+  vehicleId?: {
+    _id: string;
+    vehicleModel?: string;
+    licensePlate?: string;
+    brand?: string;
+    color?: string;
+  } | string;
+}
+
+export interface StaffComplaintHandledBy {
+  _id: string;
+  firstName?: string;
+  lastName?: string;
+  username?: string;
+  roles?: string;
+}
+
+export interface StaffComplaint {
+  _id: string;
+  id?: string;
+  code: string;
+  category: string;
+  title?: string;
+  description: string;
+  attachments: string[];
+  status: ComplaintStatus;
+  priority?: 'Low' | 'Medium' | 'High' | 'Urgent';
+  customerId: StaffComplaintCustomer;
+  bookingId?: StaffComplaintBooking | null;
+  handledBy?: StaffComplaintHandledBy | null;
+  resolvedBy?: StaffComplaintHandledBy | null;
+  branchId?: {
+    _id: string;
+    name?: string;
+    address?: string;
+    code?: string;
+  } | null;
+  finalResolution?: string | null;
+  closedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  timeline?: ComplaintTimelineItem[];
+  allowedTransitions?: ComplaintStatus[];
+}
+
+export interface StaffComplaintQueueResponse {
+  success: boolean;
+  count: number;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: StaffComplaint[];
+}
+

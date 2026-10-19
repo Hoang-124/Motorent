@@ -20,27 +20,23 @@ router.post(
   complaintController.submitComplaint
 );
 
-router.get('/', authenticateJWT, complaintController.getMyComplaints);
-router.get('/my', authenticateJWT, complaintController.getMyComplaints);
-router.get('/:id', authenticateJWT, complaintController.getComplaintDetail);
-
 export const complaintRouter = router;
 
-// Customer Complaint Tracking Router: /me/complaints & /api/me/complaints (UC-43)
-export const customerComplaintRouter = Router();
+/**
+ * Staff Complaints Router: /staff/complaints (UC-65)
+ * Role: Staff, BranchManager, SystemAdmin
+ */
+export const staffComplaintRouter = Router();
 
-customerComplaintRouter.get(
-  ['/', ''],
+staffComplaintRouter.use(
   authenticateJWT,
-  authorize('Customer', 'Staff', 'BranchManager', 'SystemAdmin'),
-  complaintController.getMyComplaints
+  authorize('Staff', 'BranchManager', 'SystemAdmin')
 );
 
-customerComplaintRouter.get(
-  '/:id',
-  authenticateJWT,
-  authorize('Customer', 'Staff', 'BranchManager', 'SystemAdmin'),
-  complaintController.getComplaintDetail
-);
+staffComplaintRouter.get('/', complaintController.getStaffComplaints);
+staffComplaintRouter.get('/:id', complaintController.getStaffComplaintById);
+staffComplaintRouter.post('/:id/responses', complaintController.addStaffComplaintResponse);
+staffComplaintRouter.post('/:id/response', complaintController.addStaffComplaintResponse);
+staffComplaintRouter.patch('/:id/status', complaintController.updateComplaintStatus);
 
 export default router;
