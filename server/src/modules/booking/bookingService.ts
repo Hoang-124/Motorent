@@ -145,8 +145,19 @@ export const createBooking = async (
       throw new AppError(404, 'Không tìm thấy phương tiện yêu cầu hoặc xe đã ngừng hoạt động.');
     }
 
-    if (vehicle.requiresMaintenance) {
-      throw new AppError(400, 'Phương tiện hiện đang cần bảo dưỡng định kỳ và chưa sẵn sàng bàn giao.');
+    if (vehicle.requiresMaintenance || vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
+      throw new AppError(400, 'Phương tiện hiện đang cần bảo dưỡng định kỳ hoặc đang điều chuyển và chưa sẵn sàng bàn giao.');
+    }
+
+    const activeDepositedOrRented = await Booking.findOne({
+      vehicleId: vehicle._id,
+      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
+    });
+    if (activeDepositedOrRented || vehicle.status === 'Rented') {
+      throw new AppError(
+        409,
+        'Phương tiện này hiện đã được đặt cọc hoặc đang trong kỳ cho thuê. Vui lòng chọn phương tiện khác.'
+      );
     }
 
     const [pickupBranch, returnBranch] = await Promise.all([
@@ -208,10 +219,32 @@ export const createBooking = async (
       }
     }
 
-    // Atomic conflict check: Find any conflicting booking for the same vehicle
+    // Auto-cancel any stale unpaid online banking draft on this vehicle so retries or abandoned gateway tabs never conflict
+    const staleUserDrafts = await Booking.find({
+      vehicleId: vehicle._id,
+      status: 'Pending',
+      depositPaid: false,
+      isPaid: false,
+      paymentMethod: 'Banking',
+    });
+    for (const draft of staleUserDrafts) {
+      draft.status = 'Cancelled';
+      draft.cancelReason = 'Hủy tự động đơn nháp chưa thanh toán để tạo giao dịch mới.';
+      await draft.save();
+      if (draft.discountId) {
+        await Discount.findByIdAndUpdate(draft.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
+      }
+      await Notification.deleteMany({ relatedId: draft._id.toString() }).catch(() => {});
+    }
+
+    // Atomic conflict check: Find any conflicting confirmed/ongoing booking or active 30-min Cash hold for the same vehicle
+    const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
     const conflictingBooking = await Booking.findOne({
       vehicleId: vehicle._id,
-      status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+      $or: [
+        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
+        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
+      ],
       pickupDateTime: { $lt: returnDate },
       returnDateTime: { $gt: pickupDate },
     });
@@ -223,13 +256,17 @@ export const createBooking = async (
       );
     }
 
-    // Server-side price calculation
+    // Server-side price calculation (Hourly for < 24h capped at dailyPrice; Full days + capped extra hours for >= 24h)
+    const roundedHours = Math.max(2, Math.ceil(diffHours));
+    const effectiveHourly = vehicle.hourlyPrice || Math.round(vehicle.dailyPrice / 5 / 1000) * 1000;
     let basePrice = 0;
-    if (diffHours < 24 && vehicle.hourlyPrice) {
-      basePrice = Math.ceil(diffHours) * vehicle.hourlyPrice;
+    if (roundedHours < 24) {
+      basePrice = Math.min(vehicle.dailyPrice, roundedHours * effectiveHourly);
     } else {
-      const diffDays = Math.max(1, Math.ceil(diffHours / 24));
-      basePrice = diffDays * vehicle.dailyPrice;
+      const fullDays = Math.floor(roundedHours / 24);
+      const remHours = roundedHours % 24;
+      const remFee = remHours > 0 ? Math.min(vehicle.dailyPrice, remHours * effectiveHourly) : 0;
+      basePrice = fullDays * vehicle.dailyPrice + remFee;
     }
 
     let discountAmount = 0;
@@ -292,15 +329,17 @@ export const createBooking = async (
         startOdometer: vehicle.odometer || 0,
       });
 
-      // Create In-App Notification
-      Notification.create({
-        userId: user._id,
-        title: 'Đặt giữ xe thành công',
-        body: `Đơn thuê ${bookingCode} (${vehicle.vehicleModel}) đã được khởi tạo. Vui lòng thanh toán cọc 30% (${depositAmount.toLocaleString('vi-VN')} đ) để xác nhận khóa xe.`,
-        type: 'BOOKING',
-        relatedId: newBooking._id.toString(),
-        isRead: false,
-      }).catch((err: unknown) => console.error('[Notification error]', err));
+      // Only send immediate notification for Cash hold at counter; online Banking notifications are sent after VNPay/VietQR payment succeeds
+      if (data.paymentMethod === 'Cash') {
+        Notification.create({
+          userId: user._id,
+          title: 'Đã giữ chỗ tạm thời tại quầy (30 phút)',
+          body: `Đơn thuê ${bookingCode} (${vehicle.vehicleModel}) đang được giữ chỗ 30 phút. Vui lòng đến quầy chi nhánh thanh toán cọc 30% (${depositAmount.toLocaleString('vi-VN')} đ) để khóa xe.`,
+          type: 'BOOKING',
+          relatedId: newBooking._id.toString(),
+          isRead: false,
+        }).catch((err: unknown) => console.error('[Notification error]', err));
+      }
 
       // Schedule pickup reminder
       const reminderTime = new Date(pickupDate.getTime() - 2 * 3600 * 1000);
@@ -381,21 +420,39 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   }
 
   // Conflict check
-  const conflictingBooking = await Booking.findOne({
-    vehicleId: vehicle._id,
-    status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
-    pickupDateTime: { $lt: returnDate },
-    returnDateTime: { $gt: pickupDate },
-  });
+  const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
+  const [conflictingBooking, activeDepositedOrRented] = await Promise.all([
+    Booking.findOne({
+      vehicleId: vehicle._id,
+      $or: [
+        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
+        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
+      ],
+      pickupDateTime: { $lt: returnDate },
+      returnDateTime: { $gt: pickupDate },
+    }),
+    Booking.findOne({
+      vehicleId: vehicle._id,
+      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
+    }),
+  ]);
 
-  const isAvailable = !conflictingBooking;
+  const isAvailable =
+    !conflictingBooking &&
+    !activeDepositedOrRented &&
+    vehicle.status === 'Available' &&
+    !vehicle.requiresMaintenance;
 
+  const roundedHours = Math.max(2, Math.ceil(diffHours));
+  const effectiveHourly = vehicle.hourlyPrice || Math.round(vehicle.dailyPrice / 5 / 1000) * 1000;
   let basePrice = 0;
-  if (diffHours < 24 && vehicle.hourlyPrice) {
-    basePrice = Math.ceil(diffHours) * vehicle.hourlyPrice;
+  if (roundedHours < 24) {
+    basePrice = Math.min(vehicle.dailyPrice, roundedHours * effectiveHourly);
   } else {
-    const rentalDays = Math.max(1, Math.ceil(diffHours / 24));
-    basePrice = rentalDays * vehicle.dailyPrice;
+    const fullDays = Math.floor(roundedHours / 24);
+    const remHours = roundedHours % 24;
+    const remFee = remHours > 0 ? Math.min(vehicle.dailyPrice, remHours * effectiveHourly) : 0;
+    basePrice = fullDays * vehicle.dailyPrice + remFee;
   }
 
   let discountAmount = 0;
@@ -546,6 +603,15 @@ export const getBookingById = async (id: string, requestingUser: IUser) => {
   return booking;
 };
 
+const populateBookingDetails = async (bookingId: mongoose.Types.ObjectId | string) => {
+  return Booking.findById(bookingId)
+    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
+    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
+    .populate('pickupBranchId', 'name code address phone hours_open hours_close')
+    .populate('returnBranchId', 'name code address phone hours_open hours_close')
+    .populate('counterPaidBy', 'username firstName lastName');
+};
+
 /**
  * Check-in handover workflow at counter (UC-56)
  */
@@ -558,7 +624,7 @@ export const checkinBooking = async (
     throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
   }
 
-  const booking = await Booking.findById(bookingId).populate('vehicleId');
+  const booking = await Booking.findById(bookingId);
   if (!booking) {
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
@@ -585,7 +651,7 @@ export const checkinBooking = async (
     throw new AppError(404, 'Phương tiện liên quan không tồn tại.');
   }
 
-  if (vehicle.status !== 'Available') {
+  if (vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
     throw new AppError(409, `Phương tiện hiện không ở trạng thái sẵn sàng bàn giao (Trạng thái hiện tại: ${vehicle.status}).`);
   }
 
@@ -618,7 +684,8 @@ export const checkinBooking = async (
   await vehicle.save();
 
   emitBookingStatus(booking);
-  return booking;
+  const populated = await populateBookingDetails(booking._id);
+  return populated || booking;
 };
 
 /**
@@ -704,7 +771,8 @@ export const checkoutBooking = async (
   }
 
   emitBookingStatus(booking);
-  return booking;
+  const populated = await populateBookingDetails(booking._id);
+  return populated || booking;
 };
 
 /**
@@ -757,9 +825,12 @@ export const recordCounterPayment = async (
   if (booking.status === 'Pending') {
     booking.status = 'Confirmed';
   }
+  booking.depositPaid = true;
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
   booking.counterPaidAt = new Date();
   await booking.save();
+
+  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
 
   await AuditLog.create({
     userId: staffUser._id,
@@ -788,13 +859,7 @@ export const recordCounterPayment = async (
 
   emitBookingStatus(booking);
 
-  const populated = await Booking.findById(booking._id)
-    .populate('userId', 'username email firstName lastName phoneNumber')
-    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
-    .populate('pickupBranchId', 'name address phone')
-    .populate('returnBranchId', 'name address phone')
-    .populate('counterPaidBy', 'username firstName lastName');
-
+  const populated = await populateBookingDetails(booking._id);
   return populated || booking;
 };
 
@@ -929,11 +994,7 @@ export const cancelBooking = async (
 
   emitBookingStatus(booking);
 
-  const populated = await Booking.findById(booking._id)
-    .populate('userId', 'username email firstName lastName phoneNumber')
-    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
-    .populate('pickupBranchId', 'name address phone')
-    .populate('returnBranchId', 'name address phone');
+  const populated = await populateBookingDetails(booking._id);
 
   const result = populated ? populated.toObject() : booking.toObject();
   (result as unknown as Record<string, unknown>).policySummary = {
@@ -946,134 +1007,112 @@ export const cancelBooking = async (
   return result as unknown as IBooking;
 };
 
-/**
- * UC-74: Reject Order (Manager)
- * PUT /api/bookings/:id/reject
- * Allows BranchManager or SystemAdmin to reject an order with a mandatory reason.
- * - Mandatory reason check (throws 400 if empty)
- * - Checks booking exists and manager has branch permission
- * - Only Pending, Approved, or Confirmed orders can be rejected
- * - Calculates full refund if customer paid any deposit or full amount
- * - Creates Payment record type REFUND if eligible
- * - Restores voucher/discount usedCount if applied
- * - Sets status = 'Rejected', rejectReason, rejectedBy, rejectedAt, cancelledAt
- * - Emits In-App Notification and real-time Socket.IO event
- * - Records AuditLog action REJECT_BOOKING
- */
-export const rejectBooking = async (
+export const approveRefund = async (
   bookingId: string,
-  managerUser: IUser,
-  rejectReason: string
-) => {
-  if (!mongoose.isValidObjectId(bookingId)) {
-    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  requestingUser: { _id: mongoose.Types.ObjectId | string; roles: string; fullName?: string; email?: string; branchId?: string | mongoose.Types.ObjectId },
+  data: {
+    refundAmount?: number;
+    note?: string;
+    bankName?: string;
+    bankAccount?: string;
+    bankAccountName?: string;
   }
-
-  const cleanReason = (rejectReason || '').trim();
-  if (!cleanReason) {
-    throw new AppError(400, 'Lý do từ chối đơn đặt xe là bắt buộc.');
-  }
-
-  const booking = await Booking.findById(bookingId)
-    .populate('vehicleId')
-    .populate('userId');
-
+): Promise<IBooking> => {
+  const booking = await Booking.findById(bookingId);
   if (!booking) {
-    throw new AppError(404, 'Không tìm thấy thông tin đơn đặt xe.');
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
 
-  // Branch access authorization
-  assertBranchAccess(managerUser, booking.pickupBranchId);
-
-  // Status check: cannot reject already finished or cancelled/rejected orders
-  if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
-    throw new AppError(400, 'Không thể từ chối đơn đặt xe đã bị hủy hoặc từ chối trước đó.');
+  // Branch access check for BranchManager
+  if (requestingUser.roles !== 'SystemAdmin') {
+    assertBranchAccess(requestingUser as any, booking.pickupBranchId);
   }
 
-  if (['Ongoing', 'Completed'].includes(booking.status)) {
-    throw new AppError(400, `Không thể từ chối đơn đặt xe đang ở trạng thái "${booking.status}".`);
+  if (booking.refundStatus === 'Approved') {
+    throw new AppError(400, 'Yêu cầu hoàn tiền đã được phê duyệt trước đó.');
   }
 
-  const now = new Date();
-  booking.status = 'Rejected';
-  booking.rejectReason = cleanReason;
-  booking.rejectedBy = managerUser._id as mongoose.Types.ObjectId;
-  booking.rejectedAt = now;
-  booking.cancelledAt = now;
+  if (booking.refundStatus === 'Rejected') {
+    throw new AppError(400, 'Yêu cầu hoàn tiền đã bị từ chối trước đó.');
+  }
 
-  // Since rejection is initiated by Manager/System, customer is entitled to 100% refund of any paid money
-  const customerPaid = (booking.paidAmount && booking.paidAmount > 0)
-    ? booking.paidAmount
-    : (booking.depositPaid ? booking.depositAmount : 0);
+  if (booking.refundStatus !== 'Pending' || (booking.refundAmount || 0) <= 0) {
+    throw new AppError(400, 'Đơn đặt xe không có khoản hoàn tiền nào đang ở trạng thái chờ duyệt (Pending).');
+  }
 
-  if (customerPaid > 0) {
-    booking.refundAmount = customerPaid;
-    booking.refundForfeitAmount = 0;
-    booking.refundStatus = 'Pending';
+  // If manager adjusts refund amount
+  if (data.refundAmount !== undefined && data.refundAmount > 0) {
+    if (data.refundAmount > (booking.paidAmount || 0)) {
+      throw new AppError(
+        400,
+        `Số tiền hoàn (${data.refundAmount.toLocaleString('vi-VN')} đ) không thể vượt quá số tiền khách đã thanh toán (${(booking.paidAmount || 0).toLocaleString('vi-VN')} đ).`
+      );
+    }
+    booking.refundAmount = data.refundAmount;
+  }
 
-    // Create Payment refund record
+  booking.refundStatus = 'Approved';
+  await booking.save();
+
+  // Find or create REFUND payment record and mark SUCCESS
+  let refundPayment = await Payment.findOne({
+    bookingId: booking._id,
+    type: 'REFUND',
+  });
+
+  if (refundPayment) {
+    refundPayment.status = 'SUCCESS';
+    refundPayment.amount = booking.refundAmount;
+    await refundPayment.save();
+  } else {
     await Payment.create({
       bookingId: booking._id,
-      txnRef: `REFUND-REJECT-${booking.bookingCode}-${Date.now()}`,
-      amount: customerPaid,
+      txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
+      amount: booking.refundAmount,
       type: 'REFUND',
-      status: 'PENDING',
-    }).catch((err: unknown) => console.error('[Refund Record Error]', err));
-  } else {
-    booking.refundAmount = 0;
-    booking.refundForfeitAmount = 0;
-    booking.refundStatus = 'None';
+      status: 'SUCCESS',
+    });
   }
 
-  // Restore voucher usage if used
-  if (booking.discountId) {
-    await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
-  }
-
-  await booking.save();
+  // Notify customer
+  await Notification.create({
+    userId: booking.userId,
+    title: `Khoản hoàn tiền đơn ${booking.bookingCode} đã được duyệt`,
+    body: `Khoản hoàn tiền ${(booking.refundAmount || 0).toLocaleString('vi-VN')} đ cho đơn đặt xe ${booking.bookingCode} đã được Quản lý chi nhánh phê duyệt. ${data.note ? `Ghi chú: ${data.note}` : ''}`,
+    type: 'BOOKING',
+    data: {
+      bookingId: booking._id,
+      bookingCode: booking.bookingCode,
+      refundAmount: booking.refundAmount,
+      refundStatus: 'Approved',
+      approvedAt: new Date(),
+    },
+  }).catch(() => {});
 
   // Audit log
   await AuditLog.create({
-    userId: managerUser._id,
-    action: 'REJECT_BOOKING',
+    userId: requestingUser._id,
+    action: 'APPROVE_REFUND',
     entity: 'Booking',
     entityId: booking._id.toString(),
     details: {
       bookingCode: booking.bookingCode,
-      rejectReason: cleanReason,
-      rejectedBy: managerUser._id,
-      customerPaid,
       refundAmount: booking.refundAmount,
-      refundStatus: booking.refundStatus,
+      refundStatus: 'Approved',
+      bankInfo: {
+        bankName: data.bankName,
+        bankAccount: data.bankAccount,
+        bankAccountName: data.bankAccountName,
+      },
+      note: data.note,
     },
-    timestamp: now,
-  }).catch((err) => console.error('[AuditLog Error]', err));
+    timestamp: new Date(),
+  }).catch(() => {});
 
-  // Send Notification to Customer
-  const customerId = (booking.userId as unknown as { _id?: mongoose.Types.ObjectId })?._id || booking.userId;
-  const refundText = booking.refundAmount && booking.refundAmount > 0
-    ? ` Số tiền đã thanh toán (${booking.refundAmount.toLocaleString('vi-VN')} đ) đang được xử lý hoàn trả 100%.`
-    : '';
-
-  await Notification.create({
-    userId: customerId,
-    title: `Đơn đặt xe ${booking.bookingCode} đã bị từ chối`,
-    body: `Đơn đặt xe #${booking.bookingCode} của bạn đã bị Quản lý chi nhánh từ chối. Lý do: "${cleanReason}".${refundText}`,
-    type: 'BOOKING',
-    relatedId: booking._id.toString(),
-    isRead: false,
-    data: {
-      bookingId: booking._id,
-      bookingCode: booking.bookingCode,
-      rejectReason: cleanReason,
-      refundAmount: booking.refundAmount,
-    },
-  }).catch((err) => console.error('[Notification Error]', err));
-
-  // Socket status event
   emitBookingStatus(booking);
 
-  return booking;
+  const populated = await populateBookingDetails(booking._id);
+  return (populated || booking) as unknown as IBooking;
 };
 
 

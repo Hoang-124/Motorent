@@ -91,4 +91,13 @@ router.put(
   bookingController.cancel
 );
 
+// UC-75: Approve Refund
+router.put(
+  '/:id/refund/approve',
+  authenticateJWT,
+  authorize('BranchManager', 'SystemAdmin'),
+  auditLogger('APPROVE_REFUND', 'Booking'),
+  bookingController.approveRefund
+);
+
 export default router;
