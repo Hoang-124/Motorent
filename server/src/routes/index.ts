@@ -10,10 +10,7 @@ import auditRoutes from '../modules/audit/auditRoutes';
 import chatRoutes from '../modules/chat/chatRoutes';
 import financeRoutes from '../modules/finance/financeRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
-import reviewRoutes from '../modules/review/reviewRoutes';
-import * as reviewController from '../modules/review/reviewController';
-import { authenticateJWT } from '../core/authMiddleware';
-import { authorize } from '../core/rbacMiddleware';
+import { complaintRouter } from '../modules/support/complaintRoutes';
 import { autoCrudAuditMiddleware } from '../core/auditMiddleware';
 
 const router = Router();
@@ -32,19 +29,13 @@ router.use('/auth', authRoutes);
 router.use('/branches', branchRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/bookings', bookingRoutes);
-router.use('/reviews', reviewRoutes);
 router.use('/feedbacks', feedbackRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/audit', auditRoutes);
 router.use('/chat', chatRoutes);
 router.use('/finance', financeRoutes);
 
-// Customer Review profile route: GET /api/me/reviews
-router.get(
-  '/me/reviews',
-  authenticateJWT,
-  authorize('Customer', 'BranchManager', 'Staff', 'SystemAdmin'),
-  reviewController.getMyReviews
-);
+// Complaints Management (UC-42)
+router.use('/complaints', complaintRouter);
 
 export default router;

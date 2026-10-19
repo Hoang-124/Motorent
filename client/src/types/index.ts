@@ -37,8 +37,6 @@ export interface Vehicle {
   color?: string;
   requiresMaintenance: boolean;
   images: string[];
-  averageRating?: number;
-  reviewCount?: number;
 }
 
 export interface User {
@@ -195,37 +193,55 @@ export interface AuditLogEntry {
   timestamp: string;
 }
 
-export interface ReviewUser {
+// UC-42 & UC-43: Complaint Tracking Types
+export type ComplaintStatus = 'Open' | 'InProgress' | 'Resolved' | 'Closed';
+
+export interface ComplaintBookingSummary {
   _id: string;
-  displayName: string;
-  avatarUrl?: string;
+  bookingCode: string;
+  vehicle: string;
+  pickupDateTime?: string;
+  returnDateTime?: string;
 }
 
-export interface Review {
-  _id: string;
-  bookingId: string | Booking;
-  userId: string | ReviewUser | User;
-  vehicleId: string | Vehicle;
-  rating: number;
-  comment?: string;
-  photos: string[];
-  deletedAt?: string | null;
+export interface ComplaintTimelineActor {
+  name: string;
+  role: string;
+}
+
+export interface ComplaintTimelineItem {
+  type: 'status' | 'response';
+  content: string;
   createdAt: string;
-  updatedAt: string;
-  user?: ReviewUser;
+  performedBy: ComplaintTimelineActor;
+  user?: ComplaintTimelineActor;
+  status?: ComplaintStatus;
+  previousStatus?: ComplaintStatus | null;
 }
 
-export interface VehicleReviewsResponse {
-  reviews: Review[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-  vehicleStats: {
-    averageRating: number;
-    reviewCount: number;
-    starBreakdown: Record<number, number>;
-  };
+export interface Complaint {
+  _id: string;
+  id?: string;
+  code: string;
+  category: string;
+  title?: string;
+  description: string;
+  attachments: string[];
+  status: ComplaintStatus;
+  booking?: ComplaintBookingSummary | null;
+  finalResolution?: string | null;
+  createdAt: string;
+  closedAt?: string | null;
+  updatedAt?: string;
+  timeline?: ComplaintTimelineItem[];
+}
+
+export interface ComplaintListResponse {
+  success: boolean;
+  count: number;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  data: Complaint[];
 }

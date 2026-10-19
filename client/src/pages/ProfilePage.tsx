@@ -1185,6 +1185,15 @@ export const ProfilePage: React.FC = () => {
                                 <span>Thuê lại xe này</span>
                               </Link>
                             )}
+
+                            <Link
+                              to={`/complaints/new?bookingId=${b._id}`}
+                              className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 text-[#A0A0A0] hover:text-amber-400 text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                              title="Gửi khiếu nại về chuyến xe này"
+                            >
+                              <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
+                              <span>Khiếu nại</span>
+                            </Link>
                           </div>
                         </div>
                       </div>
