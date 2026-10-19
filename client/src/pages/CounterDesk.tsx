@@ -1753,35 +1753,75 @@ export const CounterDesk: React.FC = () => {
                       )}
                     </div>
 
-                    {/* Settlement Summary Box */}
-                    <div className="p-4 bg-[#101010] rounded-2xl border border-[#FFC799]/20 space-y-2 text-xs">
-                      <div className="flex justify-between text-[#A0A0A0]">
-                        <span>Tiền thuê còn lại (70%):</span>
-                        <span className="font-bold text-white">
-                          {selectedBooking.remainingAmount?.toLocaleString('vi-VN')} đ
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-[#A0A0A0]">
-                        <span>Phụ thu trễ hẹn (Server tính 30.000đ/giờ trễ):</span>
-                        <span className="font-bold text-[#FFC799]">
-                          {selectedBooking.lateFee ? `${selectedBooking.lateFee.toLocaleString('vi-VN')} đ` : 'Tự động tính theo giờ trả'}
-                        </span>
-                      </div>
-                      {damageFee > 0 && (
-                        <div className="flex justify-between text-[#FFC799]">
-                          <span>Phụ phí phát sinh:</span>
-                          <span className="font-bold">{damageFee.toLocaleString('vi-VN')} đ</span>
+                    {/* Settlement Summary Box (UC-59: Penalty auto-calculation 30,000/hr + damage) */}
+                    {(() => {
+                      const returnDate = new Date(selectedBooking.returnDateTime);
+                      const now = new Date();
+                      const overdueMs = now.getTime() - returnDate.getTime();
+                      const graceMinutes = 15;
+                      const isOverdueNow = overdueMs > graceMinutes * 60 * 1000;
+                      const overdueMinutes = Math.max(0, Math.floor(overdueMs / (60 * 1000)));
+                      const overdueHoursCeil = isOverdueNow ? Math.ceil(overdueMs / (3600 * 1000)) : 0;
+                      const dynamicLateFee = selectedBooking.lateFee !== undefined && selectedBooking.lateFee > 0
+                        ? selectedBooking.lateFee
+                        : (isOverdueNow ? overdueHoursCeil * 30000 : 0);
+                      const totalDue = (selectedBooking.remainingAmount || 0) + dynamicLateFee + (damageFee || 0);
+
+                      return (
+                        <div className="p-4 bg-[#101010] rounded-2xl border border-[#FFC799]/20 space-y-2.5 text-xs">
+                          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                            <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
+                              <Receipt className="w-3.5 h-3.5 text-[#FFC799]" />
+                              Bảng kê tất toán & Phạt vi phạm (UC-59)
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              isOverdueNow
+                                ? 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
+                                : 'bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30'
+                            }`}>
+                              {isOverdueNow ? `Trễ hẹn +${overdueMinutes}p` : 'Đúng hạn (15p ân hạn)'}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between text-[#A0A0A0]">
+                            <span>Tiền thuê còn lại (70%):</span>
+                            <span className="font-bold text-white">
+                              {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between text-[#A0A0A0]">
+                            <span className="flex items-center gap-1">
+                              <span>Phụ thu trễ hẹn (30.000đ/giờ quá hạn):</span>
+                              {isOverdueNow && (
+                                <span className="text-[10px] text-[#FFC799] font-medium">
+                                  ({overdueHoursCeil} giờ)
+                                </span>
+                              )}
+                            </span>
+                            <span className={`font-bold ${isOverdueNow ? 'text-[#FF8080]' : 'text-white'}`}>
+                              {dynamicLateFee > 0 ? `+${dynamicLateFee.toLocaleString('vi-VN')} đ` : '0 đ'}
+                            </span>
+                          </div>
+
+                          {damageFee > 0 && (
+                            <div className="flex justify-between text-[#FF8080]">
+                              <span>Phụ phí hư hại / Bồi thường xe:</span>
+                              <span className="font-bold">+{damageFee.toLocaleString('vi-VN')} đ</span>
+                            </div>
+                          )}
+
+                          <div className="pt-2 border-t border-white/10 flex justify-between items-baseline text-sm">
+                            <span className="font-bold text-white uppercase text-xs">
+                              Tổng số tiền khách thanh toán tại quầy:
+                            </span>
+                            <span className="text-lg font-black text-[#FFC799]">
+                              {totalDue.toLocaleString('vi-VN')} đ
+                            </span>
+                          </div>
                         </div>
-                      )}
-                      <div className="pt-2 border-t border-white/10 flex justify-between items-baseline text-sm">
-                        <span className="font-bold text-white uppercase text-xs">
-                          Tổng số tiền khách thanh toán tại quầy:
-                        </span>
-                        <span className="text-lg font-black text-[#FFC799]">
-                          {((selectedBooking.remainingAmount || 0) + (selectedBooking.lateFee || 0) + damageFee).toLocaleString('vi-VN')} đ
-                        </span>
-                      </div>
-                    </div>
+                      );
+                    })()}
 
                     {/* Complete Checkout Button */}
                     {selectedBooking.status === 'Ongoing' ? (

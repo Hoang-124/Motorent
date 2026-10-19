@@ -72,31 +72,12 @@ router.put(
   bookingController.counterPay
 );
 
-// UC-58: Record vehicle damage and assessment fee
-router.post(
-  '/:id/damage',
-  authenticateJWT,
-  authorize('Staff', 'BranchManager', 'SystemAdmin'),
-  auditLogger('RECORD_DAMAGE_BOOKING', 'Booking'),
-  bookingController.recordDamage
-);
-
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 
-// UC-34: Extend Rental
-router.post(
-  '/:id/estimate-extension',
-  authenticateJWT,
-  bookingController.estimateExtension
-);
-
-router.put(
-  '/:id/extend',
-  authenticateJWT,
-  auditLogger('EXTEND_BOOKING', 'Booking'),
-  bookingController.extend
-);
+// UC-59: Calculate penalty fees (30,000 VND / hour ceil overdue + damage)
+router.get('/:id/penalty', authenticateJWT, bookingController.calculatePenalty);
+router.post('/:id/penalty/preview', authenticateJWT, bookingController.calculatePenalty);
 
 router.put(
   '/:id/cancel',

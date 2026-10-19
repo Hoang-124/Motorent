@@ -1097,6 +1097,80 @@ export const recordCounterPayment = async (
   return populated || booking;
 };
 
+export interface PenaltyPreviewOptions {
+  simulatedReturnTime?: Date | string;
+  damageFee?: number;
+}
+
+/**
+ * UC-59: Calculate penalty fees (late fee + damage fee)
+ * Formula: 30,000 VND / hour ceil overdue after 15 min grace period + damage fee
+ */
+export const calculateBookingPenalty = async (
+  bookingId: string,
+  requestingUser: IUser,
+  options: PenaltyPreviewOptions = {}
+) => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
+  }
+
+  // Authorization: Customer can check their own booking; Staff/Manager/Admin can check branch bookings
+  if (requestingUser.roles === 'Customer') {
+    if (booking.userId.toString() !== requestingUser._id.toString()) {
+      throw new AppError(403, 'Bạn không có quyền xem chi phí phạt của đơn đặt xe này.');
+    }
+  } else {
+    assertBranchAccess(requestingUser, [booking.pickupBranchId, booking.returnBranchId]);
+  }
+
+  const returnTime = options.simulatedReturnTime
+    ? new Date(options.simulatedReturnTime)
+    : (booking.actualReturnDateTime || new Date());
+
+  const scheduledReturn = new Date(booking.returnDateTime);
+  const graceMinutes = 15;
+  const overdueMs = returnTime.getTime() - scheduledReturn.getTime();
+  const isOverdue = overdueMs > graceMinutes * 60 * 1000;
+
+  let lateHoursCeil = 0;
+  let overdueMinutes = 0;
+  if (isOverdue) {
+    overdueMinutes = Math.max(0, Math.ceil(overdueMs / (60 * 1000)));
+    lateHoursCeil = Math.ceil(overdueMs / (3600 * 1000));
+  }
+
+  const hourlyLateRate = 30000; // 30,000 VND / hour
+  const calculatedLateFee = lateHoursCeil * hourlyLateRate;
+  const currentDamageFee = options.damageFee !== undefined ? Math.max(0, options.damageFee) : (booking.damageFee || 0);
+  const remainingAmount = booking.remainingAmount || 0;
+  const totalPenalty = calculatedLateFee + currentDamageFee;
+  const totalSettlementDue = remainingAmount + totalPenalty;
+
+  return {
+    bookingId: booking._id,
+    bookingCode: booking.bookingCode,
+    status: booking.status,
+    scheduledReturnDateTime: scheduledReturn,
+    returnDateTimeUsed: returnTime,
+    graceMinutes,
+    isOverdue,
+    overdueMinutes,
+    lateHoursCeil,
+    hourlyLateRate,
+    lateFee: calculatedLateFee,
+    damageFee: currentDamageFee,
+    remainingAmount,
+    totalPenalty,
+    totalSettlementDue,
+  };
+};
+
 /**
  * Record vehicle damage during rental or return (UC-58)
  * Photos + description, damage fee, severity assessment, and vehicle status update
