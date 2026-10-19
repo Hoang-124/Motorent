@@ -28,51 +28,19 @@ import {
   CreditCard,
   Wallet,
   Banknote,
-  Receipt,
-  Camera,
-  UploadCloud,
-  Wrench,
-  Filter,
-  ShieldAlert
+  Receipt
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
+import { getUserAvatarUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 
 type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
-type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit' | 'vehicles';
-
-const VEHICLE_FOUR_ANGLES = [
-  {
-    index: 0,
-    code: 'GÓC 01',
-    title: 'Mặt trước & Đèn pha',
-    desc: 'Kiểm tra mặt nạ trước, cụm đèn pha, phuộc trước & chắn bùn',
-  },
-  {
-    index: 1,
-    code: 'GÓC 02',
-    title: 'Thân xe bên trái',
-    desc: 'Kiểm tra dàn áo trái, tay phanh trái, lốc máy & gác chân',
-  },
-  {
-    index: 2,
-    code: 'GÓC 03',
-    title: 'Thân xe bên phải',
-    desc: 'Kiểm tra dàn áo phải, ống xả (pô xe), tay ga & phanh trước',
-  },
-  {
-    index: 3,
-    code: 'GÓC 04',
-    title: 'Đuôi xe, Biển số & ODO',
-    desc: 'Kiểm tra biển số, cụm đèn hậu, lốp sau & mặt đồng hồ ODO',
-  },
-] as const;
+type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit';
 
 interface PendingEkycUser {
   _id: string;
@@ -94,10 +62,9 @@ interface PendingEkycUser {
 }
 
 export const CounterDesk: React.FC = () => {
-  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const modeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
-  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit', 'vehicles'].includes(modeParam)
+  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit'].includes(modeParam)
     ? modeParam
     : 'bookings';
 
@@ -111,21 +78,6 @@ export const CounterDesk: React.FC = () => {
 
   // Notification banners (replacing alert())
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
-  // UC-61-63: Vehicle Fleet Status Management
-  const [branchVehicles, setBranchVehicles] = useState<Vehicle[]>([]);
-  const [loadingVehicles, setLoadingVehicles] = useState<boolean>(false);
-  const [vehicleFilterStatus, setVehicleFilterStatus] = useState<'all' | 'Available' | 'Rented' | 'Maintenance'>('all');
-  const [vehicleSearchQuery, setVehicleSearchQuery] = useState<string>('');
-  const [vehicleActionModal, setVehicleActionModal] = useState<{
-    vehicle: Vehicle;
-    targetStatus: 'Available' | 'Rented' | 'Maintenance';
-    reason: string;
-    maintenanceType: 'Routine' | 'Repair' | 'Inspection';
-    cost: number;
-    odometer: number;
-  } | null>(null);
-  const [vehicleSubmitting, setVehicleSubmitting] = useState<boolean>(false);
 
   // eKYC Management states
   const [pendingEkycList, setPendingEkycList] = useState<PendingEkycUser[]>([]);
@@ -152,15 +104,12 @@ export const CounterDesk: React.FC = () => {
     fuel: true,
     helmets: true,
   });
-  const [checkinPhotos, setCheckinPhotos] = useState<string[]>(['', '', '', '']);
   const [signatureData, setSignatureData] = useState<string>('');
 
   // Check-out form states
   const [endOdo, setEndOdo] = useState<number>(0);
   const [damageFee, setDamageFee] = useState<number>(0);
   const [returnNotes, setReturnNotes] = useState<string>('');
-  const [checkoutPhotos, setCheckoutPhotos] = useState<string[]>(['', '', '', '']);
-  const [uploadingAngle, setUploadingAngle] = useState<string | null>(null);
 
   // Canvas ref for digital signature
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -172,6 +121,37 @@ export const CounterDesk: React.FC = () => {
   const [counterPayMethod, setCounterPayMethod] = useState<'Cash' | 'POS' | 'DirectBank'>('Cash');
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
+
+  // UC-73: Manager Approval state
+  const { user } = useAuth();
+  const isManager = user?.roles === 'BranchManager' || user?.roles === 'SystemAdmin';
+  const [approving, setApproving] = useState<boolean>(false);
+
+  const handleApproveBooking = async () => {
+    if (!selectedBooking) return;
+    setApproving(true);
+    setStatusMessage(null);
+    try {
+      const res = await api.put(`/bookings/${selectedBooking._id}/approve`, {});
+      if (res.data?.success && res.data?.data) {
+        setStatusMessage({
+          type: 'success',
+          text: `Đã phê duyệt thành công đơn đặt xe ${selectedBooking.bookingCode}! Đơn chuyển sang trạng thái "${res.data.data.status}".`,
+        });
+        handleSelectBooking(res.data.data);
+        fetchBookings();
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setStatusMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Không thể phê duyệt đơn đặt xe.',
+        });
+      }
+    } finally {
+      setApproving(false);
+    }
+  };
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -282,88 +262,23 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
-  const fetchBranchVehicles = async () => {
-    setLoadingVehicles(true);
-    try {
-      const rawBranch = user?.branchId;
-      const bId = rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
-        ? (rawBranch as any)._id
-        : rawBranch ? String(rawBranch) : undefined;
-      const params = bId ? { branchId: bId } : {};
-      const res = await api.get('/vehicles', { params });
-      if (res.data && res.data.data) {
-        setBranchVehicles(res.data.data);
-      }
-    } catch (err: any) {
-      console.error('Failed to fetch branch vehicles:', err);
-    } finally {
-      setLoadingVehicles(false);
-    }
-  };
-
-  const handleUpdateVehicleStatus = async (
-    vehicleId: string,
-    targetStatus: 'Available' | 'Rented' | 'Maintenance',
-    details?: { reason?: string; maintenanceType?: 'Routine' | 'Repair' | 'Inspection'; cost?: number; odometer?: number }
-  ) => {
-    setVehicleSubmitting(true);
-    try {
-      await api.put(`/vehicles/${vehicleId}/status`, {
-        status: targetStatus,
-        reason: details?.reason,
-        maintenanceType: details?.maintenanceType,
-        cost: details?.cost,
-        odometer: details?.odometer,
-      });
-      setVehicleActionModal(null);
-      await fetchBranchVehicles();
-      setStatusMessage({
-        type: 'success',
-        text: `Đã cập nhật trạng thái phương tiện thành "${targetStatus}" thành công!`,
-      });
-    } catch (err: any) {
-      setStatusMessage({
-        type: 'error',
-        text: err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái phương tiện.',
-      });
-    } finally {
-      setVehicleSubmitting(false);
-    }
-  };
-
   useEffect(() => {
     fetchBookings();
     fetchPendingEkyc();
-    fetchBranchVehicles();
   }, []);
 
   useEffect(() => {
     const m = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
-    if (m && ['bookings', 'ekyc', 'chat', 'audit', 'vehicles'].includes(m)) {
+    if (m && ['bookings', 'ekyc', 'chat', 'audit'].includes(m)) {
       setDeskMode(m);
-      if (m === 'vehicles') {
-        fetchBranchVehicles();
-      }
     }
   }, [searchParams]);
 
   const switchDeskMode = (mode: MainDeskMode) => {
     setDeskMode(mode);
     setSearchParams({ mode });
-    if (mode === 'vehicles') {
-      fetchBranchVehicles();
-    }
   };
 
-  const getDefaultFourAnglesFromVehicle = (b: Booking): string[] => {
-    const v = typeof b.vehicleId === 'object' && b.vehicleId !== null ? (b.vehicleId as Vehicle) : null;
-    const rawImgs = v?.images || [];
-    const img0 = getOptimizedVehicleImageUrl(rawImgs[0] || rawImgs[1]);
-    const img1 = getOptimizedVehicleImageUrl(rawImgs[1] || rawImgs[0]);
-    const img2 = getOptimizedVehicleImageUrl(rawImgs[2] || rawImgs[1] || rawImgs[0]);
-    const img3 = getOptimizedVehicleImageUrl(rawImgs[0] || rawImgs[2] || rawImgs[1]);
-    return [img0, img1, img2, img3];
-  };
 
   const handleSelectBooking = (b: Booking) => {
     setSelectedBooking(b);
@@ -378,119 +293,11 @@ export const CounterDesk: React.FC = () => {
     setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
     setDamageFee(b.damageFee || 0);
 
-    const existingCheckin = Array.isArray(b.checkinImages) ? b.checkinImages : [];
-    setCheckinPhotos([
-      existingCheckin[0] || '',
-      existingCheckin[1] || '',
-      existingCheckin[2] || '',
-      existingCheckin[3] || '',
-    ]);
-
-    const existingCheckout = Array.isArray(b.checkoutImages) ? b.checkoutImages : [];
-    setCheckoutPhotos([
-      existingCheckout[0] || '',
-      existingCheckout[1] || '',
-      existingCheckout[2] || '',
-      existingCheckout[3] || '',
-    ]);
-
     if (b.status === 'Ongoing') {
       setActiveTab('checkout');
     } else {
       setActiveTab('checkin');
     }
-  };
-
-  // Compress and stamp uploaded angle photo with timestamp & angle code
-  const handleAnglePhotoUpload = async (
-    phase: 'checkin' | 'checkout',
-    index: number,
-    file: File
-  ) => {
-    const slotKey = `${phase}_${index}`;
-    setUploadingAngle(slotKey);
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const img = new Image();
-          img.onload = () => {
-            const maxDim = 960;
-            let w = img.width;
-            let h = img.height;
-            if (w > maxDim || h > maxDim) {
-              if (w > h) {
-                h = Math.round((h * maxDim) / w);
-                w = maxDim;
-              } else {
-                w = Math.round((w * maxDim) / h);
-                h = maxDim;
-              }
-            }
-            const canvas = document.createElement('canvas');
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              resolve(String(reader.result));
-              return;
-            }
-            ctx.drawImage(img, 0, 0, w, h);
-
-            // Draw timestamp inspection bar at bottom
-            const barH = Math.max(28, Math.round(h * 0.065));
-            ctx.fillStyle = 'rgba(16, 16, 16, 0.82)';
-            ctx.fillRect(0, h - barH, w, barH);
-            ctx.fillStyle = '#FFC799';
-            ctx.font = `bold ${Math.max(11, Math.round(barH * 0.45))}px monospace`;
-            const angleMeta = VEHICLE_FOUR_ANGLES[index];
-            const stampText = `MOTORENT ${phase === 'checkin' ? 'GIAO XE (CHECK-IN)' : 'NHẬN LẠI XE (CHECK-OUT)'} • ${angleMeta.code}: ${angleMeta.title.toUpperCase()} • ${new Date().toLocaleString('vi-VN')}`;
-            ctx.fillText(stampText, 12, h - Math.round(barH * 0.3));
-
-            resolve(canvas.toDataURL('image/jpeg', 0.82));
-          };
-          img.onerror = reject;
-          img.src = String(reader.result);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      if (phase === 'checkin') {
-        setCheckinPhotos((prev) => {
-          const next = [...prev];
-          next[index] = dataUrl;
-          return next;
-        });
-      } else {
-        setCheckoutPhotos((prev) => {
-          const next = [...prev];
-          next[index] = dataUrl;
-          return next;
-        });
-      }
-    } catch {
-      setStatusMessage({
-        type: 'error',
-        text: 'Không thể xử lý tệp hình ảnh góc xe. Vui lòng chọn ảnh JPEG/PNG/WebP hợp lệ.',
-      });
-    } finally {
-      setUploadingAngle(null);
-    }
-  };
-
-  const handleQuickFillCheckinAngles = () => {
-    if (!selectedBooking) return;
-    setCheckinPhotos(getDefaultFourAnglesFromVehicle(selectedBooking));
-  };
-
-  const handleQuickFillCheckoutAngles = () => {
-    if (!selectedBooking) return;
-    const base =
-      checkinPhotos.filter(Boolean).length === 4
-        ? [...checkinPhotos]
-        : getDefaultFourAnglesFromVehicle(selectedBooking);
-    setCheckoutPhotos(base);
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -570,14 +377,6 @@ export const CounterDesk: React.FC = () => {
   const handleCheckinSubmit = async () => {
     if (!selectedBooking) return;
 
-    if (checkinPhotos.filter(Boolean).length < 4) {
-      setStatusMessage({
-        type: 'error',
-        text: 'Vui lòng chụp/tải đủ 4 góc xe (Mặt trước, Thân trái, Thân phải, Đuôi xe & ODO) trước khi bàn giao.',
-      });
-      return;
-    }
-
     if (!signatureData) {
       setStatusMessage({
         type: 'error',
@@ -594,14 +393,13 @@ export const CounterDesk: React.FC = () => {
         startOdometer: startOdo,
         startFuelLevel: 100,
         checklist,
-        checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
       });
 
       if (res.data?.data) {
         setStatusMessage({
           type: 'success',
-          text: `Check-in thành công cho đơn ${selectedBooking.bookingCode}! Đã lưu biên bản 4 góc xe và chuyển sang trạng thái Đang lưu hành.`,
+          text: `Check-in thành công cho đơn ${selectedBooking.bookingCode}! Phương tiện đã chuyển sang trạng thái Đang lưu hành.`,
         });
         handleSelectBooking(res.data.data);
         fetchBookings();
@@ -629,14 +427,6 @@ export const CounterDesk: React.FC = () => {
       return;
     }
 
-    if (checkoutPhotos.filter(Boolean).length < 4) {
-      setStatusMessage({
-        type: 'error',
-        text: 'Vui lòng chụp/tải đủ 4 góc xe khi thu hồi để đối chiếu tình trạng phương tiện trước khi tất toán.',
-      });
-      return;
-    }
-
     setSubmitting(true);
     setStatusMessage(null);
 
@@ -645,18 +435,14 @@ export const CounterDesk: React.FC = () => {
         endOdometer: endOdo,
         damageFee,
         returnNotes,
-        checkoutImages: checkoutPhotos.filter(Boolean),
       });
 
       if (res.data?.data) {
         const updated = res.data.data;
-        const totalPaid =
-          typeof updated.settlementAmount === 'number'
-            ? updated.settlementAmount
-            : (updated.remainingAmount || 0) + (updated.lateFee || 0) + (updated.damageFee || 0);
+        const totalPaid = (updated.remainingAmount || 0) + (updated.lateFee || 0) + (updated.damageFee || 0);
         setStatusMessage({
           type: 'success',
-          text: `Check-out thành công cho đơn ${selectedBooking.bookingCode}! Tổng tiền khách thanh toán tại quầy: ${totalPaid.toLocaleString('vi-VN')} đ (Đã gồm trễ hẹn: ${(updated.lateFee || 0).toLocaleString('vi-VN')} đ, phụ phí: ${(updated.damageFee || 0).toLocaleString('vi-VN')} đ). Phương tiện đã sẵn sàng khai thác.`,
+          text: `Check-out thành công cho đơn ${selectedBooking.bookingCode}! Tổng tiền khách thanh toán tại quầy: ${totalPaid.toLocaleString('vi-VN')} đ (Đã gồm trễ hẹn: ${updated.lateFee?.toLocaleString('vi-VN')} đ, phụ phí: ${updated.damageFee?.toLocaleString('vi-VN')} đ). Phương tiện đã sẵn sàng khai thác.`,
         });
         handleSelectBooking(updated);
         fetchBookings();
@@ -807,48 +593,20 @@ export const CounterDesk: React.FC = () => {
                 <Database className="w-4 h-4" />
                 <span>04. Nhật ký Audit (UC-102)</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  switchDeskMode('vehicles');
-                  fetchBranchVehicles();
-                }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'vehicles'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <Wrench className="w-4 h-4" />
-                <span>05. Đội xe & Trạng thái (UC-61-63)</span>
-                {branchVehicles.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-white font-bold text-[10px]">
-                    {branchVehicles.length}
-                  </span>
-                )}
-              </button>
             </div>
           </div>
 
-          {(deskMode === 'bookings' || deskMode === 'ekyc' || deskMode === 'vehicles') && (
+          {(deskMode === 'bookings' || deskMode === 'ekyc') && (
             <button
               onClick={() => {
                 if (deskMode === 'bookings') fetchBookings();
-                else if (deskMode === 'ekyc') fetchPendingEkyc();
-                else fetchBranchVehicles();
+                else fetchPendingEkyc();
               }}
-              disabled={loading || ekycLoading || loadingVehicles}
+              disabled={loading || ekycLoading}
               className="self-start md:self-auto inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] bg-[#161616] border border-white/10 hover:border-[#FFC799]/40 hover:text-white transition-colors cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#A0A0A0] ${loading || ekycLoading || loadingVehicles ? 'animate-spin' : ''}`} />
-              <span>
-                {deskMode === 'bookings'
-                  ? 'Đồng bộ đơn chi nhánh'
-                  : deskMode === 'ekyc'
-                  ? 'Làm mới hàng đợi eKYC'
-                  : 'Làm mới danh sách xe'}
-              </span>
+              <RefreshCw className={`w-3.5 h-3.5 text-[#A0A0A0] ${loading || ekycLoading ? 'animate-spin' : ''}`} />
+              <span>{deskMode === 'bookings' ? 'Đồng bộ đơn chi nhánh' : 'Làm mới hàng đợi eKYC'}</span>
             </button>
           )}
         </div>
@@ -1068,6 +826,18 @@ export const CounterDesk: React.FC = () => {
                       </div>
 
                       <div className="flex items-center space-x-2">
+                        {isManager && selectedBooking.status === 'Pending' && (
+                          <button
+                            type="button"
+                            onClick={handleApproveBooking}
+                            disabled={approving}
+                            className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-[#101010] shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                            <span>{approving ? 'Đang duyệt...' : 'Duyệt đơn (UC-73)'}</span>
+                          </button>
+                        )}
+
                         {selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0 ? (
                           <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-[#99FFE4]/10 text-[#99FFE4] border border-[#99FFE4]/30">
                             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
@@ -1115,6 +885,34 @@ export const CounterDesk: React.FC = () => {
                 {/* Tab 1: Check-in Process */}
                 {activeTab === 'checkin' && (
                   <div className="p-6 space-y-5">
+                    {/* UC-73: Manager Approval Banner for Pending Bookings */}
+                    {selectedBooking.status === 'Pending' && (
+                      <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center space-x-2.5 text-amber-400">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <div>
+                            <span className="font-semibold block">Đơn đặt xe đang chờ Quản lý chi nhánh phê duyệt (UC-73)</span>
+                            <span className="text-[11px] text-amber-300/80">
+                              {isManager
+                                ? 'Bạn là Quản lý chi nhánh / Admin. Nhấn nút để phê duyệt xe và cho phép nhân viên thực hiện thủ tục Check-in bàn giao.'
+                                : 'Đơn cần được Quản lý chi nhánh phê duyệt trước khi nhân viên thực hiện thủ tục Check-in bàn giao.'}
+                            </span>
+                          </div>
+                        </div>
+                        {isManager && (
+                          <button
+                            type="button"
+                            onClick={handleApproveBooking}
+                            disabled={approving}
+                            className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-md"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{approving ? 'Đang duyệt...' : 'Phê duyệt đơn đặt xe'}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {/* Unpaid 70% Alert Banner */}
                     {!selectedBooking.isPaid && (selectedBooking.remainingAmount || 0) > 0 && (
                       <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -1173,7 +971,7 @@ export const CounterDesk: React.FC = () => {
                             <input
                               type="checkbox"
                               checked={checklist[item.key]}
-                              disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
+                              disabled={selectedBooking.status !== 'Confirmed'}
                               onChange={(e) =>
                                 setChecklist({ ...checklist, [item.key]: e.target.checked })
                               }
@@ -1182,150 +980,6 @@ export const CounterDesk: React.FC = () => {
                             <span className="text-[#A0A0A0] font-medium">{item.label}</span>
                           </label>
                         ))}
-                      </div>
-                    </div>
-
-                    {/* 4-Angle Vehicle Photo Capture Before Handover (Check-in) */}
-                    <div className="p-4 rounded-2xl border border-white/10 bg-[#101010]/90 space-y-3.5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
-                        <div>
-                          <label className="text-xs font-bold text-[#F5F5F5] flex items-center">
-                            <Camera className="w-4 h-4 text-[#FFC799] mr-1.5 shrink-0" />
-                            <span>Chụp 4 góc xe kiểm định trước khi giao (Check-in)</span>
-                            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
-                              {checkinPhotos.filter(Boolean).length}/4 góc
-                            </span>
-                          </label>
-                          <p className="text-[11px] text-[#A0A0A0] mt-0.5">
-                            Lưu bằng chứng ngoại thất 4 góc xe trước khi bàn giao để đối chiếu minh bạch khi khách trả xe.
-                          </p>
-                        </div>
-                        {(selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved') && (
-                          <button
-                            type="button"
-                            onClick={handleQuickFillCheckinAngles}
-                            className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#FFC799]/15 border border-white/10 hover:border-[#FFC799]/40 text-[11px] font-bold text-[#FFC799] transition-all cursor-pointer"
-                          >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>Nạp nhanh 4 góc mẫu</span>
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {VEHICLE_FOUR_ANGLES.map((angle) => {
-                          const photoUrl = checkinPhotos[angle.index];
-                          const isUploading = uploadingAngle === `checkin_${angle.index}`;
-                          const canEdit = selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved';
-
-                          return (
-                            <div
-                              key={angle.code}
-                              className={`rounded-xl border p-3 transition-all ${
-                                photoUrl
-                                  ? 'border-[#99FFE4]/30 bg-[#141414]'
-                                  : 'border-white/10 bg-[#141414]/60'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1.5">
-                                <div className="flex items-center space-x-1.5">
-                                  <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] font-mono text-[10px] font-extrabold">
-                                    {angle.code}
-                                  </span>
-                                  <span className="text-xs font-bold text-white">{angle.title}</span>
-                                </div>
-                                {photoUrl ? (
-                                  <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-[#99FFE4]">
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Đã lưu</span>
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-semibold text-[#6E6E6E]">Chưa chụp</span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-[#A0A0A0] mb-2.5 line-clamp-1">{angle.desc}</p>
-
-                              {photoUrl ? (
-                                <div className="relative group aspect-video rounded-lg overflow-hidden border border-white/10 bg-black">
-                                  <img
-                                    src={photoUrl}
-                                    alt={`${angle.code} - ${angle.title}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-2.5 py-1.5 flex items-center justify-between">
-                                    <span className="text-[10px] font-mono font-bold text-[#99FFE4]">
-                                      TRƯỚC KHI GIAO • {angle.code}
-                                    </span>
-                                    <div className="flex items-center space-x-1.5">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          openPreviewDoc(
-                                            `Ảnh kiểm định trước khi giao (Check-in) - ${angle.code}: ${angle.title}`,
-                                            photoUrl
-                                          )
-                                        }
-                                        className="p-1 rounded bg-white/15 hover:bg-white/25 text-white transition-colors cursor-pointer"
-                                        title="Phóng to kiểm tra chi tiết"
-                                      >
-                                        <Eye className="w-3.5 h-3.5" />
-                                      </button>
-                                      {canEdit && (
-                                        <label
-                                          className="p-1 rounded bg-[#FFC799]/20 hover:bg-[#FFC799]/35 text-[#FFC799] transition-colors cursor-pointer"
-                                          title="Chụp hoặc tải ảnh khác"
-                                        >
-                                          <Camera className="w-3.5 h-3.5" />
-                                          <input
-                                            type="file"
-                                            accept="image/*"
-                                            capture="environment"
-                                            className="hidden"
-                                            onChange={(e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) handleAnglePhotoUpload('checkin', angle.index, file);
-                                              e.target.value = '';
-                                            }}
-                                          />
-                                        </label>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : canEdit ? (
-                                <label className="flex flex-col items-center justify-center aspect-video rounded-lg border border-dashed border-white/15 hover:border-[#FFC799]/50 bg-[#101010] hover:bg-[#FFC799]/[0.03] transition-all cursor-pointer p-3 text-center">
-                                  {isUploading ? (
-                                    <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin mb-1.5" />
-                                  ) : (
-                                    <UploadCloud className="w-5 h-5 text-[#FFC799] mb-1.5" />
-                                  )}
-                                  <span className="text-[11px] font-bold text-[#F5F5F5]">
-                                    {isUploading ? 'Đang đóng dấu thời gian...' : `Chụp / Tải ảnh ${angle.code}`}
-                                  </span>
-                                  <span className="text-[10px] text-[#6E6E6E] mt-0.5">
-                                    Tự động gắn nhãn giờ kiểm định
-                                  </span>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    capture="environment"
-                                    className="hidden"
-                                    disabled={isUploading}
-                                    onChange={(e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) handleAnglePhotoUpload('checkin', angle.index, file);
-                                      e.target.value = '';
-                                    }}
-                                  />
-                                </label>
-                              ) : (
-                                <div className="flex items-center justify-center aspect-video rounded-lg border border-white/5 bg-[#101010] text-[11px] text-[#6E6E6E]">
-                                  Chưa có ảnh góc này
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
                       </div>
                     </div>
 
@@ -1370,7 +1024,7 @@ export const CounterDesk: React.FC = () => {
                           <button
                             type="button"
                             onClick={clearSignature}
-                            disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
+                            disabled={selectedBooking.status !== 'Confirmed'}
                             className="text-[11px] text-[#FF8080] hover:text-[#FF8080] flex items-center space-x-1 font-semibold"
                           >
                             <RotateCcw className="w-3 h-3" />
@@ -1379,7 +1033,7 @@ export const CounterDesk: React.FC = () => {
                         )}
                       </div>
 
-                      {selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved' ? (
+                      {selectedBooking.status === 'Confirmed' ? (
                         <div className="relative border border-white/10 rounded-xl bg-[#101010] overflow-hidden">
                           <canvas
                             ref={canvasRef}
@@ -1416,12 +1070,12 @@ export const CounterDesk: React.FC = () => {
                     </div>
 
                     {/* Complete Check-in Button */}
-                    {selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved' ? (
+                    {selectedBooking.status === 'Confirmed' ? (
                       <button
                         type="button"
                         onClick={handleCheckinSubmit}
                         disabled={submitting}
-                        className="w-full py-3.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
+                        className="w-full py-3.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
                       >
                         {submitting ? (
                           <span>Đang thực hiện Check-in...</span>
@@ -1434,7 +1088,7 @@ export const CounterDesk: React.FC = () => {
                       </button>
                     ) : (
                       <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl text-center text-xs text-[#A0A0A0] font-medium">
-                        Đơn hàng hiện ở trạng thái: <strong className="text-white">{selectedBooking.status}</strong> (Chỉ thực hiện Check-in khi trạng thái là Confirmed / Approved).
+                        Đơn hàng hiện ở trạng thái: <strong className="text-white">{selectedBooking.status}</strong> (Chỉ thực hiện Check-in khi trạng thái là Confirmed).
                       </div>
                     )}
                   </div>
@@ -1460,179 +1114,6 @@ export const CounterDesk: React.FC = () => {
                       <p className="text-[11px] text-[#A0A0A0] mt-1">
                         Quãng đường khách đã di chuyển trong chuyến: ~{Math.max(0, endOdo - (selectedBooking.startOdometer || 0))} km
                       </p>
-                    </div>
-
-                    {/* 4-Angle Before & After Inspection Comparison (Check-in vs Check-out) */}
-                    <div className="p-4 rounded-2xl border border-white/10 bg-[#101010]/90 space-y-3.5">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
-                        <div>
-                          <label className="text-xs font-bold text-[#F5F5F5] flex items-center">
-                            <Camera className="w-4 h-4 text-[#FFC799] mr-1.5 shrink-0" />
-                            <span>Đối chiếu & Chụp 4 góc xe sau khi nhận lại (Check-out)</span>
-                            <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30">
-                              {checkoutPhotos.filter(Boolean).length}/4 góc thu hồi
-                            </span>
-                          </label>
-                          <p className="text-[11px] text-[#A0A0A0] mt-0.5">
-                            So sánh trực tiếp ảnh 4 góc trước khi giao (trái) và ảnh thực tế khi nhận lại xe (phải) để kiểm định trầy xước.
-                          </p>
-                        </div>
-                        {selectedBooking.status === 'Ongoing' && (
-                          <button
-                            type="button"
-                            onClick={handleQuickFillCheckoutAngles}
-                            className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#99FFE4]/15 border border-white/10 hover:border-[#99FFE4]/40 text-[11px] font-bold text-[#99FFE4] transition-all cursor-pointer"
-                          >
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>Xác nhận 4 góc nguyên vẹn</span>
-                          </button>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        {VEHICLE_FOUR_ANGLES.map((angle) => {
-                          const defaultAngles = getDefaultFourAnglesFromVehicle(selectedBooking);
-                          const beforeUrl = checkinPhotos[angle.index] || defaultAngles[angle.index];
-                          const afterUrl = checkoutPhotos[angle.index];
-                          const isUploading = uploadingAngle === `checkout_${angle.index}`;
-                          const canEdit = selectedBooking.status === 'Ongoing';
-
-                          return (
-                            <div
-                              key={angle.code}
-                              className={`rounded-xl border p-3 transition-all ${
-                                afterUrl
-                                  ? 'border-[#99FFE4]/30 bg-[#141414]'
-                                  : 'border-white/10 bg-[#141414]/60'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center space-x-1.5">
-                                  <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] font-mono text-[10px] font-extrabold">
-                                    {angle.code}
-                                  </span>
-                                  <span className="text-xs font-bold text-white">{angle.title}</span>
-                                </div>
-                                {afterUrl ? (
-                                  <span className="inline-flex items-center space-x-1 text-[10px] font-bold text-[#99FFE4]">
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>Đã đối chiếu</span>
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-semibold text-[#FFC799]">Chờ chụp thu hồi</span>
-                                )}
-                              </div>
-                              <p className="text-[10px] text-[#A0A0A0] mb-2.5 line-clamp-1">{angle.desc}</p>
-
-                              <div className="grid grid-cols-2 gap-2">
-                                {/* Left: Before (Check-in) */}
-                                <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-black">
-                                  <img
-                                    src={beforeUrl}
-                                    alt={`Trước khi giao ${angle.code}`}
-                                    className="w-full h-full object-cover opacity-90"
-                                  />
-                                  <div className="absolute inset-x-0 top-0 bg-black/70 px-1.5 py-0.5 flex items-center justify-between">
-                                    <span className="text-[9px] font-mono font-bold text-[#FFC799]">
-                                      TRƯỚC GIAO
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        openPreviewDoc(
-                                          `Ảnh trước khi giao (Check-in) - ${angle.code}: ${angle.title}`,
-                                          beforeUrl
-                                        )
-                                      }
-                                      className="text-white/80 hover:text-white cursor-pointer"
-                                      title="Phóng to ảnh lúc giao"
-                                    >
-                                      <Eye className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                </div>
-
-                                {/* Right: After (Check-out) */}
-                                {afterUrl ? (
-                                  <div className="relative aspect-video rounded-lg overflow-hidden border border-[#99FFE4]/40 bg-black">
-                                    <img
-                                      src={afterUrl}
-                                      alt={`Sau khi nhận ${angle.code}`}
-                                      className="w-full h-full object-cover"
-                                    />
-                                    <div className="absolute inset-x-0 top-0 bg-black/75 px-1.5 py-0.5 flex items-center justify-between">
-                                      <span className="text-[9px] font-mono font-bold text-[#99FFE4]">
-                                        SAU NHẬN
-                                      </span>
-                                      <div className="flex items-center space-x-1">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            openPreviewDoc(
-                                              `Ảnh sau khi nhận lại (Check-out) - ${angle.code}: ${angle.title}`,
-                                              afterUrl
-                                            )
-                                          }
-                                          className="text-white/80 hover:text-white cursor-pointer"
-                                          title="Phóng to ảnh lúc nhận lại"
-                                        >
-                                          <Eye className="w-3 h-3" />
-                                        </button>
-                                        {canEdit && (
-                                          <label
-                                            className="text-[#FFC799] hover:text-white cursor-pointer"
-                                            title="Chụp lại góc này"
-                                          >
-                                            <Camera className="w-3 h-3" />
-                                            <input
-                                              type="file"
-                                              accept="image/*"
-                                              capture="environment"
-                                              className="hidden"
-                                              onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) handleAnglePhotoUpload('checkout', angle.index, file);
-                                                e.target.value = '';
-                                              }}
-                                            />
-                                          </label>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ) : canEdit ? (
-                                  <label className="flex flex-col items-center justify-center aspect-video rounded-lg border border-dashed border-white/20 hover:border-[#99FFE4]/50 bg-[#101010] hover:bg-[#99FFE4]/[0.03] transition-all cursor-pointer p-1.5 text-center">
-                                    {isUploading ? (
-                                      <RefreshCw className="w-4 h-4 text-[#99FFE4] animate-spin mb-1" />
-                                    ) : (
-                                      <Camera className="w-4 h-4 text-[#99FFE4] mb-1" />
-                                    )}
-                                    <span className="text-[10px] font-bold text-[#F5F5F5] leading-tight">
-                                      {isUploading ? 'Đang lưu...' : 'Chụp sau nhận'}
-                                    </span>
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      capture="environment"
-                                      className="hidden"
-                                      disabled={isUploading}
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) handleAnglePhotoUpload('checkout', angle.index, file);
-                                        e.target.value = '';
-                                      }}
-                                    />
-                                  </label>
-                                ) : (
-                                  <div className="flex items-center justify-center aspect-video rounded-lg border border-white/5 bg-[#101010] text-[10px] text-[#6E6E6E] text-center px-1">
-                                    Chưa chụp thu hồi
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
                     </div>
 
                     {/* Damage & Additional fee input */}
@@ -1977,422 +1458,8 @@ export const CounterDesk: React.FC = () => {
           </div>
         ) : deskMode === 'chat' ? (
           <StaffChatConsole />
-        ) : deskMode === 'audit' ? (
-          <AuditLogViewer />
         ) : (
-          /* UC-61-63: Vehicle Fleet & Status Management Tab */
-          <div className="space-y-6">
-            {/* Status Metric Summary Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Tổng đội xe trạm</p>
-                  <p className="text-2xl font-black text-white mt-1">{branchVehicles.length}</p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white">
-                  <Gauge className="w-5 h-5 text-[#FFC799]" />
-                </div>
-              </div>
-
-              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Sẵn sàng nhận khách</p>
-                  <p className="text-2xl font-black text-[#99FFE4] mt-1">
-                    {branchVehicles.filter((v) => v.status === 'Available').length}
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-[#99FFE4]/10 border border-[#99FFE4]/20 flex items-center justify-center text-[#99FFE4]">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-              </div>
-
-              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Đang cho thuê (Tour)</p>
-                  <p className="text-2xl font-black text-blue-400 mt-1">
-                    {branchVehicles.filter((v) => v.status === 'Rented').length}
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                  <Clock className="w-5 h-5" />
-                </div>
-              </div>
-
-              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Đang bảo dưỡng / Sửa</p>
-                  <p className="text-2xl font-black text-amber-400 mt-1">
-                    {branchVehicles.filter((v) => v.status === 'Maintenance').length}
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                  <Wrench className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-
-            {/* Filter and Search Bar */}
-            <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="relative w-full md:w-96">
-                <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Tìm theo biển số, mẫu xe, hãng sản xuất..."
-                  value={vehicleSearchQuery}
-                  onChange={(e) => setVehicleSearchQuery(e.target.value)}
-                  className="w-full bg-[#101010] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
-                />
-                {vehicleSearchQuery && (
-                  <button
-                    onClick={() => setVehicleSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-white"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Status Filter Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
-                {(
-                  [
-                    { id: 'all', label: 'Tất cả' },
-                    { id: 'Available', label: 'Sẵn sàng' },
-                    { id: 'Rented', label: 'Đang thuê' },
-                    { id: 'Maintenance', label: 'Bảo dưỡng' },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setVehicleFilterStatus(tab.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      vehicleFilterStatus === tab.id
-                        ? 'bg-[#FFC799] text-[#101010]'
-                        : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Vehicle Cards Grid */}
-            {loadingVehicles ? (
-              <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0] flex items-center justify-center space-x-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-[#FFC799]" />
-                <span>Đang tải danh sách phương tiện tại chi nhánh...</span>
-              </div>
-            ) : (
-              (() => {
-                const filtered = branchVehicles.filter((v) => {
-                  if (vehicleFilterStatus !== 'all' && v.status !== vehicleFilterStatus) {
-                    return false;
-                  }
-                  if (vehicleSearchQuery.trim()) {
-                    const q = vehicleSearchQuery.toLowerCase();
-                    const plate = (v.licensePlate || '').toLowerCase();
-                    const model = (v.vehicleModel || '').toLowerCase();
-                    const brand = (v.brand || '').toLowerCase();
-                    return plate.includes(q) || model.includes(q) || brand.includes(q);
-                  }
-                  return true;
-                });
-
-                if (filtered.length === 0) {
-                  return (
-                    <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0]">
-                      Không tìm thấy phương tiện nào phù hợp với bộ lọc hiện tại.
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filtered.map((v) => {
-                      const img = getOptimizedVehicleImageUrl(v.images?.[0]);
-                      const isAvailable = v.status === 'Available';
-                      const isRented = v.status === 'Rented';
-                      const isMaintenance = v.status === 'Maintenance';
-
-                      return (
-                        <div
-                          key={v._id}
-                          className="bg-[#161616] border border-white/10 hover:border-white/20 rounded-2xl overflow-hidden transition-all shadow-lg flex flex-col justify-between"
-                        >
-                          <div>
-                            {/* Card Image and Status Badge */}
-                            <div className="relative h-44 bg-[#101010] overflow-hidden">
-                              <img
-                                src={img}
-                                alt={v.vehicleModel}
-                                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                                onError={(e) => {
-                                  e.currentTarget.src =
-                                    'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=600&auto=format&fit=crop&q=80';
-                                }}
-                              />
-                              <div className="absolute top-3 left-3 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15">
-                                <span className="font-mono font-black text-xs text-white tracking-widest uppercase">
-                                  {v.licensePlate}
-                                </span>
-                              </div>
-
-                              <div className="absolute top-3 right-3">
-                                {isAvailable && (
-                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-[#99FFE4]/20 border border-[#99FFE4]/40 text-[#99FFE4] backdrop-blur-md">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4] animate-pulse"></span>
-                                    <span>SẴN SÀNG</span>
-                                  </span>
-                                )}
-                                {isRented && (
-                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-500/20 border border-blue-500/40 text-blue-400 backdrop-blur-md">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-                                    <span>ĐANG THUÊ</span>
-                                  </span>
-                                )}
-                                {isMaintenance && (
-                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/20 border border-amber-500/40 text-amber-400 backdrop-blur-md">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                                    <span>BẢO DƯỠNG</span>
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Card Body */}
-                            <div className="p-4 space-y-3">
-                              <div>
-                                <p className="text-[11px] font-bold text-[#FFC799] uppercase tracking-wider">
-                                  {v.brand}
-                                </p>
-                                <h3 className="text-base font-extrabold text-white truncate">{v.vehicleModel}</h3>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-2 text-[11px] text-[#A0A0A0]">
-                                <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
-                                  <Gauge className="w-3.5 h-3.5 text-[#FFC799]" />
-                                  <span className="font-semibold text-white">{(v.odometer || 0).toLocaleString('vi-VN')} km</span>
-                                </div>
-                                <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
-                                  <DollarSign className="w-3.5 h-3.5 text-[#99FFE4]" />
-                                  <span className="font-semibold text-white">{(v.dailyPrice || 0).toLocaleString('vi-VN')} đ/ng</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Action Toolbar */}
-                          <div className="p-4 pt-0 border-t border-white/5 mt-2 space-y-2">
-                            <p className="text-[10px] font-bold text-[#6E6E6E] uppercase tracking-wider">
-                              Thao tác đổi trạng thái (UC-61-63)
-                            </p>
-                            <div className="grid grid-cols-2 gap-2">
-                              {/* Option to set to Available */}
-                              <button
-                                type="button"
-                                disabled={isAvailable || vehicleSubmitting}
-                                onClick={() => handleUpdateVehicleStatus(v._id, 'Available')}
-                                className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
-                                  isAvailable
-                                    ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                    : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30'
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Sẵn sàng</span>
-                              </button>
-
-                              {/* Option to set to Maintenance */}
-                              <button
-                                type="button"
-                                disabled={isMaintenance || vehicleSubmitting}
-                                onClick={() =>
-                                  setVehicleActionModal({
-                                    vehicle: v,
-                                    targetStatus: 'Maintenance',
-                                    reason: 'Bảo dưỡng định kỳ / Kiểm tra phanh lốp dầu nhớt',
-                                    maintenanceType: 'Routine',
-                                    cost: 0,
-                                    odometer: v.odometer || 0,
-                                  })
-                                }
-                                className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
-                                  isMaintenance
-                                    ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                    : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30'
-                                }`}
-                              >
-                                <Wrench className="w-3.5 h-3.5" />
-                                <span>Bảo dưỡng</span>
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()
-            )}
-
-            {/* Maintenance Action Dialog Modal */}
-            {vehicleActionModal && (
-              <div
-                onClick={() => setVehicleActionModal(null)}
-                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
-              >
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-[#161616] border border-white/15 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
-                >
-                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Wrench className="w-4 h-4 text-amber-400" />
-                      <span className="font-extrabold text-sm text-white">
-                        Lập phiếu bảo dưỡng xe ({vehicleActionModal.vehicle.licensePlate})
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => setVehicleActionModal(null)}
-                      className="text-[#A0A0A0] hover:text-white"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="p-5 space-y-4">
-                    <div className="bg-[#101010] p-3 rounded-xl border border-white/10 flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-white">
-                          {vehicleActionModal.vehicle.brand} {vehicleActionModal.vehicle.vehicleModel}
-                        </p>
-                        <p className="text-[11px] text-[#A0A0A0]">
-                          ODO hiện tại: {(vehicleActionModal.vehicle.odometer || 0).toLocaleString('vi-VN')} km
-                        </p>
-                      </div>
-                      <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-black">
-                        {vehicleActionModal.vehicle.licensePlate}
-                      </span>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
-                        Loại hình bảo dưỡng (Maintenance Type):
-                      </label>
-                      <select
-                        value={vehicleActionModal.maintenanceType}
-                        onChange={(e) =>
-                          setVehicleActionModal({
-                            ...vehicleActionModal,
-                            maintenanceType: e.target.value as any,
-                          })
-                        }
-                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
-                      >
-                        <option value="Routine">Routine - Bảo dưỡng định kỳ (Thay nhớt, lọc gió, kiểm tra lốp)</option>
-                        <option value="Repair">Repair - Khắc phục sự cố / Sửa chữa hỏng hóc</option>
-                        <option value="Inspection">Inspection - Kiểm định an toàn kỹ thuật</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
-                        Lý do & Mô tả sự cố kỹ thuật (Bắt buộc):
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={vehicleActionModal.reason}
-                        onChange={(e) =>
-                          setVehicleActionModal({
-                            ...vehicleActionModal,
-                            reason: e.target.value,
-                          })
-                        }
-                        placeholder="VD: Kiểm tra phanh sau bị mòn, thay dầu máy mốc 5.000km..."
-                        className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
-                          Số ODO ghi nhận (km):
-                        </label>
-                        <input
-                          type="number"
-                          value={vehicleActionModal.odometer}
-                          onChange={(e) =>
-                            setVehicleActionModal({
-                              ...vehicleActionModal,
-                              odometer: Number(e.target.value),
-                            })
-                          }
-                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
-                          Chi phí bảo dưỡng (đ):
-                        </label>
-                        <input
-                          type="number"
-                          value={vehicleActionModal.cost}
-                          onChange={(e) =>
-                            setVehicleActionModal({
-                              ...vehicleActionModal,
-                              cost: Number(e.target.value),
-                            })
-                          }
-                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4 border-t border-white/10 flex items-center justify-end space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setVehicleActionModal(null)}
-                      className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
-                    >
-                      Hủy bỏ
-                    </button>
-                    <button
-                      type="button"
-                      disabled={vehicleSubmitting || !vehicleActionModal.reason.trim()}
-                      onClick={() =>
-                        handleUpdateVehicleStatus(
-                          vehicleActionModal.vehicle._id,
-                          vehicleActionModal.targetStatus,
-                          {
-                            reason: vehicleActionModal.reason,
-                            maintenanceType: vehicleActionModal.maintenanceType,
-                            cost: vehicleActionModal.cost,
-                            odometer: vehicleActionModal.odometer,
-                          }
-                        )
-                      }
-                      className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FFC799] text-[#101010] hover:bg-[#FFD6B3] transition-colors flex items-center space-x-1.5 disabled:opacity-50"
-                    >
-                      {vehicleSubmitting ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Đang lưu...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Wrench className="w-3.5 h-3.5" />
-                          <span>Xác nhận chuyển sang Bảo dưỡng</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <AuditLogViewer />
         )}
 
         {/* Modal preview high-res doc with mouse-wheel zoom & rotate */}

@@ -75,9 +75,14 @@ router.put(
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 
-// UC-59: Calculate penalty fees (30,000 VND / hour ceil overdue + damage)
-router.get('/:id/penalty', authenticateJWT, bookingController.calculatePenalty);
-router.post('/:id/penalty/preview', authenticateJWT, bookingController.calculatePenalty);
+// UC-73: Manager approve booking
+router.put(
+  '/:id/approve',
+  authenticateJWT,
+  authorize('BranchManager', 'SystemAdmin'),
+  auditLogger('APPROVE_BOOKING', 'Booking'),
+  bookingController.approveBooking
+);
 
 router.put(
   '/:id/cancel',

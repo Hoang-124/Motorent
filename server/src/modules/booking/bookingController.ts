@@ -267,39 +267,31 @@ export const counterPay = async (
   }
 };
 
-export const calculatePenalty = async (
+const approveBookingSchema = z.object({
+  notes: z.string().optional(),
+});
+
+export const approveBooking = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new AppError(401, 'Yêu cầu đăng nhập.');
+      throw new AppError(401, 'Yêu cầu đăng nhập quản lý.');
     }
 
-    const simulatedReturnTime =
-      typeof req.query.simulatedReturnTime === 'string'
-        ? req.query.simulatedReturnTime
-        : req.body?.simulatedReturnTime;
-
-    const damageFee =
-      req.query.damageFee !== undefined
-        ? Number(req.query.damageFee)
-        : req.body?.damageFee !== undefined
-        ? Number(req.body.damageFee)
-        : undefined;
-
-    const result = await bookingService.calculateBookingPenalty(req.params.id, req.user, {
-      simulatedReturnTime,
-      damageFee,
-    });
+    const { notes } = approveBookingSchema.parse(req.body || {});
+    const approved = await bookingService.approveBooking(req.params.id, req.user, notes);
 
     res.json({
       success: true,
-      data: result,
+      message: 'Phê duyệt đơn đặt xe thành công!',
+      data: approved,
     });
   } catch (error) {
     next(error);
   }
 };
+
 
