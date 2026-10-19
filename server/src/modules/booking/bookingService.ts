@@ -448,15 +448,111 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   };
 };
 
+export interface GetMyBookingsOptions {
+  status?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
+export interface GetMyBookingsResult {
+  bookings: IBooking[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasPrev: boolean;
+    hasNext: boolean;
+  };
+  counts: {
+    all: number;
+    active: number;
+    completed: number;
+    cancelled: number;
+  };
+}
+
 /**
- * Get customer's personal bookings
+ * Get customer's personal bookings with status tabs and pagination (UC-35)
  */
-export const getMyBookings = async (userId: string) => {
-  return Booking.find({ userId })
-    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-    .populate('pickupBranchId', 'name code address phone hours_open hours_close')
-    .populate('returnBranchId', 'name code address phone hours_open hours_close')
-    .sort({ createdAt: -1 });
+export const getMyBookings = async (
+  userId: string,
+  options: GetMyBookingsOptions = {}
+): Promise<GetMyBookingsResult> => {
+  const page = Math.max(1, Number(options.page) || 1);
+  const limit = Math.min(50, Math.max(1, Number(options.limit) || 10));
+  const skip = (page - 1) * limit;
+
+  const baseFilter: Record<string, unknown> = {
+    userId: new mongoose.Types.ObjectId(userId),
+  };
+
+  const query: Record<string, unknown> = { ...baseFilter };
+
+  if (options.status && options.status !== 'all') {
+    if (options.status === 'active') {
+      query.status = { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] };
+    } else if (options.status === 'completed') {
+      query.status = 'Completed';
+    } else if (options.status === 'cancelled') {
+      query.status = { $in: ['Cancelled', 'Rejected'] };
+    } else {
+      query.status = options.status;
+    }
+  }
+
+  if (options.search && options.search.trim()) {
+    query.bookingCode = { $regex: options.search.trim(), $options: 'i' };
+  }
+
+  const [bookings, total, allCount, activeCount, completedCount, cancelledCount] =
+    await Promise.all([
+      Booking.find(query)
+        .populate(
+          'vehicleId',
+          'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType'
+        )
+        .populate('pickupBranchId', 'name code address phone hours_open hours_close')
+        .populate('returnBranchId', 'name code address phone hours_open hours_close')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Booking.countDocuments(query),
+      Booking.countDocuments(baseFilter),
+      Booking.countDocuments({
+        ...baseFilter,
+        status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+      }),
+      Booking.countDocuments({
+        ...baseFilter,
+        status: 'Completed',
+      }),
+      Booking.countDocuments({
+        ...baseFilter,
+        status: { $in: ['Cancelled', 'Rejected'] },
+      }),
+    ]);
+
+  const totalPages = Math.ceil(total / limit) || 1;
+
+  return {
+    bookings,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasPrev: page > 1,
+      hasNext: page < totalPages,
+    },
+    counts: {
+      all: allCount,
+      active: activeCount,
+      completed: completedCount,
+      cancelled: cancelledCount,
+    },
+  };
 };
 
 /**
