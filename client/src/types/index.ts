@@ -43,6 +43,23 @@ export interface Vehicle {
   color?: string;
   requiresMaintenance: boolean;
   images: string[];
+  ratingAverage?: number;
+  reviewCount?: number;
+}
+
+export interface VehicleReview {
+  _id: string;
+  userId: string | {
+    _id?: string;
+    firstName?: string;
+    lastName?: string;
+    avatarUrl?: string;
+  };
+  rating: number;
+  comment?: string;
+  imageUrls?: string[];
+  response?: string;
+  createdAt: string;
 }
 
 export interface User {

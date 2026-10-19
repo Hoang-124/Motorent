@@ -218,6 +218,11 @@ export const Navbar: React.FC = () => {
       navigate('/bikes?promo=true');
     } else if (notif.type === 'BOOKING') {
       navigate(isStaffOrAdmin ? '/counter' : '/profile?tab=bookings');
+    } else if (notif.type === 'MAINTENANCE' && isStaffOrAdmin) {
+      const vehicleId = typeof notif.data?.vehicleId === 'string' ? notif.data.vehicleId : '';
+      navigate(`/manager/fleet${vehicleId ? `?vehicle=${encodeURIComponent(vehicleId)}` : ''}`);
+    } else if (notif.type === 'TRANSFER' && isStaffOrAdmin) {
+      navigate('/manager/fleet?tab=transfers');
     }
   };
 
@@ -708,6 +713,10 @@ export const Navbar: React.FC = () => {
                     {isStaffOrAdmin ? (
                       <>
                         {/* Staff / Manager / Admin Operational Menu */}
+                        {['SystemAdmin', 'BranchManager'].includes(user.roles) && <Link to="/manager/dashboard" onClick={() => setUserDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"><LayoutDashboard className="w-3.5 h-3.5 text-[#FFC799]" />Tổng quan đội xe</Link>}
+                        {user.roles === 'SystemAdmin' && <Link to="/admin/categories" onClick={() => setUserDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"><Compass className="w-3.5 h-3.5 text-[#FFC799]" />Danh mục xe · Admin</Link>}
+                        {['SystemAdmin', 'BranchManager'].includes(user.roles) && <Link to="/manager/vehicles" onClick={() => setUserDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"><Compass className="w-3.5 h-3.5 text-[#FFC799]" />Quản lý xe & giá thuê</Link>}
+                        <Link to="/manager/fleet" onClick={() => setUserDropdownOpen(false)} className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"><FileCheck2 className="w-3.5 h-3.5 text-[#FFC799]" />{user.roles === 'Staff' ? 'Phiếu kỹ thuật & ODO' : 'Điều chuyển & bảo dưỡng'}</Link>
                         <Link
                           to="/counter?mode=bookings"
                           onClick={() => setUserDropdownOpen(false)}

@@ -35,6 +35,7 @@ router.get('/health', async (req: Request, res: Response, next: NextFunction) =>
     const isDbConnected = mongoose.connection.readyState === 1;
 
     const baseHealth = {
+      service: 'motorent',
       status: isDbConnected ? 'UP' : 'DOWN',
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.floor(process.uptime()),

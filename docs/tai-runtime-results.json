@@ -1,0 +1,126 @@
+{
+  "measuredAt": "2026-10-17T17:21:16.861Z",
+  "timezone": "Asia/Ho_Chi_Minh",
+  "apiBase": "http://localhost:5000/api",
+  "health": {
+    "service": "motorent",
+    "status": "UP",
+    "timestamp": "2026-10-17T17:21:16.942Z",
+    "uptimeSeconds": 261,
+    "database": "Connected"
+  },
+  "catalog": {
+    "total": 20,
+    "yamahaCount": 4
+  },
+  "searches": [
+    {
+      "query": "page=1&limit=12",
+      "count": 12,
+      "total": 20,
+      "firstRequestMs": 16.48,
+      "p50Ms": 13.59,
+      "p95Ms": 35.29,
+      "maxMs": 35.29,
+      "within200ms": true
+    },
+    {
+      "query": "q=Y&page=1&limit=12",
+      "count": 12,
+      "total": 12,
+      "firstRequestMs": 14.56,
+      "p50Ms": 14.75,
+      "p95Ms": 18.53,
+      "maxMs": 18.53,
+      "within200ms": true
+    },
+    {
+      "query": "q=Ya&page=1&limit=12",
+      "count": 4,
+      "total": 4,
+      "firstRequestMs": 11.32,
+      "p50Ms": 11.57,
+      "p95Ms": 12,
+      "maxMs": 12,
+      "within200ms": true
+    },
+    {
+      "query": "q=43-B1&page=1&limit=12",
+      "count": 12,
+      "total": 12,
+      "firstRequestMs": 12.37,
+      "p50Ms": 13.7,
+      "p95Ms": 44.97,
+      "maxMs": 44.97,
+      "within200ms": true
+    },
+    {
+      "query": "brand=Yamaha&category=xe-tay-ga&minPrice=90000&maxPrice=140000&page=1&limit=12",
+      "count": 3,
+      "total": 3,
+      "firstRequestMs": 12.6,
+      "p50Ms": 13.08,
+      "p95Ms": 14.17,
+      "maxMs": 14.17,
+      "within200ms": true
+    },
+    {
+      "query": "sort=rating_desc&page=1&limit=12",
+      "count": 12,
+      "total": 20,
+      "firstRequestMs": 19.09,
+      "p50Ms": 16.67,
+      "p95Ms": 18.78,
+      "maxMs": 18.78,
+      "within200ms": true
+    }
+  ],
+  "images": [
+    {
+      "vehicle": "Honda Wave Alpha / RSX",
+      "host": "res.cloudinary.com",
+      "status": 200,
+      "contentType": "image/webp",
+      "bytes": 23306,
+      "downloadMs": 1066,
+      "within2Seconds": true
+    },
+    {
+      "vehicle": "Yamaha Sirius",
+      "host": "res.cloudinary.com",
+      "status": 200,
+      "contentType": "image/webp",
+      "bytes": 24160,
+      "downloadMs": 917.59,
+      "within2Seconds": true
+    },
+    {
+      "vehicle": "SYM Elegant 50",
+      "host": "res.cloudinary.com",
+      "status": 200,
+      "contentType": "image/webp",
+      "bytes": 22490,
+      "downloadMs": 821.54,
+      "within2Seconds": true
+    },
+    {
+      "vehicle": "Honda Vision Smartkey",
+      "host": "res.cloudinary.com",
+      "status": 200,
+      "contentType": "image/webp",
+      "bytes": 14614,
+      "downloadMs": 822.54,
+      "within2Seconds": true
+    },
+    {
+      "vehicle": "Yamaha Janus",
+      "host": "res.cloudinary.com",
+      "status": 200,
+      "contentType": "image/webp",
+      "bytes": 18152,
+      "downloadMs": 809.04,
+      "within2Seconds": true
+    }
+  ],
+  "policyPublished": true
+}

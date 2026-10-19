@@ -10,6 +10,7 @@ import { env } from './config/env';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './core/errorHandler';
 import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
+import { startOdometerAlertJob } from './core/jobs/odometerAlertJob';
 import { User } from './models/User';
 import { Booking } from './models/Booking';
 import { Conversation } from './models/Conversation';
@@ -275,15 +276,28 @@ app.use(errorHandler);
 const PORT = env.PORT || 5000;
 
 export const startServer = async () => {
+  if (server.listening) return;
   await connectDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => { server.off('listening', onListening); reject(error); };
+    const onListening = () => { server.off('error', onError); resolve(); };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(PORT);
+  });
   startBookingExpiryJob();
-  server.listen(PORT, () => {
+  startOdometerAlertJob();
     console.log(`[SERVER] MOTORENT Server running on http://localhost:${PORT}`);
     console.log(`[SECURITY] Active: Helmet, Rate Limiter, CORS whitelist, Trust Proxy: ${env.TRUST_PROXY || 1}`);
     console.log(`[HEALTH] Health check endpoint: http://localhost:${PORT}/api/health`);
-  });
 };
 
 if (process.env.NODE_ENV !== 'test') {
-  startServer();
+  void startServer().catch(async (error: NodeJS.ErrnoException) => {
+    console.error(error.code === 'EADDRINUSE'
+      ? `[SERVER] Cổng ${PORT} đang được sử dụng. Dừng lần chạy cũ bằng Ctrl+C hoặc dùng npm run dev tại thư mục gốc.`
+      : `[SERVER] Không khởi động được: ${error.message}`);
+    await import('mongoose').then(({ default: mongoose }) => mongoose.disconnect());
+    process.exitCode = 1;
+  });
 }

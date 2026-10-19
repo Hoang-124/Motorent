@@ -10,9 +10,12 @@ import { BookingReminder } from '../../models/BookingReminder';
 import { AuditLog } from '../../models/AuditLog';
 import { Payment } from '../../models/Payment';
 import { AppError } from '../../core/errorHandler';
+import { withResourceLock as acquireVehicleLock } from '../../core/resourceLock';
+export { withResourceLock as acquireVehicleLock } from '../../core/resourceLock';
 import { assertBranchAccess } from '../../core/permissions';
 import { emitBookingStatus } from './bookingEvents';
 import { isCloudinaryConfigured, uploadDataUriToCloudinary } from '../../config/cloudinary';
+import { quoteVehicleRental } from '../pricing/pricingService';
 
 export interface CreateBookingDto {
   vehicleId: string;
@@ -58,28 +61,6 @@ export interface CheckoutDto {
   returnNotes?: string;
   settleNow?: boolean;
 }
-
-// In-process concurrency mutex per vehicle to prevent race conditions on double-booking
-const vehicleMutexes = new Map<string, Promise<unknown>>();
-
-export const acquireVehicleLock = async <T>(vehicleId: string, fn: () => Promise<T>): Promise<T> => {
-  const currentLock = vehicleMutexes.get(vehicleId) || Promise.resolve();
-  let release: () => void;
-  const newLock = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  vehicleMutexes.set(vehicleId, currentLock.then(() => newLock));
-
-  await currentLock;
-  try {
-    return await fn();
-  } finally {
-    release!();
-    if (vehicleMutexes.get(vehicleId) === newLock) {
-      vehicleMutexes.delete(vehicleId);
-    }
-  }
-};
 
 /**
  * Generate unique booking code with MV- prefix
@@ -146,18 +127,11 @@ export const createBooking = async (
     }
 
     if (vehicle.requiresMaintenance || vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
-      throw new AppError(400, 'Phương tiện hiện đang cần bảo dưỡng định kỳ hoặc đang điều chuyển và chưa sẵn sàng bàn giao.');
+      throw new AppError(400, 'Phương tiện đang bảo dưỡng hoặc điều chuyển, chưa sẵn sàng bàn giao.');
     }
 
-    const activeDepositedOrRented = await Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    });
-    if (activeDepositedOrRented || vehicle.status === 'Rented') {
-      throw new AppError(
-        409,
-        'Phương tiện này hiện đã được đặt cọc hoặc đang trong kỳ cho thuê. Vui lòng chọn phương tiện khác.'
-      );
+    if (vehicle.branchId.toString() !== data.pickupBranchId) {
+      throw new AppError(400, 'Chi nhánh nhận xe phải là chi nhánh hiện tại của phương tiện.');
     }
 
     const [pickupBranch, returnBranch] = await Promise.all([
@@ -219,32 +193,10 @@ export const createBooking = async (
       }
     }
 
-    // Auto-cancel any stale unpaid online banking draft on this vehicle so retries or abandoned gateway tabs never conflict
-    const staleUserDrafts = await Booking.find({
-      vehicleId: vehicle._id,
-      status: 'Pending',
-      depositPaid: false,
-      isPaid: false,
-      paymentMethod: 'Banking',
-    });
-    for (const draft of staleUserDrafts) {
-      draft.status = 'Cancelled';
-      draft.cancelReason = 'Hủy tự động đơn nháp chưa thanh toán để tạo giao dịch mới.';
-      await draft.save();
-      if (draft.discountId) {
-        await Discount.findByIdAndUpdate(draft.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
-      }
-      await Notification.deleteMany({ relatedId: draft._id.toString() }).catch(() => {});
-    }
-
-    // Atomic conflict check: Find any conflicting confirmed/ongoing booking or active 30-min Cash hold for the same vehicle
-    const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
+    // Atomic conflict check: Find any conflicting booking for the same vehicle
     const conflictingBooking = await Booking.findOne({
       vehicleId: vehicle._id,
-      $or: [
-        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
-        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
-      ],
+      status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
       pickupDateTime: { $lt: returnDate },
       returnDateTime: { $gt: pickupDate },
     });
@@ -256,18 +208,9 @@ export const createBooking = async (
       );
     }
 
-    // Server-side price calculation (Hourly for < 24h capped at dailyPrice; Full days + capped extra hours for >= 24h)
-    const roundedHours = Math.max(2, Math.ceil(diffHours));
-    const effectiveHourly = vehicle.hourlyPrice || Math.round(vehicle.dailyPrice / 5 / 1000) * 1000;
-    let basePrice = 0;
-    if (roundedHours < 24) {
-      basePrice = Math.min(vehicle.dailyPrice, roundedHours * effectiveHourly);
-    } else {
-      const fullDays = Math.floor(roundedHours / 24);
-      const remHours = roundedHours % 24;
-      const remFee = remHours > 0 ? Math.min(vehicle.dailyPrice, remHours * effectiveHourly) : 0;
-      basePrice = fullDays * vehicle.dailyPrice + remFee;
-    }
+    // Server-side price calculation
+    const rentalQuote = await quoteVehicleRental(vehicle, pickupDate, returnDate);
+    const basePrice = rentalQuote.rentalAmount;
 
     let discountAmount = 0;
     let discountDoc = null;
@@ -329,17 +272,15 @@ export const createBooking = async (
         startOdometer: vehicle.odometer || 0,
       });
 
-      // Only send immediate notification for Cash hold at counter; online Banking notifications are sent after VNPay/VietQR payment succeeds
-      if (data.paymentMethod === 'Cash') {
-        Notification.create({
-          userId: user._id,
-          title: 'Đã giữ chỗ tạm thời tại quầy (30 phút)',
-          body: `Đơn thuê ${bookingCode} (${vehicle.vehicleModel}) đang được giữ chỗ 30 phút. Vui lòng đến quầy chi nhánh thanh toán cọc 30% (${depositAmount.toLocaleString('vi-VN')} đ) để khóa xe.`,
-          type: 'BOOKING',
-          relatedId: newBooking._id.toString(),
-          isRead: false,
-        }).catch((err: unknown) => console.error('[Notification error]', err));
-      }
+      // Create In-App Notification
+      Notification.create({
+        userId: user._id,
+        title: 'Đặt giữ xe thành công',
+        body: `Đơn thuê ${bookingCode} (${vehicle.vehicleModel}) đã được khởi tạo. Vui lòng thanh toán cọc 30% (${depositAmount.toLocaleString('vi-VN')} đ) để xác nhận khóa xe.`,
+        type: 'BOOKING',
+        relatedId: newBooking._id.toString(),
+        isRead: false,
+      }).catch((err: unknown) => console.error('[Notification error]', err));
 
       // Schedule pickup reminder
       const reminderTime = new Date(pickupDate.getTime() - 2 * 3600 * 1000);
@@ -373,6 +314,13 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
     throw new AppError(404, 'Không tìm thấy phương tiện.');
   }
 
+  if (vehicle.requiresMaintenance || vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
+    throw new AppError(400, 'Phương tiện đang bảo dưỡng hoặc điều chuyển, chưa sẵn sàng bàn giao.');
+  }
+  if (vehicle.branchId.toString() !== data.pickupBranchId) {
+    throw new AppError(400, 'Chi nhánh nhận xe phải là chi nhánh hiện tại của phương tiện.');
+  }
+
   const [pickupBranch, returnBranch] = await Promise.all([
     Branch.findOne({ _id: data.pickupBranchId, isActive: true }),
     Branch.findOne({ _id: data.returnBranchId, isActive: true }),
@@ -397,6 +345,12 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   if (diffHours < 2) {
     throw new AppError(400, 'Thời gian thuê xe tối thiểu là 2 giờ.');
   }
+  if (diffHours > 30 * 24) {
+    throw new AppError(400, 'Thời gian thuê xe tối đa cho một đơn là 30 ngày.');
+  }
+  if (pickupDate < new Date(Date.now() - 10 * 60 * 1000)) {
+    throw new AppError(400, 'Thời gian nhận xe không thể ở trong quá khứ.');
+  }
 
   // Branch operating hours check
   if (pickupBranch.hours_open && pickupBranch.hours_close) {
@@ -420,47 +374,24 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   }
 
   // Conflict check
-  const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
-  const [conflictingBooking, activeDepositedOrRented] = await Promise.all([
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      $or: [
-        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
-        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
-      ],
-      pickupDateTime: { $lt: returnDate },
-      returnDateTime: { $gt: pickupDate },
-    }),
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    }),
-  ]);
+  const conflictingBooking = await Booking.findOne({
+    vehicleId: vehicle._id,
+    status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
+    pickupDateTime: { $lt: returnDate },
+    returnDateTime: { $gt: pickupDate },
+  });
 
-  const isAvailable =
-    !conflictingBooking &&
-    !activeDepositedOrRented &&
-    vehicle.status === 'Available' &&
-    !vehicle.requiresMaintenance;
+  const isAvailable = !conflictingBooking;
 
-  const roundedHours = Math.max(2, Math.ceil(diffHours));
-  const effectiveHourly = vehicle.hourlyPrice || Math.round(vehicle.dailyPrice / 5 / 1000) * 1000;
-  let basePrice = 0;
-  if (roundedHours < 24) {
-    basePrice = Math.min(vehicle.dailyPrice, roundedHours * effectiveHourly);
-  } else {
-    const fullDays = Math.floor(roundedHours / 24);
-    const remHours = roundedHours % 24;
-    const remFee = remHours > 0 ? Math.min(vehicle.dailyPrice, remHours * effectiveHourly) : 0;
-    basePrice = fullDays * vehicle.dailyPrice + remFee;
-  }
+  const rentalQuote = await quoteVehicleRental(vehicle, pickupDate, returnDate);
+  const basePrice = rentalQuote.rentalAmount;
 
   let discountAmount = 0;
   let appliedDiscount: { code: string; discountPercent: number; discountAmount: number } | null = null;
 
-  if (data.discountCode) {
+  if (data.discountCode?.trim()) {
     const discount = await Discount.findOne({
-      code: data.discountCode.toUpperCase(),
+      code: data.discountCode.trim().toUpperCase(),
       isActive: true,
     });
 
@@ -468,7 +399,7 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
       const now = new Date();
       const isExpired = discount.endDate && new Date(discount.endDate) < now;
       const isNotStarted = discount.startDate && new Date(discount.startDate) > now;
-      const isUsageExceeded = discount.usageLimit && discount.usedCount >= discount.usageLimit;
+      const isUsageExceeded = discount.usedCount >= discount.usageLimit;
 
       if (!isExpired && !isNotStarted && !isUsageExceeded) {
         if (!discount.minBookingAmount || basePrice >= discount.minBookingAmount) {
@@ -491,6 +422,7 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   const remainingAmount = totalAmount - depositAmount;
 
   return {
+    ...rentalQuote,
     isAvailable,
     conflicting: !isAvailable,
     durationHours: Math.round(diffHours * 10) / 10,
@@ -603,15 +535,6 @@ export const getBookingById = async (id: string, requestingUser: IUser) => {
   return booking;
 };
 
-const populateBookingDetails = async (bookingId: mongoose.Types.ObjectId | string) => {
-  return Booking.findById(bookingId)
-    .populate('vehicleId', 'vehicleModel brand licensePlate dailyPrice hourlyPrice images odometer status fuelType transmissionType')
-    .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
-    .populate('pickupBranchId', 'name code address phone hours_open hours_close')
-    .populate('returnBranchId', 'name code address phone hours_open hours_close')
-    .populate('counterPaidBy', 'username firstName lastName');
-};
-
 /**
  * Check-in handover workflow at counter (UC-56)
  */
@@ -624,7 +547,7 @@ export const checkinBooking = async (
     throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
   }
 
-  const booking = await Booking.findById(bookingId);
+  const booking = await Booking.findById(bookingId).populate('vehicleId');
   if (!booking) {
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
@@ -651,7 +574,7 @@ export const checkinBooking = async (
     throw new AppError(404, 'Phương tiện liên quan không tồn tại.');
   }
 
-  if (vehicle.status === 'Maintenance' || vehicle.status === 'Transferring') {
+  if (vehicle.status !== 'Available') {
     throw new AppError(409, `Phương tiện hiện không ở trạng thái sẵn sàng bàn giao (Trạng thái hiện tại: ${vehicle.status}).`);
   }
 
@@ -684,8 +607,7 @@ export const checkinBooking = async (
   await vehicle.save();
 
   emitBookingStatus(booking);
-  const populated = await populateBookingDetails(booking._id);
-  return populated || booking;
+  return booking;
 };
 
 /**
@@ -771,8 +693,7 @@ export const checkoutBooking = async (
   }
 
   emitBookingStatus(booking);
-  const populated = await populateBookingDetails(booking._id);
-  return populated || booking;
+  return booking;
 };
 
 /**
@@ -825,12 +746,9 @@ export const recordCounterPayment = async (
   if (booking.status === 'Pending') {
     booking.status = 'Confirmed';
   }
-  booking.depositPaid = true;
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
   booking.counterPaidAt = new Date();
   await booking.save();
-
-  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
 
   await AuditLog.create({
     userId: staffUser._id,
@@ -859,7 +777,13 @@ export const recordCounterPayment = async (
 
   emitBookingStatus(booking);
 
-  const populated = await populateBookingDetails(booking._id);
+  const populated = await Booking.findById(booking._id)
+    .populate('userId', 'username email firstName lastName phoneNumber')
+    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('pickupBranchId', 'name address phone')
+    .populate('returnBranchId', 'name address phone')
+    .populate('counterPaidBy', 'username firstName lastName');
+
   return populated || booking;
 };
 
@@ -994,7 +918,11 @@ export const cancelBooking = async (
 
   emitBookingStatus(booking);
 
-  const populated = await populateBookingDetails(booking._id);
+  const populated = await Booking.findById(booking._id)
+    .populate('userId', 'username email firstName lastName phoneNumber')
+    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('pickupBranchId', 'name address phone')
+    .populate('returnBranchId', 'name address phone');
 
   const result = populated ? populated.toObject() : booking.toObject();
   (result as unknown as Record<string, unknown>).policySummary = {
@@ -1006,93 +934,4 @@ export const cancelBooking = async (
 
   return result as unknown as IBooking;
 };
-
-export const rejectRefund = async (
-  bookingId: string,
-  requestingUser: { _id: mongoose.Types.ObjectId | string; roles: string; fullName?: string; email?: string; branchId?: string | mongoose.Types.ObjectId },
-  data: {
-    reason: string;
-  }
-): Promise<IBooking> => {
-  const booking = await Booking.findById(bookingId);
-  if (!booking) {
-    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
-  }
-
-  // Branch access check for BranchManager
-  if (requestingUser.roles !== 'SystemAdmin') {
-    assertBranchAccess(requestingUser as any, booking.pickupBranchId);
-  }
-
-  if (booking.refundStatus === 'Approved') {
-    throw new AppError(400, 'Không thể từ chối vì yêu cầu hoàn tiền đã được phê duyệt trước đó.');
-  }
-
-  if (booking.refundStatus === 'Rejected') {
-    throw new AppError(400, 'Yêu cầu hoàn tiền đã bị từ chối trước đó.');
-  }
-
-  if (booking.refundStatus !== 'Pending' || (booking.refundAmount || 0) <= 0) {
-    throw new AppError(400, 'Đơn đặt xe không có khoản hoàn tiền nào đang ở trạng thái chờ duyệt (Pending).');
-  }
-
-  booking.refundStatus = 'Rejected';
-  booking.rejectReason = data.reason.trim();
-  await booking.save();
-
-  // Find or create REFUND payment record and mark FAILED
-  let refundPayment = await Payment.findOne({
-    bookingId: booking._id,
-    type: 'REFUND',
-  });
-
-  if (refundPayment) {
-    refundPayment.status = 'FAILED';
-    await refundPayment.save();
-  } else {
-    await Payment.create({
-      bookingId: booking._id,
-      txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
-      amount: booking.refundAmount || 0,
-      type: 'REFUND',
-      status: 'FAILED',
-    });
-  }
-
-  // Notify customer
-  await Notification.create({
-    userId: booking.userId,
-    title: `Yêu cầu hoàn tiền đơn ${booking.bookingCode} đã bị từ chối`,
-    body: `Yêu cầu hoàn tiền cho đơn đặt xe ${booking.bookingCode} đã bị từ chối bởi Quản lý chi nhánh. Lý do: ${data.reason.trim()}`,
-    type: 'BOOKING',
-    data: {
-      bookingId: booking._id,
-      bookingCode: booking.bookingCode,
-      refundStatus: 'Rejected',
-      rejectReason: data.reason.trim(),
-      rejectedAt: new Date(),
-    },
-  }).catch(() => {});
-
-  // Audit log
-  await AuditLog.create({
-    userId: requestingUser._id,
-    action: 'REJECT_REFUND',
-    entity: 'Booking',
-    entityId: booking._id.toString(),
-    details: {
-      bookingCode: booking.bookingCode,
-      refundAmount: booking.refundAmount,
-      refundStatus: 'Rejected',
-      reason: data.reason.trim(),
-    },
-    timestamp: new Date(),
-  }).catch(() => {});
-
-  emitBookingStatus(booking);
-
-  const populated = await populateBookingDetails(booking._id);
-  return (populated || booking) as unknown as IBooking;
-};
-
 

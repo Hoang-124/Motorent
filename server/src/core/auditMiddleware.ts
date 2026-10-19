@@ -104,6 +104,7 @@ const resolveUserIdFromRequest = (req: AuditTrackedRequest, responseBody?: unkno
 
 const extractEntityIdFromResponse = (req: AuditTrackedRequest, responseBody?: unknown): string => {
   const fromParams =
+    req.params?.ruleId ||
     req.params?.id ||
     req.params?.bookingId ||
     req.params?.vehicleId ||

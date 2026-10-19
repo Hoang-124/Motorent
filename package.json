@@ -4,10 +4,13 @@
   "private": true,
   "description": "MOTORENT - Motorbike Rental Chain Management System Workspace",
   "scripts": {
-    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue,green\" \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "dev": "node scripts/dev.cjs",
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "seed": "npm --prefix server run seed",
+    "test:tai": "node scripts/test-tai.cjs",
+    "check:tai-runtime": "node scripts/check-tai-runtime.cjs",
+    "publish:rental-policy": "npm --prefix server run publish:rental-policy",
     "health": "powershell -Command \"Invoke-RestMethod -Uri 'http://localhost:5000/api/health'\""
   },
   "devDependencies": {

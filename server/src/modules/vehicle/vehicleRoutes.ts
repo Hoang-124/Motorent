@@ -3,17 +3,17 @@ import { authenticateJWT } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
 import { auditLogger } from '../../core/auditMiddleware';
 import * as vehicleController from './vehicleController';
-import * as reviewController from '../review/reviewController';
+import * as categoryController from '../category/categoryController';
 
 const router = Router();
 
 // Public routes
 router.get('/', vehicleController.getVehicles);
 router.get('/categories', vehicleController.getCategories);
+router.get('/management', authenticateJWT, authorize('BranchManager', 'SystemAdmin'), vehicleController.getManagedVehicles);
+router.get('/:id/reviews', vehicleController.getVehicleReviews);
+router.get('/:id/availability', vehicleController.getVehicleAvailability);
 router.get('/:id', vehicleController.getVehicle);
-
-// UC-39-41: Public reviews for a vehicle (newest first, paginated)
-router.get('/:vehicleId/reviews', reviewController.getVehicleReviews);
 
 // Categories admin route
 router.post(
@@ -21,7 +21,7 @@ router.post(
   authenticateJWT,
   authorize('SystemAdmin'),
   auditLogger('CREATE_CATEGORY', 'Category'),
-  vehicleController.createCategory
+  categoryController.createCategory
 );
 
 // Protected vehicle management routes
@@ -31,14 +31,6 @@ router.post(
   authorize('BranchManager', 'SystemAdmin'),
   auditLogger('CREATE_VEHICLE', 'Vehicle'),
   vehicleController.createVehicle
-);
-
-router.put(
-  '/:id/status',
-  authenticateJWT,
-  authorize('Staff', 'BranchManager', 'SystemAdmin'),
-  auditLogger('UPDATE_VEHICLE_STATUS', 'Vehicle'),
-  vehicleController.updateVehicleStatus
 );
 
 router.put(

@@ -13,7 +13,11 @@ import {
   SlidersHorizontal,
   ShieldCheck,
   Sparkles,
-  ArrowUpDown
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { VehicleCard } from '../components/VehicleCard';
 import { BookingModal } from '../components/BookingModal';
@@ -54,30 +58,62 @@ export const FleetPage: React.FC = () => {
   const voucherParam = searchParams.get('voucher') || '';
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [catalogVehicles, setCatalogVehicles] = useState<Vehicle[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [metadataError, setMetadataError] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 12, total: 0, pages: 0 });
 
-  // Filters
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedBranch, setSelectedBranch] = useState<string>(pickupParam);
-  const [selectedCategory, setSelectedCategory] = useState<string>(typeParam || 'all');
-  const [onlyAvailable, setOnlyAvailable] = useState<boolean>(false);
-  const [priceSort, setPriceSort] = useState<'asc' | 'desc' | 'default'>('default');
+  // Keep filters in the URL so detail/back navigation preserves the selected fleet.
+  const searchQuery = searchParams.get('q') || '';
+  const selectedBranch = pickupParam;
+  const selectedCategory = typeParam || 'all';
+  const selectedBrand = searchParams.get('brand') || '';
+  const minPrice = searchParams.get('minPrice') || '';
+  const maxPrice = searchParams.get('maxPrice') || '';
+  const onlyAvailable = searchParams.get('available') === 'true';
+  const rawSort = searchParams.get('sort') || 'default';
+  const priceSort = ['asc', 'desc', 'rating_asc', 'rating_desc'].includes(rawSort) ? rawSort : 'default';
+  const requestedPage = Number(searchParams.get('page') || '1');
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const viewMode = searchParams.get('view') === 'list' ? 'list' : 'grid';
+  const priceRangeError =
+    (minPrice && (!Number.isFinite(Number(minPrice)) || Number(minPrice) < 0)) ||
+    (maxPrice && (!Number.isFinite(Number(maxPrice)) || Number(maxPrice) < 0))
+      ? 'Giá thuê phải là số lớn hơn hoặc bằng 0.'
+      : minPrice && maxPrice && Number(minPrice) > Number(maxPrice)
+      ? 'Giá tối đa phải lớn hơn hoặc bằng giá tối thiểu.'
+      : '';
+
+  const updateFilter = (key: string, value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      if (key !== 'page' && key !== 'view') next.delete('page');
+      return next;
+    }, { replace: true });
+  };
+  const setSearchQuery = (value: string) => updateFilter('q', value);
+  const setSelectedBranch = (value: string) => updateFilter('pickup', value);
+  const setSelectedCategory = (value: string) => updateFilter('type', value === 'all' ? '' : value);
+  const setOnlyAvailable = (value: boolean) => updateFilter('available', value ? 'true' : '');
+  const setPriceSort = (value: string) => updateFilter('sort', value === 'default' ? '' : value);
+  const resetFilters = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      ['q', 'pickup', 'type', 'brand', 'minPrice', 'maxPrice', 'available', 'sort', 'page'].forEach((key) => next.delete(key));
+      return next;
+    }, { replace: true });
+  };
 
   // Promo & Voucher State
   const [showPromoBanner, setShowPromoBanner] = useState<boolean>(promoParam || Boolean(voucherParam));
   const [selectedVoucher, setSelectedVoucher] = useState<string>(voucherParam || 'CHAOBANMOI');
   const [copiedVoucher, setCopiedVoucher] = useState<string>('');
-
-  // Sync URL query params when navigating from Navbar/Footer links
-  useEffect(() => {
-    setSelectedBranch(pickupParam);
-  }, [pickupParam]);
-
-  useEffect(() => {
-    setSelectedCategory(typeParam || 'all');
-  }, [typeParam]);
 
   useEffect(() => {
     if (promoParam || voucherParam) {
@@ -93,8 +129,8 @@ export const FleetPage: React.FC = () => {
   const [successBookingCode, setSuccessBookingCode] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
     const fetchData = async () => {
-      setLoading(true);
       try {
         const [branchesRes, vehiclesRes, categoriesRes] = await Promise.all([
           api.get('/branches'),
@@ -102,17 +138,60 @@ export const FleetPage: React.FC = () => {
           api.get('/categories'),
         ]);
 
+        if (!active) return;
         if (branchesRes.data?.data) setBranches(branchesRes.data.data);
-        if (vehiclesRes.data?.data) setVehicles(vehiclesRes.data.data);
+        if (vehiclesRes.data?.data) setCatalogVehicles(vehiclesRes.data.data);
         if (categoriesRes.data?.data) setCategories(categoriesRes.data.data);
-      } catch (err) {
-        console.warn('Error fetching fleet data', err);
-      } finally {
-        setLoading(false);
+      } catch {
+        if (active) setMetadataError('Không tải được danh mục hoặc chi nhánh. Vui lòng tải lại trang.');
       }
     };
     fetchData();
+    return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    setLoading(true);
+    setErrorMessage('');
+    if (priceRangeError) {
+      setVehicles([]);
+      setPagination({ page: 1, limit: 12, total: 0, pages: 0 });
+      setLoading(false);
+      return () => { active = false; controller.abort(); };
+    }
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await api.get('/vehicles', {
+          signal: controller.signal,
+          params: {
+            page,
+            limit: 12,
+            q: searchQuery.trim() || undefined,
+            branchId: selectedBranch || undefined,
+            category: selectedCategory === 'all' ? undefined : selectedCategory,
+            brand: selectedBrand || undefined,
+            minPrice: minPrice === '' ? undefined : Number(minPrice),
+            maxPrice: maxPrice === '' ? undefined : Number(maxPrice),
+            status: onlyAvailable ? 'Available' : undefined,
+            sort: priceSort === 'asc' ? 'price_asc' : priceSort === 'desc' ? 'price_desc' : priceSort === 'default' ? undefined : priceSort,
+          },
+        });
+        if (!active) return;
+        setVehicles(response.data.data ?? []);
+        setPagination(response.data.pagination ?? { page, limit: 12, total: response.data.data?.length ?? 0, pages: 1 });
+      } catch {
+        if (!active) return;
+        setVehicles([]);
+        setPagination({ page: 1, limit: 12, total: 0, pages: 0 });
+        setErrorMessage('Không tải được danh sách xe. Vui lòng kiểm tra kết nối và tải lại trang.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    }, searchQuery.trim() ? 200 : 0);
+    return () => { active = false; controller.abort(); window.clearTimeout(timer); };
+  }, [page, searchQuery, selectedBranch, selectedCategory, selectedBrand, minPrice, maxPrice, onlyAvailable, priceSort, priceRangeError]);
 
   const handleCopyVoucher = (code: string) => {
     setSelectedVoucher(code);
@@ -135,10 +214,17 @@ export const FleetPage: React.FC = () => {
     navigate(`/booking/${v._id}${qs ? `?${qs}` : ''}`);
   };
 
+  const handleNavigateToDetail = (vehicle: Vehicle) => {
+    setIsSearchFocused(false);
+    const query = searchParams.toString();
+    navigate(`/bikes/${vehicle._id}${query ? `?${query}` : ''}`, {
+      state: { fleetSearch: `/bikes${query ? `?${query}` : ''}` },
+    });
+  };
+
   // Helper to get category vehicle count and representative thumbnail
   const getCategoryMeta = (slug: string) => {
-    const matched = vehicles.filter((v) => {
-      if (v.status !== 'Available') return false;
+    const matched = catalogVehicles.filter((v) => {
       const catSlug = typeof v.category === 'object' && v.category !== null ? v.category.slug : v.category;
       return catSlug === slug;
     });
@@ -155,43 +241,10 @@ export const FleetPage: React.FC = () => {
     };
   };
 
-  // Filter and sort logic — automatically hide any vehicle that is deposited or currently rented
-  const filteredVehicles = vehicles
-    .filter((v) => {
-      if (v.status !== 'Available') {
-        return false;
-      }
-
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchModel = v.vehicleModel.toLowerCase().includes(q);
-        const matchBrand = v.brand.toLowerCase().includes(q);
-        const matchPlate = v.licensePlate.toLowerCase().includes(q);
-        if (!matchModel && !matchBrand && !matchPlate) return false;
-      }
-
-      if (selectedBranch) {
-        const branchId =
-          typeof v.branchId === 'object' && v.branchId !== null ? v.branchId._id : v.branchId;
-        if (branchId !== selectedBranch) return false;
-      }
-
-      if (selectedCategory && selectedCategory !== 'all') {
-        const catSlug =
-          typeof v.category === 'object' && v.category !== null ? v.category.slug : v.category;
-        if (catSlug !== selectedCategory) return false;
-      }
-
-      return true;
-    })
-    .sort((a, b) => {
-      if (priceSort === 'asc') return a.dailyPrice - b.dailyPrice;
-      if (priceSort === 'desc') return b.dailyPrice - a.dailyPrice;
-      return 0;
-    });
-
-  const availableCount = vehicles.filter((v) => v.status === 'Available').length;
-  const allThumb = getOptimizedVehicleImageUrl(vehicles[0]?.images?.[1] || vehicles[0]?.images?.[0]);
+  const filteredVehicles = vehicles;
+  const brands = [...new Set(catalogVehicles.map((vehicle) => vehicle.brand))].sort((a, b) => a.localeCompare(b));
+  const availableCount = catalogVehicles.filter((v) => v.status === 'Available' && !v.requiresMaintenance).length;
+  const allThumb = getOptimizedVehicleImageUrl(catalogVehicles[0]?.images?.[1] || catalogVehicles[0]?.images?.[0]);
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-10 sm:py-14 bg-editorial-grain">
@@ -226,7 +279,7 @@ export const FleetPage: React.FC = () => {
                     Sẵn sàng tại trạm
                   </span>
                   <span className="text-sm font-bold text-[#F5F5F5] font-mono-tabular">
-                    {availableCount} / {vehicles.length} phương tiện
+                    {availableCount} / {catalogVehicles.length} phương tiện
                   </span>
                 </div>
               </div>
@@ -300,7 +353,7 @@ export const FleetPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
               {PROMO_VOUCHERS.map((v) => {
                 const isSelected = selectedVoucher === v.code;
                 const isCopied = copiedVoucher === v.code;
@@ -407,13 +460,29 @@ export const FleetPage: React.FC = () => {
           {/* Row 1: Search Input + Availability Toggle + Price Sort Pills */}
           <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
             {/* Search Box */}
-            <div className="relative flex-1">
+            <div className="relative flex-1" onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsSearchFocused(false);
+            }}>
               <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Tìm theo mẫu xe hoặc biển số (VD: Vision, Air Blade, Feliz, Winner, 43A...)"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setIsSearchFocused(true)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') setIsSearchFocused(false);
+                  if (event.key === 'ArrowDown') {
+                    const firstSuggestion = document.querySelector<HTMLButtonElement>('#fleet-search-suggestions button');
+                    if (firstSuggestion) { event.preventDefault(); firstSuggestion.focus(); }
+                  }
+                }}
+                aria-label="Tìm xe theo mẫu xe, hãng hoặc biển số"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={isSearchFocused && Boolean(searchQuery.trim())}
+                aria-controls="fleet-search-suggestions"
+                autoComplete="off"
                 className="w-full pl-10 pr-9 py-2.5 bg-[#101010] border border-white/10 rounded-xl text-xs font-medium text-[#F5F5F5] placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799] transition-all"
               />
               {searchQuery && (
@@ -426,6 +495,23 @@ export const FleetPage: React.FC = () => {
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
+              {isSearchFocused && searchQuery.trim() && (
+                <div id="fleet-search-suggestions" role="listbox" aria-label="Gợi ý xe phù hợp" className="absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-y-auto rounded-xl border border-white/15 bg-[#1A1A1A] p-2 shadow-2xl">
+                  {loading ? <p className="p-3 text-xs text-[#A0A0A0]">Đang tìm xe...</p> : errorMessage || priceRangeError ? (
+                    <p className="p-3 text-xs text-red-300">Không tải được gợi ý. Kiểm tra bộ lọc hoặc kết nối.</p>
+                  ) : filteredVehicles.length ? (
+                    <>
+                      <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-[#A0A0A0]">Gợi ý xe phù hợp</p>
+                      {filteredVehicles.slice(0, 6).map((vehicle) => (
+                        <button key={vehicle._id} type="button" role="option" aria-selected="false" onClick={() => handleNavigateToDetail(vehicle)} className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5 focus:bg-white/5 focus:outline-none">
+                          <span className="min-w-0"><span className="block truncate text-xs font-semibold">{vehicle.vehicleModel}</span><span className="mt-1 block text-[11px] text-[#A0A0A0]">{vehicle.brand} · {vehicle.licensePlate}</span></span>
+                          <span className="shrink-0 text-xs text-[#FFC799]">{vehicle.dailyPrice.toLocaleString('vi-VN')} đ/ngày</span>
+                        </button>
+                      ))}
+                    </>
+                  ) : <p className="p-3 text-xs text-[#A0A0A0]">Không có xe khớp từ khóa này.</p>}
+                </div>
+              )}
             </div>
 
             {/* Right Controls: Available Filter + Sort Segmented Pills */}
@@ -433,7 +519,7 @@ export const FleetPage: React.FC = () => {
               {/* Toggle Only Available */}
               <button
                 type="button"
-                onClick={() => setOnlyAvailable((prev) => !prev)}
+                onClick={() => setOnlyAvailable(!onlyAvailable)}
                 className={`px-3.5 py-2.5 rounded-xl text-xs font-medium border transition-all flex items-center space-x-2 cursor-pointer ${
                   onlyAvailable
                     ? 'bg-[#F5F5F5] text-[#101010] border-[#F5F5F5] font-semibold'
@@ -448,48 +534,38 @@ export const FleetPage: React.FC = () => {
                 <span>Chỉ xe sẵn sàng</span>
               </button>
 
-              {/* Segmented Price Sort */}
-              <div className="inline-flex items-center bg-[#101010] p-1 rounded-xl border border-white/10 text-xs">
-                <span className="px-2.5 text-[#6E6E6E] hidden sm:inline-flex items-center">
-                  <ArrowUpDown className="w-3.5 h-3.5 mr-1 text-[#FFC799]" />
-                  Giá:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPriceSort('default')}
-                  className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    priceSort === 'default'
-                      ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
-                      : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
-                  }`}
-                >
-                  Mặc định
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPriceSort('asc')}
-                  className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    priceSort === 'asc'
-                      ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
-                      : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
-                  }`}
-                >
-                  Thấp → Cao
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPriceSort('desc')}
-                  className={`px-2.5 py-1.5 rounded-lg transition-all cursor-pointer ${
-                    priceSort === 'desc'
-                      ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
-                      : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
-                  }`}
-                >
-                  Cao → Thấp
-                </button>
+              <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#101010] px-3 py-2 text-xs">
+                <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-[#FFC799]" />
+                <select aria-label="Sắp xếp xe" value={priceSort} onChange={(event) => setPriceSort(event.target.value)} className="min-w-0 bg-[#101010] py-0.5 text-[#F5F5F5] outline-none">
+                  <option value="default">Sắp xếp mặc định</option>
+                  <option value="asc">Giá: thấp đến cao</option>
+                  <option value="desc">Giá: cao đến thấp</option>
+                  <option value="rating_desc">Đánh giá: cao đến thấp</option>
+                  <option value="rating_asc">Đánh giá: thấp đến cao</option>
+                </select>
+              </label>
+              <div role="group" aria-label="Chế độ hiển thị danh sách xe" className="inline-flex rounded-xl border border-white/10 bg-[#101010] p-1">
+                <button type="button" aria-label="Hiển thị dạng lưới" aria-pressed={viewMode === 'grid'} onClick={() => updateFilter('view', 'grid')} className={`rounded-lg p-2 ${viewMode === 'grid' ? 'bg-[#F5F5F5] text-[#101010]' : 'text-[#A0A0A0]'}`}><LayoutGrid className="h-4 w-4" /></button>
+                <button type="button" aria-label="Hiển thị dạng danh sách" aria-pressed={viewMode === 'list'} onClick={() => updateFilter('view', 'list')} className={`rounded-lg p-2 ${viewMode === 'list' ? 'bg-[#F5F5F5] text-[#101010]' : 'text-[#A0A0A0]'}`}><List className="h-4 w-4" /></button>
               </div>
             </div>
           </div>
+
+          <div className="grid gap-3 border-t border-white/[0.08] pt-4 sm:grid-cols-3">
+            <label className="text-[11px] text-[#A0A0A0]">Hãng xe
+              <select aria-label="Hãng xe" value={selectedBrand} onChange={(event) => updateFilter('brand', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]">
+                <option value="">Tất cả hãng</option>{brands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+              </select>
+            </label>
+            <label className="text-[11px] text-[#A0A0A0]">Giá ngày từ (đ)
+              <input aria-label="Giá ngày tối thiểu" type="number" min="0" step="1000" placeholder="Không giới hạn" value={minPrice} onChange={(event) => updateFilter('minPrice', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]" />
+            </label>
+            <label className="text-[11px] text-[#A0A0A0]">Đến (đ)
+              <input aria-label="Giá ngày tối đa" type="number" min="0" step="1000" placeholder="Không giới hạn" value={maxPrice} onChange={(event) => updateFilter('maxPrice', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]" />
+            </label>
+          </div>
+          {priceRangeError && <p role="alert" className="text-xs text-red-300">{priceRangeError}</p>}
+          {metadataError && <p role="alert" className="text-xs text-red-300">{metadataError}</p>}
 
           {/* Row 2: Integrated Visual Vehicle Line Selector (Single Non-Wrapping Row) */}
           {categories.length > 0 && (
@@ -639,7 +715,7 @@ export const FleetPage: React.FC = () => {
         {/* =====================================================================
             5. RESULTS SUMMARY BAR
             ===================================================================== */}
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-6 text-xs text-[#A0A0A0]">
+        <div id="fleet-results" aria-live="polite" className="scroll-mt-32 flex flex-wrap items-center justify-between gap-3 mb-6 text-xs text-[#A0A0A0]">
           <div className="flex items-center space-x-2">
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#FFC799]" />
             <span>
@@ -647,18 +723,12 @@ export const FleetPage: React.FC = () => {
               <strong className="text-[#F5F5F5] font-mono-tabular">
                 {filteredVehicles.length}
               </strong>{' '}
-              phương tiện phù hợp
+              / {pagination.total} phương tiện phù hợp
             </span>
-            {(searchQuery || selectedBranch || selectedCategory !== 'all' || onlyAvailable) && (
+            {(searchQuery || selectedBranch || selectedCategory !== 'all' || selectedBrand || minPrice || maxPrice || onlyAvailable || priceSort !== 'default') && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedBranch('');
-                  setSelectedCategory('all');
-                  setOnlyAvailable(false);
-                  setPriceSort('default');
-                }}
+                onClick={resetFilters}
                 className="text-[#FFC799] hover:underline font-medium ml-2 cursor-pointer"
               >
                 Xóa bộ lọc
@@ -675,7 +745,12 @@ export const FleetPage: React.FC = () => {
         {/* =====================================================================
             6. VEHICLE SHOWROOM GRID
             ===================================================================== */}
-        {loading ? (
+        {errorMessage ? (
+          <div role="alert" className="rounded-2xl border border-red-400/20 bg-[#161616] px-6 py-12 text-center">
+            <p className="text-sm text-red-300">{errorMessage}</p>
+            <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-xl bg-[#F5F5F5] px-4 py-2 text-xs font-semibold text-[#101010]">Tải lại trang</button>
+          </div>
+        ) : loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.from({ length: 6 }).map((_, idx) => (
               <div
@@ -720,28 +795,32 @@ export const FleetPage: React.FC = () => {
               Bạn hãy thử chuyển sang trạm khác hoặc xem lại toàn bộ danh mục xe.
             </p>
             <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedBranch('');
-                setSelectedCategory('all');
-                setOnlyAvailable(false);
-                setPriceSort('default');
-              }}
+              onClick={resetFilters}
               className="mt-4 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] rounded-xl text-xs font-semibold text-[#101010] transition-colors cursor-pointer"
             >
-              Xem lại toàn bộ đội xe ({vehicles.length})
+              Xem lại toàn bộ đội xe ({catalogVehicles.length})
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={viewMode === 'list' ? 'space-y-4' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'}>
             {filteredVehicles.map((vehicle) => (
               <VehicleCard
                 key={vehicle._id}
                 vehicle={vehicle}
                 onBookNow={handleNavigateToBooking}
+                onViewDetails={handleNavigateToDetail}
+                viewMode={viewMode}
               />
             ))}
           </div>
+        )}
+
+        {!loading && !errorMessage && pagination.pages > 1 && (
+          <nav aria-label="Phân trang danh sách xe" className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs">
+            <button type="button" disabled={page <= 1} onClick={() => { updateFilter('page', String(page - 1)); document.getElementById('fleet-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="inline-flex items-center gap-1 rounded-xl border border-white/15 px-4 py-2.5 disabled:opacity-40"><ChevronLeft className="h-4 w-4" />Trang trước</button>
+            <span className="text-[#A0A0A0]">Trang <strong className="text-[#F5F5F5]">{page}</strong> / {pagination.pages} · {pagination.total} xe</span>
+            <button type="button" disabled={page >= pagination.pages} onClick={() => { updateFilter('page', String(page + 1)); document.getElementById('fleet-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="inline-flex items-center gap-1 rounded-xl border border-white/15 px-4 py-2.5 disabled:opacity-40">Trang sau<ChevronRight className="h-4 w-4" /></button>
+          </nav>
         )}
 
         {/* Booking Modal */}

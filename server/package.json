@@ -4,13 +4,14 @@
   "description": "Backend API for MOTORENT - Motorbike Rental Chain Management System",
   "main": "src/server.ts",
   "scripts": {
-    "dev": "tsx watch src/server.ts || tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
     "start": "tsx src/server.ts",
     "seed": "tsx src/seeders/seed.ts",
+    "publish:rental-policy": "tsx src/scripts/publishRentalPolicy.ts",
     "typecheck": "tsc",
     "lint": "tsc",
-    "migrate:reviews": "tsx src/scripts/migrate_vehicle_reviews.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:guest": "vitest run --config vitest.guest.config.mts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -26,7 +27,6 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.13",
-    "sanitize-html": "^2.18.1",
     "socket.io": "^4.7.5",
     "zod": "^4.6.7"
   },
@@ -39,7 +39,6 @@
     "@types/node": "^20.14.2",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^6.4.15",
-    "@types/sanitize-html": "^2.16.2",
     "@types/supertest": "^7.2.1",
     "supertest": "^7.3.1",
     "tsx": "^4.15.2",

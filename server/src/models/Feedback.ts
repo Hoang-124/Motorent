@@ -37,5 +37,6 @@ const FeedbackSchema = new Schema<IFeedback>(
 );
 
 FeedbackSchema.index({ vehicleId: 1, rating: -1 });
+FeedbackSchema.index({ vehicleId: 1, isPublic: 1, isBlocked: 1, createdAt: -1, _id: -1 });
 
 export const Feedback = mongoose.model<IFeedback>('Feedback', FeedbackSchema);
