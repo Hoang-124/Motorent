@@ -10,6 +10,7 @@ import auditRoutes from '../modules/audit/auditRoutes';
 import chatRoutes from '../modules/chat/chatRoutes';
 import financeRoutes from '../modules/finance/financeRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
+import wishlistRoutes from '../modules/wishlist/wishlistRoutes';
 import { autoCrudAuditMiddleware } from '../core/auditMiddleware';
 
 const router = Router();
@@ -28,6 +29,7 @@ router.use('/auth', authRoutes);
 router.use('/branches', branchRoutes);
 router.use('/vehicles', vehicleRoutes);
 router.use('/bookings', bookingRoutes);
+router.use('/wishlist', wishlistRoutes);
 router.use('/feedbacks', feedbackRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/audit', auditRoutes);

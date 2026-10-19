@@ -196,3 +196,22 @@ export interface AuditLogEntry {
   userAgent?: string;
   timestamp: string;
 }
+
+export interface WishlistItem {
+  _id: string;
+  vehicleId: string;
+  vehicle: Vehicle | null;
+  isAvailable: boolean;
+  createdAt: string;
+}
+
+export interface WishlistResponse {
+  items: WishlistItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+

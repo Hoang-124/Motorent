@@ -25,9 +25,11 @@ import {
   Tag,
   Bell,
   MessageSquare,
-  CheckCheck
+  CheckCheck,
+  Heart
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useWishlist } from '../context/WishlistContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { api } from '../services/api';
 import type { Notification } from '../types';
@@ -105,6 +107,7 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
+  const { wishlistCount } = useWishlist();
 
   const avatarSrc = getUserAvatarUrl(user?.avatarUrl);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
@@ -504,6 +507,23 @@ export const Navbar: React.FC = () => {
               )
             )}
 
+            {/* Wishlist Quick Button (UC-25, UC-26) */}
+            {!isStaffOrAdmin && (
+              <Link
+                to="/wishlist"
+                className="relative w-9 h-9 rounded-full border border-white/12 bg-[#161616] flex items-center justify-center text-[#F5F5F5] hover:border-[#FFC799]/60 hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
+                title="Danh sách xe yêu thích (UC-25, UC-26)"
+                aria-label="Xe yêu thích"
+              >
+                <Heart className="w-4 h-4 text-[#FFC799]" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FFC799] text-[#101010] font-mono text-[10px] font-black flex items-center justify-center">
+                    {wishlistCount}
+                  </span>
+                )}
+              </Link>
+            )}
+
             {/* Header Live Chat Trigger Button (UC-44 for Customer / UC-66 Inbox for Branch Staff & Manager) */}
             {user?.roles !== 'SystemAdmin' && (
               <button
@@ -778,6 +798,22 @@ export const Navbar: React.FC = () => {
                       <>
                         {/* Customer Menu */}
                         <Link
+                          to="/wishlist"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <Heart className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <span className="truncate">Xe yêu thích</span>
+                          </div>
+                          {wishlistCount > 0 && (
+                            <span className="text-[10px] text-[#FFC799] font-mono-tabular shrink-0 ml-2">
+                              {wishlistCount} xe
+                            </span>
+                          )}
+                        </Link>
+
+                        <Link
                           to="/profile?tab=bookings"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
@@ -956,6 +992,22 @@ export const Navbar: React.FC = () => {
 
                 {/* Profile quick links in mobile */}
                 <div className="grid grid-cols-1 gap-1 pt-2 border-t border-[#FFC799]/20 text-xs">
+                  <Link
+                    to="/wishlist"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Heart className="w-3.5 h-3.5 text-[#FFC799]" />
+                      <span>Xe yêu thích</span>
+                    </div>
+                    {wishlistCount > 0 && (
+                      <span className="text-[10px] text-[#FFC799] font-mono-tabular font-medium">
+                        {wishlistCount} xe
+                      </span>
+                    )}
+                  </Link>
+
                   <Link
                     to="/profile?tab=bookings"
                     onClick={() => setMobileMenuOpen(false)}

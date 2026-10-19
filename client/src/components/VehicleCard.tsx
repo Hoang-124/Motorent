@@ -7,11 +7,13 @@ import {
   Zap,
   ShieldCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Heart
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
+import { useWishlist } from '../context/WishlistContext';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -26,6 +28,7 @@ const ANGLE_VIEWS = [
 
 export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) => {
   const navigate = useNavigate();
+  const { isInWishlist, toggleWishlist, isToggling } = useWishlist();
   const [activeAngle, setActiveAngle] = useState<number>(1);
   const [imgError, setImgError] = useState<boolean>(false);
 
@@ -96,9 +99,33 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
               : 'Đang bảo dưỡng'}
           </span>
 
-          <span className="font-mono-tabular text-[11px] font-bold text-[#101010] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-300/80 shadow-sm">
-            {vehicle.licensePlate}
-          </span>
+          <div className="flex items-center space-x-1.5 pointer-events-auto">
+            <span className="font-mono-tabular text-[11px] font-bold text-[#101010] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-300/80 shadow-sm">
+              {vehicle.licensePlate}
+            </span>
+
+            {/* UC-25-26 Wishlist Heart Toggle */}
+            <button
+              type="button"
+              disabled={isToggling(vehicle._id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleWishlist(vehicle._id);
+              }}
+              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-sm ${
+                isInWishlist(vehicle._id)
+                  ? 'bg-[#FF8080] text-white hover:bg-[#ff6666]'
+                  : 'bg-[#101010]/80 hover:bg-[#101010] text-white/80 hover:text-white border border-white/20'
+              } ${isToggling(vehicle._id) ? 'opacity-50 cursor-not-allowed' : 'active:scale-90'}`}
+              title={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
+            >
+              <Heart
+                className={`w-3.5 h-3.5 transition-colors ${
+                  isInWishlist(vehicle._id) ? 'fill-white stroke-white' : 'stroke-current'
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Subtle Hover Prev/Next Angle Arrows */}
