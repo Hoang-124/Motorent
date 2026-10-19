@@ -2,7 +2,9 @@ import mongoose from 'mongoose';
 import { Vehicle, IVehicle } from '../../models/Vehicle';
 import { Booking } from '../../models/Booking';
 import { Category, ICategory } from '../../models/Category';
+import { MaintenanceLog } from '../../models/MaintenanceLog';
 import { AppError } from '../../core/errorHandler';
+import { assertBranchAccess } from '../../core/permissions';
 
 export interface VehicleFilterOptions {
   branchId?: string;
@@ -205,3 +207,77 @@ export const deleteVehicle = async (id: string): Promise<IVehicle> => {
   await vehicle.save();
   return vehicle;
 };
+
+export const updateVehicleStatus = async (
+  id: string,
+  data: {
+    status: 'Available' | 'Rented' | 'Maintenance';
+    reason?: string;
+    maintenanceType?: 'Routine' | 'Repair' | 'Inspection';
+    cost?: number;
+    odometer?: number;
+    requiresMaintenance?: boolean;
+  },
+  user?: {
+    _id?: string | mongoose.Types.ObjectId;
+    roles: string;
+    fullName?: string;
+    email?: string;
+    branchId?: string | mongoose.Types.ObjectId;
+  }
+): Promise<IVehicle> => {
+  const vehicle = await Vehicle.findOne({ _id: id, isDeleted: false });
+  if (!vehicle) {
+    throw new AppError(404, 'Không tìm thấy phương tiện.');
+  }
+
+  // Branch access check for Staff and BranchManager
+  if (user && user.roles !== 'SystemAdmin') {
+    assertBranchAccess(user as any, vehicle.branchId);
+  }
+
+  // Check ongoing booking if vehicle is being toggled away from Rented
+  if (vehicle.status === 'Rented' && data.status !== 'Rented') {
+    const ongoingBooking = await Booking.findOne({
+      vehicleId: vehicle._id,
+      status: 'Ongoing',
+    });
+    if (ongoingBooking) {
+      throw new AppError(
+        400,
+        `Phương tiện đang trong chuyến thuê (${ongoingBooking.bookingCode}). Không thể chuyển trạng thái thủ công khi chưa hoàn tất Trả xe.`
+      );
+    }
+  }
+
+  if (data.odometer !== undefined && data.odometer >= (vehicle.odometer || 0)) {
+    vehicle.odometer = data.odometer;
+  }
+
+  vehicle.status = data.status;
+
+  if (data.status === 'Maintenance') {
+    vehicle.requiresMaintenance = true;
+    await MaintenanceLog.create({
+      vehicleId: vehicle._id,
+      branchId: vehicle.branchId,
+      maintenanceType: data.maintenanceType || 'Repair',
+      description: data.reason || 'Bảo trì kỹ thuật định kỳ / khắc phục sự cố',
+      cost: data.cost || 0,
+      odometerAtMaintenance: data.odometer ?? vehicle.odometer ?? 0,
+      status: 'InProgress',
+      performedBy: user?.fullName || user?.email || 'Staff',
+      startDate: new Date(),
+    });
+  } else if (data.status === 'Available') {
+    vehicle.requiresMaintenance = false;
+    await MaintenanceLog.updateMany(
+      { vehicleId: vehicle._id, status: { $in: ['InProgress', 'Scheduled'] } },
+      { $set: { status: 'Completed', endDate: new Date() } }
+    );
+  }
+
+  await vehicle.save();
+  return vehicle;
+};
+

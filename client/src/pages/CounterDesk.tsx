@@ -30,18 +30,22 @@ import {
   Banknote,
   Receipt,
   Camera,
-  UploadCloud
+  UploadCloud,
+  Wrench,
+  Filter,
+  ShieldAlert
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 
-type ChecklistKey = 'idCardVerified' | 'drivingLicenseVerified' | 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
-type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit';
+type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
+type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit' | 'vehicles';
 
 const VEHICLE_FOUR_ANGLES = [
   {
@@ -90,9 +94,10 @@ interface PendingEkycUser {
 }
 
 export const CounterDesk: React.FC = () => {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const modeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
-  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit'].includes(modeParam)
+  const initialMode: MainDeskMode = ['bookings', 'ekyc', 'chat', 'audit', 'vehicles'].includes(modeParam)
     ? modeParam
     : 'bookings';
 
@@ -106,6 +111,21 @@ export const CounterDesk: React.FC = () => {
 
   // Notification banners (replacing alert())
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // UC-61-63: Vehicle Fleet Status Management
+  const [branchVehicles, setBranchVehicles] = useState<Vehicle[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState<boolean>(false);
+  const [vehicleFilterStatus, setVehicleFilterStatus] = useState<'all' | 'Available' | 'Rented' | 'Maintenance'>('all');
+  const [vehicleSearchQuery, setVehicleSearchQuery] = useState<string>('');
+  const [vehicleActionModal, setVehicleActionModal] = useState<{
+    vehicle: Vehicle;
+    targetStatus: 'Available' | 'Rented' | 'Maintenance';
+    reason: string;
+    maintenanceType: 'Routine' | 'Repair' | 'Inspection';
+    cost: number;
+    odometer: number;
+  } | null>(null);
+  const [vehicleSubmitting, setVehicleSubmitting] = useState<boolean>(false);
 
   // eKYC Management states
   const [pendingEkycList, setPendingEkycList] = useState<PendingEkycUser[]>([]);
@@ -123,12 +143,9 @@ export const CounterDesk: React.FC = () => {
     setPreviewDocModal({ title, url });
   };
 
-  // Check-in form states (UC-56: 5-point handover)
+  // Check-in form states
   const [startOdo, setStartOdo] = useState<number>(0);
-  const [startFuel, setStartFuel] = useState<string>('100%');
   const [checklist, setChecklist] = useState<Record<ChecklistKey, boolean>>({
-    idCardVerified: true,
-    drivingLicenseVerified: true,
     tires: true,
     brakes: true,
     lights: true,
@@ -138,9 +155,8 @@ export const CounterDesk: React.FC = () => {
   const [checkinPhotos, setCheckinPhotos] = useState<string[]>(['', '', '', '']);
   const [signatureData, setSignatureData] = useState<string>('');
 
-  // Check-out form states (UC-57: 4 photos, ODO, fuel, damage, late fee)
+  // Check-out form states
   const [endOdo, setEndOdo] = useState<number>(0);
-  const [endFuel, setEndFuel] = useState<string>('100%');
   const [damageFee, setDamageFee] = useState<number>(0);
   const [returnNotes, setReturnNotes] = useState<string>('');
   const [checkoutPhotos, setCheckoutPhotos] = useState<string[]>(['', '', '', '']);
@@ -156,14 +172,6 @@ export const CounterDesk: React.FC = () => {
   const [counterPayMethod, setCounterPayMethod] = useState<'Cash' | 'POS' | 'DirectBank'>('Cash');
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
-
-  // Damage Record modal states (UC-58)
-  const [showDamageModal, setShowDamageModal] = useState<boolean>(false);
-  const [damageDesc, setDamageDesc] = useState<string>('');
-  const [damageAmount, setDamageAmount] = useState<number>(0);
-  const [damageSeverity, setDamageSeverity] = useState<'Minor' | 'Moderate' | 'Severe'>('Minor');
-  const [damagePhotoUrl, setDamagePhotoUrl] = useState<string>('');
-  const [damageSubmitting, setDamageSubmitting] = useState<boolean>(false);
 
   const fetchBookings = async () => {
     setLoading(true);
@@ -274,21 +282,77 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const fetchBranchVehicles = async () => {
+    setLoadingVehicles(true);
+    try {
+      const rawBranch = user?.branchId;
+      const bId = rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+        ? (rawBranch as any)._id
+        : rawBranch ? String(rawBranch) : undefined;
+      const params = bId ? { branchId: bId } : {};
+      const res = await api.get('/vehicles', { params });
+      if (res.data && res.data.data) {
+        setBranchVehicles(res.data.data);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch branch vehicles:', err);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  const handleUpdateVehicleStatus = async (
+    vehicleId: string,
+    targetStatus: 'Available' | 'Rented' | 'Maintenance',
+    details?: { reason?: string; maintenanceType?: 'Routine' | 'Repair' | 'Inspection'; cost?: number; odometer?: number }
+  ) => {
+    setVehicleSubmitting(true);
+    try {
+      await api.put(`/vehicles/${vehicleId}/status`, {
+        status: targetStatus,
+        reason: details?.reason,
+        maintenanceType: details?.maintenanceType,
+        cost: details?.cost,
+        odometer: details?.odometer,
+      });
+      setVehicleActionModal(null);
+      await fetchBranchVehicles();
+      setStatusMessage({
+        type: 'success',
+        text: `Đã cập nhật trạng thái phương tiện thành "${targetStatus}" thành công!`,
+      });
+    } catch (err: any) {
+      setStatusMessage({
+        type: 'error',
+        text: err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái phương tiện.',
+      });
+    } finally {
+      setVehicleSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchPendingEkyc();
+    fetchBranchVehicles();
   }, []);
 
   useEffect(() => {
     const m = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
-    if (m && ['bookings', 'ekyc', 'chat', 'audit'].includes(m)) {
+    if (m && ['bookings', 'ekyc', 'chat', 'audit', 'vehicles'].includes(m)) {
       setDeskMode(m);
+      if (m === 'vehicles') {
+        fetchBranchVehicles();
+      }
     }
   }, [searchParams]);
 
   const switchDeskMode = (mode: MainDeskMode) => {
     setDeskMode(mode);
     setSearchParams({ mode });
+    if (mode === 'vehicles') {
+      fetchBranchVehicles();
+    }
   };
 
   const getDefaultFourAnglesFromVehicle = (b: Booking): string[] => {
@@ -311,9 +375,7 @@ export const CounterDesk: React.FC = () => {
       : 0;
 
     setStartOdo(b.startOdometer || bikeOdo);
-    setStartFuel(b.startFuelLevel || '100%');
     setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
-    setEndFuel(b.endFuelLevel || '100%');
     setDamageFee(b.damageFee || 0);
 
     const existingCheckin = Array.isArray(b.checkinImages) ? b.checkinImages : [];
@@ -530,7 +592,7 @@ export const CounterDesk: React.FC = () => {
     try {
       const res = await api.put(`/bookings/${selectedBooking._id}/checkin`, {
         startOdometer: startOdo,
-        startFuelLevel: startFuel,
+        startFuelLevel: 100,
         checklist,
         checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
@@ -581,7 +643,6 @@ export const CounterDesk: React.FC = () => {
     try {
       const res = await api.put(`/bookings/${selectedBooking._id}/checkout`, {
         endOdometer: endOdo,
-        endFuelLevel: endFuel,
         damageFee,
         returnNotes,
         checkoutImages: checkoutPhotos.filter(Boolean),
@@ -666,47 +727,6 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
-  const handleRecordDamageSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedBooking) return;
-    if (!damageDesc.trim()) {
-      setStatusMessage({ type: 'error', text: 'Vui lòng nhập mô tả chi tiết hư hại, trầy xước.' });
-      return;
-    }
-    setDamageSubmitting(true);
-    setStatusMessage(null);
-    try {
-      const res = await api.post(`/bookings/${selectedBooking._id}/damage`, {
-        description: damageDesc.trim(),
-        damageFee: damageAmount,
-        severity: damageSeverity,
-        photos: damagePhotoUrl.trim() ? [damagePhotoUrl.trim()] : [],
-      });
-      if (res.data?.success && res.data?.data) {
-        const updated = res.data.data;
-        setStatusMessage({
-          type: 'success',
-          text: `Ghi nhận hư hỏng thành công cho đơn ${selectedBooking.bookingCode}! Phí bồi thường: ${damageAmount.toLocaleString('vi-VN')} đ.`,
-        });
-        handleSelectBooking(updated);
-        setShowDamageModal(false);
-        setDamageDesc('');
-        setDamageAmount(0);
-        setDamagePhotoUrl('');
-        fetchBookings();
-      }
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setStatusMessage({
-          type: 'error',
-          text: err.response?.data?.message || 'Không thể ghi nhận hư hỏng.',
-        });
-      }
-    } finally {
-      setDamageSubmitting(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] pt-28 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -787,20 +807,48 @@ export const CounterDesk: React.FC = () => {
                 <Database className="w-4 h-4" />
                 <span>04. Nhật ký Audit (UC-102)</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  switchDeskMode('vehicles');
+                  fetchBranchVehicles();
+                }}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                  deskMode === 'vehicles'
+                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
+                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                }`}
+              >
+                <Wrench className="w-4 h-4" />
+                <span>05. Đội xe & Trạng thái (UC-61-63)</span>
+                {branchVehicles.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-white font-bold text-[10px]">
+                    {branchVehicles.length}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
 
-          {(deskMode === 'bookings' || deskMode === 'ekyc') && (
+          {(deskMode === 'bookings' || deskMode === 'ekyc' || deskMode === 'vehicles') && (
             <button
               onClick={() => {
                 if (deskMode === 'bookings') fetchBookings();
-                else fetchPendingEkyc();
+                else if (deskMode === 'ekyc') fetchPendingEkyc();
+                else fetchBranchVehicles();
               }}
-              disabled={loading || ekycLoading}
+              disabled={loading || ekycLoading || loadingVehicles}
               className="self-start md:self-auto inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] bg-[#161616] border border-white/10 hover:border-[#FFC799]/40 hover:text-white transition-colors cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 text-[#A0A0A0] ${loading || ekycLoading ? 'animate-spin' : ''}`} />
-              <span>{deskMode === 'bookings' ? 'Đồng bộ đơn chi nhánh' : 'Làm mới hàng đợi eKYC'}</span>
+              <RefreshCw className={`w-3.5 h-3.5 text-[#A0A0A0] ${loading || ekycLoading || loadingVehicles ? 'animate-spin' : ''}`} />
+              <span>
+                {deskMode === 'bookings'
+                  ? 'Đồng bộ đơn chi nhánh'
+                  : deskMode === 'ekyc'
+                  ? 'Làm mới hàng đợi eKYC'
+                  : 'Làm mới danh sách xe'}
+              </span>
             </button>
           )}
         </div>
@@ -1085,97 +1133,38 @@ export const CounterDesk: React.FC = () => {
                         </button>
                       </div>
                     )}
-                    {/* 1. Customer Identity & eKYC Verification Card */}
-                    <div className="p-3.5 rounded-xl border border-white/10 bg-[#101010] flex items-center justify-between gap-3">
-                      <div className="flex items-center space-x-2.5">
-                        <UserCheck className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
-                        <div>
-                          <div className="text-xs font-bold text-white flex items-center gap-2">
-                            Xác thực danh tính khách hàng (eKYC)
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              typeof selectedBooking.userId === 'object' && selectedBooking.userId && (selectedBooking.userId as User).identityStatus === 'Verified'
-                                ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
-                                : 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
-                            }`}>
-                              {typeof selectedBooking.userId === 'object' && selectedBooking.userId && (selectedBooking.userId as User).identityStatus === 'Verified'
-                                ? 'Đã xác minh (Verified)'
-                                : 'Chưa xác minh'}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-[#A0A0A0] mt-0.5">
-                            Căn cước công dân (CCCD / Passport) & Giấy phép lái xe (GPLX)
-                          </div>
-                        </div>
-                      </div>
+                    {/* Odometer Input */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
+                        <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                        Ghi nhận chỉ số ODO công-tơ-mét khi giao
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={startOdo}
+                        onChange={(e) => setStartOdo(Number(e.target.value))}
+                        disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
+                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                      />
+                      <p className="text-[11px] text-[#A0A0A0] mt-1">
+                        Chỉ số ODO làm căn cứ đối chiếu khi khách bàn giao trả xe.
+                      </p>
                     </div>
 
-                    {/* 2. Odometer Input & Fuel Level Selector */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Odometer Input */}
-                      <div>
-                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                          <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                          Chỉ số ODO khi bàn giao (km)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          value={startOdo}
-                          onChange={(e) => setStartOdo(Number(e.target.value))}
-                          disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
-                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
-                        />
-                        <p className="text-[11px] text-[#A0A0A0] mt-1">
-                          Căn cứ đối chiếu ODO khi trả xe.
-                        </p>
-                      </div>
-
-                      {/* Fuel Level Selector */}
-                      <div>
-                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
-                          <span className="flex items-center">
-                            <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                            Mức nhiên liệu / Xăng
-                          </span>
-                          <span className="text-xs font-bold text-[#FFC799]">{startFuel}</span>
-                        </label>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {['100%', '75%', '50%', '25%'].map((lvl) => (
-                            <button
-                              key={lvl}
-                              type="button"
-                              disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
-                              onClick={() => setStartFuel(lvl)}
-                              className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${
-                                startFuel === lvl
-                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
-                              }`}
-                            >
-                              {lvl}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="text-[11px] text-[#A0A0A0] mt-1">
-                          Ghi nhận lượng nhiên liệu thực tế khi giao xe.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* 3. 5-point Handover & Safety Checklist */}
+                    {/* 5-point Checklist */}
                     <div>
                       <label className="block text-xs font-semibold text-[#A0A0A0] mb-2 flex items-center">
                         <FileCheck className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                        Biên bản bàn giao 5 điểm an toàn trước khi rời trạm (UC-56)
+                        Biên bản kiểm tra kỹ thuật an toàn trước khi rời trạm
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         {[
-                          { key: 'idCardVerified' as ChecklistKey, label: '1. Đã đối chiếu CCCD/Passport khách hàng' },
-                          { key: 'drivingLicenseVerified' as ChecklistKey, label: '2. Đã kiểm tra GPLX xe máy còn hiệu lực' },
-                          { key: 'tires' as ChecklistKey, label: '3. Áp suất lốp xe & độ bám đường tốt' },
-                          { key: 'brakes' as ChecklistKey, label: '4. Phanh trước & sau hoạt động nhạy' },
-                          { key: 'lights' as ChecklistKey, label: '5. Đèn pha, xi nhan, còi xe hoạt động' },
-                          { key: 'helmets' as ChecklistKey, label: '6. Đã giao 2 nón bảo hiểm CR + 2 áo mưa' },
+                          { key: 'tires' as ChecklistKey, label: 'Áp suất lốp xe & độ bám đường tốt' },
+                          { key: 'brakes' as ChecklistKey, label: 'Phanh trước & sau hoạt động nhạy' },
+                          { key: 'lights' as ChecklistKey, label: 'Đèn pha, xi nhan, còi xe hoạt động' },
+                          { key: 'fuel' as ChecklistKey, label: 'Xăng/Pin đầy bình khi giao khách' },
+                          { key: 'helmets' as ChecklistKey, label: 'Đã giao 2 nón bảo hiểm chuẩn CR + 2 áo mưa' },
                         ].map((item) => (
                           <label
                             key={item.key}
@@ -1454,57 +1443,23 @@ export const CounterDesk: React.FC = () => {
                 {/* Tab 2: Check-out Process */}
                 {activeTab === 'checkout' && (
                   <div className="p-6 space-y-5">
-                    {/* ODO & Fuel Level Inspection on Return */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* End Odometer */}
-                      <div>
-                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                          <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                          Chỉ số ODO công-tơ-mét khi thu hồi xe (km)
-                        </label>
-                        <input
-                          type="number"
-                          min={selectedBooking.startOdometer || 0}
-                          value={endOdo}
-                          onChange={(e) => setEndOdo(Number(e.target.value))}
-                          disabled={selectedBooking.status !== 'Ongoing'}
-                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
-                        />
-                        <p className="text-[11px] text-[#A0A0A0] mt-1">
-                          Đã di chuyển: ~{Math.max(0, endOdo - (selectedBooking.startOdometer || 0))} km (Lúc giao: {selectedBooking.startOdometer || 0} km).
-                        </p>
-                      </div>
-
-                      {/* Return Fuel Level */}
-                      <div>
-                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
-                          <span className="flex items-center">
-                            <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                            Mức nhiên liệu / Xăng khi nhận lại
-                          </span>
-                          <span className="text-xs font-bold text-[#FFC799]">{endFuel}</span>
-                        </label>
-                        <div className="grid grid-cols-4 gap-1.5">
-                          {['100%', '75%', '50%', '25%'].map((lvl) => (
-                            <button
-                              key={lvl}
-                              type="button"
-                              disabled={selectedBooking.status !== 'Ongoing'}
-                              onClick={() => setEndFuel(lvl)}
-                              className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${
-                                endFuel === lvl
-                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
-                              }`}
-                            >
-                              {lvl}
-                            </button>
-                          ))}
-                        </div>
-                        <p className="text-[11px] text-[#A0A0A0] mt-1">
-                          Đối chiếu mức xăng lúc bàn giao ({selectedBooking.startFuelLevel || '100%'}).
-                        </p>
-                      </div>
+                    {/* End Odometer */}
+                    <div>
+                      <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
+                        <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                        Chỉ số ODO công-tơ-mét khi thu hồi xe
+                      </label>
+                      <input
+                        type="number"
+                        min={selectedBooking.startOdometer || 0}
+                        value={endOdo}
+                        onChange={(e) => setEndOdo(Number(e.target.value))}
+                        disabled={selectedBooking.status !== 'Ongoing'}
+                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                      />
+                      <p className="text-[11px] text-[#A0A0A0] mt-1">
+                        Quãng đường khách đã di chuyển trong chuyến: ~{Math.max(0, endOdo - (selectedBooking.startOdometer || 0))} km
+                      </p>
                     </div>
 
                     {/* 4-Angle Before & After Inspection Comparison (Check-in vs Check-out) */}
@@ -1680,148 +1635,71 @@ export const CounterDesk: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Damage & Additional fee input (UC-58) */}
-                    <div className="p-4 rounded-xl border border-white/10 bg-[#101010] space-y-3">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-white flex items-center">
+                    {/* Damage & Additional fee input */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
                           <DollarSign className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                          Hư hại & Phụ phí phát sinh
+                          Phụ phí phát sinh (xăng / trầy xước)
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDamageDesc('');
-                            setDamageAmount(damageFee || 0);
-                            setDamagePhotoUrl('');
-                            setShowDamageModal(true);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-[#FF8080]/10 hover:bg-[#FF8080]/20 border border-[#FF8080]/30 text-[11px] font-bold text-[#FF8080] transition-all flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5" />
-                          <span>Lập biên bản sự cố / Hư hại (UC-58)</span>
-                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          step="10000"
+                          value={damageFee}
+                          onChange={(e) => setDamageFee(Number(e.target.value))}
+                          disabled={selectedBooking.status !== 'Ongoing'}
+                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                        />
+                        <p className="text-[10px] text-[#A0A0A0] mt-1">0 đ nếu phương tiện nguyên vẹn</p>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-[11px] font-medium text-[#A0A0A0] mb-1">
-                            Tổng phụ phí bồi thường (VNĐ)
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="10000"
-                            value={damageFee}
-                            onChange={(e) => setDamageFee(Number(e.target.value))}
-                            disabled={selectedBooking.status !== 'Ongoing'}
-                            className="w-full bg-[#161616] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                          />
-                          <p className="text-[10px] text-[#A0A0A0] mt-1">0 đ nếu phương tiện nguyên vẹn</p>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-medium text-[#A0A0A0] mb-1">
-                            Ghi chú tình trạng xe lúc thu hồi
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="VD: Xe nguyên vẹn, đầy bình xăng..."
-                            value={returnNotes}
-                            onChange={(e) => setReturnNotes(e.target.value)}
-                            disabled={selectedBooking.status !== 'Ongoing'}
-                            className="w-full bg-[#161616] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-[#6E6E6E] disabled:opacity-50"
-                          />
-                          <p className="text-[10px] text-[#A0A0A0] mt-1">Ghi chú lưu biên bản tất toán</p>
-                        </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
+                          <Clock className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
+                          Ghi chú tình trạng xe lúc thu hồi
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="VD: Xe nguyên vẹn, đầy bình xăng..."
+                          value={returnNotes}
+                          onChange={(e) => setReturnNotes(e.target.value)}
+                          disabled={selectedBooking.status !== 'Ongoing'}
+                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-[#6E6E6E] disabled:opacity-50"
+                        />
+                        <p className="text-[10px] text-[#A0A0A0] mt-1">Ghi chú lưu biên bản tất toán</p>
                       </div>
-
-                      {/* Display recorded damage history if any */}
-                      {selectedBooking.damageRecords && selectedBooking.damageRecords.length > 0 && (
-                        <div className="pt-2 border-t border-white/5 space-y-1.5">
-                          <span className="text-[10px] uppercase font-bold text-[#FF8080] tracking-wider">
-                            Lịch sử biên bản sự cố đã lập:
-                          </span>
-                          <div className="space-y-1">
-                            {selectedBooking.damageRecords.map((rec, idx) => (
-                              <div key={idx} className="p-2 rounded-lg bg-black/40 border border-white/5 text-[11px] flex items-center justify-between">
-                                <span className="text-[#F5F5F5]">{rec.description}</span>
-                                <span className="font-bold text-[#FF8080]">+{rec.damageFee.toLocaleString('vi-VN')} đ</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
 
-                    {/* Settlement Summary Box (UC-59: Penalty auto-calculation 30,000/hr + damage) */}
-                    {(() => {
-                      const returnDate = new Date(selectedBooking.returnDateTime);
-                      const now = new Date();
-                      const overdueMs = now.getTime() - returnDate.getTime();
-                      const graceMinutes = 15;
-                      const isOverdueNow = overdueMs > graceMinutes * 60 * 1000;
-                      const overdueMinutes = Math.max(0, Math.floor(overdueMs / (60 * 1000)));
-                      const overdueHoursCeil = isOverdueNow ? Math.ceil(overdueMs / (3600 * 1000)) : 0;
-                      const dynamicLateFee = selectedBooking.lateFee !== undefined && selectedBooking.lateFee > 0
-                        ? selectedBooking.lateFee
-                        : (isOverdueNow ? overdueHoursCeil * 30000 : 0);
-                      const totalDue = (selectedBooking.remainingAmount || 0) + dynamicLateFee + (damageFee || 0);
-
-                      return (
-                        <div className="p-4 bg-[#101010] rounded-2xl border border-[#FFC799]/20 space-y-2.5 text-xs">
-                          <div className="flex items-center justify-between border-b border-white/5 pb-2">
-                            <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
-                              <Receipt className="w-3.5 h-3.5 text-[#FFC799]" />
-                              Bảng kê tất toán & Phạt vi phạm (UC-59)
-                            </span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isOverdueNow
-                                ? 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
-                                : 'bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30'
-                            }`}>
-                              {isOverdueNow ? `Trễ hẹn +${overdueMinutes}p` : 'Đúng hạn (15p ân hạn)'}
-                            </span>
-                          </div>
-
-                          <div className="flex justify-between text-[#A0A0A0]">
-                            <span>Tiền thuê còn lại (70%):</span>
-                            <span className="font-bold text-white">
-                              {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
-                            </span>
-                          </div>
-
-                          <div className="flex justify-between text-[#A0A0A0]">
-                            <span className="flex items-center gap-1">
-                              <span>Phụ thu trễ hẹn (30.000đ/giờ quá hạn):</span>
-                              {isOverdueNow && (
-                                <span className="text-[10px] text-[#FFC799] font-medium">
-                                  ({overdueHoursCeil} giờ)
-                                </span>
-                              )}
-                            </span>
-                            <span className={`font-bold ${isOverdueNow ? 'text-[#FF8080]' : 'text-white'}`}>
-                              {dynamicLateFee > 0 ? `+${dynamicLateFee.toLocaleString('vi-VN')} đ` : '0 đ'}
-                            </span>
-                          </div>
-
-                          {damageFee > 0 && (
-                            <div className="flex justify-between text-[#FF8080]">
-                              <span>Phụ phí hư hại / Bồi thường xe:</span>
-                              <span className="font-bold">+{damageFee.toLocaleString('vi-VN')} đ</span>
-                            </div>
-                          )}
-
-                          <div className="pt-2 border-t border-white/10 flex justify-between items-baseline text-sm">
-                            <span className="font-bold text-white uppercase text-xs">
-                              Tổng số tiền khách thanh toán tại quầy:
-                            </span>
-                            <span className="text-lg font-black text-[#FFC799]">
-                              {totalDue.toLocaleString('vi-VN')} đ
-                            </span>
-                          </div>
+                    {/* Settlement Summary Box */}
+                    <div className="p-4 bg-[#101010] rounded-2xl border border-[#FFC799]/20 space-y-2 text-xs">
+                      <div className="flex justify-between text-[#A0A0A0]">
+                        <span>Tiền thuê còn lại (70%):</span>
+                        <span className="font-bold text-white">
+                          {selectedBooking.remainingAmount?.toLocaleString('vi-VN')} đ
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-[#A0A0A0]">
+                        <span>Phụ thu trễ hẹn (Server tính 30.000đ/giờ trễ):</span>
+                        <span className="font-bold text-[#FFC799]">
+                          {selectedBooking.lateFee ? `${selectedBooking.lateFee.toLocaleString('vi-VN')} đ` : 'Tự động tính theo giờ trả'}
+                        </span>
+                      </div>
+                      {damageFee > 0 && (
+                        <div className="flex justify-between text-[#FFC799]">
+                          <span>Phụ phí phát sinh:</span>
+                          <span className="font-bold">{damageFee.toLocaleString('vi-VN')} đ</span>
                         </div>
-                      );
-                    })()}
+                      )}
+                      <div className="pt-2 border-t border-white/10 flex justify-between items-baseline text-sm">
+                        <span className="font-bold text-white uppercase text-xs">
+                          Tổng số tiền khách thanh toán tại quầy:
+                        </span>
+                        <span className="text-lg font-black text-[#FFC799]">
+                          {((selectedBooking.remainingAmount || 0) + (selectedBooking.lateFee || 0) + damageFee).toLocaleString('vi-VN')} đ
+                        </span>
+                      </div>
+                    </div>
 
                     {/* Complete Checkout Button */}
                     {selectedBooking.status === 'Ongoing' ? (
@@ -2099,8 +1977,422 @@ export const CounterDesk: React.FC = () => {
           </div>
         ) : deskMode === 'chat' ? (
           <StaffChatConsole />
-        ) : (
+        ) : deskMode === 'audit' ? (
           <AuditLogViewer />
+        ) : (
+          /* UC-61-63: Vehicle Fleet & Status Management Tab */
+          <div className="space-y-6">
+            {/* Status Metric Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Tổng đội xe trạm</p>
+                  <p className="text-2xl font-black text-white mt-1">{branchVehicles.length}</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white">
+                  <Gauge className="w-5 h-5 text-[#FFC799]" />
+                </div>
+              </div>
+
+              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Sẵn sàng nhận khách</p>
+                  <p className="text-2xl font-black text-[#99FFE4] mt-1">
+                    {branchVehicles.filter((v) => v.status === 'Available').length}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-[#99FFE4]/10 border border-[#99FFE4]/20 flex items-center justify-center text-[#99FFE4]">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Đang cho thuê (Tour)</p>
+                  <p className="text-2xl font-black text-blue-400 mt-1">
+                    {branchVehicles.filter((v) => v.status === 'Rented').length}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+                  <Clock className="w-5 h-5" />
+                </div>
+              </div>
+
+              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">Đang bảo dưỡng / Sửa</p>
+                  <p className="text-2xl font-black text-amber-400 mt-1">
+                    {branchVehicles.filter((v) => v.status === 'Maintenance').length}
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                  <Wrench className="w-5 h-5" />
+                </div>
+              </div>
+            </div>
+
+            {/* Filter and Search Bar */}
+            <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="relative w-full md:w-96">
+                <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo biển số, mẫu xe, hãng sản xuất..."
+                  value={vehicleSearchQuery}
+                  onChange={(e) => setVehicleSearchQuery(e.target.value)}
+                  className="w-full bg-[#101010] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+                />
+                {vehicleSearchQuery && (
+                  <button
+                    onClick={() => setVehicleSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+                {(
+                  [
+                    { id: 'all', label: 'Tất cả' },
+                    { id: 'Available', label: 'Sẵn sàng' },
+                    { id: 'Rented', label: 'Đang thuê' },
+                    { id: 'Maintenance', label: 'Bảo dưỡng' },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setVehicleFilterStatus(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      vehicleFilterStatus === tab.id
+                        ? 'bg-[#FFC799] text-[#101010]'
+                        : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Vehicle Cards Grid */}
+            {loadingVehicles ? (
+              <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0] flex items-center justify-center space-x-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-[#FFC799]" />
+                <span>Đang tải danh sách phương tiện tại chi nhánh...</span>
+              </div>
+            ) : (
+              (() => {
+                const filtered = branchVehicles.filter((v) => {
+                  if (vehicleFilterStatus !== 'all' && v.status !== vehicleFilterStatus) {
+                    return false;
+                  }
+                  if (vehicleSearchQuery.trim()) {
+                    const q = vehicleSearchQuery.toLowerCase();
+                    const plate = (v.licensePlate || '').toLowerCase();
+                    const model = (v.vehicleModel || '').toLowerCase();
+                    const brand = (v.brand || '').toLowerCase();
+                    return plate.includes(q) || model.includes(q) || brand.includes(q);
+                  }
+                  return true;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0]">
+                      Không tìm thấy phương tiện nào phù hợp với bộ lọc hiện tại.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {filtered.map((v) => {
+                      const img = getOptimizedVehicleImageUrl(v.images?.[0]);
+                      const isAvailable = v.status === 'Available';
+                      const isRented = v.status === 'Rented';
+                      const isMaintenance = v.status === 'Maintenance';
+
+                      return (
+                        <div
+                          key={v._id}
+                          className="bg-[#161616] border border-white/10 hover:border-white/20 rounded-2xl overflow-hidden transition-all shadow-lg flex flex-col justify-between"
+                        >
+                          <div>
+                            {/* Card Image and Status Badge */}
+                            <div className="relative h-44 bg-[#101010] overflow-hidden">
+                              <img
+                                src={img}
+                                alt={v.vehicleModel}
+                                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                onError={(e) => {
+                                  e.currentTarget.src =
+                                    'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=600&auto=format&fit=crop&q=80';
+                                }}
+                              />
+                              <div className="absolute top-3 left-3 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15">
+                                <span className="font-mono font-black text-xs text-white tracking-widest uppercase">
+                                  {v.licensePlate}
+                                </span>
+                              </div>
+
+                              <div className="absolute top-3 right-3">
+                                {isAvailable && (
+                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-[#99FFE4]/20 border border-[#99FFE4]/40 text-[#99FFE4] backdrop-blur-md">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4] animate-pulse"></span>
+                                    <span>SẴN SÀNG</span>
+                                  </span>
+                                )}
+                                {isRented && (
+                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-500/20 border border-blue-500/40 text-blue-400 backdrop-blur-md">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                                    <span>ĐANG THUÊ</span>
+                                  </span>
+                                )}
+                                {isMaintenance && (
+                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/20 border border-amber-500/40 text-amber-400 backdrop-blur-md">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                    <span>BẢO DƯỠNG</span>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Card Body */}
+                            <div className="p-4 space-y-3">
+                              <div>
+                                <p className="text-[11px] font-bold text-[#FFC799] uppercase tracking-wider">
+                                  {v.brand}
+                                </p>
+                                <h3 className="text-base font-extrabold text-white truncate">{v.vehicleModel}</h3>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-[11px] text-[#A0A0A0]">
+                                <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
+                                  <Gauge className="w-3.5 h-3.5 text-[#FFC799]" />
+                                  <span className="font-semibold text-white">{(v.odometer || 0).toLocaleString('vi-VN')} km</span>
+                                </div>
+                                <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
+                                  <DollarSign className="w-3.5 h-3.5 text-[#99FFE4]" />
+                                  <span className="font-semibold text-white">{(v.dailyPrice || 0).toLocaleString('vi-VN')} đ/ng</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Toolbar */}
+                          <div className="p-4 pt-0 border-t border-white/5 mt-2 space-y-2">
+                            <p className="text-[10px] font-bold text-[#6E6E6E] uppercase tracking-wider">
+                              Thao tác đổi trạng thái (UC-61-63)
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Option to set to Available */}
+                              <button
+                                type="button"
+                                disabled={isAvailable || vehicleSubmitting}
+                                onClick={() => handleUpdateVehicleStatus(v._id, 'Available')}
+                                className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
+                                  isAvailable
+                                    ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                    : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Sẵn sàng</span>
+                              </button>
+
+                              {/* Option to set to Maintenance */}
+                              <button
+                                type="button"
+                                disabled={isMaintenance || vehicleSubmitting}
+                                onClick={() =>
+                                  setVehicleActionModal({
+                                    vehicle: v,
+                                    targetStatus: 'Maintenance',
+                                    reason: 'Bảo dưỡng định kỳ / Kiểm tra phanh lốp dầu nhớt',
+                                    maintenanceType: 'Routine',
+                                    cost: 0,
+                                    odometer: v.odometer || 0,
+                                  })
+                                }
+                                className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
+                                  isMaintenance
+                                    ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                    : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30'
+                                }`}
+                              >
+                                <Wrench className="w-3.5 h-3.5" />
+                                <span>Bảo dưỡng</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()
+            )}
+
+            {/* Maintenance Action Dialog Modal */}
+            {vehicleActionModal && (
+              <div
+                onClick={() => setVehicleActionModal(null)}
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-[#161616] border border-white/15 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
+                >
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Wrench className="w-4 h-4 text-amber-400" />
+                      <span className="font-extrabold text-sm text-white">
+                        Lập phiếu bảo dưỡng xe ({vehicleActionModal.vehicle.licensePlate})
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setVehicleActionModal(null)}
+                      className="text-[#A0A0A0] hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="p-5 space-y-4">
+                    <div className="bg-[#101010] p-3 rounded-xl border border-white/10 flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-white">
+                          {vehicleActionModal.vehicle.brand} {vehicleActionModal.vehicle.vehicleModel}
+                        </p>
+                        <p className="text-[11px] text-[#A0A0A0]">
+                          ODO hiện tại: {(vehicleActionModal.vehicle.odometer || 0).toLocaleString('vi-VN')} km
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-black">
+                        {vehicleActionModal.vehicle.licensePlate}
+                      </span>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                        Loại hình bảo dưỡng (Maintenance Type):
+                      </label>
+                      <select
+                        value={vehicleActionModal.maintenanceType}
+                        onChange={(e) =>
+                          setVehicleActionModal({
+                            ...vehicleActionModal,
+                            maintenanceType: e.target.value as any,
+                          })
+                        }
+                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
+                      >
+                        <option value="Routine">Routine - Bảo dưỡng định kỳ (Thay nhớt, lọc gió, kiểm tra lốp)</option>
+                        <option value="Repair">Repair - Khắc phục sự cố / Sửa chữa hỏng hóc</option>
+                        <option value="Inspection">Inspection - Kiểm định an toàn kỹ thuật</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                        Lý do & Mô tả sự cố kỹ thuật (Bắt buộc):
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={vehicleActionModal.reason}
+                        onChange={(e) =>
+                          setVehicleActionModal({
+                            ...vehicleActionModal,
+                            reason: e.target.value,
+                          })
+                        }
+                        placeholder="VD: Kiểm tra phanh sau bị mòn, thay dầu máy mốc 5.000km..."
+                        className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                          Số ODO ghi nhận (km):
+                        </label>
+                        <input
+                          type="number"
+                          value={vehicleActionModal.odometer}
+                          onChange={(e) =>
+                            setVehicleActionModal({
+                              ...vehicleActionModal,
+                              odometer: Number(e.target.value),
+                            })
+                          }
+                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                          Chi phí bảo dưỡng (đ):
+                        </label>
+                        <input
+                          type="number"
+                          value={vehicleActionModal.cost}
+                          onChange={(e) =>
+                            setVehicleActionModal({
+                              ...vehicleActionModal,
+                              cost: Number(e.target.value),
+                            })
+                          }
+                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 border-t border-white/10 flex items-center justify-end space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setVehicleActionModal(null)}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10 transition-colors"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="button"
+                      disabled={vehicleSubmitting || !vehicleActionModal.reason.trim()}
+                      onClick={() =>
+                        handleUpdateVehicleStatus(
+                          vehicleActionModal.vehicle._id,
+                          vehicleActionModal.targetStatus,
+                          {
+                            reason: vehicleActionModal.reason,
+                            maintenanceType: vehicleActionModal.maintenanceType,
+                            cost: vehicleActionModal.cost,
+                            odometer: vehicleActionModal.odometer,
+                          }
+                        )
+                      }
+                      className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FFC799] text-[#101010] hover:bg-[#FFD6B3] transition-colors flex items-center space-x-1.5 disabled:opacity-50"
+                    >
+                      {vehicleSubmitting ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Đang lưu...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wrench className="w-3.5 h-3.5" />
+                          <span>Xác nhận chuyển sang Bảo dưỡng</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Modal preview high-res doc with mouse-wheel zoom & rotate */}
@@ -2330,138 +2622,6 @@ export const CounterDesk: React.FC = () => {
                       <>
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Xác nhận đã thu tiền</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        {/* Modal Record Damage (UC-58) */}
-        {showDamageModal && selectedBooking && (
-          <div
-            onClick={() => setShowDamageModal(false)}
-            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
-          >
-            <div
-              onClick={(e) => e.stopPropagation()}
-              className="bg-[#161616] border border-white/15 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
-            >
-              <div className="p-5 border-b border-white/10 flex items-center justify-between">
-                <div className="flex items-center space-x-2.5">
-                  <div className="p-2 bg-[#FF8080]/10 text-[#FF8080] rounded-xl border border-[#FF8080]/20">
-                    <AlertCircle className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-white">Lập biên bản sự cố / Hư hại xe (UC-58)</h3>
-                    <p className="text-[11px] text-[#A0A0A0]">Đơn đặt xe #{selectedBooking.bookingCode}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowDamageModal(false)}
-                  className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleRecordDamageSubmit} className="p-5 space-y-4">
-                {/* Description */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
-                    Mô tả chi tiết sự cố / Hư hại phương tiện <span className="text-[#FF8080]">*</span>
-                  </label>
-                  <textarea
-                    rows={3}
-                    required
-                    placeholder="VD: Trầy xước cánh yếm bên phải, gãy gương chiếu hậu trái, móp đuôi xe..."
-                    value={damageDesc}
-                    onChange={(e) => setDamageDesc(e.target.value)}
-                    className="w-full p-3 bg-[#101010] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
-                  />
-                </div>
-
-                {/* Damage Fee */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
-                    Chi phí bồi thường hư hại (VNĐ) <span className="text-[#FF8080]">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="10000"
-                    value={damageAmount}
-                    onChange={(e) => setDamageAmount(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 bg-[#101010] border border-white/10 rounded-xl text-sm font-bold text-white outline-none focus:border-[#FFC799]"
-                    required
-                  />
-                </div>
-
-                {/* Severity */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
-                    Mức độ nghiêm trọng
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      { key: 'Minor' as const, label: 'Nhẹ (Vết xước)' },
-                      { key: 'Moderate' as const, label: 'Vừa (Cần sửa)' },
-                      { key: 'Severe' as const, label: 'Nặng (Bảo dưỡng)' },
-                    ].map((sev) => (
-                      <button
-                        key={sev.key}
-                        type="button"
-                        onClick={() => setDamageSeverity(sev.key)}
-                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all ${
-                          damageSeverity === sev.key
-                            ? 'bg-[#FF8080]/15 border-[#FF8080] text-[#FF8080]'
-                            : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:text-white'
-                        }`}
-                      >
-                        {sev.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Photo URL */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
-                    Hình ảnh hiện trường / Vết hỏng (URL ảnh)
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://... ảnh hiện trường sự cố"
-                    value={damagePhotoUrl}
-                    onChange={(e) => setDamagePhotoUrl(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
-                  />
-                </div>
-
-                {/* Actions */}
-                <div className="pt-2 flex items-center justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowDamageModal(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10 cursor-pointer"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={damageSubmitting}
-                    className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FF8080] hover:bg-[#FF9999] text-[#101010] transition-colors flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
-                  >
-                    {damageSubmitting ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Đang lưu...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Lưu biên bản sự cố</span>
                       </>
                     )}
                   </button>
