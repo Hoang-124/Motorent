@@ -75,15 +75,6 @@ router.put(
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 
-// UC-74: Manager reject booking
-router.put(
-  '/:id/reject',
-  authenticateJWT,
-  authorize('BranchManager', 'SystemAdmin'),
-  auditLogger('REJECT_BOOKING', 'Booking'),
-  bookingController.rejectBooking
-);
-
 router.put(
   '/:id/cancel',
   authenticateJWT,
@@ -91,13 +82,13 @@ router.put(
   bookingController.cancel
 );
 
-// UC-75: Approve Refund
+// UC-76: Reject Refund
 router.put(
-  '/:id/refund/approve',
+  '/:id/refund/reject',
   authenticateJWT,
   authorize('BranchManager', 'SystemAdmin'),
-  auditLogger('APPROVE_REFUND', 'Booking'),
-  bookingController.approveRefund
+  auditLogger('REJECT_REFUND', 'Booking'),
+  bookingController.rejectRefund
 );
 
 export default router;

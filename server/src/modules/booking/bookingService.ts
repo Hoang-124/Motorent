@@ -1007,15 +1007,11 @@ export const cancelBooking = async (
   return result as unknown as IBooking;
 };
 
-export const approveRefund = async (
+export const rejectRefund = async (
   bookingId: string,
   requestingUser: { _id: mongoose.Types.ObjectId | string; roles: string; fullName?: string; email?: string; branchId?: string | mongoose.Types.ObjectId },
   data: {
-    refundAmount?: number;
-    note?: string;
-    bankName?: string;
-    bankAccount?: string;
-    bankAccountName?: string;
+    reason: string;
   }
 ): Promise<IBooking> => {
   const booking = await Booking.findById(bookingId);
@@ -1029,7 +1025,7 @@ export const approveRefund = async (
   }
 
   if (booking.refundStatus === 'Approved') {
-    throw new AppError(400, 'Yêu cầu hoàn tiền đã được phê duyệt trước đó.');
+    throw new AppError(400, 'Không thể từ chối vì yêu cầu hoàn tiền đã được phê duyệt trước đó.');
   }
 
   if (booking.refundStatus === 'Rejected') {
@@ -1040,71 +1036,55 @@ export const approveRefund = async (
     throw new AppError(400, 'Đơn đặt xe không có khoản hoàn tiền nào đang ở trạng thái chờ duyệt (Pending).');
   }
 
-  // If manager adjusts refund amount
-  if (data.refundAmount !== undefined && data.refundAmount > 0) {
-    if (data.refundAmount > (booking.paidAmount || 0)) {
-      throw new AppError(
-        400,
-        `Số tiền hoàn (${data.refundAmount.toLocaleString('vi-VN')} đ) không thể vượt quá số tiền khách đã thanh toán (${(booking.paidAmount || 0).toLocaleString('vi-VN')} đ).`
-      );
-    }
-    booking.refundAmount = data.refundAmount;
-  }
-
-  booking.refundStatus = 'Approved';
+  booking.refundStatus = 'Rejected';
+  booking.rejectReason = data.reason.trim();
   await booking.save();
 
-  // Find or create REFUND payment record and mark SUCCESS
+  // Find or create REFUND payment record and mark FAILED
   let refundPayment = await Payment.findOne({
     bookingId: booking._id,
     type: 'REFUND',
   });
 
   if (refundPayment) {
-    refundPayment.status = 'SUCCESS';
-    refundPayment.amount = booking.refundAmount;
+    refundPayment.status = 'FAILED';
     await refundPayment.save();
   } else {
     await Payment.create({
       bookingId: booking._id,
       txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
-      amount: booking.refundAmount,
+      amount: booking.refundAmount || 0,
       type: 'REFUND',
-      status: 'SUCCESS',
+      status: 'FAILED',
     });
   }
 
   // Notify customer
   await Notification.create({
     userId: booking.userId,
-    title: `Khoản hoàn tiền đơn ${booking.bookingCode} đã được duyệt`,
-    body: `Khoản hoàn tiền ${(booking.refundAmount || 0).toLocaleString('vi-VN')} đ cho đơn đặt xe ${booking.bookingCode} đã được Quản lý chi nhánh phê duyệt. ${data.note ? `Ghi chú: ${data.note}` : ''}`,
+    title: `Yêu cầu hoàn tiền đơn ${booking.bookingCode} đã bị từ chối`,
+    body: `Yêu cầu hoàn tiền cho đơn đặt xe ${booking.bookingCode} đã bị từ chối bởi Quản lý chi nhánh. Lý do: ${data.reason.trim()}`,
     type: 'BOOKING',
     data: {
       bookingId: booking._id,
       bookingCode: booking.bookingCode,
-      refundAmount: booking.refundAmount,
-      refundStatus: 'Approved',
-      approvedAt: new Date(),
+      refundStatus: 'Rejected',
+      rejectReason: data.reason.trim(),
+      rejectedAt: new Date(),
     },
   }).catch(() => {});
 
   // Audit log
   await AuditLog.create({
     userId: requestingUser._id,
-    action: 'APPROVE_REFUND',
+    action: 'REJECT_REFUND',
     entity: 'Booking',
     entityId: booking._id.toString(),
     details: {
       bookingCode: booking.bookingCode,
       refundAmount: booking.refundAmount,
-      refundStatus: 'Approved',
-      bankInfo: {
-        bankName: data.bankName,
-        bankAccount: data.bankAccount,
-        bankAccountName: data.bankAccountName,
-      },
-      note: data.note,
+      refundStatus: 'Rejected',
+      reason: data.reason.trim(),
     },
     timestamp: new Date(),
   }).catch(() => {});
