@@ -17,11 +17,9 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { BookingPage } from './pages/BookingPage';
 import { VnPayReturnPage } from './pages/VnPayReturnPage';
-import { WishlistPage } from './pages/WishlistPage';
-import { WishlistProvider } from './context/WishlistContext';
-import { WishlistToast } from './components/WishlistToast';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
+import { VehicleDetailPage } from './pages/VehicleDetailPage';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -39,57 +37,54 @@ export function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <WishlistProvider>
-          <ScrollToTop />
-          <div className="min-h-screen flex flex-col bg-[#101010] font-sans text-[#F5F5F5] antialiased selection:bg-[#FFC799] selection:text-[#101010]">
-            <Navbar />
-            <WelcomeToast />
-            <WishlistToast />
-            <main className="flex-1">
-              <Routes>
-                <Route path="/" element={<RoleBasedHome />} />
-                <Route path="/bikes" element={<FleetPage />} />
-                <Route path="/wishlist" element={<WishlistPage />} />
-                <Route path="/branches" element={<BranchesPage />} />
-                <Route
-                  path="/counter"
-                  element={
-                    <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
-                      <CounterDesk />
-                    </RequireRole>
-                  }
-                />
-                <Route
-                  path="/audit"
-                  element={
-                    <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
-                      <AuditLogPage />
-                    </RequireRole>
-                  }
-                />
+        <ScrollToTop />
+        <div className="min-h-screen flex flex-col bg-[#101010] font-sans text-[#F5F5F5] antialiased selection:bg-[#FFC799] selection:text-[#101010]">
+          <Navbar />
+          <WelcomeToast />
+          <main className="flex-1">
+            <Routes>
+              <Route path="/" element={<RoleBasedHome />} />
+              <Route path="/bikes" element={<FleetPage />} />
+              <Route path="/bikes/:id" element={<VehicleDetailPage />} />
+              <Route path="/branches" element={<BranchesPage />} />
+              <Route
+                path="/counter"
+                element={
+                  <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                    <CounterDesk />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/audit"
+                element={
+                  <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                    <AuditLogPage />
+                  </RequireRole>
+                }
+              />
 
-                {/* Auth & Profile Routes */}
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/verify-email" element={<VerifyEmailPage />} />
-                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/profile" element={<ProfilePage />} />
+              {/* Auth & Profile Routes */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
 
-                {/* Dedicated Booking Multi-step Flow */}
-                <Route path="/booking/:vehicleId" element={<BookingPage />} />
-                <Route path="/booking" element={<BookingPage />} />
-                <Route path="/vnpay-return" element={<VnPayReturnPage />} />
+              {/* Dedicated Booking Multi-step Flow */}
+              <Route path="/booking/:vehicleId" element={<BookingPage />} />
+              <Route path="/booking" element={<BookingPage />} />
+              <Route path="/vnpay-return" element={<VnPayReturnPage />} />
 
-                {/* Fallback route */}
-                <Route path="*" element={<RoleBasedHome />} />
-              </Routes>
-            </main>
-            <Footer />
-            {/* UC-44 & UC-66: Real-Time Live Chat Popover */}
-            <LiveChatWidget />
-          </div>
-        </WishlistProvider>
+              {/* Fallback route */}
+              <Route path="*" element={<RoleBasedHome />} />
+            </Routes>
+          </main>
+          <Footer />
+          {/* UC-44 & UC-66: Real-Time Live Chat Popover */}
+          <LiveChatWidget />
+        </div>
       </BrowserRouter>
     </AuthProvider>
   );

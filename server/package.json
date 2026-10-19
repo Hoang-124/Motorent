@@ -9,6 +9,7 @@
     "seed": "tsx src/seeders/seed.ts",
     "typecheck": "tsc",
     "lint": "tsc",
+    "migrate:reviews": "tsx src/scripts/migrate_vehicle_reviews.ts",
     "test": "vitest run"
   },
   "dependencies": {

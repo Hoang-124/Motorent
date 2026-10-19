@@ -37,6 +37,8 @@ export interface Vehicle {
   color?: string;
   requiresMaintenance: boolean;
   images: string[];
+  averageRating?: number;
+  reviewCount?: number;
 }
 
 export interface User {
@@ -94,14 +96,10 @@ export interface Booking {
   startOdometer: number;
   endOdometer?: number;
   cancelReason?: string;
-  rejectReason?: string;
   refundAmount?: number;
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
   cancelledAt?: string;
-  extensionCount?: number;
-  lastExtendedAt?: string;
-  originalReturnDateTime?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -197,21 +195,37 @@ export interface AuditLogEntry {
   timestamp: string;
 }
 
-export interface WishlistItem {
+export interface ReviewUser {
   _id: string;
-  vehicleId: string;
-  vehicle: Vehicle | null;
-  isAvailable: boolean;
-  createdAt: string;
+  displayName: string;
+  avatarUrl?: string;
 }
 
-export interface WishlistResponse {
-  items: WishlistItem[];
+export interface Review {
+  _id: string;
+  bookingId: string | Booking;
+  userId: string | ReviewUser | User;
+  vehicleId: string | Vehicle;
+  rating: number;
+  comment?: string;
+  photos: string[];
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  user?: ReviewUser;
+}
+
+export interface VehicleReviewsResponse {
+  reviews: Review[];
   pagination: {
     page: number;
     limit: number;
     total: number;
     totalPages: number;
   };
+  vehicleStats: {
+    averageRating: number;
+    reviewCount: number;
+    starBreakdown: Record<number, number>;
+  };
 }
-

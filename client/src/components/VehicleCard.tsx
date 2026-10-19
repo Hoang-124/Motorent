@@ -8,12 +8,11 @@ import {
   ShieldCheck,
   ChevronLeft,
   ChevronRight,
-  Heart
+  Star
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
-import { useWishlist } from '../context/WishlistContext';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -28,7 +27,6 @@ const ANGLE_VIEWS = [
 
 export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) => {
   const navigate = useNavigate();
-  const { isInWishlist, toggleWishlist, isToggling } = useWishlist();
   const [activeAngle, setActiveAngle] = useState<number>(1);
   const [imgError, setImgError] = useState<boolean>(false);
 
@@ -99,33 +97,9 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
               : 'Đang bảo dưỡng'}
           </span>
 
-          <div className="flex items-center space-x-1.5 pointer-events-auto">
-            <span className="font-mono-tabular text-[11px] font-bold text-[#101010] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-300/80 shadow-sm">
-              {vehicle.licensePlate}
-            </span>
-
-            {/* UC-25-26 Wishlist Heart Toggle */}
-            <button
-              type="button"
-              disabled={isToggling(vehicle._id)}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleWishlist(vehicle._id);
-              }}
-              className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-sm ${
-                isInWishlist(vehicle._id)
-                  ? 'bg-[#FF8080] text-white hover:bg-[#ff6666]'
-                  : 'bg-[#101010]/80 hover:bg-[#101010] text-white/80 hover:text-white border border-white/20'
-              } ${isToggling(vehicle._id) ? 'opacity-50 cursor-not-allowed' : 'active:scale-90'}`}
-              title={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
-            >
-              <Heart
-                className={`w-3.5 h-3.5 transition-colors ${
-                  isInWishlist(vehicle._id) ? 'fill-white stroke-white' : 'stroke-current'
-                }`}
-              />
-            </button>
-          </div>
+          <span className="font-mono-tabular text-[11px] font-bold text-[#101010] bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-300/80 shadow-sm">
+            {vehicle.licensePlate}
+          </span>
         </div>
 
         {/* Subtle Hover Prev/Next Angle Arrows */}
@@ -241,10 +215,32 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({ vehicle, onBookNow }) 
             </span>
           </div>
 
-          {/* Vehicle Model Name */}
-          <h3 className="text-lg sm:text-xl font-bold text-[#F5F5F5] group-hover:text-[#FFC799] transition-colors leading-snug mt-1">
-            {vehicle.vehicleModel}
-          </h3>
+          {/* Vehicle Model Name & Rating */}
+          <div className="flex items-start justify-between gap-2 mt-1">
+            <h3 className="text-lg sm:text-xl font-bold text-[#F5F5F5] group-hover:text-[#FFC799] transition-colors leading-snug">
+              {vehicle.vehicleModel}
+            </h3>
+
+            {/* Rating Pill */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/bikes/${vehicle._id}#reviews-section`);
+              }}
+              className="flex items-center space-x-1 bg-[#101010] hover:bg-[#1f1f1f] border border-white/10 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition-colors"
+              title="Xem đánh giá từ khách hàng"
+            >
+              <Star className="w-3 h-3 fill-[#FFC799] text-[#FFC799]" />
+              <span className="text-[11px] font-bold text-[#F5F5F5]">
+                {vehicle.averageRating && vehicle.averageRating > 0
+                  ? vehicle.averageRating.toFixed(1)
+                  : '5.0'}
+              </span>
+              <span className="text-[10px] text-[#6E6E6E]">
+                ({vehicle.reviewCount || 0})
+              </span>
+            </div>
+          </div>
 
           {/* 3 Clean Recessed Spec Pills */}
           <div className="grid grid-cols-3 gap-2 mt-3.5">

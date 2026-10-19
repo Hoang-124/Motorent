@@ -3,6 +3,7 @@ import { authenticateJWT } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
 import { auditLogger } from '../../core/auditMiddleware';
 import * as vehicleController from './vehicleController';
+import * as reviewController from '../review/reviewController';
 
 const router = Router();
 
@@ -10,6 +11,9 @@ const router = Router();
 router.get('/', vehicleController.getVehicles);
 router.get('/categories', vehicleController.getCategories);
 router.get('/:id', vehicleController.getVehicle);
+
+// UC-39-41: Public reviews for a vehicle (newest first, paginated)
+router.get('/:vehicleId/reviews', reviewController.getVehicleReviews);
 
 // Categories admin route
 router.post(
