@@ -25,9 +25,7 @@ import {
   AlertTriangle,
   ChevronDown,
   QrCode,
-  CreditCard,
-  FileText,
-  Download
+  CreditCard
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -55,30 +53,6 @@ export const ProfilePage: React.FC = () => {
   const [cancelReasonInput, setCancelReasonInput] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [downloadingInvoiceId, setDownloadingInvoiceId] = useState<string | null>(null);
-
-  const handleDownloadInvoice = async (bookingId: string, bookingCode: string) => {
-    setDownloadingInvoiceId(bookingId);
-    try {
-      const res = await api.get(`/bookings/${bookingId}/invoice`, {
-        responseType: 'blob',
-      });
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `MOTORENT-INVOICE-${bookingCode}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.parentNode?.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      console.error('Invoice download error:', err);
-      alert('Không thể tải hóa đơn. Vui lòng thử lại sau.');
-    } finally {
-      setDownloadingInvoiceId(null);
-    }
-  };
 
   // Interactive QR Payment Modal for Pending Bookings
   const [selectedBookingForQrPay, setSelectedBookingForQrPay] = useState<Booking | null>(null);
@@ -90,7 +64,6 @@ export const ProfilePage: React.FC = () => {
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
-  const [idCardNumber, setIdCardNumber] = useState(user?.idCardNumber || '');
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other'>(user?.gender || 'Other');
   const [dob, setDob] = useState(user?.dob ? user.dob.split('T')[0] : '');
 
@@ -120,6 +93,14 @@ export const ProfilePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Form states - Refund (UC-33)
+  const [selectedBookingForRefund, setSelectedBookingForRefund] = useState<Booking | null>(null);
+  const [bankNameInput, setBankNameInput] = useState('');
+  const [bankAccountNumberInput, setBankAccountNumberInput] = useState('');
+  const [bankAccountNameInput, setBankAccountNameInput] = useState('');
+  const [refundReasonInput, setRefundReasonInput] = useState('');
+  const [refundLoading, setRefundLoading] = useState(false);
 
   const fetchBookings = async () => {
     setBookingsLoading(true);
@@ -159,7 +140,6 @@ export const ProfilePage: React.FC = () => {
       setFirstName(user.firstName || '');
       setLastName(user.lastName || '');
       setPhoneNumber(user.phoneNumber || '');
-      setIdCardNumber(user.idCardNumber || '');
       setGender(user.gender || 'Other');
       if (user.dob) setDob(user.dob.split('T')[0]);
     }
@@ -199,6 +179,40 @@ export const ProfilePage: React.FC = () => {
       }
     } finally {
       setCancelLoading(false);
+    }
+  };
+
+  // Request refund for cancelled booking (UC-33)
+  const handleRequestRefund = async () => {
+    if (!selectedBookingForRefund) return;
+    if (!bankNameInput.trim() || !bankAccountNumberInput.trim() || !bankAccountNameInput.trim()) {
+      setErrorMsg('Vui lòng điền đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản nhận tiền.');
+      return;
+    }
+    setRefundLoading(true);
+    setErrorMsg('');
+    try {
+      const res = await api.post(`/bookings/${selectedBookingForRefund._id}/refund`, {
+        bankName: bankNameInput.trim(),
+        bankAccountNumber: bankAccountNumberInput.trim(),
+        bankAccountName: bankAccountNameInput.trim(),
+        reason: refundReasonInput.trim() || undefined,
+      });
+      if (res.data && res.data.success) {
+        setSelectedBookingForRefund(null);
+        await fetchBookings();
+        setSuccessMsg(
+          `Đã tiếp nhận yêu cầu hoàn tiền cho đơn ${selectedBookingForRefund.bookingCode}. Quản lý sẽ phê duyệt trong 24 giờ!`
+        );
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setErrorMsg(err.response.data.message);
+      } else {
+        setErrorMsg('Không thể gửi thông tin hoàn tiền. Vui lòng thử lại.');
+      }
+    } finally {
+      setRefundLoading(false);
     }
   };
 
@@ -247,7 +261,6 @@ export const ProfilePage: React.FC = () => {
         firstName,
         lastName,
         phoneNumber,
-        idCardNumber,
         gender,
         dob,
       });
@@ -841,12 +854,6 @@ export const ProfilePage: React.FC = () => {
                                 Đặt ngày {new Date(b.createdAt).toLocaleDateString('vi-VN')}
                               </span>
                             )}
-                            {pb?.name && (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/10 text-[11px] font-semibold text-[#F5F5F5]">
-                                <MapPin className="w-3 h-3 text-[#FFC799] shrink-0" />
-                                <span>{pb.name}</span>
-                              </span>
-                            )}
                           </div>
 
                           {/* Status Badge */}
@@ -915,10 +922,10 @@ export const ProfilePage: React.FC = () => {
                           </div>
 
                           {/* Col 6-9: Pickup & Return Schedule */}
-                          <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5 border-y lg:border-y-0 lg:border-x border-white/[0.07] py-4 lg:py-0 lg:px-5 text-xs">
+                          <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 border-y lg:border-y-0 lg:border-x border-white/[0.07] py-4 lg:py-0 lg:px-5 text-xs">
                             <div className="flex items-start space-x-2.5">
                               <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
-                              <div className="space-y-0.5">
+                              <div>
                                 <div className="text-[#A0A0A0]">
                                   Nhận xe:{' '}
                                   <strong className="text-[#F5F5F5] font-mono-tabular">
@@ -931,47 +938,30 @@ export const ProfilePage: React.FC = () => {
                                     })}
                                   </strong>
                                 </div>
-                                <div className="text-xs font-semibold text-[#FFC799]">
+                                <div className="text-[11px] text-[#6E6E6E] mt-0.5">
                                   {pb?.name || 'Trạm giao nhận Motorent'}
                                 </div>
-                                {pb?.address && (
-                                  <div className="text-[11px] text-[#8A857D] leading-snug">
-                                    {pb.address}
-                                  </div>
-                                )}
                               </div>
                             </div>
 
                             <div className="flex items-start space-x-2.5">
                               <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
-                              <div className="space-y-0.5">
-                                <div className="flex items-center flex-wrap gap-1.5 text-[#A0A0A0]">
-                                  <span>
-                                    Trả xe:{' '}
-                                    <strong className="text-[#F5F5F5] font-mono-tabular">
-                                      {new Date(b.returnDateTime).toLocaleString('vi-VN', {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                      })}
-                                    </strong>
-                                  </span>
-                                  {pb?._id && rb?._id && pb._id !== rb._id && (
-                                    <span className="px-1.5 py-0.2 rounded bg-[#FFC799]/15 border border-[#FFC799]/30 text-[10px] font-semibold text-[#FFC799]">
-                                      Trả khác trạm
-                                    </span>
-                                  )}
+                              <div>
+                                <div className="text-[#A0A0A0]">
+                                  Trả xe:{' '}
+                                  <strong className="text-[#F5F5F5] font-mono-tabular">
+                                    {new Date(b.returnDateTime).toLocaleString('vi-VN', {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                    })}
+                                  </strong>
                                 </div>
-                                <div className="text-xs font-semibold text-[#F5F5F5]">
+                                <div className="text-[11px] text-[#6E6E6E] mt-0.5">
                                   {rb?.name || 'Trạm giao nhận Motorent'}
                                 </div>
-                                {rb?.address && (
-                                  <div className="text-[11px] text-[#8A857D] leading-snug">
-                                    {rb.address}
-                                  </div>
-                                )}
                               </div>
                             </div>
                           </div>
@@ -1011,87 +1001,6 @@ export const ProfilePage: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* 4-Angle Vehicle Inspection Record (Before Handover & Upon Return) */}
-                        {((b.checkinImages && b.checkinImages.length > 0) ||
-                          (b.checkoutImages && b.checkoutImages.length > 0)) && (
-                          <div className="px-5 py-3.5 bg-[#121212] border-t border-white/[0.06] space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-[#FFC799] flex items-center gap-1.5">
-                                <Camera className="w-3.5 h-3.5" />
-                                Biên bản hình ảnh 4 góc xe (Trước khi giao &amp; Sau khi nhận)
-                              </span>
-                              <span className="text-[11px] text-[#8A857D]">
-                                Đối chiếu minh bạch tình trạng ngoại thất
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {b.checkinImages && b.checkinImages.length > 0 && (
-                                <div className="p-2.5 rounded-xl bg-[#161616] border border-white/10">
-                                  <p className="text-[11px] font-bold text-[#F5F5F5] mb-2 flex items-center justify-between">
-                                    <span>4 góc xe trước khi bàn giao (Check-in)</span>
-                                    <span className="text-[10px] text-[#99FFE4] font-mono">
-                                      ODO: {(b.startOdometer ?? 0).toLocaleString('vi-VN')} km
-                                    </span>
-                                  </p>
-                                  <div className="grid grid-cols-4 gap-1.5">
-                                    {b.checkinImages.slice(0, 4).map((imgUrl, idx) => (
-                                      <a
-                                        key={`ci-${idx}`}
-                                        href={imgUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="group relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-black block"
-                                        title={`Xem góc 0${idx + 1} trước khi giao`}
-                                      >
-                                        <img
-                                          src={imgUrl}
-                                          alt={`Check-in góc ${idx + 1}`}
-                                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                        />
-                                        <span className="absolute bottom-0.5 left-1 text-[9px] font-mono font-bold text-[#FFC799] bg-black/75 px-1 rounded">
-                                          G0{idx + 1}
-                                        </span>
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {b.checkoutImages && b.checkoutImages.length > 0 && (
-                                <div className="p-2.5 rounded-xl bg-[#161616] border border-[#99FFE4]/25">
-                                  <p className="text-[11px] font-bold text-[#F5F5F5] mb-2 flex items-center justify-between">
-                                    <span>4 góc xe sau khi thu hồi (Check-out)</span>
-                                    <span className="text-[10px] text-[#99FFE4] font-mono">
-                                      ODO: {(b.endOdometer ?? 0).toLocaleString('vi-VN')} km
-                                    </span>
-                                  </p>
-                                  <div className="grid grid-cols-4 gap-1.5">
-                                    {b.checkoutImages.slice(0, 4).map((imgUrl, idx) => (
-                                      <a
-                                        key={`co-${idx}`}
-                                        href={imgUrl}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="group relative aspect-video rounded-lg overflow-hidden border border-[#99FFE4]/30 bg-black block"
-                                        title={`Xem góc 0${idx + 1} sau khi nhận lại`}
-                                      >
-                                        <img
-                                          src={imgUrl}
-                                          alt={`Check-out góc ${idx + 1}`}
-                                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                        />
-                                        <span className="absolute bottom-0.5 left-1 text-[9px] font-mono font-bold text-[#99FFE4] bg-black/75 px-1 rounded">
-                                          G0{idx + 1}
-                                        </span>
-                                      </a>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
                         {/* Bottom Action Strip */}
                         <div className="px-5 py-3 bg-[#101010]/40 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-3">
                           <div className="text-xs text-[#A0A0A0] flex flex-wrap items-center gap-2">
@@ -1104,7 +1013,7 @@ export const ProfilePage: React.FC = () => {
                                   </span>
                                 )}
                                 {(b.refundAmount ?? 0) > 0 && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-[#FFC799]/15 border border-[#FFC799]/25 text-[#FFC799] font-semibold font-mono-tabular">
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-semibold font-mono-tabular">
                                     Hoàn tiền BR-06: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
                                   </span>
                                 )}
@@ -1120,16 +1029,10 @@ export const ProfilePage: React.FC = () => {
                               </span>
                             ) : needsDepositPayment ? (
                               <span className="text-[#FFC799]">
-                                Vui lòng hoàn tất quét mã QR thanh toán cọc 30% để hệ thống khóa biển số xe tại{' '}
-                                <strong>{pb?.name || 'quầy chi nhánh'}</strong>.
+                                Vui lòng hoàn tất quét mã QR thanh toán cọc 30% để hệ thống khóa biển số xe.
                               </span>
                             ) : (
-                              <span>
-                                Xuất trình mã hợp đồng{' '}
-                                <strong className="text-[#FFC799] font-mono-tabular">{b.bookingCode}</strong> tại quầy{' '}
-                                <strong className="text-[#F5F5F5]">{pb?.name || 'Chi nhánh nhận xe'}</strong>
-                                {pb?.address ? <span className="text-[#8A857D]"> ({pb.address})</span> : null} để nhận xe trong 03 phút.
-                              </span>
+                              <span>Xuất trình mã hợp đồng {b.bookingCode} tại quầy để nhận xe trong 03 phút.</span>
                             )}
                           </div>
 
@@ -1159,38 +1062,31 @@ export const ProfilePage: React.FC = () => {
                               </button>
                             )}
 
-                            {/* UC-38: Tải hóa đơn điện tử PDF */}
-                            <button
-                              type="button"
-                              disabled={downloadingInvoiceId === b._id}
-                              onClick={() => handleDownloadInvoice(b._id, b.bookingCode)}
-                              className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#99FFE4]/40 text-[#A0A0A0] hover:text-[#99FFE4] text-xs font-medium transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                              title="Tải hóa đơn điện tử & Biên lai thanh toán PDF (UC-38)"
-                            >
-                              {downloadingInvoiceId === b._id ? (
-                                <>
-                                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                  <span>Đang xuất PDF...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <FileText className="w-3.5 h-3.5" />
-                                  <span>Hóa đơn PDF</span>
-                                </>
-                              )}
-                            </button>
+                            {b.status === 'Cancelled' && (b.refundAmount ?? 0) > 0 && b.refundStatus !== 'Approved' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedBookingForRefund(b);
+                                  setBankNameInput(b.refundBankInfo?.bankName || '');
+                                  setBankAccountNumberInput(b.refundBankInfo?.bankAccountNumber || '');
+                                  setBankAccountNameInput(b.refundBankInfo?.bankAccountName || '');
+                                  setRefundReasonInput(b.refundBankInfo?.reason || '');
+                                }}
+                                className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center space-x-1.5"
+                              >
+                                <span>{b.refundBankInfo?.bankAccountNumber ? 'Cập nhật STK hoàn cọc' : 'Gửi STK nhận hoàn cọc'}</span>
+                              </button>
+                            )}
 
-                            {v &&
-                              ['Completed', 'Cancelled', 'Rejected'].includes(b.status) &&
-                              v.status === 'Available' && (
-                                <Link
-                                  to={`/booking/${v._id}`}
-                                  className="px-3.5 py-1.5 rounded-lg bg-[#161616] border border-white/12 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
-                                >
-                                  <RotateCcw className="w-3 h-3 text-[#FFC799]" />
-                                  <span>Thuê lại xe này</span>
-                                </Link>
-                              )}
+                            {v && (
+                              <Link
+                                to={`/booking/${v._id}`}
+                                className="px-3.5 py-1.5 rounded-lg bg-[#161616] border border-white/12 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                              >
+                                <RotateCcw className="w-3 h-3 text-[#FFC799]" />
+                                <span>Thuê lại xe này</span>
+                              </Link>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -1275,21 +1171,7 @@ export const ProfilePage: React.FC = () => {
                     placeholder="VD: 0905 123 456"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
-                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#F5F5F5] outline-none transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                    Số CCCD (12 số) / Hộ chiếu
-                  </label>
-                  <input
-                    type="text"
-                    maxLength={12}
-                    placeholder="VD: 048204008692"
-                    value={idCardNumber}
-                    onChange={(e) => setIdCardNumber(e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())}
-                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#F5F5F5] outline-none transition-colors"
+                    className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] outline-none transition-colors"
                   />
                 </div>
 
@@ -1855,7 +1737,7 @@ export const ProfilePage: React.FC = () => {
               <div
                 className={`p-4 rounded-xl border space-y-2 text-xs ${
                   paid > 0 && isMoreThan24h
-                    ? 'bg-emerald-950/20 border-[#FFC799]/25 text-emerald-200'
+                    ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-200'
                     : paid > 0
                     ? 'bg-amber-950/20 border-amber-500/30 text-amber-200'
                     : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
@@ -1874,7 +1756,7 @@ export const ProfilePage: React.FC = () => {
 
                 {paid > 0 ? (
                   isMoreThan24h ? (
-                    <p className="leading-relaxed text-[#FFC799]">
+                    <p className="leading-relaxed text-emerald-300">
                       Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách BR-06, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.
                     </p>
                   ) : (
@@ -1902,7 +1784,7 @@ export const ProfilePage: React.FC = () => {
                     </div>
                     <div className="bg-black/30 p-2 rounded-lg">
                       <div className="text-[#A0A0A0] text-[10px]">Tiền hoàn dự kiến</div>
-                      <div className="font-bold text-[#FFC799]">
+                      <div className="font-bold text-emerald-400">
                         {refundEstimate.toLocaleString('vi-VN')} đ
                       </div>
                     </div>
@@ -1970,6 +1852,113 @@ export const ProfilePage: React.FC = () => {
           </div>
         );
       })()}
+      {/* =====================================================================
+          MODAL 3: REQUEST REFUND MODAL (UC-33)
+          ===================================================================== */}
+      {selectedBookingForRefund && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#161616] rounded-2xl max-w-md w-full p-6 border border-white/15 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Yêu cầu hoàn tiền đơn {selectedBookingForRefund.bookingCode}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedBookingForRefund(null)}
+                className="text-[#A0A0A0] hover:text-[#F5F5F5] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-1">
+              <div className="flex justify-between text-emerald-300">
+                <span>Số tiền hoàn theo BR-06:</span>
+                <strong className="font-mono-tabular text-sm text-emerald-400">
+                  {(selectedBookingForRefund.refundAmount || 0).toLocaleString('vi-VN')} đ
+                </strong>
+              </div>
+              <p className="text-[11px] text-[#A0A0A0]">
+                Số tiền sẽ được chuyển khoản trực tiếp qua ngân hàng sau khi ban quản lý duyệt yêu cầu.
+              </p>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Ngân hàng thụ hưởng <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankNameInput}
+                  onChange={(e) => setBankNameInput(e.target.value)}
+                  placeholder="Ví dụ: MB Bank, Vietcombank, Techcombank..."
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Số tài khoản nhận tiền <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNumberInput}
+                  onChange={(e) => setBankAccountNumberInput(e.target.value)}
+                  placeholder="Nhập số tài khoản ngân hàng"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs font-mono-tabular text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#F5F5F5] mb-1">
+                  Tên chủ tài khoản (viết hoa không dấu) <span className="text-[#FF8080]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={bankAccountNameInput}
+                  onChange={(e) => setBankAccountNameInput(e.target.value.toUpperCase())}
+                  placeholder="NGUYEN VAN A"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs font-mono-tabular uppercase text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-[#A0A0A0] mb-1">
+                  Ghi chú bổ sung (nếu có)
+                </label>
+                <input
+                  type="text"
+                  value={refundReasonInput}
+                  onChange={(e) => setRefundReasonInput(e.target.value)}
+                  placeholder="Lý do hoặc số điện thoại liên hệ đối soát"
+                  className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                disabled={refundLoading}
+                onClick={() => setSelectedBookingForRefund(null)}
+                className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={refundLoading}
+                onClick={handleRequestRefund}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#101010] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {refundLoading ? 'Đang gửi...' : 'Gửi yêu cầu hoàn tiền'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1037,3 +1037,140 @@ export const cancelBooking = async (
   return result as unknown as IBooking;
 };
 
+export interface RequestRefundDto {
+  bankName: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+  reason?: string;
+}
+
+/**
+ * Request refund for cancelled or rejected booking (UC-33)
+ */
+export const requestRefund = async (
+  bookingId: string,
+  requestingUser: IUser,
+  data: RequestRefundDto
+): Promise<IBooking> => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
+  }
+
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
+  }
+
+  // Precondition: Customer authorization
+  if (requestingUser.roles === 'Customer') {
+    if (booking.userId.toString() !== requestingUser._id.toString()) {
+      throw new AppError(403, 'Bạn không có quyền yêu cầu hoàn tiền cho đơn đặt xe này.');
+    }
+  }
+
+  // Booking must be Cancelled or Rejected
+  if (booking.status !== 'Cancelled' && booking.status !== 'Rejected') {
+    throw new AppError(
+      400,
+      `Chỉ có thể yêu cầu hoàn tiền cho đơn đặt xe đã hủy hoặc bị từ chối (Trạng thái hiện tại: "${booking.status}").`
+    );
+  }
+
+  // Must have paid amount > 0
+  if ((booking.paidAmount || 0) <= 0) {
+    throw new AppError(
+      400,
+      'Đơn đặt xe chưa phát sinh khoản tiền thanh toán, không thể yêu cầu hoàn tiền.'
+    );
+  }
+
+  // Cannot request if already Approved
+  if (booking.refundStatus === 'Approved') {
+    throw new AppError(400, 'Yêu cầu hoàn tiền của đơn này đã được quản lý phê duyệt và hoàn tất.');
+  }
+
+  // Calculate refundAmount if not already calculated
+  if (!booking.refundAmount || booking.refundAmount === 0) {
+    const pickupTime = booking.pickupDateTime.getTime();
+    const cancelTime = booking.cancelledAt ? booking.cancelledAt.getTime() : Date.now();
+    const hoursUntil = (pickupTime - cancelTime) / (1000 * 3600);
+    if (hoursUntil > 24) {
+      booking.refundForfeitAmount = 0;
+      booking.refundAmount = booking.paidAmount;
+    } else {
+      booking.refundForfeitAmount = Math.round((booking.depositAmount || 0) * 0.5);
+      booking.refundAmount = Math.max(0, (booking.paidAmount || 0) - booking.refundForfeitAmount);
+    }
+  }
+
+  const now = new Date();
+  booking.refundStatus = 'Pending';
+  booking.refundBankInfo = {
+    bankName: data.bankName.trim(),
+    bankAccountNumber: data.bankAccountNumber.trim(),
+    bankAccountName: data.bankAccountName.trim().toUpperCase(),
+    reason: data.reason?.trim() || 'Khách hàng gửi thông tin tài khoản nhận hoàn cọc.',
+    requestedAt: now,
+  };
+
+  await booking.save();
+
+  // Create or update refund Payment record
+  await Payment.findOneAndUpdate(
+    { bookingId: booking._id, type: 'REFUND' },
+    {
+      bookingId: booking._id,
+      txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
+      amount: booking.refundAmount,
+      type: 'REFUND',
+      status: 'PENDING',
+      rawIpn: {
+        bankName: data.bankName,
+        bankAccountNumber: data.bankAccountNumber,
+        bankAccountName: data.bankAccountName,
+        reason: data.reason,
+      },
+    },
+    { upsert: true, new: true }
+  ).catch((err: unknown) => console.error('[Refund Payment Error]', err));
+
+  // Send Notification to customer
+  await Notification.create({
+    userId: booking.userId,
+    title: `Đã tiếp nhận thông tin hoàn tiền đơn ${booking.bookingCode}`,
+    message: `Yêu cầu hoàn số tiền ${(booking.refundAmount || 0).toLocaleString('vi-VN')} đ về tài khoản ${data.bankAccountNumber} (${data.bankName}) đang được kế toán/quản lý phê duyệt.`,
+    type: 'BOOKING_REFUND_REQUESTED',
+    data: {
+      bookingId: booking._id,
+      bookingCode: booking.bookingCode,
+      refundAmount: booking.refundAmount,
+      bankName: data.bankName,
+    },
+  }).catch(() => {});
+
+  // AuditLog
+  await AuditLog.create({
+    userId: requestingUser._id,
+    action: 'REQUEST_REFUND',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      refundAmount: booking.refundAmount,
+      bankInfo: booking.refundBankInfo,
+    },
+    timestamp: now,
+  }).catch(() => {});
+
+  emitBookingStatus(booking);
+
+  const populated = await Booking.findById(booking._id)
+    .populate('userId', 'username email firstName lastName phoneNumber')
+    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('pickupBranchId', 'name address phone')
+    .populate('returnBranchId', 'name address phone');
+
+  return populated || booking;
+};
+
+

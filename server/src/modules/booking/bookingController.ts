@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
 import * as bookingService from './bookingService';
-import * as invoiceService from './invoiceService';
 import { AppError } from '../../core/errorHandler';
 
 const createBookingSchema = z.object({
@@ -268,69 +267,31 @@ export const counterPay = async (
   }
 };
 
-const checkAvailabilitySchema = z.object({
-  vehicleId: z.string().min(1, 'Thiếu ID phương tiện'),
-  pickupDateTime: z.string().min(1, 'Thiếu thời gian nhận xe'),
-  returnDateTime: z.string().min(1, 'Thiếu thời gian trả xe'),
-  excludeBookingId: z.string().optional(),
+const requestRefundSchema = z.object({
+  bankName: z.string().trim().min(1, 'Vui lòng nhập tên ngân hàng'),
+  bankAccountNumber: z.string().trim().min(1, 'Vui lòng nhập số tài khoản'),
+  bankAccountName: z.string().trim().min(1, 'Vui lòng nhập tên chủ tài khoản'),
+  reason: z.string().trim().optional(),
 });
 
-export const checkAvailability = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const data = checkAvailabilitySchema.parse(req.body);
-    const pickupDate = new Date(data.pickupDateTime);
-    const returnDate = new Date(data.returnDateTime);
-
-    if (isNaN(pickupDate.getTime()) || isNaN(returnDate.getTime())) {
-      throw new AppError(400, 'Thời gian nhận hoặc trả xe không hợp lệ.');
-    }
-
-    if (pickupDate >= returnDate) {
-      throw new AppError(400, 'Thời gian trả xe phải sau thời gian nhận xe ít nhất 2 giờ.');
-    }
-
-    const result = await bookingService.checkVehicleAvailability(
-      data.vehicleId,
-      pickupDate,
-      returnDate,
-      data.excludeBookingId
-    );
-
-    if (!result.available) {
-      res.status(409).json({
-        success: false,
-        available: false,
-        message: 'Phương tiện này đã có lịch đặt hoặc đang được sử dụng trong khung giờ bạn chọn.',
-        conflictingBookingCode: result.conflictingBooking?.bookingCode,
-      });
-      return;
-    }
-
-    res.json({
-      success: true,
-      available: true,
-      message: 'Phương tiện sẵn sàng cho thuê trong khung giờ đã chọn.',
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const downloadInvoice = async (
+export const requestRefund = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new AppError(401, 'Yêu cầu đăng nhập để tải hóa đơn.');
+      throw new AppError(401, 'Yêu cầu đăng nhập để gửi yêu cầu hoàn tiền.');
     }
 
-    await invoiceService.streamBookingInvoicePdf(req.params.id, req.user, res);
+    const data = requestRefundSchema.parse(req.body);
+    const updated = await bookingService.requestRefund(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: 'Đã tiếp nhận yêu cầu hoàn tiền thành công. Bộ phận quản lý sẽ phê duyệt trong 24 giờ làm việc.',
+      data: updated,
+    });
   } catch (error) {
     next(error);
   }

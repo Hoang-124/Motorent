@@ -20,7 +20,6 @@ const bookingCreateLimiter = rateLimit({
 
 // Price estimation & availability check (Public/Customer)
 router.post('/estimate', bookingController.estimateBooking);
-router.post('/check-availability', bookingController.checkAvailability);
 
 // Customer bookings
 router.post(
@@ -76,6 +75,7 @@ router.put(
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 
+// UC-32: Cancel booking
 router.put(
   '/:id/cancel',
   authenticateJWT,
@@ -83,7 +83,12 @@ router.put(
   bookingController.cancel
 );
 
-// UC-38: Download PDF invoice
-router.get('/:id/invoice', authenticateJWT, bookingController.downloadInvoice);
+// UC-33: Request refund
+router.post(
+  '/:id/refund',
+  authenticateJWT,
+  auditLogger('REQUEST_REFUND', 'Booking'),
+  bookingController.requestRefund
+);
 
 export default router;
