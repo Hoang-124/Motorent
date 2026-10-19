@@ -138,8 +138,9 @@ export const CounterDesk: React.FC = () => {
   const [checkinPhotos, setCheckinPhotos] = useState<string[]>(['', '', '', '']);
   const [signatureData, setSignatureData] = useState<string>('');
 
-  // Check-out form states
+  // Check-out form states (UC-57: 4 photos, ODO, fuel, damage, late fee)
   const [endOdo, setEndOdo] = useState<number>(0);
+  const [endFuel, setEndFuel] = useState<string>('100%');
   const [damageFee, setDamageFee] = useState<number>(0);
   const [returnNotes, setReturnNotes] = useState<string>('');
   const [checkoutPhotos, setCheckoutPhotos] = useState<string[]>(['', '', '', '']);
@@ -304,6 +305,7 @@ export const CounterDesk: React.FC = () => {
     setStartOdo(b.startOdometer || bikeOdo);
     setStartFuel(b.startFuelLevel || '100%');
     setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
+    setEndFuel(b.endFuelLevel || '100%');
     setDamageFee(b.damageFee || 0);
 
     const existingCheckin = Array.isArray(b.checkinImages) ? b.checkinImages : [];
@@ -571,6 +573,7 @@ export const CounterDesk: React.FC = () => {
     try {
       const res = await api.put(`/bookings/${selectedBooking._id}/checkout`, {
         endOdometer: endOdo,
+        endFuelLevel: endFuel,
         damageFee,
         returnNotes,
         checkoutImages: checkoutPhotos.filter(Boolean),
@@ -1402,23 +1405,57 @@ export const CounterDesk: React.FC = () => {
                 {/* Tab 2: Check-out Process */}
                 {activeTab === 'checkout' && (
                   <div className="p-6 space-y-5">
-                    {/* End Odometer */}
-                    <div>
-                      <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                        <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                        Chỉ số ODO công-tơ-mét khi thu hồi xe
-                      </label>
-                      <input
-                        type="number"
-                        min={selectedBooking.startOdometer || 0}
-                        value={endOdo}
-                        onChange={(e) => setEndOdo(Number(e.target.value))}
-                        disabled={selectedBooking.status !== 'Ongoing'}
-                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
-                      />
-                      <p className="text-[11px] text-[#A0A0A0] mt-1">
-                        Quãng đường khách đã di chuyển trong chuyến: ~{Math.max(0, endOdo - (selectedBooking.startOdometer || 0))} km
-                      </p>
+                    {/* ODO & Fuel Level Inspection on Return */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* End Odometer */}
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
+                          <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                          Chỉ số ODO công-tơ-mét khi thu hồi xe (km)
+                        </label>
+                        <input
+                          type="number"
+                          min={selectedBooking.startOdometer || 0}
+                          value={endOdo}
+                          onChange={(e) => setEndOdo(Number(e.target.value))}
+                          disabled={selectedBooking.status !== 'Ongoing'}
+                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                        />
+                        <p className="text-[11px] text-[#A0A0A0] mt-1">
+                          Đã di chuyển: ~{Math.max(0, endOdo - (selectedBooking.startOdometer || 0))} km (Lúc giao: {selectedBooking.startOdometer || 0} km).
+                        </p>
+                      </div>
+
+                      {/* Return Fuel Level */}
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
+                          <span className="flex items-center">
+                            <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                            Mức nhiên liệu / Xăng khi nhận lại
+                          </span>
+                          <span className="text-xs font-bold text-[#FFC799]">{endFuel}</span>
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {['100%', '75%', '50%', '25%'].map((lvl) => (
+                            <button
+                              key={lvl}
+                              type="button"
+                              disabled={selectedBooking.status !== 'Ongoing'}
+                              onClick={() => setEndFuel(lvl)}
+                              className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${
+                                endFuel === lvl
+                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
+                              }`}
+                            >
+                              {lvl}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-[#A0A0A0] mt-1">
+                          Đối chiếu mức xăng lúc bàn giao ({selectedBooking.startFuelLevel || '100%'}).
+                        </p>
+                      </div>
                     </div>
 
                     {/* 4-Angle Before & After Inspection Comparison (Check-in vs Check-out) */}
