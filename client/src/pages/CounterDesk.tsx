@@ -153,16 +153,52 @@ export const CounterDesk: React.FC = () => {
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
 
-  const fetchBookings = async () => {
-    setLoading(true);
+  // UC-54: Branch Queue & Status Filter states
+  const [queueFilter, setQueueFilter] = useState<'today' | 'all'>('today');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [orderCounts, setOrderCounts] = useState({
+    total: 0,
+    today: 0,
+    pending: 0,
+    confirmed: 0,
+    ongoing: 0,
+    completed: 0,
+    cancelled: 0,
+  });
 
+  const fetchBookings = async (
+    customStatus?: string,
+    customQueue?: 'today' | 'all',
+    customSearch?: string
+  ) => {
+    setLoading(true);
     setStatusMessage(null);
     try {
-      const res = await api.get('/bookings/branch');
+      const activeStatus = customStatus !== undefined ? customStatus : statusFilter;
+      const activeQueue = customQueue !== undefined ? customQueue : queueFilter;
+      const activeSearch = customSearch !== undefined ? customSearch : searchCode;
+
+      const params: Record<string, string> = {};
+      if (activeStatus && activeStatus !== 'all') params.status = activeStatus;
+      if (activeQueue && activeQueue !== 'all') params.queue = activeQueue;
+      if (activeSearch && activeSearch.trim()) params.search = activeSearch.trim();
+
+      const res = await api.get('/bookings/branch', { params });
       if (res.data?.data) {
         setBookings(res.data.data);
-        if (res.data.data.length > 0 && !selectedBooking) {
-          handleSelectBooking(res.data.data[0]);
+        if (res.data?.meta?.counts) {
+          setOrderCounts(res.data.meta.counts);
+        }
+        if (res.data.data.length > 0) {
+          setSelectedBooking((prev) => {
+            if (prev) {
+              const matched = res.data.data.find((b: Booking) => b._id === prev._id);
+              return matched || res.data.data[0];
+            }
+            return res.data.data[0];
+          });
+        } else {
+          setSelectedBooking(null);
         }
       }
     } catch (err: unknown) {
@@ -175,6 +211,16 @@ export const CounterDesk: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleTabChange = (newStatus: string) => {
+    setStatusFilter(newStatus);
+    fetchBookings(newStatus, queueFilter, searchCode);
+  };
+
+  const handleQueueToggle = (newQueue: 'today' | 'all') => {
+    setQueueFilter(newQueue);
+    fetchBookings(statusFilter, newQueue, searchCode);
   };
 
   const fetchPendingEkyc = async () => {
@@ -419,21 +465,50 @@ export const CounterDesk: React.FC = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchCode.trim()) return;
+    if (!searchCode.trim()) {
+      await fetchBookings(statusFilter, queueFilter, '');
+      return;
+    }
 
     setLoading(true);
     setStatusMessage(null);
 
     try {
-      const res = await api.get(`/bookings/code/${encodeURIComponent(searchCode.trim())}`);
-      if (res.data?.data) {
-        handleSelectBooking(res.data.data);
+      // 1. Try searching within branch queue with search keyword
+      const res = await api.get('/bookings/branch', {
+        params: {
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          queue: queueFilter !== 'all' ? queueFilter : undefined,
+          search: searchCode.trim(),
+        },
+      });
+
+      if (res.data?.data && res.data.data.length > 0) {
+        setBookings(res.data.data);
+        if (res.data?.meta?.counts) {
+          setOrderCounts(res.data.meta.counts);
+        }
+        handleSelectBooking(res.data.data[0]);
+      } else {
+        // 2. Fallback: try direct code lookup
+        const codeRes = await api.get(`/bookings/code/${encodeURIComponent(searchCode.trim())}`);
+        if (codeRes.data?.data) {
+          setBookings([codeRes.data.data]);
+          handleSelectBooking(codeRes.data.data);
+        } else {
+          setBookings([]);
+          setSelectedBooking(null);
+          setStatusMessage({
+            type: 'error',
+            text: `Không tìm thấy đơn đặt xe phù hợp với từ khóa: "${searchCode}"`,
+          });
+        }
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setStatusMessage({
           type: 'error',
-          text: err.response?.data?.message || `Không tìm thấy đơn đặt xe với mã: ${searchCode}`,
+          text: err.response?.data?.message || `Không tìm thấy đơn đặt xe với từ khóa: ${searchCode}`,
         });
       }
     } finally {
@@ -778,35 +853,104 @@ export const CounterDesk: React.FC = () => {
             {/* Quick Search */}
             <form onSubmit={handleSearch} className="bg-[#161616] p-4 rounded-2xl border border-white/10">
               <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
-                Tra cứu mã đặt xe (Booking Code)
+                Tìm kiếm đơn theo mã, SĐT khách hoặc biển số xe
               </label>
               <div className="relative flex items-center">
                 <Search className="w-4 h-4 text-[#6E6E6E] absolute left-3" />
                 <input
                   type="text"
-                  placeholder="Nhập mã đơn, VD: MV-892101..."
+                  placeholder="Nhập mã đơn, SĐT, biển số xe..."
                   value={searchCode}
                   onChange={(e) => setSearchCode(e.target.value)}
                   className="w-full pl-9 pr-24 py-2.5 bg-[#101010] border border-white/10 rounded-xl text-xs font-medium text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
                 />
+                {searchCode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchCode('');
+                      fetchBookings(statusFilter, queueFilter, '');
+                    }}
+                    className="absolute right-20 text-[#6E6E6E] hover:text-white p-1"
+                    title="Xóa tìm kiếm"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   type="submit"
-                  className="absolute right-1.5 px-3 py-1.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] rounded-lg text-xs font-bold hover:bg-[#FFD6B3] transition-colors"
+                  className="absolute right-1.5 px-3 py-1.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] rounded-lg text-xs font-bold transition-colors"
                 >
-                  Tra cứu
+                  Tìm kiếm
                 </button>
               </div>
             </form>
 
             {/* Bookings Queue */}
             <div className="bg-[#161616] rounded-2xl border border-white/10 overflow-hidden">
-              <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                <h3 className="text-xs font-bold text-[#F5F5F5] uppercase tracking-wider">
-                  Hàng đợi chi nhánh ({bookings.length})
-                </h3>
-                <span className="text-[11px] font-semibold text-[#FFC799] bg-[#FFC799]/10 border border-[#FFC799]/20 px-2 py-0.5 rounded">
-                  Hôm nay
-                </span>
+              <div className="p-4 border-b border-white/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-bold text-[#F5F5F5] uppercase tracking-wider flex items-center gap-2">
+                    Hàng đợi chi nhánh
+                    <span className="text-[11px] font-semibold text-[#A0A0A0] bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                      {bookings.length}
+                    </span>
+                  </h3>
+                  {/* Queue Toggle: Today vs All */}
+                  <div className="flex items-center gap-1 bg-[#101010] p-1 rounded-xl border border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => handleQueueToggle('today')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        queueFilter === 'today'
+                          ? 'bg-[#FFC799] text-[#101010] shadow-sm'
+                          : 'text-[#A0A0A0] hover:text-white'
+                      }`}
+                    >
+                      Hôm nay ({orderCounts.today})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQueueToggle('all')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                        queueFilter === 'all'
+                          ? 'bg-[#FFC799] text-[#101010] shadow-sm'
+                          : 'text-[#A0A0A0] hover:text-white'
+                      }`}
+                    >
+                      Tất cả ({orderCounts.total})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status Filter Chips */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  {[
+                    { key: 'all', label: 'Tất cả' },
+                    { key: 'confirmed', label: 'Chờ nhận', count: orderCounts.confirmed },
+                    { key: 'ongoing', label: 'Đang thuê', count: orderCounts.ongoing },
+                    { key: 'completed', label: 'Đã trả', count: orderCounts.completed },
+                    { key: 'cancelled', label: 'Đã hủy', count: orderCounts.cancelled },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => handleTabChange(tab.key)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                        statusFilter === tab.key
+                          ? 'bg-white/15 text-white border border-white/20'
+                          : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/5'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                      {tab.count !== undefined && (
+                        <span className="text-[10px] font-bold opacity-75">
+                          ({tab.count})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {loading ? (
