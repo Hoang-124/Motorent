@@ -26,10 +26,9 @@ import {
   Bell,
   MessageSquare,
   CheckCheck,
-  Heart
+  ShieldAlert
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useWishlist } from '../context/WishlistContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { api } from '../services/api';
 import type { Notification } from '../types';
@@ -107,7 +106,6 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
-  const { wishlistCount } = useWishlist();
 
   const avatarSrc = getUserAvatarUrl(user?.avatarUrl);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
@@ -147,12 +145,7 @@ export const Navbar: React.FC = () => {
         .get('/bookings/my')
         .then((res) => {
           if (res.data && res.data.success && Array.isArray(res.data.data)) {
-            const validBookings = res.data.data.filter(
-              (b: { status?: string; paymentMethod?: string; depositPaid?: boolean; isPaid?: boolean }) =>
-                !['Cancelled', 'Rejected'].includes(b.status || '') &&
-                !(b.status === 'Pending' && b.paymentMethod === 'Banking' && !b.depositPaid && !b.isPaid)
-            );
-            setBookingCount(validBookings.length);
+            setBookingCount(res.data.data.length);
           }
         })
         .catch(() => {});
@@ -507,23 +500,6 @@ export const Navbar: React.FC = () => {
               )
             )}
 
-            {/* Wishlist Quick Button (UC-25, UC-26) */}
-            {!isStaffOrAdmin && (
-              <Link
-                to="/wishlist"
-                className="relative w-9 h-9 rounded-full border border-white/12 bg-[#161616] flex items-center justify-center text-[#F5F5F5] hover:border-[#FFC799]/60 hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
-                title="Danh sách xe yêu thích (UC-25, UC-26)"
-                aria-label="Xe yêu thích"
-              >
-                <Heart className="w-4 h-4 text-[#FFC799]" />
-                {wishlistCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FFC799] text-[#101010] font-mono text-[10px] font-black flex items-center justify-center">
-                    {wishlistCount}
-                  </span>
-                )}
-              </Link>
-            )}
-
             {/* Header Live Chat Trigger Button (UC-44 for Customer / UC-66 Inbox for Branch Staff & Manager) */}
             {user?.roles !== 'SystemAdmin' && (
               <button
@@ -766,14 +742,6 @@ export const Navbar: React.FC = () => {
                           <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
                           <span>Nhật ký Bảo mật Audit (UC-102)</span>
                         </Link>
-                        <Link
-                          to="/admin/rbac"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <Lock className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Ma trận Phân quyền (UC-99)</span>
-                        </Link>
 
                         <div className="border-t border-white/10 pt-1.5 space-y-1">
                           <Link
@@ -798,22 +766,6 @@ export const Navbar: React.FC = () => {
                       <>
                         {/* Customer Menu */}
                         <Link
-                          to="/wishlist"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <div className="flex items-center space-x-2.5 min-w-0">
-                            <Heart className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span className="truncate">Xe yêu thích</span>
-                          </div>
-                          {wishlistCount > 0 && (
-                            <span className="text-[10px] text-[#FFC799] font-mono-tabular shrink-0 ml-2">
-                              {wishlistCount} xe
-                            </span>
-                          )}
-                        </Link>
-
-                        <Link
                           to="/profile?tab=bookings"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
@@ -825,6 +777,17 @@ export const Navbar: React.FC = () => {
                           <span className="text-[10px] text-[#A0A0A0] font-mono-tabular shrink-0 ml-2">
                             {bookingCount} chuyến
                           </span>
+                        </Link>
+
+                        <Link
+                          to="/complaints"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <ShieldAlert className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <span className="truncate">Khiếu nại &amp; Hỗ trợ</span>
+                          </div>
                         </Link>
 
                         <Link
@@ -903,10 +866,10 @@ export const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className="group h-9 inline-flex items-center space-x-2 pl-4 pr-1.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs transition-all active:scale-95 whitespace-nowrap shrink-0"
+                className="group h-9 inline-flex items-center space-x-2 pl-4 pr-1.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs transition-all active:scale-95"
               >
                 <span>Đăng nhập</span>
-                <div className="w-6 h-6 rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center shrink-0 transition-transform group-hover:translate-x-0.5">
+                <div className="w-6 h-6 rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center transition-transform group-hover:translate-x-0.5">
                   <LogIn className="w-3 h-3" />
                 </div>
               </Link>
@@ -993,22 +956,6 @@ export const Navbar: React.FC = () => {
                 {/* Profile quick links in mobile */}
                 <div className="grid grid-cols-1 gap-1 pt-2 border-t border-[#FFC799]/20 text-xs">
                   <Link
-                    to="/wishlist"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-between p-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <Heart className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Xe yêu thích</span>
-                    </div>
-                    {wishlistCount > 0 && (
-                      <span className="text-[10px] text-[#FFC799] font-mono-tabular font-medium">
-                        {wishlistCount} xe
-                      </span>
-                    )}
-                  </Link>
-
-                  <Link
                     to="/profile?tab=bookings"
                     onClick={() => setMobileMenuOpen(false)}
                     className="flex items-center justify-between p-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
@@ -1018,6 +965,15 @@ export const Navbar: React.FC = () => {
                       <span>Chuyến xe của tôi</span>
                     </div>
                     <span className="text-[10px] text-[#6E6E6E] font-medium">{bookingCount} chuyến</span>
+                  </Link>
+
+                  <Link
+                    to="/complaints"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-2 p-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-[#FFC799]" />
+                    <span>Khiếu nại &amp; Hỗ trợ</span>
                   </Link>
 
                   <Link
