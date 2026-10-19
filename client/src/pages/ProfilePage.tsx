@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
+import { getSocket } from '../services/socket';
 import axios from 'axios';
 import { calculatePasswordStrength } from '../utils/validation';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
@@ -59,6 +60,7 @@ export const ProfilePage: React.FC = () => {
   const [qrPaymentType, setQrPaymentType] = useState<'Deposit30' | 'Full100'>('Deposit30');
   const [qrVerifying, setQrVerifying] = useState(false);
   const [qrVerifiedSuccess, setQrVerifiedSuccess] = useState(false);
+  const [isSocketLive, setIsSocketLive] = useState(false);
 
   // Form states - Info
   const [firstName, setFirstName] = useState(user?.firstName || '');
@@ -119,6 +121,70 @@ export const ProfilePage: React.FC = () => {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const handleConnect = () => setIsSocketLive(true);
+    const handleDisconnect = () => setIsSocketLive(false);
+
+    const handleBookingStatus = (payload: {
+      bookingId: string;
+      bookingCode?: string;
+      status: Booking['status'];
+      isPaid: boolean;
+      depositPaid: boolean;
+      remainingAmount: number;
+      updatedAt: string;
+    }) => {
+      setBookings((prev) =>
+        prev.map((b) => {
+          if (b._id === payload.bookingId) {
+            return {
+              ...b,
+              status: payload.status,
+              isPaid: payload.isPaid,
+              depositPaid: payload.depositPaid,
+              remainingAmount: payload.remainingAmount,
+              updatedAt: payload.updatedAt,
+            };
+          }
+          return b;
+        })
+      );
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('booking:status', handleBookingStatus);
+
+    if (socket.connected) {
+      setIsSocketLive(true);
+    }
+
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('booking:status', handleBookingStatus);
+    };
+  }, []);
+
+  useEffect(() => {
+    const socket = getSocket();
+    const activeIds = bookings
+      .filter((b) => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status))
+      .map((b) => b._id)
+      .filter(Boolean);
+
+    activeIds.forEach((id) => {
+      socket.emit('join_booking', id);
+    });
+
+    return () => {
+      activeIds.forEach((id) => {
+        socket.emit('leave_booking', id);
+      });
+    };
+  }, [bookings]);
 
   useEffect(() => {
     const tabParam = searchParams.get('tab') as ProfileTab;
@@ -713,14 +779,30 @@ export const ProfilePage: React.FC = () => {
                 })}
               </div>
 
-              <button
-                type="button"
-                onClick={fetchBookings}
-                className="inline-flex items-center space-x-1.5 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors self-start sm:self-auto cursor-pointer"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${bookingsLoading ? 'animate-spin text-[#FFC799]' : ''}`} />
-                <span>Làm mới trạng thái</span>
-              </button>
+              <div className="flex items-center space-x-3 self-start sm:self-auto">
+                <div
+                  className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.08] text-[11px] font-mono-tabular select-none"
+                  title={isSocketLive ? 'Máy chủ đang đồng bộ thời gian thực qua WebSocket' : 'Đang ở chế độ tải thủ công'}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      isSocketLive ? 'bg-[#99FFE4] shadow-[0_0_8px_rgba(153,255,228,0.6)] animate-pulse' : 'bg-[#6E6E6E]'
+                    }`}
+                  />
+                  <span className={isSocketLive ? 'text-[#99FFE4] font-medium' : 'text-[#A0A0A0]'}>
+                    {isSocketLive ? 'Live Sync' : 'Offline'}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchBookings}
+                  className="inline-flex items-center space-x-1.5 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${bookingsLoading ? 'animate-spin text-[#FFC799]' : ''}`} />
+                  <span>Làm mới</span>
+                </button>
+              </div>
             </div>
 
             {/* Bookings List */}
