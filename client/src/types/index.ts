@@ -46,7 +46,6 @@ export interface User {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
-  idCardNumber?: string;
   avatarUrl?: string;
   roles: 'SystemAdmin' | 'BranchManager' | 'Staff' | 'Customer';
   status: 'Active' | 'Suspended' | 'Unverified';
@@ -94,20 +93,14 @@ export interface Booking {
   eSignatureUrl?: string;
   startOdometer: number;
   endOdometer?: number;
-  checkinImages?: string[];
-  checkoutImages?: string[];
   cancelReason?: string;
   refundAmount?: number;
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
   cancelledAt?: string;
-  refundBankInfo?: {
-    bankName: string;
-    bankAccountNumber: string;
-    bankAccountName: string;
-    reason?: string;
-    requestedAt?: string;
-  };
+  extensionCount?: number;
+  lastExtendedAt?: string;
+  originalReturnDateTime?: string;
   createdAt?: string;
   updatedAt?: string;
 }

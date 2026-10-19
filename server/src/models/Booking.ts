@@ -9,14 +9,6 @@ export type BookingStatus =
   | 'Cancelled'
   | 'Rejected';
 
-export interface IRefundBankInfo {
-  bankName: string;
-  bankAccountNumber: string;
-  bankAccountName: string;
-  reason?: string;
-  requestedAt?: Date;
-}
-
 export interface IBooking extends Document {
   bookingCode: string;
   userId: mongoose.Types.ObjectId;
@@ -63,7 +55,9 @@ export interface IBooking extends Document {
   refundStatus?: 'Pending' | 'Approved' | 'Rejected' | 'None';
   refundForfeitAmount?: number;
   cancelledAt?: Date;
-  refundBankInfo?: IRefundBankInfo;
+  extensionCount?: number;
+  lastExtendedAt?: Date;
+  originalReturnDateTime?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -123,13 +117,9 @@ const BookingSchema = new Schema<IBooking>(
     },
     refundForfeitAmount: { type: Number, default: 0 },
     cancelledAt: { type: Date },
-    refundBankInfo: {
-      bankName: { type: String, trim: true },
-      bankAccountNumber: { type: String, trim: true },
-      bankAccountName: { type: String, trim: true },
-      reason: { type: String, trim: true },
-      requestedAt: { type: Date },
-    },
+    extensionCount: { type: Number, default: 0 },
+    lastExtendedAt: { type: Date },
+    originalReturnDateTime: { type: Date },
   },
   { timestamps: true }
 );

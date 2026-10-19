@@ -267,29 +267,49 @@ export const counterPay = async (
   }
 };
 
-const requestRefundSchema = z.object({
-  bankName: z.string().trim().min(1, 'Vui lòng nhập tên ngân hàng'),
-  bankAccountNumber: z.string().trim().min(1, 'Vui lòng nhập số tài khoản'),
-  bankAccountName: z.string().trim().min(1, 'Vui lòng nhập tên chủ tài khoản'),
-  reason: z.string().trim().optional(),
+const extendSchema = z.object({
+  newReturnDateTime: z.string().min(1, 'Vui lòng chọn thời gian trả xe mới.'),
 });
 
-export const requestRefund = async (
+export const estimateExtension = async (
   req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
     if (!req.user) {
-      throw new AppError(401, 'Yêu cầu đăng nhập để gửi yêu cầu hoàn tiền.');
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const data = requestRefundSchema.parse(req.body);
-    const updated = await bookingService.requestRefund(req.params.id, req.user, data);
+    const data = extendSchema.parse(req.body);
+    const estimate = await bookingService.estimateBookingExtension(req.params.id, req.user, data);
 
     res.json({
       success: true,
-      message: 'Đã tiếp nhận yêu cầu hoàn tiền thành công. Bộ phận quản lý sẽ phê duyệt trong 24 giờ làm việc.',
+      message: 'Ước tính chi phí gia hạn thành công.',
+      data: estimate,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const extend = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const data = extendSchema.parse(req.body);
+    const updated = await bookingService.extendBooking(req.params.id, req.user, data);
+
+    res.json({
+      success: true,
+      message: 'Gia hạn thời gian thuê xe thành công!',
       data: updated,
     });
   } catch (error) {
