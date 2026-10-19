@@ -10,7 +10,7 @@ import auditRoutes from '../modules/audit/auditRoutes';
 import chatRoutes from '../modules/chat/chatRoutes';
 import financeRoutes from '../modules/finance/financeRoutes';
 import { getCategories } from '../modules/vehicle/vehicleController';
-import { complaintRouter, staffComplaintRouter, managerComplaintRouter } from '../modules/support/complaintRoutes';
+import { adminBannerRouter, publicBannerRouter } from '../modules/cms/bannerRoutes';
 import { autoCrudAuditMiddleware } from '../core/auditMiddleware';
 
 const router = Router();
@@ -35,9 +35,9 @@ router.use('/audit', auditRoutes);
 router.use('/chat', chatRoutes);
 router.use('/finance', financeRoutes);
 
-// Complaints Management (UC-42, UC-65, UC-85)
-router.use('/complaints', complaintRouter);
-router.use('/manager/complaints', managerComplaintRouter);
-router.use('/staff/complaints', staffComplaintRouter);
+// CMS Banners (UC-116)
+router.use('/admin/banners', adminBannerRouter);
+router.use('/banners', publicBannerRouter);
+router.use('/cms/banners', adminBannerRouter);
 
 export default router;

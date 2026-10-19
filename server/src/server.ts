@@ -14,7 +14,7 @@ import { User } from './models/User';
 import { Booking } from './models/Booking';
 import { Conversation } from './models/Conversation';
 import * as chatService from './modules/chat/chatService';
-import { complaintRouter, staffComplaintRouter, managerComplaintRouter } from './modules/support/complaintRoutes';
+import { adminBannerRouter, publicBannerRouter } from './modules/cms/bannerRoutes';
 import apiRouter from './routes';
 
 export const app = express();
@@ -87,10 +87,9 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 // Mount Central Modular Monolith API
 app.use('/api', apiRouter);
 
-// Direct root route aliases for Complaints (UC-42, UC-65, UC-85)
-app.use('/complaints', complaintRouter);
-app.use('/manager/complaints', managerComplaintRouter);
-app.use('/staff/complaints', staffComplaintRouter);
+// Direct root route aliases for CMS Banners (UC-116)
+app.use('/admin/banners', adminBannerRouter);
+app.use('/banners', publicBannerRouter);
 
 // Reusable Socket.IO JWT Authentication Middleware
 const socketAuthMiddleware = async (socket: Socket, next: (err?: Error) => void) => {

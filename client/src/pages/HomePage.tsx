@@ -11,6 +11,7 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { BookingWidget } from '../components/BookingWidget';
+import { BannerCarousel } from '../components/BannerCarousel';
 import type { Vehicle, Branch } from '../types';
 import { api } from '../services/api';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
@@ -276,6 +277,8 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] bg-editorial-grain">
+      {/* Dynamic Home Banner Carousel (UC-116: Auto-slide, links, hidden if empty) */}
+      <BannerCarousel />
 
       {/* =========================================================================
           1. EDITORIAL HERO & ARCHITECTURAL DISPATCH TICKET

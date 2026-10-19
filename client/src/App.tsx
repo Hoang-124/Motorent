@@ -19,9 +19,7 @@ import { BookingPage } from './pages/BookingPage';
 import { VnPayReturnPage } from './pages/VnPayReturnPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
-import { SubmitComplaintPage } from './pages/SubmitComplaintPage';
-import { StaffComplaintPage } from './pages/StaffComplaintPage';
-import { ManagerComplaintsPage } from './pages/ManagerComplaintsPage';
+import { AdminBannersPage } from './pages/AdminBannersPage';
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -64,22 +62,6 @@ export function App() {
                   </RequireRole>
                 }
               />
-              <Route
-                path="/staff/complaints"
-                element={
-                  <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
-                    <StaffComplaintPage />
-                  </RequireRole>
-                }
-              />
-              <Route
-                path="/manager/complaints"
-                element={
-                  <RequireRole roles={['BranchManager', 'SystemAdmin']}>
-                    <ManagerComplaintsPage />
-                  </RequireRole>
-                }
-              />
 
               {/* Auth & Profile Routes */}
               <Route path="/login" element={<LoginPage />} />
@@ -94,9 +76,15 @@ export function App() {
               <Route path="/booking" element={<BookingPage />} />
               <Route path="/vnpay-return" element={<VnPayReturnPage />} />
 
-              {/* Complaints flow (UC-42) */}
-              <Route path="/complaints/new" element={<SubmitComplaintPage />} />
-              <Route path="/complaints/submit" element={<SubmitComplaintPage />} />
+              {/* CMS Banners (UC-116) */}
+              <Route
+                path="/admin/banners"
+                element={
+                  <RequireRole roles={['SystemAdmin']}>
+                    <AdminBannersPage />
+                  </RequireRole>
+                }
+              />
 
               {/* Fallback route */}
               <Route path="*" element={<RoleBasedHome />} />
