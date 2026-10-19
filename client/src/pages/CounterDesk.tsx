@@ -40,7 +40,7 @@ import { watermarkImageFromUrl } from '../utils/watermark';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 
-type ChecklistKey = 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
+type ChecklistKey = 'idCardVerified' | 'drivingLicenseVerified' | 'tires' | 'brakes' | 'lights' | 'fuel' | 'helmets';
 type MainDeskMode = 'bookings' | 'ekyc' | 'chat' | 'audit';
 
 const VEHICLE_FOUR_ANGLES = [
@@ -123,9 +123,12 @@ export const CounterDesk: React.FC = () => {
     setPreviewDocModal({ title, url });
   };
 
-  // Check-in form states
+  // Check-in form states (UC-56: 5-point handover)
   const [startOdo, setStartOdo] = useState<number>(0);
+  const [startFuel, setStartFuel] = useState<string>('100%');
   const [checklist, setChecklist] = useState<Record<ChecklistKey, boolean>>({
+    idCardVerified: true,
+    drivingLicenseVerified: true,
     tires: true,
     brakes: true,
     lights: true,
@@ -153,52 +156,16 @@ export const CounterDesk: React.FC = () => {
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
 
-  // UC-54: Branch Queue & Status Filter states
-  const [queueFilter, setQueueFilter] = useState<'today' | 'all'>('today');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [orderCounts, setOrderCounts] = useState({
-    total: 0,
-    today: 0,
-    pending: 0,
-    confirmed: 0,
-    ongoing: 0,
-    completed: 0,
-    cancelled: 0,
-  });
-
-  const fetchBookings = async (
-    customStatus?: string,
-    customQueue?: 'today' | 'all',
-    customSearch?: string
-  ) => {
+  const fetchBookings = async () => {
     setLoading(true);
+
     setStatusMessage(null);
     try {
-      const activeStatus = customStatus !== undefined ? customStatus : statusFilter;
-      const activeQueue = customQueue !== undefined ? customQueue : queueFilter;
-      const activeSearch = customSearch !== undefined ? customSearch : searchCode;
-
-      const params: Record<string, string> = {};
-      if (activeStatus && activeStatus !== 'all') params.status = activeStatus;
-      if (activeQueue && activeQueue !== 'all') params.queue = activeQueue;
-      if (activeSearch && activeSearch.trim()) params.search = activeSearch.trim();
-
-      const res = await api.get('/bookings/branch', { params });
+      const res = await api.get('/bookings/branch');
       if (res.data?.data) {
         setBookings(res.data.data);
-        if (res.data?.meta?.counts) {
-          setOrderCounts(res.data.meta.counts);
-        }
-        if (res.data.data.length > 0) {
-          setSelectedBooking((prev) => {
-            if (prev) {
-              const matched = res.data.data.find((b: Booking) => b._id === prev._id);
-              return matched || res.data.data[0];
-            }
-            return res.data.data[0];
-          });
-        } else {
-          setSelectedBooking(null);
+        if (res.data.data.length > 0 && !selectedBooking) {
+          handleSelectBooking(res.data.data[0]);
         }
       }
     } catch (err: unknown) {
@@ -211,16 +178,6 @@ export const CounterDesk: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleTabChange = (newStatus: string) => {
-    setStatusFilter(newStatus);
-    fetchBookings(newStatus, queueFilter, searchCode);
-  };
-
-  const handleQueueToggle = (newQueue: 'today' | 'all') => {
-    setQueueFilter(newQueue);
-    fetchBookings(statusFilter, newQueue, searchCode);
   };
 
   const fetchPendingEkyc = async () => {
@@ -345,6 +302,7 @@ export const CounterDesk: React.FC = () => {
       : 0;
 
     setStartOdo(b.startOdometer || bikeOdo);
+    setStartFuel(b.startFuelLevel || '100%');
     setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
     setDamageFee(b.damageFee || 0);
 
@@ -465,50 +423,21 @@ export const CounterDesk: React.FC = () => {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchCode.trim()) {
-      await fetchBookings(statusFilter, queueFilter, '');
-      return;
-    }
+    if (!searchCode.trim()) return;
 
     setLoading(true);
     setStatusMessage(null);
 
     try {
-      // 1. Try searching within branch queue with search keyword
-      const res = await api.get('/bookings/branch', {
-        params: {
-          status: statusFilter !== 'all' ? statusFilter : undefined,
-          queue: queueFilter !== 'all' ? queueFilter : undefined,
-          search: searchCode.trim(),
-        },
-      });
-
-      if (res.data?.data && res.data.data.length > 0) {
-        setBookings(res.data.data);
-        if (res.data?.meta?.counts) {
-          setOrderCounts(res.data.meta.counts);
-        }
-        handleSelectBooking(res.data.data[0]);
-      } else {
-        // 2. Fallback: try direct code lookup
-        const codeRes = await api.get(`/bookings/code/${encodeURIComponent(searchCode.trim())}`);
-        if (codeRes.data?.data) {
-          setBookings([codeRes.data.data]);
-          handleSelectBooking(codeRes.data.data);
-        } else {
-          setBookings([]);
-          setSelectedBooking(null);
-          setStatusMessage({
-            type: 'error',
-            text: `Không tìm thấy đơn đặt xe phù hợp với từ khóa: "${searchCode}"`,
-          });
-        }
+      const res = await api.get(`/bookings/code/${encodeURIComponent(searchCode.trim())}`);
+      if (res.data?.data) {
+        handleSelectBooking(res.data.data);
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setStatusMessage({
           type: 'error',
-          text: err.response?.data?.message || `Không tìm thấy đơn đặt xe với từ khóa: ${searchCode}`,
+          text: err.response?.data?.message || `Không tìm thấy đơn đặt xe với mã: ${searchCode}`,
         });
       }
     } finally {
@@ -591,7 +520,7 @@ export const CounterDesk: React.FC = () => {
     try {
       const res = await api.put(`/bookings/${selectedBooking._id}/checkin`, {
         startOdometer: startOdo,
-        startFuelLevel: 100,
+        startFuelLevel: startFuel,
         checklist,
         checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
@@ -853,104 +782,35 @@ export const CounterDesk: React.FC = () => {
             {/* Quick Search */}
             <form onSubmit={handleSearch} className="bg-[#161616] p-4 rounded-2xl border border-white/10">
               <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
-                Tìm kiếm đơn theo mã, SĐT khách hoặc biển số xe
+                Tra cứu mã đặt xe (Booking Code)
               </label>
               <div className="relative flex items-center">
                 <Search className="w-4 h-4 text-[#6E6E6E] absolute left-3" />
                 <input
                   type="text"
-                  placeholder="Nhập mã đơn, SĐT, biển số xe..."
+                  placeholder="Nhập mã đơn, VD: MV-892101..."
                   value={searchCode}
                   onChange={(e) => setSearchCode(e.target.value)}
                   className="w-full pl-9 pr-24 py-2.5 bg-[#101010] border border-white/10 rounded-xl text-xs font-medium text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
                 />
-                {searchCode && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchCode('');
-                      fetchBookings(statusFilter, queueFilter, '');
-                    }}
-                    className="absolute right-20 text-[#6E6E6E] hover:text-white p-1"
-                    title="Xóa tìm kiếm"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
                 <button
                   type="submit"
-                  className="absolute right-1.5 px-3 py-1.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] rounded-lg text-xs font-bold transition-colors"
+                  className="absolute right-1.5 px-3 py-1.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] rounded-lg text-xs font-bold hover:bg-[#FFD6B3] transition-colors"
                 >
-                  Tìm kiếm
+                  Tra cứu
                 </button>
               </div>
             </form>
 
             {/* Bookings Queue */}
             <div className="bg-[#161616] rounded-2xl border border-white/10 overflow-hidden">
-              <div className="p-4 border-b border-white/5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-[#F5F5F5] uppercase tracking-wider flex items-center gap-2">
-                    Hàng đợi chi nhánh
-                    <span className="text-[11px] font-semibold text-[#A0A0A0] bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
-                      {bookings.length}
-                    </span>
-                  </h3>
-                  {/* Queue Toggle: Today vs All */}
-                  <div className="flex items-center gap-1 bg-[#101010] p-1 rounded-xl border border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => handleQueueToggle('today')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        queueFilter === 'today'
-                          ? 'bg-[#FFC799] text-[#101010] shadow-sm'
-                          : 'text-[#A0A0A0] hover:text-white'
-                      }`}
-                    >
-                      Hôm nay ({orderCounts.today})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQueueToggle('all')}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                        queueFilter === 'all'
-                          ? 'bg-[#FFC799] text-[#101010] shadow-sm'
-                          : 'text-[#A0A0A0] hover:text-white'
-                      }`}
-                    >
-                      Tất cả ({orderCounts.total})
-                    </button>
-                  </div>
-                </div>
-
-                {/* Status Filter Chips */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-                  {[
-                    { key: 'all', label: 'Tất cả' },
-                    { key: 'confirmed', label: 'Chờ nhận', count: orderCounts.confirmed },
-                    { key: 'ongoing', label: 'Đang thuê', count: orderCounts.ongoing },
-                    { key: 'completed', label: 'Đã trả', count: orderCounts.completed },
-                    { key: 'cancelled', label: 'Đã hủy', count: orderCounts.cancelled },
-                  ].map((tab) => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      onClick={() => handleTabChange(tab.key)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                        statusFilter === tab.key
-                          ? 'bg-white/15 text-white border border-white/20'
-                          : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/5'
-                      }`}
-                    >
-                      <span>{tab.label}</span>
-                      {tab.count !== undefined && (
-                        <span className="text-[10px] font-bold opacity-75">
-                          ({tab.count})
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+              <div className="p-4 border-b border-white/5 flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#F5F5F5] uppercase tracking-wider">
+                  Hàng đợi chi nhánh ({bookings.length})
+                </h3>
+                <span className="text-[11px] font-semibold text-[#FFC799] bg-[#FFC799]/10 border border-[#FFC799]/20 px-2 py-0.5 rounded">
+                  Hôm nay
+                </span>
               </div>
 
               {loading ? (
@@ -1173,39 +1033,97 @@ export const CounterDesk: React.FC = () => {
                         </button>
                       </div>
                     )}
-                    {/* Odometer Input */}
-                    <div>
-                      <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                        <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                        Ghi nhận chỉ số ODO công-tơ-mét khi giao
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={startOdo || ''}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) => setStartOdo(e.target.value === '' ? 0 : Number(e.target.value))}
-                        disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
-                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
-                      />
-                      <p className="text-[11px] text-[#A0A0A0] mt-1">
-                        Chỉ số ODO làm căn cứ đối chiếu khi khách bàn giao trả xe.
-                      </p>
+                    {/* 1. Customer Identity & eKYC Verification Card */}
+                    <div className="p-3.5 rounded-xl border border-white/10 bg-[#101010] flex items-center justify-between gap-3">
+                      <div className="flex items-center space-x-2.5">
+                        <UserCheck className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
+                        <div>
+                          <div className="text-xs font-bold text-white flex items-center gap-2">
+                            Xác thực danh tính khách hàng (eKYC)
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              typeof selectedBooking.userId === 'object' && selectedBooking.userId && (selectedBooking.userId as User).identityStatus === 'Verified'
+                                ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
+                                : 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
+                            }`}>
+                              {typeof selectedBooking.userId === 'object' && selectedBooking.userId && (selectedBooking.userId as User).identityStatus === 'Verified'
+                                ? 'Đã xác minh (Verified)'
+                                : 'Chưa xác minh'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-[#A0A0A0] mt-0.5">
+                            Căn cước công dân (CCCD / Passport) & Giấy phép lái xe (GPLX)
+                          </div>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* 5-point Checklist */}
+                    {/* 2. Odometer Input & Fuel Level Selector */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Odometer Input */}
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
+                          <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                          Chỉ số ODO khi bàn giao (km)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={startOdo}
+                          onChange={(e) => setStartOdo(Number(e.target.value))}
+                          disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
+                          className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                        />
+                        <p className="text-[11px] text-[#A0A0A0] mt-1">
+                          Căn cứ đối chiếu ODO khi trả xe.
+                        </p>
+                      </div>
+
+                      {/* Fuel Level Selector */}
+                      <div>
+                        <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
+                          <span className="flex items-center">
+                            <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                            Mức nhiên liệu / Xăng
+                          </span>
+                          <span className="text-xs font-bold text-[#FFC799]">{startFuel}</span>
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5">
+                          {['100%', '75%', '50%', '25%'].map((lvl) => (
+                            <button
+                              key={lvl}
+                              type="button"
+                              disabled={selectedBooking.status !== 'Confirmed' && selectedBooking.status !== 'Approved'}
+                              onClick={() => setStartFuel(lvl)}
+                              className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${
+                                startFuel === lvl
+                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
+                              }`}
+                            >
+                              {lvl}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-[#A0A0A0] mt-1">
+                          Ghi nhận lượng nhiên liệu thực tế khi giao xe.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 3. 5-point Handover & Safety Checklist */}
                     <div>
                       <label className="block text-xs font-semibold text-[#A0A0A0] mb-2 flex items-center">
                         <FileCheck className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                        Biên bản kiểm tra kỹ thuật an toàn trước khi rời trạm
+                        Biên bản bàn giao 5 điểm an toàn trước khi rời trạm (UC-56)
                       </label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                         {[
-                          { key: 'tires' as ChecklistKey, label: 'Áp suất lốp xe & độ bám đường tốt' },
-                          { key: 'brakes' as ChecklistKey, label: 'Phanh trước & sau hoạt động nhạy' },
-                          { key: 'lights' as ChecklistKey, label: 'Đèn pha, xi nhan, còi xe hoạt động' },
-                          { key: 'fuel' as ChecklistKey, label: 'Xăng/Pin đầy bình khi giao khách' },
-                          { key: 'helmets' as ChecklistKey, label: 'Đã giao 2 nón bảo hiểm chuẩn CR + 2 áo mưa' },
+                          { key: 'idCardVerified' as ChecklistKey, label: '1. Đã đối chiếu CCCD/Passport khách hàng' },
+                          { key: 'drivingLicenseVerified' as ChecklistKey, label: '2. Đã kiểm tra GPLX xe máy còn hiệu lực' },
+                          { key: 'tires' as ChecklistKey, label: '3. Áp suất lốp xe & độ bám đường tốt' },
+                          { key: 'brakes' as ChecklistKey, label: '4. Phanh trước & sau hoạt động nhạy' },
+                          { key: 'lights' as ChecklistKey, label: '5. Đèn pha, xi nhan, còi xe hoạt động' },
+                          { key: 'helmets' as ChecklistKey, label: '6. Đã giao 2 nón bảo hiểm CR + 2 áo mưa' },
                         ].map((item) => (
                           <label
                             key={item.key}
@@ -1493,9 +1411,8 @@ export const CounterDesk: React.FC = () => {
                       <input
                         type="number"
                         min={selectedBooking.startOdometer || 0}
-                        value={endOdo || ''}
-                        onWheel={(e) => e.currentTarget.blur()}
-                        onChange={(e) => setEndOdo(e.target.value === '' ? 0 : Number(e.target.value))}
+                        value={endOdo}
+                        onChange={(e) => setEndOdo(Number(e.target.value))}
                         disabled={selectedBooking.status !== 'Ongoing'}
                         className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                       />
@@ -1689,7 +1606,6 @@ export const CounterDesk: React.FC = () => {
                           min="0"
                           step="10000"
                           value={damageFee}
-                          onWheel={(e) => e.currentTarget.blur()}
                           onChange={(e) => setDamageFee(Number(e.target.value))}
                           disabled={selectedBooking.status !== 'Ongoing'}
                           className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white disabled:opacity-50"

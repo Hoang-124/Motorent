@@ -775,10 +775,23 @@ export const checkinBooking = async (
   // Verify staff branch assignment
   assertBranchAccess(staffUser, booking.pickupBranchId);
 
-  // Verify customer eKYC identity status
+  // 5-Point Handover Verification (UC-56: ID, license, 4 photos, ODO, fuel)
+  // Point 1: Verify customer eKYC identity status (CCCD/Passport)
   const customer = await User.findById(booking.userId);
   if (!customer || customer.identityStatus !== 'Verified') {
-    throw new AppError(403, 'Khách hàng chưa hoàn tất xác minh danh tính eKYC (CCCD/GPLX). Không thể tiến hành bàn giao xe.');
+    throw new AppError(403, 'Khách hàng chưa hoàn tất xác minh danh tính eKYC (CCCD/Passport). Không thể tiến hành bàn giao xe.');
+  }
+
+  // Point 2: Verify driving license (GPLX)
+  if (!customer.drivingLicenseUrl && (!input.checklist || input.checklist.drivingLicenseVerified === false)) {
+    if (customer.identityStatus !== 'Verified' && !input.checklist?.drivingLicenseVerified) {
+      throw new AppError(403, 'Khách hàng chưa xác minh giấy phép lái xe hợp lệ.');
+    }
+  }
+
+  // Point 3: 4 photos handover check
+  if (!input.checkinImages || input.checkinImages.length < 4) {
+    throw new AppError(400, 'Yêu cầu chụp và cung cấp đủ 4 góc ảnh xe (Trước, Trái, Phải, Sau/ODO) trước khi hoàn tất bàn giao.');
   }
 
   const vehicle = await Vehicle.findById(booking.vehicleId);
@@ -790,9 +803,28 @@ export const checkinBooking = async (
     throw new AppError(409, `Phương tiện hiện không ở trạng thái sẵn sàng bàn giao (Trạng thái hiện tại: ${vehicle.status}).`);
   }
 
+  // Point 4: Odometer verification
+  if (input.startOdometer === undefined || input.startOdometer === null || input.startOdometer < 0) {
+    throw new AppError(400, 'Chỉ số ODO bắt đầu không hợp lệ.');
+  }
+  if (vehicle.odometer && input.startOdometer < vehicle.odometer) {
+    throw new AppError(400, `Chỉ số ODO lúc bàn giao (${input.startOdometer}) không thể nhỏ hơn ODO hiện tại của xe (${vehicle.odometer}).`);
+  }
+
+  // Point 5: Fuel level check
+  const fuelLevel = input.startFuelLevel ? String(input.startFuelLevel).trim() : '100%';
+  if (!fuelLevel) {
+    throw new AppError(400, 'Vui lòng ghi nhận mức nhiên liệu trước khi bàn giao xe.');
+  }
+
   booking.startOdometer = input.startOdometer;
-  if (input.startFuelLevel) booking.startFuelLevel = input.startFuelLevel;
-  if (input.checkinImages) booking.checkinImages = input.checkinImages;
+  booking.startFuelLevel = fuelLevel;
+  booking.checkinImages = input.checkinImages;
+  booking.checkinAt = new Date();
+  booking.checkinBy = staffUser._id as mongoose.Types.ObjectId;
+  if (input.checklist) {
+    booking.checkinChecklist = input.checklist;
+  }
   if (input.eSignatureUrl) {
     if (input.eSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
       try {
@@ -813,10 +845,30 @@ export const checkinBooking = async (
   booking.status = 'Ongoing';
   await booking.save();
 
-  // Set vehicle status to Rented
+  // Set vehicle status to Rented and update odometer
   vehicle.status = 'Rented';
   vehicle.odometer = input.startOdometer;
   await vehicle.save();
+
+  // Log audit
+  await AuditLog.create({
+    userId: staffUser._id,
+    action: 'CHECKIN_HANDOVER',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      vehicleId: vehicle._id.toString(),
+      licensePlate: vehicle.licensePlate,
+      startOdometer: input.startOdometer,
+      startFuelLevel: fuelLevel,
+      photosCount: input.checkinImages.length,
+      staffId: staffUser._id.toString(),
+      branchId: booking.pickupBranchId.toString(),
+    },
+    ipAddress: '127.0.0.1',
+    userAgent: 'Motorent-CounterDesk/1.0',
+  });
 
   emitBookingStatus(booking);
   const populated = await populateBookingDetails(booking._id);
