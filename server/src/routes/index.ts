@@ -17,6 +17,9 @@ import maintenanceRoutes from '../modules/fleet/maintenanceRoutes';
 import dashboardRoutes from '../modules/fleet/dashboardRoutes';
 import wishlistRoutes from '../modules/wishlist/wishlistRoutes';
 import reviewRoutes from '../modules/review/reviewRoutes';
+import staffRoutes from '../modules/hr/staffRoutes';
+import scheduleRoutes from '../modules/hr/scheduleRoutes';
+import discountRoutes from '../modules/discount/discountRoutes';
 import * as reviewController from '../modules/review/reviewController';
 import { adminBannerRouter, publicBannerRouter } from '../modules/cms/bannerRoutes';
 import { adminPageRouter, publicPageRouter } from '../modules/cms/pageRoutes';
@@ -58,6 +61,9 @@ router.use('/payments', paymentRoutes);
 router.use('/audit', auditRoutes);
 router.use('/chat', chatRoutes);
 router.use('/finance', financeRoutes);
+router.use('/staff', staffRoutes);
+router.use('/schedules', scheduleRoutes);
+router.use('/discounts', discountRoutes);
 
 // Customer Review profile route: GET /api/me/reviews
 router.get(

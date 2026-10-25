@@ -255,4 +255,17 @@ router.put(
   }
 );
 
+/**
+ * System Policies & Configuration (UC-113, UC-114, UC-115)
+ */
+import * as systemConfigController from './systemConfigController';
+
+router.get('/system/config', systemConfigController.getSystemConfig);
+router.put(
+  '/system/config',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  systemConfigController.updateSystemConfig
+);
+
 export default router;

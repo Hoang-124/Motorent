@@ -456,3 +456,64 @@ export interface ManagerPendingComplaintsResponse {
     totalPages: number;
   };
 }
+
+// ==========================================
+// HR Shift Scheduling & Attendance Types (UC-84)
+// ==========================================
+export type ShiftType = 'Morning' | 'Afternoon' | 'Evening' | 'FullDay';
+export type ShiftStatus = 'Assigned' | 'Present' | 'Absent' | 'Cancelled';
+
+export interface StaffSchedule {
+  _id: string;
+  staffId: User;
+  branchId: Branch;
+  shiftDate: string;
+  shiftType: ShiftType;
+  status: ShiftStatus;
+  checkInTime?: string;
+  checkOutTime?: string;
+  assignedBy?: User;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==========================================
+// Voucher / Discount Types (UC-110 - UC-112)
+// ==========================================
+export interface Discount {
+  _id: string;
+  code: string;
+  description?: string;
+  discountPercent: number;
+  maxDiscountAmount?: number;
+  minBookingAmount?: number;
+  startDate: string;
+  endDate: string;
+  usageLimit: number;
+  usedCount: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==========================================
+// System Policies & Config Types (UC-113 - UC-115)
+// ==========================================
+export interface SystemConfig {
+  _id: string;
+  key: string;
+  depositPercent: number;
+  cancelFreeHours: number;
+  cancelPartialRefundPercent: number;
+  lateFeePerHour: number;
+  loyaltySpendPerPoint: number;
+  loyaltyPointValueVnd: number;
+  minPointsToRedeem: number;
+  supportHotline: string;
+  supportEmail: string;
+  updatedBy?: User;
+  createdAt: string;
+  updatedAt: string;
+}
+

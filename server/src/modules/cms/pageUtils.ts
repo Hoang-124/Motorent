@@ -164,7 +164,7 @@ export function sanitizePageContent(rawHtml: string): string {
     },
     allowProtocolRelative: false,
     transformTags: {
-      a: (tagName, attribs) => {
+      a: (tagName: string, attribs: Record<string, string>) => {
         const nextAttribs = { ...attribs };
         if (nextAttribs.target === '_blank') {
           nextAttribs.rel = 'noopener noreferrer';
