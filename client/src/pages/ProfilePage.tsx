@@ -43,6 +43,7 @@ import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHel
 import { compressEkycImage } from '../utils/watermark';
 import type { Booking, Vehicle, Branch, Review } from '../types';
 import { ReviewModal } from '../components/ReviewModal';
+import { SecureEkycImage } from '../components/SecureEkycImage';
 
 export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password';
 
@@ -155,10 +156,13 @@ export const ProfilePage: React.FC = () => {
   const [idCardFrontPreview, setIdCardFrontPreview] = useState<string | null>(null);
   const [idCardBackFile, setIdCardBackFile] = useState<File | null>(null);
   const [idCardBackPreview, setIdCardBackPreview] = useState<string | null>(null);
+  const [drivingLicenseFile, setDrivingLicenseFile] = useState<File | null>(null);
+  const [drivingLicensePreview, setDrivingLicensePreview] = useState<string | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
-  const [isWatermarking, setIsWatermarking] = useState<'idCardFront' | 'idCardBack' | 'selfiePhoto' | null>(null);
+  const [isWatermarking, setIsWatermarking] = useState<'idCardFront' | 'idCardBack' | 'drivingLicense' | 'selfiePhoto' | null>(null);
   const [ekycConsent, setEkycConsent] = useState(false);
+  const [zoomEkycDoc, setZoomEkycDoc] = useState<{ title: string; src: string } | null>(null);
 
   // Status indicators
   const [loading, setLoading] = useState(false);
@@ -599,10 +603,10 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // eKYC upload handler
+  // eKYC upload handler (preserves clean, unmasked document clarity for customer & staff)
   const handleDocFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: 'idCardFront' | 'idCardBack' | 'selfiePhoto'
+    type: 'idCardFront' | 'idCardBack' | 'drivingLicense' | 'selfiePhoto'
   ) => {
     if (e.target.files && e.target.files[0]) {
       const rawFile = e.target.files[0];
@@ -616,7 +620,7 @@ export const ProfilePage: React.FC = () => {
       setErrorMsg('');
 
       try {
-        const optimizedFile = await compressEkycImage(rawFile, 1280);
+        const optimizedFile = await compressEkycImage(rawFile, 1440);
         const objUrl = URL.createObjectURL(optimizedFile);
         if (type === 'idCardFront') {
           setIdCardFrontFile(optimizedFile);
@@ -624,6 +628,9 @@ export const ProfilePage: React.FC = () => {
         } else if (type === 'idCardBack') {
           setIdCardBackFile(optimizedFile);
           setIdCardBackPreview(objUrl);
+        } else if (type === 'drivingLicense') {
+          setDrivingLicenseFile(optimizedFile);
+          setDrivingLicensePreview(objUrl);
         } else {
           setSelfieFile(optimizedFile);
           setSelfiePreview(objUrl);
@@ -636,6 +643,9 @@ export const ProfilePage: React.FC = () => {
         } else if (type === 'idCardBack') {
           setIdCardBackFile(rawFile);
           setIdCardBackPreview(fallbackUrl);
+        } else if (type === 'drivingLicense') {
+          setDrivingLicenseFile(rawFile);
+          setDrivingLicensePreview(fallbackUrl);
         } else {
           setSelfieFile(rawFile);
           setSelfiePreview(fallbackUrl);
@@ -648,8 +658,8 @@ export const ProfilePage: React.FC = () => {
 
   const handleUploadEkyc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!idCardFrontFile && !idCardBackFile && !selfieFile) {
-      setErrorMsg('Vui lòng chọn ảnh CCCD (mặt trước / mặt sau) và ảnh chân dung để gửi thẩm định.');
+    if (!idCardFrontFile && !idCardBackFile && !drivingLicenseFile && !selfieFile) {
+      setErrorMsg('Vui lòng chọn ít nhất một ảnh giấy tờ (CCCD / GPLX / ảnh chân dung) để gửi thẩm định.');
       return;
     }
 
@@ -665,6 +675,7 @@ export const ProfilePage: React.FC = () => {
     const formData = new FormData();
     if (idCardFrontFile) formData.append('idCardFront', idCardFrontFile);
     if (idCardBackFile) formData.append('idCardBack', idCardBackFile);
+    if (drivingLicenseFile) formData.append('drivingLicense', drivingLicenseFile);
     if (selfieFile) formData.append('selfiePhoto', selfieFile);
     formData.append('consentAgreed', 'true');
     formData.append('watermarked', 'false');
@@ -678,9 +689,10 @@ export const ProfilePage: React.FC = () => {
 
       if (res.data && res.data.success) {
         updateUser(res.data.data.user);
-        setSuccessMsg('Đã gửi hồ sơ thẩm định eKYC thành công.');
+        setSuccessMsg('Đã gửi hồ sơ thẩm định eKYC thành công. Giấy tờ được mã hóa AES-256-GCM an toàn.');
         setIdCardFrontFile(null);
         setIdCardBackFile(null);
+        setDrivingLicenseFile(null);
         setSelfieFile(null);
       } else {
         setErrorMsg(res.data?.message || 'Không thể gửi hồ sơ eKYC.');
@@ -769,14 +781,10 @@ export const ProfilePage: React.FC = () => {
 
   const formatDocUrl = (url?: string) => {
     if (!url) return null;
-    const resolved = getUserAvatarUrl(url);
-    if (!resolved) return null;
-    const token = localStorage.getItem('motorent_token') || localStorage.getItem('token');
-    if (token && resolved.includes('/api/auth/ekyc/document')) {
-      const sep = resolved.includes('?') ? '&' : '?';
-      return `${resolved}${sep}token=${encodeURIComponent(token)}&v=${user.identityStatus}_${user.ekycWatermarked ? '1' : '0'}`;
+    if (url.includes('/auth/ekyc/document/')) {
+      return url.startsWith('/api') ? url.slice(4) : url;
     }
-    return resolved;
+    return getUserAvatarUrl(url);
   };
 
   const TABS: { id: ProfileTab; num: string; label: string; count?: number; statusTag?: string }[] = [
@@ -1831,13 +1839,13 @@ export const ProfilePage: React.FC = () => {
                   Định danh điện tử eKYC — Nhận xe không giữ CCCD gốc
                 </h2>
                 <p className="text-xs text-[#A0A0A0] mt-1">
-                  Tải lên 2 mặt CCCD và ảnh chân dung để đối soát trước, giúp nhận bàn giao xe tại trạm chỉ trong 03 phút.
+                  Chính chủ xem rõ nét toàn bộ giấy tờ cá nhân không bị che mờ. Tệp gốc được khóa mã hóa AES-256-GCM chống xâm nhập trái phép.
                 </p>
               </div>
 
               <div>
                 {user.identityStatus === 'Verified' ? (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30">
                     <CheckCircle2 className="w-4 h-4 mr-1.5" />
                     Đã duyệt hợp lệ
                   </span>
@@ -1845,6 +1853,11 @@ export const ProfilePage: React.FC = () => {
                   <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30">
                     <Clock className="w-4 h-4 mr-1.5" />
                     Đang chờ nhân viên đối soát
+                  </span>
+                ) : user.identityStatus === 'Rejected' ? (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30">
+                    <AlertCircle className="w-4 h-4 mr-1.5" />
+                    Cần bổ sung lại
                   </span>
                 ) : (
                   <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-[#A0A0A0] border border-white/10">
@@ -1854,97 +1867,117 @@ export const ProfilePage: React.FC = () => {
               </div>
             </div>
 
+            {user.identityStatus === 'Rejected' && user.ekycRejectionReason && (
+              <div className="p-4 rounded-xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-xs text-[#FF8080] flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Phản hồi từ bộ phận thẩm định:</span>
+                  <span className="text-[#F5F5F5]">{user.ekycRejectionReason}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 rounded-xl bg-[#101010] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2.5">
+                <ShieldCheck className="w-4 h-4 text-[#99FFE4] shrink-0" />
+                <div>
+                  <span className="text-[#A0A0A0]">Số CCCD / Hộ chiếu chính chủ: </span>
+                  <strong className="font-mono text-[#F5F5F5] tracking-wider">
+                    {user.idCardNumber || 'Chưa khai báo (Cập nhật tại tab Thông tin cá nhân)'}
+                  </strong>
+                </div>
+              </div>
+              <span className="inline-flex items-center space-x-1 text-[11px] font-mono text-[#99FFE4] bg-[#99FFE4]/10 border border-[#99FFE4]/25 px-2.5 py-1 rounded-lg">
+                <Lock className="w-3 h-3" />
+                <span>Bảo mật mã hóa AES-256-GCM</span>
+              </span>
+            </div>
+
             <form onSubmit={handleUploadEkyc} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 1. CCCD Front */}
-                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
-                  <span className="text-xs font-semibold text-[#F5F5F5]">1. Mặt trước CCCD *</span>
-                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
-                    {isWatermarking === 'idCardFront' ? (
-                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
-                    ) : idCardFrontPreview || formatDocUrl(user.idCardFrontUrl) ? (
-                      <img
-                        src={idCardFrontPreview || formatDocUrl(user.idCardFrontUrl)!}
-                        alt="CCCD Front"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-center space-y-1 p-3">
-                        <FileCheck2 className="w-7 h-7 text-[#6E6E6E] mx-auto" />
-                        <span className="text-[11px] text-[#6E6E6E] block">Chưa có ảnh mặt trước</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    type: 'idCardFront' as const,
+                    label: '1. Mặt trước CCCD *',
+                    preview: idCardFrontPreview,
+                    savedUrl: formatDocUrl(user.idCardFrontUrl),
+                    file: idCardFrontFile,
+                    emptyText: 'Chưa có ảnh mặt trước',
+                  },
+                  {
+                    type: 'idCardBack' as const,
+                    label: '2. Mặt sau CCCD *',
+                    preview: idCardBackPreview,
+                    savedUrl: formatDocUrl(user.idCardBackUrl),
+                    file: idCardBackFile,
+                    emptyText: 'Chưa có ảnh mặt sau',
+                  },
+                  {
+                    type: 'drivingLicense' as const,
+                    label: '3. Giấy phép lái xe (A1/A2)',
+                    preview: drivingLicensePreview,
+                    savedUrl: formatDocUrl(user.drivingLicenseUrl),
+                    file: drivingLicenseFile,
+                    emptyText: 'Tùy chọn tải bằng lái xe',
+                  },
+                  {
+                    type: 'selfiePhoto' as const,
+                    label: '4. Ảnh chân dung đối chiếu *',
+                    preview: selfiePreview,
+                    savedUrl: formatDocUrl(user.selfieUrl),
+                    file: selfieFile,
+                    emptyText: 'Chụp chính diện rõ mặt',
+                  },
+                ].map((slot) => {
+                  const activeSrc = slot.preview || slot.savedUrl;
+                  return (
+                    <div
+                      key={slot.type}
+                      className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[#F5F5F5]">{slot.label}</span>
+                        {activeSrc && (
+                          <button
+                            type="button"
+                            onClick={() => setZoomEkycDoc({ title: slot.label, src: activeSrc })}
+                            className="p-1 rounded-md bg-white/5 hover:bg-[#FFC799]/20 text-[#FFC799] transition-colors cursor-pointer"
+                            title="Phóng to xem rõ nét"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
-                    <span>{idCardFrontFile ? 'Đổi ảnh mặt trước' : 'Chọn ảnh mặt trước'}</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleDocFileChange(e, 'idCardFront')}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                {/* 2. CCCD Back */}
-                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
-                  <span className="text-xs font-semibold text-[#F5F5F5]">2. Mặt sau CCCD *</span>
-                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
-                    {isWatermarking === 'idCardBack' ? (
-                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
-                    ) : idCardBackPreview || formatDocUrl(user.idCardBackUrl) ? (
-                      <img
-                        src={idCardBackPreview || formatDocUrl(user.idCardBackUrl)!}
-                        alt="CCCD Back"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-center space-y-1 p-3">
-                        <FileCheck2 className="w-7 h-7 text-[#6E6E6E] mx-auto" />
-                        <span className="text-[11px] text-[#6E6E6E] block">Chưa có ảnh mặt sau</span>
+                      <div
+                        onClick={() => activeSrc && setZoomEkycDoc({ title: slot.label, src: activeSrc })}
+                        className={`w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center ${
+                          activeSrc ? 'cursor-zoom-in' : ''
+                        }`}
+                      >
+                        {isWatermarking === slot.type ? (
+                          <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
+                        ) : (
+                          <SecureEkycImage
+                            src={activeSrc}
+                            alt={slot.label}
+                            versionKey={`${user.identityStatus}_${user.updatedAt || ''}`}
+                            emptyText={slot.emptyText}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
-                    <span>{idCardBackFile ? 'Đổi ảnh mặt sau' : 'Chọn ảnh mặt sau'}</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleDocFileChange(e, 'idCardBack')}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                {/* 3. Selfie */}
-                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
-                  <span className="text-xs font-semibold text-[#F5F5F5]">3. Ảnh chân dung đối chiếu *</span>
-                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
-                    {isWatermarking === 'selfiePhoto' ? (
-                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
-                    ) : selfiePreview || formatDocUrl(user.selfieUrl) ? (
-                      <img
-                        src={selfiePreview || formatDocUrl(user.selfieUrl)!}
-                        alt="Selfie"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-center space-y-1 p-3">
-                        <Camera className="w-7 h-7 text-[#6E6E6E] mx-auto" />
-                        <span className="text-[11px] text-[#6E6E6E] block">Chụp chính diện rõ khuôn mặt</span>
-                      </div>
-                    )}
-                  </div>
-                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
-                    <span>{selfieFile ? 'Đổi ảnh chân dung' : 'Chọn ảnh chân dung'}</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleDocFileChange(e, 'selfiePhoto')}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+                      <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
+                        <span>{slot.file ? 'Đổi tệp ảnh đã chọn' : activeSrc ? 'Tải ảnh cập nhật mới' : 'Chọn tệp ảnh'}</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => handleDocFileChange(e, slot.type)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="p-4 bg-[#101010] rounded-xl border border-white/10">
@@ -1956,7 +1989,7 @@ export const ProfilePage: React.FC = () => {
                     className="mt-0.5 h-4 w-4 rounded border-white/20 accent-[#FFC799] cursor-pointer shrink-0"
                   />
                   <span className="text-xs text-[#A0A0A0] leading-relaxed">
-                    Tôi đồng ý cung cấp hình ảnh CCCD và chân dung để Motorent đối soát xác thực hợp đồng thuê xe theo Nghị định 13/2023/NĐ-CP. Hệ thống tự động đóng dấu bảo mật lên ảnh CCCD sau khi duyệt.
+                    Tôi đồng ý cung cấp hình ảnh giấy tờ định danh để Motorent đối soát hợp đồng thuê xe theo Nghị định 13/2023/NĐ-CP. Toàn bộ dữ liệu được mã hóa chuẩn AES-256-GCM tại máy chủ, truyền tải riêng tư không lộ khóa xác thực và chỉ hiển thị cho chính chủ cùng nhân sự có thẩm quyền.
                   </span>
                 </label>
               </div>
@@ -1967,14 +2000,17 @@ export const ProfilePage: React.FC = () => {
                   disabled={
                     loading ||
                     user.identityStatus === 'Pending' ||
-                    user.identityStatus === 'Verified' ||
-                    (!idCardFrontFile && !idCardBackFile && !selfieFile) ||
+                    (!idCardFrontFile && !idCardBackFile && !drivingLicenseFile && !selfieFile) ||
                     !ekycConsent
                   }
                   className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <UploadCloud className="w-4 h-4" />
-                  <span>Gửi hồ sơ thẩm định eKYC</span>
+                  <span>
+                    {user.identityStatus === 'Verified'
+                      ? 'Gửi cập nhật lại hồ sơ giấy tờ'
+                      : 'Gửi hồ sơ thẩm định eKYC'}
+                  </span>
                 </button>
               </div>
             </form>
@@ -2718,6 +2754,41 @@ export const ProfilePage: React.FC = () => {
             await Promise.all([fetchBookings(), fetchMyReviews()]);
           }}
         />
+      )}
+
+      {/* Secure Owner eKYC Lightbox Modal */}
+      {zoomEkycDoc && (
+        <div
+          onClick={() => setZoomEkycDoc(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#161616] border border-white/15 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl"
+          >
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-[#99FFE4]" />
+                <span className="font-bold text-sm text-[#F5F5F5]">{zoomEkycDoc.title}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomEkycDoc(null)}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 bg-[#101010] flex items-center justify-center max-h-[80vh] overflow-auto">
+              <SecureEkycImage
+                src={zoomEkycDoc.src}
+                alt={zoomEkycDoc.title}
+                versionKey={`${user.identityStatus}_${user.updatedAt || ''}`}
+                className="max-w-full max-h-[72vh] object-contain rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

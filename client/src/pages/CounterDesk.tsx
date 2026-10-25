@@ -30,13 +30,14 @@ import {
   Image as ImageIcon,
   Calendar,
   Users,
+  Lock,
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
-import { watermarkImageFromUrl } from '../utils/watermark';
+import { SecureEkycImage } from '../components/SecureEkycImage';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 import { StaffComplaintDesk } from '../components/StaffComplaintDesk';
@@ -126,6 +127,7 @@ interface PendingEkycUser {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  idCardNumber?: string;
   avatarUrl?: string;
   identityStatus: string;
   idCardFrontUrl?: string;
@@ -240,6 +242,9 @@ export const CounterDesk: React.FC = () => {
   });
   const [checkinPhotos, setCheckinPhotos] = useState<string[]>(['', '', '', '']);
   const [signatureData, setSignatureData] = useState<string>('');
+  const [receiverName, setReceiverName] = useState<string>('');
+  const [receiverPhone, setReceiverPhone] = useState<string>('');
+  const [receiverIdCard, setReceiverIdCard] = useState<string>('');
 
   // Check-out form states (UC-57: 4 photos, ODO, fuel, damage, late fee)
   const [endOdo, setEndOdo] = useState<number>(0);
@@ -278,10 +283,34 @@ export const CounterDesk: React.FC = () => {
     return [img0, img1, img2, img3];
   };
 
+  const getEffectivePaidAmount = (b: Booking): number => {
+    if (typeof b.paidAmount === 'number' && b.paidAmount > 0) return b.paidAmount;
+    if (b.depositPaid) return b.depositAmount || 0;
+    return 0;
+  };
+
+  const getEffectivePayableBalance = (b: Booking): number => {
+    if (b.isPaid) return 0;
+    const isInitialPendingUnpaid =
+      b.status === 'Pending' && !b.depositPaid && (b.paidAmount || 0) === 0;
+    if (isInitialPendingUnpaid) return b.totalAmount || 0;
+    return b.remainingAmount || 0;
+  };
+
   const handleSelectBooking = (b: ExtendedBooking) => {
     setSelectedBooking(b);
     setStatusMessage(null);
     setSignatureData(b.eSignatureUrl || '');
+
+    const bookingOwner =
+      typeof b.userId === 'object' && b.userId !== null ? (b.userId as User) : null;
+    const defaultReceiverName = bookingOwner
+      ? [bookingOwner.lastName, bookingOwner.firstName].filter(Boolean).join(' ') ||
+        bookingOwner.username
+      : '';
+    setReceiverName(b.receiverName || defaultReceiverName);
+    setReceiverPhone(b.receiverPhone || bookingOwner?.phoneNumber || '');
+    setReceiverIdCard(b.receiverIdCard || bookingOwner?.idCardNumber || '');
 
     const bikeOdo =
       typeof b.vehicleId === 'object' && b.vehicleId !== null
@@ -453,9 +482,7 @@ export const CounterDesk: React.FC = () => {
   };
 
   const formatAdminDocUrl = (userId: string, docType: string) => {
-    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') as string;
-    const token = localStorage.getItem('motorent_token') || localStorage.getItem('token') || '';
-    return `${apiBase}/auth/ekyc/document/view/${userId}/${docType}?token=${encodeURIComponent(token)}`;
+    return `/auth/ekyc/document/view/${userId}/${docType}`;
   };
 
   const handleReviewEkyc = async (status: 'Verified' | 'Rejected') => {
@@ -463,43 +490,17 @@ export const CounterDesk: React.FC = () => {
     setReviewLoading(true);
     setStatusMessage(null);
     try {
-      let res;
-      if (status === 'Verified') {
-        const [sealedFront, sealedBack] = await Promise.all([
-          watermarkImageFromUrl(
-            formatAdminDocUrl(selectedEkycUser._id, 'idCardFront'),
-            'cccd_front_watermarked.webp',
-            { rentalService: 'MOTORENT VIỆT NAM' }
-          ),
-          watermarkImageFromUrl(
-            formatAdminDocUrl(selectedEkycUser._id, 'idCardBack'),
-            'cccd_back_watermarked.webp',
-            { rentalService: 'MOTORENT VIỆT NAM' }
-          ),
-        ]);
-
-        const formData = new FormData();
-        formData.append('status', 'Verified');
-        if (rejectNote.trim()) formData.append('note', rejectNote.trim());
-        if (sealedFront) formData.append('idCardFront', sealedFront);
-        if (sealedBack) formData.append('idCardBack', sealedBack);
-
-        res = await api.put(`/auth/ekyc/review/${selectedEkycUser._id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-      } else {
-        res = await api.put(`/auth/ekyc/review/${selectedEkycUser._id}`, {
-          status,
-          note: rejectNote.trim() || undefined,
-        });
-      }
+      const res = await api.put(`/auth/ekyc/review/${selectedEkycUser._id}`, {
+        status,
+        note: rejectNote.trim() || undefined,
+      });
 
       if (res.data?.success) {
         setStatusMessage({
           type: 'success',
           text:
             status === 'Verified'
-              ? `Đã phê duyệt eKYC cho ${selectedEkycUser.firstName || selectedEkycUser.username}! 2 mặt CCCD đã tự động chuyển sang dạng đóng dấu bảo mật, ảnh chân dung được giữ nguyên để đối chiếu nhận xe.`
+              ? `Đã phê duyệt eKYC cho ${selectedEkycUser.firstName || selectedEkycUser.username}! Hồ sơ gốc được giữ nguyên hiển thị rõ nét và mã hóa bảo mật chuẩn AES-256-GCM.`
               : `Đã từ chối và gửi yêu cầu chụp lại giấy tờ tới khách hàng ${selectedEkycUser.firstName || selectedEkycUser.username}.`,
         });
         setRejectNote('');
@@ -898,6 +899,10 @@ export const CounterDesk: React.FC = () => {
         checklist,
         checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
+        verifiedAtCounter: true,
+        receiverName: receiverName.trim() || undefined,
+        receiverPhone: receiverPhone.trim() || undefined,
+        receiverIdCard: receiverIdCard.trim() || undefined,
       });
 
       if (res.data?.data) {
@@ -978,8 +983,14 @@ export const CounterDesk: React.FC = () => {
 
   const openCounterPayModal = () => {
     if (!selectedBooking) return;
-    const remaining = selectedBooking.remainingAmount || 0;
-    setCounterPayAmount(remaining);
+    const isInitialPendingUnpaid =
+      selectedBooking.status === 'Pending' &&
+      !selectedBooking.depositPaid &&
+      (selectedBooking.paidAmount || 0) === 0;
+    const maxPayable = getEffectivePayableBalance(selectedBooking);
+    setCounterPayAmount(
+      isInitialPendingUnpaid ? selectedBooking.depositAmount || maxPayable : maxPayable
+    );
     setCounterPayMethod('Cash');
     setCounterPayNotes('');
     setShowCounterPayModal(true);
@@ -988,14 +999,15 @@ export const CounterDesk: React.FC = () => {
   const handleCounterPaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBooking) return;
+    const maxPayable = getEffectivePayableBalance(selectedBooking);
     if (counterPayAmount <= 0) {
       setStatusMessage({ type: 'error', text: 'Số tiền thu phải lớn hơn 0 VNĐ.' });
       return;
     }
-    if (counterPayAmount > (selectedBooking.remainingAmount || 0)) {
+    if (counterPayAmount > maxPayable) {
       setStatusMessage({
         type: 'error',
-        text: `Số tiền thu (${counterPayAmount.toLocaleString('vi-VN')} đ) vượt quá số dư còn lại (${(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ).`,
+        text: `Số tiền thu (${counterPayAmount.toLocaleString('vi-VN')} đ) vượt quá số dư cần thanh toán (${maxPayable.toLocaleString('vi-VN')} đ).`,
       });
       return;
     }
@@ -1537,12 +1549,7 @@ export const CounterDesk: React.FC = () => {
                               Đã thanh toán
                             </span>
                             <span className="font-bold text-[#99FFE4] text-sm">
-                              {(
-                                selectedBooking.paidAmount ||
-                                selectedBooking.depositAmount ||
-                                0
-                              ).toLocaleString('vi-VN')}{' '}
-                              đ
+                              {getEffectivePaidAmount(selectedBooking).toLocaleString('vi-VN')} đ
                             </span>
                           </div>
                           <div>
@@ -1551,12 +1558,12 @@ export const CounterDesk: React.FC = () => {
                             </span>
                             <span
                               className={`font-bold text-sm ${
-                                selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0
+                                getEffectivePayableBalance(selectedBooking) <= 0
                                   ? 'text-[#99FFE4]'
                                   : 'text-[#FF8080]'
                               }`}
                             >
-                              {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
+                              {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ
                             </span>
                           </div>
                         </div>
@@ -1591,7 +1598,7 @@ export const CounterDesk: React.FC = () => {
                               </button>
                             )}
 
-                          {selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0 ? (
+                          {getEffectivePayableBalance(selectedBooking) <= 0 ? (
                             <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-[#99FFE4]/10 text-[#99FFE4] border border-[#99FFE4]/30">
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                               Đã tất toán 100%
@@ -1605,7 +1612,7 @@ export const CounterDesk: React.FC = () => {
                               <Wallet className="w-3.5 h-3.5 mr-1.5" />
                               <span>
                                 Thu tiền tại quầy (
-                                {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ)
+                                {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ)
                               </span>
                             </button>
                           )}
@@ -1717,85 +1724,143 @@ export const CounterDesk: React.FC = () => {
                   {/* Tab 1: Check-in Process */}
                   {activeTab === 'checkin' && (
                     <div className="p-6 space-y-5">
-                      {/* UC-73: Manager Approval Banner for Pending Bookings */}
+                      {/* Pending Booking Activation Banner: Counter Payment (Staff/Manager) or UC-73 Approval */}
                       {selectedBooking.status === 'Pending' && (
                         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
                           <div className="flex items-center space-x-2.5 text-amber-400">
                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                             <div>
                               <span className="font-semibold block">
-                                Đơn đặt xe đang chờ Quản lý chi nhánh phê duyệt (UC-73)
+                                Đơn đặt xe đang chờ kích hoạt thanh toán cọc hoặc phê duyệt
                               </span>
                               <span className="text-[11px] text-amber-300/80">
-                                {isManager
-                                  ? 'Bạn là Quản lý chi nhánh / Admin. Nhấn nút để phê duyệt xe và cho phép nhân viên thực hiện thủ tục Check-in bàn giao.'
-                                  : 'Đơn cần được Quản lý chi nhánh phê duyệt trước khi nhân viên thực hiện thủ tục Check-in bàn giao.'}
+                                Nhân viên quầy có thể thu cọc 30% / thanh toán 100% trực tiếp tại quầy để kích hoạt đơn ngay lập tức và tiến hành bàn giao xe.
                               </span>
                             </div>
                           </div>
-                          {isManager && (
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
-                              onClick={handleApproveBooking}
-                              disabled={approving}
-                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-md"
+                              onClick={openCounterPayModal}
+                              className="px-3.5 py-2 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer shadow-md"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{approving ? 'Đang duyệt...' : 'Phê duyệt đơn đặt xe'}</span>
+                              <Wallet className="w-3.5 h-3.5" />
+                              <span>Thu cọc / Thanh toán kích hoạt đơn</span>
                             </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Unpaid 70% Alert Banner */}
-                      {!selectedBooking.isPaid && (selectedBooking.remainingAmount || 0) > 0 && (
-                        <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
-                          <div className="flex items-center space-x-2.5 text-[#FFC799]">
-                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                            <span>
-                              Khách hàng chưa thanh toán 70% còn lại (
-                              <strong>
-                                {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
-                              </strong>
-                              ).
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={openCounterPayModal}
-                            className="px-3 py-1 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-xs transition-colors cursor-pointer"
-                          >
-                            Thu tiền ngay
-                          </button>
-                        </div>
-                      )}
-
-                      {/* 1. Customer Identity & eKYC Verification Card (UC-56) */}
-                      <div className="p-3.5 rounded-xl border border-white/10 bg-[#101010] flex items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2.5">
-                          <UserCheck className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
-                          <div>
-                            <div className="text-xs font-bold text-white flex items-center gap-2">
-                              Xác thực danh tính khách hàng (eKYC)
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  typeof selectedBooking.userId === 'object' &&
-                                  selectedBooking.userId &&
-                                  (selectedBooking.userId as User).identityStatus === 'Verified'
-                                    ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
-                                    : 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
-                                }`}
+                            {isManager && (
+                              <button
+                                type="button"
+                                onClick={handleApproveBooking}
+                                disabled={approving}
+                                className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-md"
                               >
-                                {typeof selectedBooking.userId === 'object' &&
-                                selectedBooking.userId &&
-                                (selectedBooking.userId as User).identityStatus === 'Verified'
-                                  ? 'Đã xác minh (Verified)'
-                                  : 'Chưa xác minh'}
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>{approving ? 'Đang duyệt...' : 'Quản lý duyệt đơn (UC-73)'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Unpaid Remaining Balance Alert Banner */}
+                      {selectedBooking.status !== 'Pending' &&
+                        getEffectivePayableBalance(selectedBooking) > 0 && (
+                          <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center space-x-2.5 text-[#FFC799]">
+                              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                              <span>
+                                Đơn còn số dư cần thanh toán (
+                                <strong>
+                                  {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ
+                                </strong>
+                                ).
                               </span>
                             </div>
-                            <div className="text-[11px] text-[#A0A0A0] mt-0.5">
-                              Căn cước công dân (CCCD / Passport) & Giấy phép lái xe (GPLX)
+                            <button
+                              type="button"
+                              onClick={openCounterPayModal}
+                              className="px-3 py-1 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                            >
+                              Thu tiền ngay
+                            </button>
+                          </div>
+                        )}
+
+                      {/* 1. Logical Counter Verification & Actual / Proxy Receiver Card (UC-56) */}
+                      <div className="p-4 rounded-xl border border-white/10 bg-[#101010] space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2.5">
+                            <UserCheck className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
+                            <div>
+                              <div className="text-xs font-bold text-white flex flex-wrap items-center gap-2">
+                                Xác thực Mã đơn & Người nhận xe thực tế tại quầy
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30">
+                                  Cho phép nhận xe hộ / đại diện
+                                </span>
+                                {typeof selectedBooking.userId === 'object' &&
+                                  selectedBooking.userId &&
+                                  (selectedBooking.userId as User).identityStatus === 'Verified' && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                      Tài khoản đặt đã eKYC
+                                    </span>
+                                  )}
+                              </div>
+                              <div className="text-[11px] text-[#A0A0A0] mt-0.5">
+                                Đơn đã xác thực thanh toán hợp lệ: bất kỳ người nhận thực tế nào xuất trình mã đơn và giấy tờ tùy thân/GPLX hợp lệ tại quầy đều được bàn giao xe. Số giấy tờ được mã hóa AES-256-GCM.
+                              </div>
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1">
+                              Họ tên người nhận xe thực tế
+                            </label>
+                            <input
+                              type="text"
+                              value={receiverName}
+                              disabled={
+                                selectedBooking.status !== 'Confirmed' &&
+                                selectedBooking.status !== 'Approved'
+                              }
+                              onChange={(e) => setReceiverName(e.target.value)}
+                              placeholder="Họ và tên người nhận xe..."
+                              className="w-full bg-[#161616] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1">
+                              SĐT người nhận thực tế
+                            </label>
+                            <input
+                              type="text"
+                              value={receiverPhone}
+                              disabled={
+                                selectedBooking.status !== 'Confirmed' &&
+                                selectedBooking.status !== 'Approved'
+                              }
+                              onChange={(e) => setReceiverPhone(e.target.value)}
+                              placeholder="Số điện thoại liên hệ..."
+                              className="w-full bg-[#161616] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
+                              <span>Số CCCD / Passport / GPLX đối chiếu</span>
+                              <Lock className="w-3 h-3 text-[#99FFE4]" />
+                            </label>
+                            <input
+                              type="text"
+                              value={receiverIdCard}
+                              disabled={
+                                selectedBooking.status !== 'Confirmed' &&
+                                selectedBooking.status !== 'Approved'
+                              }
+                              onChange={(e) => setReceiverIdCard(e.target.value)}
+                              placeholder="Nhập số giấy tờ người nhận..."
+                              className="w-full bg-[#161616] border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                            />
                           </div>
                         </div>
                       </div>
@@ -2067,10 +2132,10 @@ export const CounterDesk: React.FC = () => {
                           <ShieldCheck className="w-4 h-4 text-[#FFC799] mt-0.5 flex-shrink-0" />
                           <div>
                             <p className="font-bold text-[#FFC799]">
-                              Quy chuẩn Hậu kiểm eKYC Motorent: Không giữ CCCD bản gốc
+                              Quy chuẩn Bảo mật Định danh Motorent: Không giữ giấy tờ gốc • Mã hóa AES-256-GCM
                             </p>
                             <p className="text-[#FFC799]/80 text-[11px] mt-0.5">
-                              Ảnh CCCD đã được đóng dấu bảo mật lưu hồ sơ. Ảnh chân dung thực tế được giữ nguyên bản để đối chiếu khuôn mặt khách đến nhận xe tại quầy.
+                              Hồ sơ định danh của khách đặt xe được lưu trữ mã hóa chuẩn AES-256-GCM chống xâm nhập và hiển thị nguyên bản rõ nét khi nhân viên được phân quyền đối chiếu.
                             </p>
                           </div>
                         </div>
@@ -2735,23 +2800,31 @@ export const CounterDesk: React.FC = () => {
                           <span>{selectedEkycUser.phoneNumber || 'Chưa cập nhật SĐT'}</span>
                           <span>•</span>
                           <span>{selectedEkycUser.email || 'Email chưa cung cấp'}</span>
+                          {selectedEkycUser.idCardNumber && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono text-[#99FFE4]">
+                                CCCD: {selectedEkycUser.idCardNumber}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#FFC799]/10 border border-[#FFC799]/20 text-[#FFC799] text-xs self-start sm:self-auto">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Đã xác nhận NĐ 13/2023/NĐ-CP</span>
+                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#99FFE4]/10 border border-[#99FFE4]/25 text-[#99FFE4] text-xs self-start sm:self-auto">
+                      <Lock className="w-3.5 h-3.5 text-[#99FFE4]" />
+                      <span>Mã hóa AES-256-GCM • NĐ 13/2023/NĐ-CP</span>
                     </div>
                   </div>
 
-                  {/* 3 Documents Grid */}
+                  {/* 4 Documents Grid */}
                   <div>
                     <h3 className="text-xs font-bold text-[#A0A0A0] uppercase tracking-wider mb-3">
-                      Tài liệu định danh & Ảnh chân dung đối chiếu
+                      Tài liệu định danh nguyên bản & Ảnh đối chiếu (Truyền tải qua Bearer Stream)
                     </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {[
                         {
                           key: 'idCardFront',
@@ -2764,8 +2837,13 @@ export const CounterDesk: React.FC = () => {
                           modalTitle: 'Mặt sau Căn cước công dân',
                         },
                         {
+                          key: 'drivingLicense',
+                          label: '3. Giấy phép lái xe',
+                          modalTitle: 'Giấy phép lái xe (A1/A2)',
+                        },
+                        {
                           key: 'selfiePhoto',
-                          label: '3. Ảnh chân dung thực tế',
+                          label: '4. Ảnh chân dung thực tế',
                           modalTitle: 'Ảnh chụp chân dung thực tế',
                         },
                       ].map((docItem) => {
@@ -2778,20 +2856,14 @@ export const CounterDesk: React.FC = () => {
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-xs font-semibold text-[#F5F5F5]">{docItem.label}</span>
+                              <Eye className="w-3.5 h-3.5 text-[#6E6E6E] group-hover:text-[#FFC799] transition-colors" />
                             </div>
-                            <div className="w-full h-48 bg-[#101010] rounded-lg overflow-hidden relative border border-white/10 flex items-center justify-center p-1">
-                              <img
+                            <div className="w-full h-44 bg-[#101010] rounded-lg overflow-hidden relative border border-white/10 flex items-center justify-center p-1">
+                              <SecureEkycImage
                                 src={docUrl}
                                 alt={docItem.label}
+                                versionKey={selectedEkycUser.updatedAt || selectedEkycUser._id}
                                 className="w-full h-full object-contain rounded"
-                                onError={(e) => {
-                                  const target = e.currentTarget;
-                                  target.style.display = 'none';
-                                  if (target.parentElement) {
-                                    target.parentElement.innerHTML =
-                                      '<span class="text-xs text-[#6E6E6E]">Chưa có ảnh</span>';
-                                  }
-                                }}
                               />
                             </div>
                           </div>
@@ -2835,12 +2907,12 @@ export const CounterDesk: React.FC = () => {
                         {reviewLoading ? (
                           <>
                             <RefreshCw className="w-4 h-4 animate-spin" />
-                            <span>Đang đóng dấu CCCD & Duyệt...</span>
+                            <span>Đang phê duyệt hồ sơ...</span>
                           </>
                         ) : (
                           <>
                             <CheckCircle2 className="w-4 h-4" />
-                            <span>Phê duyệt & Tự đóng dấu CCCD (Verified)</span>
+                            <span>Phê duyệt eKYC (Giữ nguyên bản rõ nét • Mã hóa AES-256)</span>
                           </>
                         )}
                       </button>
@@ -3382,7 +3454,7 @@ export const CounterDesk: React.FC = () => {
                 }}
                 className="p-6 bg-[#101010] flex items-center justify-center max-h-[80vh] overflow-auto cursor-zoom-in"
               >
-                <img
+                <SecureEkycImage
                   src={previewDocModal.url}
                   alt={previewDocModal.title}
                   style={{
@@ -3440,18 +3512,13 @@ export const CounterDesk: React.FC = () => {
                   <div>
                     <span className="text-[#A0A0A0] block text-[10px]">Đã thanh toán trước:</span>
                     <span className="font-bold text-[#99FFE4]">
-                      {(
-                        selectedBooking.paidAmount ||
-                        selectedBooking.depositAmount ||
-                        0
-                      ).toLocaleString('vi-VN')}{' '}
-                      đ
+                      {getEffectivePaidAmount(selectedBooking).toLocaleString('vi-VN')} đ
                     </span>
                   </div>
                   <div className="col-span-2 pt-2 border-t border-white/5 flex items-center justify-between">
                     <span className="text-[#A0A0A0] text-[11px]">Còn lại cần thu:</span>
                     <span className="font-extrabold text-[#FFC799] text-base">
-                      {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
+                      {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ
                     </span>
                   </div>
                 </div>
@@ -3464,7 +3531,7 @@ export const CounterDesk: React.FC = () => {
                     <input
                       type="number"
                       min="1"
-                      max={selectedBooking.remainingAmount || 0}
+                      max={getEffectivePayableBalance(selectedBooking)}
                       value={counterPayAmount}
                       onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => setCounterPayAmount(Number(e.target.value))}
@@ -3475,18 +3542,32 @@ export const CounterDesk: React.FC = () => {
                       VNĐ
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2 mt-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {selectedBooking.status === 'Pending' &&
+                      !selectedBooking.depositPaid &&
+                      (selectedBooking.paidAmount || 0) === 0 &&
+                      (selectedBooking.depositAmount || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setCounterPayAmount(selectedBooking.depositAmount || 0)}
+                          className="px-2.5 py-1 bg-[#99FFE4]/10 hover:bg-[#99FFE4]/20 rounded-lg text-[11px] font-semibold text-[#99FFE4] border border-[#99FFE4]/30 cursor-pointer"
+                        >
+                          Thu cọc 30% ({(selectedBooking.depositAmount || 0).toLocaleString('vi-VN')} đ)
+                        </button>
+                      )}
                     <button
                       type="button"
-                      onClick={() => setCounterPayAmount(selectedBooking.remainingAmount || 0)}
+                      onClick={() => setCounterPayAmount(getEffectivePayableBalance(selectedBooking))}
                       className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[#FFC799] border border-white/10 cursor-pointer"
                     >
-                      Thu đủ 100% ({(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ)
+                      Thu đủ 100% ({getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ)
                     </button>
                     <button
                       type="button"
                       onClick={() =>
-                        setCounterPayAmount(Math.round((selectedBooking.remainingAmount || 0) / 2))
+                        setCounterPayAmount(
+                          Math.round(getEffectivePayableBalance(selectedBooking) / 2)
+                        )
                       }
                       className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[#A0A0A0] hover:text-white border border-white/10 cursor-pointer"
                     >

@@ -35,6 +35,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { api } from '../services/api';
+import { getSocket } from '../services/socket';
 import type { Notification } from '../types';
 
 const NAVBAR_PROMO_VOUCHERS = [
@@ -166,6 +167,46 @@ export const Navbar: React.FC = () => {
       setNotifUnreadCount(0);
     }
   }, [isAuthenticated, location.pathname, fetchNotifications]);
+
+  // Real-time Socket.IO subscription for live notification badge & booking status updates
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const socket = getSocket();
+
+    const handleRealtimeNotif = (incoming: Notification) => {
+      if (!incoming || !incoming._id) return;
+      setNotifications((prev) => {
+        if (prev.some((n) => n._id === incoming._id)) return prev;
+        setNotifUnreadCount((c) => c + (incoming.isRead ? 0 : 1));
+        return [incoming, ...prev];
+      });
+    };
+
+    const handleBookingStatus = () => {
+      fetchNotifications();
+      api
+        .get('/bookings/my')
+        .then((res) => {
+          if (res.data?.success && Array.isArray(res.data.data)) {
+            const validBookings = res.data.data.filter(
+              (b: { status?: string; paymentMethod?: string; depositPaid?: boolean; isPaid?: boolean }) =>
+                !['Cancelled', 'Rejected'].includes(b.status || '') &&
+                !(b.status === 'Pending' && b.paymentMethod === 'Banking' && !b.depositPaid && !b.isPaid)
+            );
+            setBookingCount(validBookings.length);
+          }
+        })
+        .catch(() => {});
+    };
+
+    socket.on('notification:new', handleRealtimeNotif);
+    socket.on('booking:status', handleBookingStatus);
+
+    return () => {
+      socket.off('notification:new', handleRealtimeNotif);
+      socket.off('booking:status', handleBookingStatus);
+    };
+  }, [isAuthenticated, fetchNotifications]);
 
   // Listen to LiveChatWidget state & incoming chat notifications
   useEffect(() => {

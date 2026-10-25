@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { Booking, IBooking } from '../../models/Booking';
+import { User } from '../../models/User';
 import { Vehicle } from '../../models/Vehicle';
 import { Payment } from '../../models/Payment';
 import { Discount } from '../../models/Discount';
@@ -7,6 +8,7 @@ import { Notification } from '../../models/Notification';
 import { AuditLog } from '../../models/AuditLog';
 import { AppError } from '../../core/errorHandler';
 import { env } from '../../config/env';
+import { sendBookingStatusEmail } from '../../config/mailer';
 import { emitBookingStatus } from '../booking/bookingEvents';
 
 export type VnpParams = Record<string, string | number | undefined>;
@@ -376,6 +378,28 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
 
     // Emit real-time status update to socket rooms (UC-37)
     emitBookingStatus(updatedBooking);
+
+    // Send booking confirmation email asynchronously (UC-46)
+    Promise.all([
+      User.findById(booking.userId).select('email firstName lastName username'),
+      Vehicle.findById(booking.vehicleId).select('brand vehicleModel licensePlate'),
+    ])
+      .then(([cust, veh]) => {
+        if (cust?.email) {
+          sendBookingStatusEmail({
+            toEmail: cust.email,
+            customerName: [cust.lastName, cust.firstName].filter(Boolean).join(' ').trim() || cust.username,
+            bookingCode: booking.bookingCode,
+            event: 'CONFIRMED',
+            vehicleName: veh ? `${veh.brand} ${veh.vehicleModel}` : undefined,
+            licensePlate: veh?.licensePlate,
+            totalAmount: updatedBooking.totalAmount,
+            paidAmount: updatedBooking.paidAmount,
+            remainingAmount: updatedBooking.remainingAmount,
+          }).catch(() => {});
+        }
+      })
+      .catch(() => {});
 
     // Notify user
     await Notification.create({

@@ -88,6 +88,7 @@ export interface User {
   gender?: 'Male' | 'Female' | 'Other';
   dob?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Booking {
@@ -120,6 +121,10 @@ export interface Booking {
   endOdometer?: number;
   checkinImages?: string[];
   checkoutImages?: string[];
+  receiverName?: string;
+  receiverPhone?: string;
+  receiverIdCard?: string;
+  verifiedAtCounter?: boolean;
   cancelReason?: string;
   rejectReason?: string;
   refundAmount?: number;

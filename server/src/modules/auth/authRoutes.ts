@@ -52,6 +52,17 @@ const ekycLimiter = rateLimit({
   },
 });
 
+const ekycDocViewLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Quá nhiều yêu cầu truy xuất tài liệu định danh. Vui lòng thử lại sau ít phút.',
+  },
+});
+
 // Public routes
 router.post('/register', authLimiter, authController.register);
 router.get('/verify-email', emailVerificationLimiter, authController.verifyEmail);
@@ -88,12 +99,13 @@ router.post(
   authController.uploadEkyc
 );
 
-// Protected eKYC document retrieval (Customer access via browser img tag)
-router.get('/ekyc/document/me/:docType', authenticateJWTFromQuery, authController.getEkycDocumentMe);
+// Protected eKYC document retrieval (Customer access via Authorization Bearer header)
+router.get('/ekyc/document/me/:docType', ekycDocViewLimiter, authenticateJWTFromQuery, authController.getEkycDocumentMe);
 
 // Protected eKYC document retrieval for Staff / BranchManager / SystemAdmin with audit logging
 router.get(
   '/ekyc/document/view/:userId/:docType',
+  ekycDocViewLimiter,
   authenticateJWTFromQuery,
   authorize('SystemAdmin', 'BranchManager', 'Staff'),
   authController.getEkycDocumentAdmin

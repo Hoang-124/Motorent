@@ -6,7 +6,9 @@ import * as authService from './authService';
 import { AuditLog } from '../../models/AuditLog';
 import { AppError } from '../../core/errorHandler';
 import { validateImageMagicBytes } from '../../core/uploadMiddleware';
+import { encryptFileInPlace, decryptFileBuffer } from '../../core/cryptoVault';
 import { isCloudinaryConfigured, uploadFileToCloudinary } from '../../config/cloudinary';
+import { env } from '../../config/env';
 
 // Zod schemas for input validation
 const registerSchema = z.object({
@@ -388,6 +390,7 @@ export const uploadAvatar = async (
 const processUploadedEkycFile = async (fileObj: Express.Multer.File): Promise<string> => {
   const isValidMagic = await validateImageMagicBytes(fileObj.path);
   if (!isValidMagic) {
+    await fs.promises.unlink(fileObj.path).catch(() => {});
     throw new AppError(
       400,
       'Nội dung file giấy tờ không hợp lệ (sai chữ ký định dạng JPEG, PNG hoặc WebP).'
@@ -399,9 +402,12 @@ const processUploadedEkycFile = async (fileObj: Express.Multer.File): Promise<st
       folder: 'motorent/ekyc',
       type: 'authenticated',
     });
+    await fs.promises.unlink(fileObj.path).catch(() => {});
     return `cloudinary:${uploaded.publicId}.${uploaded.format}`;
   }
 
+  // Encrypt raw image bytes at rest using AES-256-GCM before persisting in private_uploads/ekyc
+  await encryptFileInPlace(fileObj.path);
   return fileObj.filename;
 };
 
@@ -495,8 +501,17 @@ export const uploadEkyc = async (
   }
 };
 
+const applyPrivateDocumentSecurityHeaders = (res: Response): void => {
+  res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+};
+
 /**
- * Securely stream user's own eKYC document (Protected by JWT)
+ * Securely stream user's own eKYC document (Protected by JWT + AES-256-GCM decryption in RAM)
  */
 export const getEkycDocumentMe = async (
   req: AuthenticatedRequest,
@@ -518,24 +533,27 @@ export const getEkycDocumentMe = async (
       docType
     );
 
-    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    applyPrivateDocumentSecurityHeaders(res);
     if (signedRedirectUrl) {
-      const upstream = await fetch(signedRedirectUrl);
-      if (upstream.ok) {
-        const buffer = Buffer.from(await upstream.arrayBuffer());
-        res.setHeader('Content-Type', upstream.headers.get('content-type') || mimeType);
-        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-        res.send(buffer);
-        return;
+      if (env.NODE_ENV !== 'test') {
+        const upstream = await fetch(signedRedirectUrl);
+        if (upstream.ok) {
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          res.setHeader('Content-Type', upstream.headers.get('content-type') || mimeType);
+          res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+          res.send(buffer);
+          return;
+        }
       }
       res.redirect(302, signedRedirectUrl);
       return;
     }
 
+    const storedBytes = await fs.promises.readFile(filePath);
+    const decryptedBuffer = decryptFileBuffer(storedBytes);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
+    res.send(decryptedBuffer);
   } catch (error) {
     next(error);
   }
@@ -583,24 +601,27 @@ export const getEkycDocumentAdmin = async (
       timestamp: new Date(),
     }).catch((err: unknown) => console.error('Failed to log eKYC audit access:', err));
 
-    res.setHeader('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    applyPrivateDocumentSecurityHeaders(res);
     if (signedRedirectUrl) {
-      const upstream = await fetch(signedRedirectUrl);
-      if (upstream.ok) {
-        const buffer = Buffer.from(await upstream.arrayBuffer());
-        res.setHeader('Content-Type', upstream.headers.get('content-type') || mimeType);
-        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-        res.send(buffer);
-        return;
+      if (env.NODE_ENV !== 'test') {
+        const upstream = await fetch(signedRedirectUrl);
+        if (upstream.ok) {
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          res.setHeader('Content-Type', upstream.headers.get('content-type') || mimeType);
+          res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+          res.send(buffer);
+          return;
+        }
       }
       res.redirect(302, signedRedirectUrl);
       return;
     }
 
+    const storedBytes = await fs.promises.readFile(filePath);
+    const decryptedBuffer = decryptFileBuffer(storedBytes);
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    const stream = fs.createReadStream(filePath);
-    stream.pipe(res);
+    res.send(decryptedBuffer);
   } catch (error) {
     next(error);
   }

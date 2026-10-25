@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { emitUserRealtimeEvent } from '../core/socketRegistry';
 
 export type NotificationType =
   | 'SYSTEM'
@@ -38,5 +39,21 @@ const NotificationSchema = new Schema<INotification>(
 );
 
 NotificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
+
+NotificationSchema.post('save', (doc: INotification) => {
+  if (doc && doc.userId) {
+    emitUserRealtimeEvent(doc.userId.toString(), 'notification:new', {
+      _id: doc._id.toString(),
+      userId: doc.userId.toString(),
+      title: doc.title,
+      body: doc.body,
+      type: doc.type,
+      relatedId: doc.relatedId,
+      isRead: doc.isRead,
+      data: doc.data,
+      createdAt: doc.createdAt || new Date(),
+    });
+  }
+});
 
 export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);

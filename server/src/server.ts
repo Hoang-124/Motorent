@@ -9,6 +9,7 @@ import jwt from 'jsonwebtoken';
 import { env } from './config/env';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './core/errorHandler';
+import { setSocketServer } from './core/socketRegistry';
 import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
 import { startOdometerAlertJob } from './core/jobs/odometerAlertJob';
 import { User } from './models/User';
@@ -59,6 +60,8 @@ export const io = new SocketIOServer(server, {
     credentials: true,
   },
 });
+
+setSocketServer(io);
 
 // Global Security & Parsers Middlewares
 app.set('trust proxy', env.TRUST_PROXY || 1);

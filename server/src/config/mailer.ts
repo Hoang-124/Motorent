@@ -270,3 +270,143 @@ export const sendPasswordResetEmail = async (
 
   return true;
 };
+
+export interface BookingEmailPayload {
+  toEmail?: string;
+  customerName: string;
+  bookingCode: string;
+  event: 'CONFIRMED' | 'APPROVED' | 'REJECTED' | 'CHECKIN' | 'COMPLETED' | 'CANCELLED';
+  vehicleName?: string;
+  licensePlate?: string;
+  pickupBranchName?: string;
+  totalAmount?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
+  note?: string;
+}
+
+/**
+ * Send non-blocking booking lifecycle notification email (UC-46)
+ * Safely skips dummy/internal domains and test runs without throwing.
+ */
+export const sendBookingStatusEmail = async (payload: BookingEmailPayload): Promise<boolean> => {
+  const toEmail = (payload.toEmail || '').trim();
+  if (!toEmail) return false;
+
+  const canDeliverViaSmtp = isRealSmtpConfigured() && isDeliverableRecipientEmail(toEmail);
+  const safeName = escapeHtml(payload.customerName || 'Quý khách');
+  const safeCode = escapeHtml(payload.bookingCode);
+  const safeVehicle = escapeHtml(payload.vehicleName || 'Xe máy Motorent');
+  const safePlate = payload.licensePlate ? ` (${escapeHtml(payload.licensePlate)})` : '';
+  const safeBranch = escapeHtml(payload.pickupBranchName || 'Chi nhánh Motorent Đà Nẵng');
+  const safeNote = payload.note ? escapeHtml(payload.note) : '';
+  const profileUrl = `${env.CLIENT_URL}/profile?tab=bookings`;
+
+  const eventMeta: Record<BookingEmailPayload['event'], { badge: string; color: string; title: string; summary: string }> = {
+    CONFIRMED: {
+      badge: 'ĐÃ XÁC NHẬN GIỮ XE',
+      color: '#99FFE4',
+      title: `Xác nhận đặt giữ xe thành công #${safeCode}`,
+      summary: 'Hệ thống đã ghi nhận khoản thanh toán và khóa biển số xe theo lịch trình của bạn.',
+    },
+    APPROVED: {
+      badge: 'ĐÃ PHÊ DUYỆT ĐƠN',
+      color: '#FFC799',
+      title: `Đơn đặt xe #${safeCode} đã được phê duyệt`,
+      summary: 'Chi nhánh đã kiểm tra và chuẩn bị phương tiện sẵn sàng đón bạn nhận xe tại quầy.',
+    },
+    CHECKIN: {
+      badge: 'ĐANG LƯU HÀNH',
+      color: '#99FFE4',
+      title: `Bàn giao xe thành công #${safeCode}`,
+      summary: 'Biên bản bàn giao điện tử đã kích hoạt. Chúc bạn có hành trình an toàn tại Đà Nẵng!',
+    },
+    COMPLETED: {
+      badge: 'HOÀN TẤT HỢP ĐỒNG',
+      color: '#FFC799',
+      title: `Hoàn tất trả xe & tất toán #${safeCode}`,
+      summary: 'Hợp đồng thuê xe đã khép lại thành công. Cảm ơn bạn đã đồng hành cùng Motorent Đà Nẵng.',
+    },
+    REJECTED: {
+      badge: 'TỪ CHỐI ĐƠN ĐẶT XE',
+      color: '#FFA8A8',
+      title: `Thông báo từ chối đơn #${safeCode}`,
+      summary: 'Rất tiếc chi nhánh chưa thể đáp ứng đơn đặt xe này. Mọi khoản cọc đã thanh toán (nếu có) được hoàn trả 100%.',
+    },
+    CANCELLED: {
+      badge: 'ĐÃ HỦY ĐƠN',
+      color: '#A0A0A0',
+      title: `Xác nhận hủy đơn đặt xe #${safeCode}`,
+      summary: 'Đơn đặt xe của bạn đã chuyển sang trạng thái đã hủy trên hệ thống.',
+    },
+  };
+
+  const meta = eventMeta[payload.event];
+
+  if (env.NODE_ENV === 'development') {
+    console.log(`[BOOKING EMAIL - ${payload.event}] To: ${toEmail} | Code: ${payload.bookingCode} | SMTP: ${canDeliverViaSmtp ? 'YES' : 'SKIPPED'}`);
+  }
+
+  if (!canDeliverViaSmtp) {
+    return true;
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${meta.title}</title>
+    </head>
+    <body style="margin: 0; padding: 24px 12px; background-color: #101010; font-family: 'Segoe UI', Arial, sans-serif; color: #F5F5F5;">
+      <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="max-width: 580px; margin: 0 auto; background-color: #161616; border: 1px solid #282828; border-radius: 20px; overflow: hidden;">
+        <tr>
+          <td align="center" style="background-color: #101010; border-bottom: 1px solid #282828; padding: 26px 20px;">
+            <span style="display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: 1px; background-color: #202020; color: ${meta.color}; margin-bottom: 10px;">
+              ${meta.badge}
+            </span>
+            <h1 style="margin: 0; font-size: 22px; font-weight: 800; color: #F5F5F5;">
+              MOTORENT <span style="color: #FFC799; font-style: italic;">Đà Nẵng</span>
+            </h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 32px 28px;">
+            <h2 style="margin: 0 0 12px; font-size: 18px; color: #F5F5F5;">Chào ${safeName},</h2>
+            <p style="margin: 0 0 20px; font-size: 14px; line-height: 1.6; color: #A0A0A0;">${meta.summary}</p>
+            <div style="background-color: #101010; border: 1px solid #282828; border-radius: 14px; padding: 18px; margin-bottom: 22px; font-size: 13px; line-height: 1.8;">
+              <div><span style="color: #888;">Mã hợp đồng:</span> <strong style="color: #FFC799; font-family: Consolas, monospace;">${safeCode}</strong></div>
+              <div><span style="color: #888;">Phương tiện:</span> <strong style="color: #F5F5F5;">${safeVehicle}${safePlate}</strong></div>
+              <div><span style="color: #888;">Trạm giao nhận:</span> <span style="color: #E0E0E0;">${safeBranch}</span></div>
+              ${payload.totalAmount !== undefined ? `<div><span style="color: #888;">Tổng giá trị đơn:</span> <strong style="color: #F5F5F5;">${payload.totalAmount.toLocaleString('vi-VN')} đ</strong></div>` : ''}
+              ${payload.paidAmount !== undefined ? `<div><span style="color: #888;">Đã thanh toán:</span> <strong style="color: #99FFE4;">${payload.paidAmount.toLocaleString('vi-VN')} đ</strong></div>` : ''}
+              ${payload.remainingAmount !== undefined ? `<div><span style="color: #888;">Còn lại:</span> <strong style="color: #FFC799;">${payload.remainingAmount.toLocaleString('vi-VN')} đ</strong></div>` : ''}
+              ${safeNote ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #242424;"><span style="color: #888;">Ghi chú:</span> <span style="color: #E0E0E0;">${safeNote}</span></div>` : ''}
+            </div>
+            <div style="text-align: center;">
+              <a href="${profileUrl}" target="_blank" style="display: inline-block; background-color: #FFC799; color: #101010; text-decoration: none; padding: 13px 30px; border-radius: 12px; font-weight: 700; font-size: 13px;">
+                Xem Chi Tiết Đơn Thuê Xe
+              </a>
+            </div>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+  `;
+
+  try {
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"MOTORENT Đà Nẵng" <${env.SMTP_USER}>`,
+      to: toEmail,
+      subject: `[MOTORENT] ${meta.title}`,
+      html: htmlContent,
+    });
+    return true;
+  } catch (error) {
+    console.error('[SMTP ERROR] Lỗi gửi email thông báo trạng thái đơn thuê:', error);
+    return false;
+  }
+};

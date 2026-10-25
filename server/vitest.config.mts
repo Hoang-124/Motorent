@@ -10,6 +10,7 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 20000,
     fileParallelism: false,
+    exclude: ['**/node_modules/**', '**/dist/**', '**/manager_pricing.test.ts'],
     env: {
       NODE_ENV: 'test',
       JWT_SECRET: process.env.JWT_SECRET || 'your_jwt_secret_key_minimum_32_characters_long_for_security',

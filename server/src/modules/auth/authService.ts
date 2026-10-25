@@ -12,6 +12,7 @@ import { env } from '../../config/env';
 import { deleteFromCloudinary, getSignedCloudinaryEkycUrl } from '../../config/cloudinary';
 import { AppError } from '../../core/errorHandler';
 import { uploadDir, privateEkycDir } from '../../core/uploadMiddleware';
+import { decryptPiiText } from '../../core/cryptoVault';
 
 /**
  * Generate JWT token for user including tokenVersion
@@ -41,6 +42,13 @@ export const sanitizeUser = (user: IUser): Record<string, unknown> => {
   delete obj.failedLoginAttempts;
   delete obj.lockUntil;
   delete obj.otpAttempts;
+  delete obj.idCardFrontFile;
+  delete obj.idCardBackFile;
+  delete obj.selfieFile;
+  delete obj.drivingLicenseFile;
+  if (typeof obj.idCardNumber === 'string' && obj.idCardNumber) {
+    obj.idCardNumber = decryptPiiText(obj.idCardNumber);
+  }
   return obj;
 };
 
@@ -745,12 +753,9 @@ export const submitEkyc = async (
     throw new AppError(400, 'Vui lòng tải lên ít nhất một ảnh giấy tờ tùy thân (CCCD hoặc ảnh chân dung) để tiếp tục.');
   }
 
-  // Enforce upload permission: Only allowed if Unverified or Rejected
+  // Enforce upload permission: Block duplicate upload while Pending review
   if (user.identityStatus === 'Pending') {
     throw new AppError(400, 'Hồ sơ eKYC của bạn đang trong quá trình chờ xét duyệt. Vui lòng đợi kết quả kiểm tra.');
-  }
-  if (user.identityStatus === 'Verified') {
-    throw new AppError(400, 'Tài khoản của bạn đã hoàn tất xác thực eKYC. Không thể tải lại trừ khi bị từ chối.');
   }
 
   // Update private files and delete replaced old files
@@ -899,11 +904,11 @@ export const getEkycDocumentFile = async (
 export const getPendingEkycList = async () => {
   const users = await User.find({ identityStatus: 'Pending' })
     .select(
-      'username email firstName lastName phoneNumber avatarUrl identityStatus idCardFrontUrl idCardBackUrl selfieUrl drivingLicenseUrl ekycWatermarked ekycConsentAgreed ekycConsentDate updatedAt createdAt'
+      'username email firstName lastName phoneNumber idCardNumber avatarUrl identityStatus idCardFrontUrl idCardBackUrl selfieUrl drivingLicenseUrl ekycWatermarked ekycConsentAgreed ekycConsentDate updatedAt createdAt'
     )
     .sort({ updatedAt: -1 });
 
-  return users;
+  return users.map((u) => sanitizeUser(u));
 };
 
 /**
@@ -947,7 +952,7 @@ export const reviewEkyc = async (
       targetUser.idCardBackFile = decision.idCardBackFile;
       targetUser.idCardBackUrl = `/api/auth/ekyc/document/me/idCardBack`;
     }
-    targetUser.ekycWatermarked = true;
+    targetUser.ekycWatermarked = Boolean(decision.idCardFrontFile || decision.idCardBackFile);
   }
   await targetUser.save();
 
@@ -957,7 +962,7 @@ export const reviewEkyc = async (
     title: decision.status === 'Verified' ? 'Xác thực eKYC thành công' : 'Yêu cầu cập nhật hồ sơ eKYC',
     body:
       decision.status === 'Verified'
-        ? 'Hồ sơ định danh eKYC của bạn đã được kiểm duyệt và chấp thuận. Ảnh CCCD đã được đóng dấu bảo mật tự động.'
+        ? 'Hồ sơ định danh eKYC của bạn đã được thẩm định và chấp thuận. Dữ liệu giấy tờ của bạn được mã hóa chuẩn AES-256-GCM an toàn.'
         : `Hồ sơ eKYC của bạn bị từ chối với lý do: ${decision.note || 'Ảnh chụp không rõ ràng hoặc thông tin không khớp'}. Vui lòng tải lại hồ sơ.`,
     type: 'SYSTEM',
     isRead: false,
@@ -971,7 +976,7 @@ export const reviewEkyc = async (
     details: {
       newStatus: decision.status,
       note: decision.note || '',
-      sealedWatermarkedCccd: decision.status === 'Verified',
+      encryptedAtRest: true,
       targetUsername: targetUser.username,
       targetEmail: targetUser.email,
     },

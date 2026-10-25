@@ -30,6 +30,10 @@ const checkinSchema = z.object({
   checkinImages: z.array(z.string()).optional(),
   eSignatureUrl: z.string().optional(),
   checklist: z.record(z.string(), z.boolean()).optional(),
+  verifiedAtCounter: z.boolean().optional(),
+  receiverName: z.string().trim().max(120).optional(),
+  receiverPhone: z.string().trim().max(25).optional(),
+  receiverIdCard: z.string().trim().max(30).optional(),
 });
 
 const checkoutSchema = z.object({

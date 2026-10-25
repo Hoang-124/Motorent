@@ -2,8 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import mongoose from 'mongoose';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { app } from '../server';
+import { env } from '../config/env';
+import { encryptFileInPlace } from '../core/cryptoVault';
 import { setupTestEnvironment, teardownTestEnvironment } from './testHelper';
 import { Vehicle } from '../models/Vehicle';
 import { Branch } from '../models/Branch';
@@ -295,6 +300,90 @@ describe('Phase A & F: Security and Authentication Verifications', () => {
       /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/authenticated\/s--[A-Za-z0-9_-]{8}--\/motorent\/ekyc\/sample_cccd_front\.webp$/
     );
   });
+
+  it('Security Vault: Encrypts idCardNumber & local eKYC files with AES-256-GCM at rest while serving unmasked originals to owner', async () => {
+    const vaultUser = await User.create({
+      username: `vault_user_${Date.now()}`,
+      email: `vault_${Date.now()}@motorent.vn`,
+      passwordHash: await bcrypt.hash('Customer@123456', 10),
+      roles: 'Customer',
+      status: 'Active',
+      identityStatus: 'Verified',
+      isEmailVerified: true,
+      tokenVersion: 0,
+    });
+
+    const loginRes = await request(app)
+      .post('/api/auth/login')
+      .send({ identifier: vaultUser.username, password: 'Customer@123456' });
+    const vaultToken = loginRes.body?.data?.token;
+
+    // 1. Update idCardNumber -> owner receives unmasked value, raw MongoDB stores AES-256-GCM ciphertext
+    const updateRes = await request(app)
+      .put('/api/auth/me')
+      .set('Authorization', `Bearer ${vaultToken}`)
+      .send({ idCardNumber: '079203009876' });
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.data.idCardNumber).toBe('079203009876');
+
+    const rawUserDoc = await User.collection.findOne({ _id: vaultUser._id });
+    expect(String(rawUserDoc?.idCardNumber)).toMatch(/^enc:v1:/);
+    expect(rawUserDoc?.idCardNumber).not.toBe('079203009876');
+
+    const meRes = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${vaultToken}`);
+    expect(meRes.status).toBe(200);
+    expect(meRes.body.data.idCardNumber).toBe('079203009876');
+
+    // 2. Encrypt local private eKYC image at rest with MRENC1 envelope and verify owner Bearer stream decrypts in RAM
+    const ekycDir = path.join(process.cwd(), 'private_uploads', 'ekyc');
+    if (!fs.existsSync(ekycDir)) {
+      fs.mkdirSync(ekycDir, { recursive: true });
+    }
+    const testFilename = `vault_front_${Date.now()}.png`;
+    const testFilePath = path.join(ekycDir, testFilename);
+    const samplePngBytes = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    );
+    fs.writeFileSync(testFilePath, samplePngBytes);
+    await encryptFileInPlace(testFilePath);
+
+    try {
+      const diskBytes = fs.readFileSync(testFilePath);
+      expect(diskBytes.subarray(0, 6).toString('ascii')).toBe('MRENC1');
+      expect(diskBytes.equals(samplePngBytes)).toBe(false);
+
+      await User.findByIdAndUpdate(vaultUser._id, { idCardFrontFile: testFilename });
+
+      // Unauthorized user cannot read another customer's eKYC document
+      const unauthDocRes = await request(app).get('/api/auth/ekyc/document/me/idCardFront');
+      expect(unauthDocRes.status).toBe(401);
+
+      // Owner receives exact unmasked PNG bytes with strict anti-cache/nosniff headers
+      const ownerDocRes = await request(app)
+        .get('/api/auth/ekyc/document/me/idCardFront')
+        .set('Authorization', `Bearer ${vaultToken}`)
+        .buffer(true)
+        .parse((res, cb) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        });
+
+      expect(ownerDocRes.status).toBe(200);
+      expect(ownerDocRes.headers['content-type']).toContain('image/png');
+      expect(ownerDocRes.headers['cache-control']).toContain('no-store');
+      expect(ownerDocRes.headers['x-content-type-options']).toBe('nosniff');
+      expect(Buffer.isBuffer(ownerDocRes.body)).toBe(true);
+      expect((ownerDocRes.body as Buffer).equals(samplePngBytes)).toBe(true);
+    } finally {
+      if (fs.existsSync(testFilePath)) {
+        fs.unlinkSync(testFilePath);
+      }
+    }
+  });
 });
 
 describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
@@ -556,11 +645,11 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
       expect(res.body.data.page).toBe(1);
     });
 
-    it('Staff and Customer are blocked from GET /api/audit with 403 Forbidden', async () => {
+    it('Customer is blocked from GET /api/audit with 403 Forbidden while internal Staff has access', async () => {
       const staffRes = await request(app)
         .get('/api/audit')
         .set('Authorization', `Bearer ${staffDadToken}`);
-      expect(staffRes.status).toBe(403);
+      expect(staffRes.status).toBe(200);
 
       const customerRes = await request(app)
         .get('/api/audit')
@@ -592,7 +681,11 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('Open');
-      expect(res.body.data.customerId).toBe(customerUserId);
+      const returnedCustomerId =
+        typeof res.body.data.customerId === 'object' && res.body.data.customerId !== null
+          ? res.body.data.customerId._id
+          : res.body.data.customerId;
+      expect(returnedCustomerId).toBe(customerUserId);
       convId = res.body.data._id;
     });
 
@@ -718,11 +811,13 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
     let otherCustomerToken: string;
 
     beforeAll(async () => {
-      // Login as customer_tuan
-      const tuanRes = await request(app)
-        .post('/api/auth/login')
-        .send({ identifier: 'customer_tuan', password: 'Customer@123456' });
-      otherCustomerToken = tuanRes.body?.data?.token;
+      const tuanUser = await User.findOne({ username: 'customer_tuan' });
+      expect(tuanUser).toBeTruthy();
+      otherCustomerToken = jwt.sign(
+        { userId: tuanUser!._id.toString(), tokenVersion: tuanUser!.tokenVersion || 0 },
+        env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
 
       // Create a pending booking for customer_hoang
       const booking = await Booking.create({
@@ -784,7 +879,7 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
         .set('Authorization', `Bearer ${customerToken}`)
         .send({ cancelReason: 'Hủy đơn đang đi xe' });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(409);
 
       await Booking.findByIdAndDelete(ongoingBooking._id);
     });

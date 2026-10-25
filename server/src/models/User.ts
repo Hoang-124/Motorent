@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { encryptPiiText } from '../core/cryptoVault';
 
 export type UserRole = 'SystemAdmin' | 'BranchManager' | 'Staff' | 'Customer';
 export type UserStatus = 'Active' | 'Suspended' | 'Unverified';
@@ -110,5 +111,12 @@ const UserSchema = new Schema<IUser>(
 
 UserSchema.index({ roles: 1 });
 UserSchema.index({ branchId: 1 });
+
+UserSchema.pre('save', function (next) {
+  if (this.isModified('idCardNumber') && this.idCardNumber) {
+    this.idCardNumber = encryptPiiText(this.idCardNumber);
+  }
+  next();
+});
 
 export const User = mongoose.model<IUser>('User', UserSchema);

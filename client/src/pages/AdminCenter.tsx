@@ -32,7 +32,8 @@ import {
   Calendar,
   Tag,
   Settings,
-  UserPlus
+  UserPlus,
+  FileSpreadsheet
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Branch, User } from '../types';
@@ -41,8 +42,9 @@ import { StaffManager } from '../components/StaffManager';
 import { ShiftCalendarView } from '../components/ShiftCalendarView';
 import { DiscountsManager } from '../components/DiscountsManager';
 import { SystemConfigManager } from '../components/SystemConfigManager';
+import { FinanceManager } from '../components/FinanceManager';
 
-type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'map';
+type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'finance' | 'map';
 
 interface BranchFormData {
   name: string;
@@ -691,6 +693,19 @@ export const AdminCenter: React.FC = () => {
             >
               <Settings className="w-3.5 h-3.5" />
               <span>Chính sách & Cấu hình (UC-113-115)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('finance')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'finance'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Đối soát & Thuế (UC-120-121)</span>
             </button>
 
             <button
@@ -1399,6 +1414,7 @@ export const AdminCenter: React.FC = () => {
             TAB 7: CHÍNH SÁCH & CẤU HÌNH HỆ THỐNG (UC-113, UC-114, UC-115)
             ===================================================================== */}
         {activeTab === 'config' && <SystemConfigManager />}
+        {activeTab === 'finance' && <FinanceManager />}
 
         {/* =====================================================================
             MODALS
