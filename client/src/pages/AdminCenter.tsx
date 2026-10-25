@@ -28,13 +28,21 @@ import {
   UserCheck,
   UserX,
   Layers,
-  Sparkles
+  Sparkles,
+  Calendar,
+  Tag,
+  Settings,
+  UserPlus
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Branch, User } from '../types';
 import { BranchInteractiveMap } from '../components/BranchInteractiveMap';
+import { StaffManager } from '../components/StaffManager';
+import { ShiftCalendarView } from '../components/ShiftCalendarView';
+import { DiscountsManager } from '../components/DiscountsManager';
+import { SystemConfigManager } from '../components/SystemConfigManager';
 
-type AdminTab = 'branches' | 'users' | 'map';
+type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'map';
 
 interface BranchFormData {
   name: string;
@@ -606,44 +614,96 @@ export const AdminCenter: React.FC = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center bg-[#181818] border border-white/10 rounded-xl p-1 shrink-0">
+          <div className="flex flex-wrap items-center bg-[#181818] border border-white/10 rounded-xl p-1 gap-1 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('branches')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
                 activeTab === 'branches'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              <Building2 className="w-4 h-4" />
-              <span>Quản lý Chi nhánh</span>
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Chi nhánh</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('users')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
                 activeTab === 'users'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Quản lý &amp; Nhân sự</span>
+              <Users className="w-3.5 h-3.5" />
+              <span>Người dùng</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('staff')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'staff'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Nhân sự (UC-81-83)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('schedules')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'schedules'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Phân ca & Chấm công (UC-84)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('discounts')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'discounts'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              <span>Khuyến mãi (UC-110-112)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('config')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'config'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>Chính sách & Cấu hình (UC-113-115)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('map')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
                 activeTab === 'map'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              <MapPin className="w-4 h-4" />
-              <span>Bản đồ GPS Trạm</span>
+              <MapPin className="w-3.5 h-3.5" />
+              <span>Bản đồ GPS</span>
             </button>
           </div>
         </div>
@@ -1319,6 +1379,26 @@ export const AdminCenter: React.FC = () => {
             <BranchInteractiveMap branches={branches} />
           </div>
         )}
+
+        {/* =====================================================================
+            TAB 4: QUẢN LÝ NHÂN SỰ & QUẦY (UC-81, UC-82, UC-83)
+            ===================================================================== */}
+        {activeTab === 'staff' && <StaffManager />}
+
+        {/* =====================================================================
+            TAB 5: LỊCH PHÂN CA & CHẤM CÔNG (UC-84)
+            ===================================================================== */}
+        {activeTab === 'schedules' && <ShiftCalendarView />}
+
+        {/* =====================================================================
+            TAB 6: KHUYẾN MÃI & VOUCHER GIẢM GIÁ (UC-110, UC-111, UC-112)
+            ===================================================================== */}
+        {activeTab === 'discounts' && <DiscountsManager />}
+
+        {/* =====================================================================
+            TAB 7: CHÍNH SÁCH & CẤU HÌNH HỆ THỐNG (UC-113, UC-114, UC-115)
+            ===================================================================== */}
+        {activeTab === 'config' && <SystemConfigManager />}
 
         {/* =====================================================================
             MODALS

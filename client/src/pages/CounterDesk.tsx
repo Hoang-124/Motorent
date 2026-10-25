@@ -28,6 +28,8 @@ import {
   Wrench,
   ShieldAlert,
   Image as ImageIcon,
+  Calendar,
+  Users,
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
@@ -40,6 +42,9 @@ import { AuditLogViewer } from '../components/AuditLogViewer';
 import { StaffComplaintDesk } from '../components/StaffComplaintDesk';
 import { ManagerComplaintWorkspace } from '../components/ManagerComplaintWorkspace';
 import { BannerManager } from '../components/BannerManager';
+import { StaffClockWidget } from '../components/StaffClockWidget';
+import { ShiftCalendarView } from '../components/ShiftCalendarView';
+import { StaffManager } from '../components/StaffManager';
 
 type ChecklistKey =
   | 'idCardVerified'
@@ -57,7 +62,9 @@ type MainDeskMode =
   | 'audit'
   | 'vehicles'
   | 'complaints'
-  | 'banners';
+  | 'banners'
+  | 'shifts'
+  | 'staff';
 
 const VALID_DESK_MODES: MainDeskMode[] = [
   'bookings',
@@ -67,6 +74,8 @@ const VALID_DESK_MODES: MainDeskMode[] = [
   'vehicles',
   'complaints',
   'banners',
+  'shifts',
+  'staff',
 ];
 
 interface DamageRecordItem {
@@ -1199,6 +1208,34 @@ export const CounterDesk: React.FC = () => {
                 <ImageIcon className="w-4 h-4" />
                 <span>07. Banner CMS (UC-118)</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => switchDeskMode('shifts')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                  deskMode === 'shifts'
+                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
+                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                }`}
+              >
+                <Calendar className="w-4 h-4" />
+                <span>08. Lịch phân ca & Chấm công (UC-84)</span>
+              </button>
+
+              {isManager && (
+                <button
+                  type="button"
+                  onClick={() => switchDeskMode('staff')}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    deskMode === 'staff'
+                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
+                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>09. Quản lý nhân viên (UC-81-83)</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -1226,6 +1263,11 @@ export const CounterDesk: React.FC = () => {
               </span>
             </button>
           )}
+        </div>
+
+        {/* UC-84: Quick Staff Attendance Bar */}
+        <div className="mb-6">
+          <StaffClockWidget />
         </div>
 
         {/* Global Alert / Toast Notification */}
@@ -2861,6 +2903,10 @@ export const CounterDesk: React.FC = () => {
           <BannerManager />
         ) : deskMode === 'audit' ? (
           <AuditLogViewer />
+        ) : deskMode === 'shifts' ? (
+          <ShiftCalendarView />
+        ) : deskMode === 'staff' ? (
+          <StaffManager />
         ) : (
           /* UC-61-63: Vehicle Fleet & Status Management Tab */
           <div className="space-y-6">
