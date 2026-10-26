@@ -8,6 +8,7 @@ import { AuditLog } from '../../models/AuditLog';
 import { AppError } from '../../core/errorHandler';
 import { env } from '../../config/env';
 import { emitBookingStatus } from '../booking/bookingEvents';
+import { sendBookingStatusUpdateEmail } from '../booking/bookingEmailService';
 
 export type VnpParams = Record<string, string | number | undefined>;
 
@@ -376,6 +377,7 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
 
     // Emit real-time status update to socket rooms (UC-37)
     emitBookingStatus(updatedBooking);
+    await sendBookingStatusUpdateEmail(updatedBooking);
 
     // Notify user
     await Notification.create({
@@ -605,6 +607,7 @@ export const confirmVietQrPayment = async (options: {
   }).catch((err: unknown) => console.error('[VietQR Payment Record Error]', err));
 
   emitBookingStatus(updatedBooking);
+  await sendBookingStatusUpdateEmail(updatedBooking);
 
   await Notification.create({
     userId: booking.userId,
@@ -631,4 +634,3 @@ export const confirmVietQrPayment = async (options: {
 
   return updatedBooking;
 };
-

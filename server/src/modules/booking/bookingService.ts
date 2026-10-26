@@ -6,7 +6,6 @@ import { Branch } from '../../models/Branch';
 import { User, IUser } from '../../models/User';
 import { Discount } from '../../models/Discount';
 import { Notification } from '../../models/Notification';
-import { BookingReminder } from '../../models/BookingReminder';
 import { AuditLog } from '../../models/AuditLog';
 import { Payment } from '../../models/Payment';
 import { AppError } from '../../core/errorHandler';
@@ -16,6 +15,10 @@ import { assertBranchAccess } from '../../core/permissions';
 import { emitBookingStatus } from './bookingEvents';
 import { isCloudinaryConfigured, uploadDataUriToCloudinary } from '../../config/cloudinary';
 import { quoteVehicleRental } from '../pricing/pricingService';
+import { schedulePickupReminders } from '../../core/jobs/bookingReminderJob';
+import { rewardReferralOnFirstCompletedBooking } from '../loyalty/loyaltyService';
+import { sendBookingStatusUpdateEmail } from './bookingEmailService';
+import { createUserNotification } from '../notifications/notificationService';
 
 export interface CreateBookingDto {
   vehicleId: string;
@@ -283,6 +286,11 @@ export const createBooking = async (
           isActive: true,
           startDate: { $lte: currentDate },
           endDate: { $gte: currentDate },
+          $or: [
+            { ownerUserId: { $exists: false } },
+            { ownerUserId: null },
+            { ownerUserId: user._id },
+          ],
           $expr: { $lt: ['$usedCount', '$usageLimit'] },
         },
         { $inc: { usedCount: 1 } },
@@ -291,10 +299,14 @@ export const createBooking = async (
 
       if (appliedDiscount) {
         if (!appliedDiscount.minBookingAmount || basePrice >= appliedDiscount.minBookingAmount) {
-          const rawDiscount = Math.round(basePrice * (appliedDiscount.discountPercent / 100));
-          discountAmount = appliedDiscount.maxDiscountAmount
-            ? Math.min(appliedDiscount.maxDiscountAmount, rawDiscount)
-            : rawDiscount;
+          if (appliedDiscount.fixedDiscountAmount) {
+            discountAmount = Math.min(basePrice, appliedDiscount.fixedDiscountAmount);
+          } else {
+            const rawDiscount = Math.round(basePrice * (appliedDiscount.discountPercent / 100));
+            discountAmount = appliedDiscount.maxDiscountAmount
+              ? Math.min(appliedDiscount.maxDiscountAmount, rawDiscount)
+              : rawDiscount;
+          }
           discountDoc = appliedDiscount;
         } else {
           // Revert usage count if min booking amount not met
@@ -343,17 +355,10 @@ export const createBooking = async (
         }).catch((err: unknown) => console.error('[Notification error]', err));
       }
 
-      // Schedule pickup reminder
-      const reminderTime = new Date(pickupDate.getTime() - 2 * 3600 * 1000);
-      if (reminderTime > new Date()) {
-        BookingReminder.create({
-          bookingId: newBooking._id,
-          reminderType: 'PICKUP_UPCOMING',
-          scheduledTime: reminderTime,
-          status: 'Pending',
-          channel: 'SMS',
-        }).catch((err: unknown) => console.error('[Reminder error]', err));
-      }
+      void schedulePickupReminders(newBooking).catch((error: unknown) =>
+        console.error(`[Reminder error] Failed to schedule booking ${bookingCode}:`, error)
+      );
+      await sendBookingStatusUpdateEmail(newBooking);
 
       return newBooking;
     } catch (createErr) {
@@ -474,10 +479,14 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
 
       if (!isExpired && !isNotStarted && !isUsageExceeded) {
         if (!discount.minBookingAmount || basePrice >= discount.minBookingAmount) {
-          const rawDiscount = Math.round(basePrice * (discount.discountPercent / 100));
-          discountAmount = discount.maxDiscountAmount
-            ? Math.min(discount.maxDiscountAmount, rawDiscount)
-            : rawDiscount;
+          if (discount.fixedDiscountAmount) {
+            discountAmount = Math.min(basePrice, discount.fixedDiscountAmount);
+          } else {
+            const rawDiscount = Math.round(basePrice * (discount.discountPercent / 100));
+            discountAmount = discount.maxDiscountAmount
+              ? Math.min(discount.maxDiscountAmount, rawDiscount)
+              : rawDiscount;
+          }
           appliedDiscount = {
             code: discount.code,
             discountPercent: discount.discountPercent,
@@ -1115,6 +1124,15 @@ export const checkinBooking = async (
   booking.approvedBy = staffUser._id as mongoose.Types.ObjectId;
   booking.status = 'Ongoing';
   await booking.save();
+  await sendBookingStatusUpdateEmail(booking);
+  await createUserNotification({
+    userId: booking.userId,
+    title: `Đã bàn giao xe cho đơn ${booking.bookingCode}`,
+    body: 'Đơn thuê xe đã bắt đầu. Chúc bạn có hành trình an toàn.',
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
+    data: { bookingId: booking._id.toString(), status: booking.status },
+  }).catch((error: unknown) => console.error('[Notification] Could not create check-in notification:', error));
 
   // Set vehicle status to Rented and update odometer
   vehicle.status = 'Rented';
@@ -1217,14 +1235,32 @@ export const checkoutBooking = async (
 
   // Award loyalty points once: 1 point per 10,000 VND
   if (!booking.loyaltyAwarded) {
-    const actualPaid = booking.totalAmount - (booking.discountAmount || 0);
-    const pointsEarned = Math.floor(actualPaid / 10000);
+    const pointsEarned = Math.floor(Math.max(0, booking.totalAmount) / 10000);
     booking.loyaltyPointsEarned = pointsEarned;
     booking.loyaltyAwarded = true;
-    await User.findByIdAndUpdate(booking.userId, { $inc: { loyaltyPoints: pointsEarned } }).catch(() => {});
+    if (pointsEarned > 0) {
+      const rewardedCustomer = await User.findByIdAndUpdate(
+        booking.userId,
+        { $inc: { loyaltyPoints: pointsEarned } },
+        { new: true }
+      ).select('_id');
+      if (!rewardedCustomer) {
+        throw new AppError(404, 'Không tìm thấy khách hàng để cộng điểm thành viên.');
+      }
+    }
   }
 
   await booking.save();
+  await rewardReferralOnFirstCompletedBooking(booking.userId);
+  await sendBookingStatusUpdateEmail(booking);
+  await createUserNotification({
+    userId: booking.userId,
+    title: `Đơn ${booking.bookingCode} đã hoàn tất`,
+    body: `Đơn thuê xe đã hoàn tất. Bạn được cộng ${booking.loyaltyPointsEarned} điểm thành viên.`,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
+    data: { bookingId: booking._id.toString(), status: booking.status },
+  }).catch((error: unknown) => console.error('[Notification] Could not create checkout notification:', error));
 
   // Update Vehicle: move to return branch, update ODO, set Available (or Maintenance if severely damaged)
   const vehicle = await Vehicle.findById(booking.vehicleId);
@@ -1320,6 +1356,7 @@ export const recordCounterPayment = async (
   if (booking.remainingAmount === 0) {
     booking.isPaid = true;
   }
+  const previousStatus = booking.status;
   if (booking.status === 'Pending') {
     booking.status = 'Confirmed';
   }
@@ -1327,6 +1364,17 @@ export const recordCounterPayment = async (
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
   booking.counterPaidAt = new Date();
   await booking.save();
+  if (booking.status !== previousStatus) {
+    await sendBookingStatusUpdateEmail(booking);
+    await createUserNotification({
+      userId: booking.userId,
+      title: `Đơn ${booking.bookingCode} đã được xác nhận`,
+      body: 'Chi nhánh đã ghi nhận thanh toán tại quầy của bạn.',
+      type: 'BOOKING',
+      relatedId: booking._id.toString(),
+      data: { bookingId: booking._id.toString(), status: booking.status },
+    }).catch((error: unknown) => console.error('[Notification] Could not create payment notification:', error));
+  }
 
   await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
 
@@ -1601,6 +1649,7 @@ export const cancelBooking = async (
   booking.refundForfeitAmount = forfeitAmount;
   booking.refundStatus = refundAmount > 0 ? 'Pending' : 'None';
   await booking.save();
+  await sendBookingStatusUpdateEmail(booking);
 
   // Release vehicle back to Available status
   await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Available' }).catch(() => {});
@@ -2132,6 +2181,7 @@ export const approveBooking = async (
   }
 
   await booking.save();
+  await sendBookingStatusUpdateEmail(booking);
 
   // Audit log
   await AuditLog.create({
@@ -2240,6 +2290,7 @@ export const rejectBooking = async (
   }
 
   await booking.save();
+  await sendBookingStatusUpdateEmail(booking);
 
   // Audit log
   await AuditLog.create({

@@ -11,6 +11,7 @@ import { connectDatabase } from './config/database';
 import { errorHandler } from './core/errorHandler';
 import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
 import { startOdometerAlertJob } from './core/jobs/odometerAlertJob';
+import { startBookingReminderJob } from './core/jobs/bookingReminderJob';
 import { User } from './models/User';
 import { Booking } from './models/Booking';
 import { Conversation } from './models/Conversation';
@@ -327,6 +328,7 @@ export const startServer = async () => {
   });
   startBookingExpiryJob();
   startOdometerAlertJob();
+  startBookingReminderJob();
   console.log(`[SERVER] MOTORENT Server running on http://localhost:${PORT}`);
   console.log(`[SECURITY] Active: Helmet, Rate Limiter, CORS whitelist, Trust Proxy: ${env.TRUST_PROXY || 1}`);
   console.log(`[HEALTH] Health check endpoint: http://localhost:${PORT}/api/health`);

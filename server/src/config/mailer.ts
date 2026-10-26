@@ -270,3 +270,91 @@ export const sendPasswordResetEmail = async (
 
   return true;
 };
+
+const bookingStatusCopy: Record<string, { subject: string; heading: string; detail: string }> = {
+  Pending: {
+    subject: 'Đã nhận yêu cầu đặt xe',
+    heading: 'Yêu cầu đặt xe đã được ghi nhận',
+    detail: 'Vui lòng hoàn tất thanh toán cọc để xác nhận đơn đặt xe.',
+  },
+  Approved: {
+    subject: 'Đơn đặt xe đã được duyệt',
+    heading: 'Đơn đặt xe đã được duyệt',
+    detail: 'Đơn đang chờ xác nhận thanh toán hoặc hoàn tất bước tiếp theo.',
+  },
+  Confirmed: {
+    subject: 'Đơn đặt xe đã được xác nhận',
+    heading: 'Đơn đặt xe đã được xác nhận',
+    detail: 'Xe đã được giữ cho bạn. Vui lòng đến chi nhánh đúng giờ nhận xe.',
+  },
+  Ongoing: {
+    subject: 'Bạn đã nhận xe thành công',
+    heading: 'Chúc bạn có hành trình an toàn',
+    detail: 'Đơn thuê xe đang diễn ra. Hãy trả xe tại chi nhánh và thời gian đã hẹn.',
+  },
+  Completed: {
+    subject: 'Đơn thuê xe đã hoàn tất',
+    heading: 'Cảm ơn bạn đã sử dụng MOTORENT',
+    detail: 'Đơn thuê đã hoàn tất. Điểm thành viên (nếu có) đã được cập nhật vào tài khoản.',
+  },
+  Cancelled: {
+    subject: 'Đơn đặt xe đã bị hủy',
+    heading: 'Đơn đặt xe đã bị hủy',
+    detail: 'Nếu đơn đã thanh toán, vui lòng theo dõi trạng thái hoàn tiền trong hồ sơ.',
+  },
+  Rejected: {
+    subject: 'Đơn đặt xe chưa được chấp nhận',
+    heading: 'Đơn đặt xe chưa được chấp nhận',
+    detail: 'Vui lòng kiểm tra lý do trong hồ sơ hoặc liên hệ bộ phận hỗ trợ.',
+  },
+};
+
+export const sendBookingStatusEmail = async (input: {
+  toEmail?: string;
+  username: string;
+  bookingCode: string;
+  status: string;
+  pickupDateTime: Date;
+  totalAmount: number;
+}): Promise<boolean> => {
+  if (!input.toEmail) return false;
+  const statusCopy = bookingStatusCopy[input.status];
+  if (!statusCopy) return false;
+  if (!isRealSmtpConfigured() || !isDeliverableRecipientEmail(input.toEmail)) {
+    if (env.NODE_ENV === 'development') {
+      console.info(`[EMAIL] Booking ${input.bookingCode} (${input.status}) not sent: SMTP or recipient is not configured.`);
+    }
+    return false;
+  }
+
+  const pickupTime = input.pickupDateTime.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#17211d">
+      <h1 style="color:#047857">MOTORENT</h1>
+      <h2>${escapeHtml(statusCopy.heading)}</h2>
+      <p>Xin chào ${escapeHtml(input.username)},</p>
+      <p>${escapeHtml(statusCopy.detail)}</p>
+      <dl>
+        <dt>Mã đơn</dt><dd>${escapeHtml(input.bookingCode)}</dd>
+        <dt>Trạng thái</dt><dd>${escapeHtml(input.status)}</dd>
+        <dt>Giờ nhận xe</dt><dd>${escapeHtml(pickupTime)}</dd>
+        <dt>Tổng tiền</dt><dd>${Math.max(0, input.totalAmount).toLocaleString('vi-VN')} VND</dd>
+      </dl>
+      <p><a href="${env.CLIENT_URL}/profile?tab=bookings">Xem đơn đặt xe</a></p>
+    </div>
+  `;
+
+  try {
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"MOTORENT Đà Nẵng" <${env.SMTP_USER}>`,
+      to: input.toEmail,
+      subject: `[MOTORENT] ${statusCopy.subject} ${input.bookingCode}`,
+      html,
+    });
+    return true;
+  } catch (error) {
+    console.error(`[SMTP ERROR] Could not send booking ${input.bookingCode} status email:`, error);
+    return false;
+  }
+};

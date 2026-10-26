@@ -140,7 +140,9 @@ export const Navbar: React.FC = () => {
           setNotifUnreadCount(res.data.data.unreadCount ?? items.filter((n) => !n.isRead).length);
         }
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        console.error('[Notifications] Failed to load notifications:', error);
+      });
   }, [isAuthenticated]);
 
   // Fetch user's booking count & notifications
@@ -226,7 +228,10 @@ export const Navbar: React.FC = () => {
       );
       setNotifUnreadCount((c) => Math.max(0, c - 1));
       if (!notif._id.startsWith('chat_')) {
-        api.put(`/notifications/${notif._id}/read`).catch(() => {});
+        api.put(`/notifications/${notif._id}/read`).catch((error: unknown) => {
+          console.error('[Notifications] Failed to mark notification as read:', error);
+          fetchNotifications();
+        });
       }
     }
     setNotifDropdownOpen(false);
@@ -248,7 +253,10 @@ export const Navbar: React.FC = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     setNotifUnreadCount(0);
     if (isAuthenticated) {
-      api.put('/notifications/read-all').catch(() => {});
+      api.put('/notifications/read-all').catch((error: unknown) => {
+        console.error('[Notifications] Failed to mark all notifications as read:', error);
+        fetchNotifications();
+      });
     }
   };
 
@@ -917,6 +925,17 @@ export const Navbar: React.FC = () => {
                         </Link>
 
                         <Link
+                          to="/profile?tab=loyalty"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <Sparkles className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <span className="truncate">Điểm &amp; ưu đãi thành viên</span>
+                          </div>
+                        </Link>
+
+                        <Link
                           to="/complaints"
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
@@ -1118,6 +1137,17 @@ export const Navbar: React.FC = () => {
                       <span>Chuyến xe của tôi</span>
                     </div>
                     <span className="text-[10px] text-[#6E6E6E] font-medium">{bookingCount} chuyến</span>
+                  </Link>
+
+                  <Link
+                    to="/profile?tab=loyalty"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between p-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
+                      <span>Điểm &amp; ưu đãi thành viên</span>
+                    </div>
                   </Link>
 
                   <Link

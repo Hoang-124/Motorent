@@ -79,6 +79,7 @@ export interface User {
   ekycRejectionReason?: string;
   loyaltyPoints: number;
   referralCode?: string;
+  promoSubscribed?: boolean;
   drivingLicenseUrl?: string;
   idCardFrontUrl?: string;
   idCardBackUrl?: string;

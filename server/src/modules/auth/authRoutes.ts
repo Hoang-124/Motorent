@@ -67,6 +67,7 @@ router.post('/reset-password', authLimiter, authController.resetPassword);
 router.post('/logout', authenticateJWT, authController.logout);
 router.get('/me', authenticateJWT, authController.getProfile);
 router.put('/me', authenticateJWT, authController.updateProfile);
+router.put('/me/preferences', authenticateJWT, authController.updatePreferences);
 
 // Change password
 router.put('/change-password', authenticateJWT, authController.changePassword);
@@ -119,5 +120,4 @@ router.put(
 );
 
 export default router;
-
 

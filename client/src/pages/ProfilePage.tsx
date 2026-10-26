@@ -43,8 +43,9 @@ import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHel
 import { compressEkycImage } from '../utils/watermark';
 import type { Booking, Vehicle, Branch, Review } from '../types';
 import { ReviewModal } from '../components/ReviewModal';
+import { LoyaltyCenter } from '../components/LoyaltyCenter';
 
-export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password';
+export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password' | 'loyalty';
 
 export const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
@@ -312,7 +313,7 @@ export const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     const tabParam = searchParams.get('tab') as ProfileTab;
-    if (tabParam && ['bookings', 'info', 'avatar', 'ekyc', 'password'].includes(tabParam)) {
+    if (tabParam && ['bookings', 'info', 'avatar', 'ekyc', 'password', 'loyalty'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -790,6 +791,7 @@ export const ProfilePage: React.FC = () => {
     },
     { id: 'avatar', num: '04', label: 'Ảnh đại diện' },
     { id: 'password', num: '05', label: 'Đổi mật khẩu' },
+    { id: 'loyalty', num: '06', label: 'Điểm & ưu đãi' },
   ];
 
   const activeBookingsCount =
@@ -882,6 +884,12 @@ export const ProfilePage: React.FC = () => {
           {/* Right Quick Actions */}
           <div className="flex items-center gap-3 self-start md:self-auto">
             <Link
+              to="/profile?tab=loyalty"
+              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl border border-[#FFC799]/35 hover:border-[#FFC799] text-[#FFC799] text-xs font-semibold transition-all active:scale-95"
+            >
+              <span>Điểm &amp; ưu đãi</span>
+            </Link>
+            <Link
               to="/bikes"
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all active:scale-95"
             >
@@ -961,6 +969,8 @@ export const ProfilePage: React.FC = () => {
             </button>
           </div>
         )}
+
+        {activeTab === 'loyalty' && <LoyaltyCenter />}
 
         {/* =====================================================================
             TAB 01: CHUYẾN XE CỦA TÔI (FULL-WIDTH RENTAL CONTRACT TICKETS)

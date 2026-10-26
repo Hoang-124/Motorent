@@ -26,6 +26,7 @@ const registerSchema = z.object({
     .regex(/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/, 'Số điện thoại di động không đúng định dạng Việt Nam')
     .optional()
     .or(z.literal('')),
+  referralCode: z.string().trim().max(32, 'Mã giới thiệu không hợp lệ').optional(),
 });
 
 const loginSchema = z.object({
@@ -77,6 +78,10 @@ const updateProfileSchema = z.object({
     .or(z.literal('')),
   gender: z.enum(['Male', 'Female', 'Other']).optional(),
   dob: z.string().optional(),
+});
+
+const updatePreferencesSchema = z.object({
+  promoSubscribed: z.boolean(),
 });
 
 export const register = async (
@@ -323,6 +328,25 @@ export const updateProfile = async (
     res.json({
       success: true,
       message: 'Cập nhật thông tin hồ sơ thành công!',
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updatePreferences = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user?._id) throw new AppError(401, 'Chưa xác thực người dùng.');
+    const data = updatePreferencesSchema.parse(req.body);
+    const updated = await authService.updatePreferences(req.user._id.toString(), data);
+    res.json({
+      success: true,
+      message: 'Đã cập nhật tùy chọn nhận ưu đãi.',
       data: updated,
     });
   } catch (error) {
@@ -680,5 +704,4 @@ export const reviewUserEkyc = async (
     next(error);
   }
 };
-
 

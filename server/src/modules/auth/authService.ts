@@ -12,6 +12,7 @@ import { env } from '../../config/env';
 import { deleteFromCloudinary, getSignedCloudinaryEkycUrl } from '../../config/cloudinary';
 import { AppError } from '../../core/errorHandler';
 import { uploadDir, privateEkycDir } from '../../core/uploadMiddleware';
+import { generateReferralCode } from '../loyalty/loyaltyService';
 
 /**
  * Generate JWT token for user including tokenVersion
@@ -75,6 +76,7 @@ export const register = async (data: {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  referralCode?: string;
 }) => {
   const { username, email, password, firstName, lastName, phoneNumber } = data;
 
@@ -106,6 +108,23 @@ export const register = async (data: {
     }
   }
 
+  const referrerCode = data.referralCode?.trim().toUpperCase();
+  const referrer = referrerCode
+    ? await User.findOne({ referralCode: referrerCode, roles: 'Customer', status: 'Active' }).select('_id')
+    : null;
+  if (referrerCode && !referrer) {
+    throw new AppError(400, 'Mã giới thiệu không hợp lệ hoặc tài khoản giới thiệu không còn hoạt động.');
+  }
+
+  let newReferralCode = generateReferralCode();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (!(await User.exists({ referralCode: newReferralCode }))) break;
+    newReferralCode = generateReferralCode();
+  }
+  if (await User.exists({ referralCode: newReferralCode })) {
+    throw new AppError(503, 'Không thể tạo mã giới thiệu lúc này. Vui lòng thử lại.');
+  }
+
   if (password.length < 8) {
     throw new AppError(400, 'Mật khẩu phải có độ dài tối thiểu từ 8 ký tự.');
   }
@@ -125,6 +144,10 @@ export const register = async (data: {
     firstName: firstName?.trim(),
     lastName: lastName?.trim(),
     phoneNumber: phoneNumber?.trim(),
+    referralCode: newReferralCode,
+    referredBy: referrer?._id,
+    referralRewarded: false,
+    promoSubscribed: false,
     roles: 'Customer',
     status: 'Unverified',
     isEmailVerified: false,
@@ -667,6 +690,16 @@ export const updateProfile = async (
   return sanitizeUser(user);
 };
 
+export const updatePreferences = async (userId: string, data: { promoSubscribed: boolean }) => {
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { promoSubscribed: data.promoSubscribed } },
+    { new: true, runValidators: true }
+  );
+  if (!user) throw new AppError(404, 'Tài khoản không tồn tại.');
+  return sanitizeUser(user);
+};
+
 /**
  * Update user avatar
  */
@@ -982,5 +1015,4 @@ export const reviewEkyc = async (
 
   return sanitizeUser(targetUser);
 };
-
 

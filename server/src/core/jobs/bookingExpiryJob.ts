@@ -4,6 +4,8 @@ import { Discount } from '../../models/Discount';
 import { BookingReminder } from '../../models/BookingReminder';
 import { AuditLog } from '../../models/AuditLog';
 import { emitBookingStatus } from '../../modules/booking/bookingEvents';
+import { sendBookingStatusUpdateEmail } from '../../modules/booking/bookingEmailService';
+import { createUserNotification } from '../../modules/notifications/notificationService';
 
 let isJobRunning = false;
 let cronTask: cron.ScheduledTask | null = null;
@@ -24,7 +26,7 @@ export const runBookingExpirySweep = async (): Promise<number> => {
       { paymentExpiresAt: { $exists: false }, createdAt: { $lt: thirtyMinutesAgo } },
       { paymentExpiresAt: null, createdAt: { $lt: thirtyMinutesAgo } },
     ],
-  }).select('_id bookingCode userId discountId');
+  }).select('_id bookingCode userId discountId pickupDateTime totalAmount');
 
   if (expiredBookings.length === 0) {
     return 0;
@@ -45,6 +47,8 @@ export const runBookingExpirySweep = async (): Promise<number> => {
 
   // Release discounts for cancelled bookings
   for (const b of expiredBookings) {
+    b.status = 'Cancelled';
+    b.cancelReason = 'Quá hạn giữ chỗ và thanh toán (Hệ thống tự động hủy)';
     if (b.discountId) {
       await Discount.findByIdAndUpdate(b.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
     }
@@ -79,6 +83,15 @@ export const runBookingExpirySweep = async (): Promise<number> => {
       remainingAmount: 0,
       updatedAt: new Date(),
     } as unknown as import('../../models/Booking').IBooking);
+    await sendBookingStatusUpdateEmail(b);
+    await createUserNotification({
+      userId: b.userId,
+      title: `Đơn ${b.bookingCode} đã hết hạn`,
+      body: 'Đơn giữ xe chưa hoàn tất thanh toán đúng hạn và đã được hệ thống tự động hủy.',
+      type: 'BOOKING',
+      relatedId: b._id.toString(),
+      data: { bookingId: b._id.toString(), status: b.status },
+    }).catch((error: unknown) => console.error('[Notification] Could not create expiry notification:', error));
   }
 
   return updateResult.modifiedCount;

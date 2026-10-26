@@ -23,6 +23,9 @@ export interface IUser extends Document {
   identityStatus: IdentityStatus;
   loyaltyPoints: number;
   referralCode?: string;
+  referredBy?: mongoose.Types.ObjectId;
+  referralRewarded: boolean;
+  promoSubscribed: boolean;
   drivingLicenseUrl?: string;
   idCardFrontUrl?: string;
   idCardBackUrl?: string;
@@ -82,6 +85,9 @@ const UserSchema = new Schema<IUser>(
     },
     loyaltyPoints: { type: Number, default: 0 },
     referralCode: { type: String, unique: true, sparse: true },
+    referredBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    referralRewarded: { type: Boolean, default: false },
+    promoSubscribed: { type: Boolean, default: false },
     drivingLicenseUrl: { type: String, default: '' },
     idCardFrontUrl: { type: String, default: '' },
     idCardBackUrl: { type: String, default: '' },

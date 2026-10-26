@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   User as UserIcon, 
   Mail, 
@@ -31,6 +31,7 @@ import {
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login: authLogin } = useAuth();
 
   // Registration form values
@@ -39,6 +40,7 @@ export const RegisterPage: React.FC = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [referralCode, setReferralCode] = useState(searchParams.get('ref') || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -187,6 +189,7 @@ export const RegisterPage: React.FC = () => {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         phoneNumber: phoneNumber.trim(),
+        referralCode: referralCode.trim() || undefined,
       });
 
       if (res.data && res.data.success) {
@@ -748,6 +751,24 @@ export const RegisterPage: React.FC = () => {
                     <span>{phoneError}</span>
                   </div>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
+                  Mã giới thiệu <span className="font-normal text-[#6E6E6E]">(không bắt buộc)</span>
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  maxLength={32}
+                  placeholder="Nhập mã bạn bè đã chia sẻ"
+                  value={referralCode}
+                  onChange={(event) => {
+                    setReferralCode(event.target.value.toUpperCase());
+                    if (errorMsg) setErrorMsg('');
+                  }}
+                  className="w-full rounded-xl px-3 py-2 text-xs font-medium outline-none transition-all bg-[#101010] border border-white/10 focus:border-[#FFC799] text-white placeholder:text-[#6E6E6E]"
+                />
               </div>
 
               {/* Password & Confirm */}
