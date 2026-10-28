@@ -342,7 +342,7 @@ export const BranchesPage: React.FC = () => {
                             </span>
                             {isNearest && (
                               <span className="px-2 py-0.5 rounded-full bg-[#99FFE4]/20 border border-[#99FFE4]/30 text-[10px] font-bold text-[#99FFE4] shrink-0">
-                                Gần bạn nhất ({branch.distanceKm ?? '0.5'} km)
+                                Gần bạn nhất{branch.distanceKm !== undefined ? ` (${branch.distanceKm} km)` : ''}
                               </span>
                             )}
                           </div>

@@ -112,8 +112,8 @@ const seedDatabase = async (): Promise<void> => {
     description: 'Thân thiện môi trường, vận hành êm ái, sạc tiện lợi.',
   });
 
-  // 2. Seed 3 Branches (S1 Spec: Hải Châu, Mỹ Khê, plus Sơn Trà)
-  console.log('[SEED] Creating 3 branches (Hai Chau, My Khe, Son Tra)...');
+  // 2. Seed 2 Branches (Sân Bay Quốc Tế Đà Nẵng & Bãi Biển Mỹ Khê)
+  console.log('[SEED] Creating 2 branches (Hai Chau Airport, My Khe Beach)...');
   const branchDAD = await Branch.create({
     name: 'Chi nhánh Sân Bay Quốc Tế Đà Nẵng (Hải Châu)',
     code: 'CN-DAD',
@@ -142,22 +142,8 @@ const seedDatabase = async (): Promise<void> => {
     description: 'Nằm sát bãi biển Mỹ Khê, thuận tiện di chuyển tắm biển và khám phá cung đường ven biển.',
   });
 
-  const branchST = await Branch.create({
-    name: 'Chi nhánh Bán Đảo Sơn Trà',
-    code: 'CN-ST',
-    address: 'Đường Hoàng Sa, Phường Thọ Quang, Quận Sơn Trà, TP. Đà Nẵng',
-    phone: '0236.3822.303',
-    email: 'sontra.peninsula@motorent.vn',
-    location_lng: 108.2755,
-    location_lat: 16.1042,
-    hours_open: '06:30',
-    hours_close: '21:00',
-    isActive: true,
-    description: 'Cửa ngõ cung đường phượt Bán đảo Sơn Trà, Chùa Linh Ứng và Đỉnh Bàn Cờ.',
-  });
-
-  // 3. Seed 10 Users (S1 Spec: 1 Admin, 3 Managers, 2 Staff, 4 Customers)
-  console.log('[SEED] Creating 10 standard RBAC users...');
+  // 3. Seed 9 Users (1 Admin, 2 Managers, 2 Staff, 4 Customers)
+  console.log('[SEED] Creating 9 standard RBAC users...');
   const userAdmin = await User.create({
     username: 'admin',
     email: 'admin@motorent.vn',
@@ -202,28 +188,11 @@ const seedDatabase = async (): Promise<void> => {
     isEmailVerified: true,
   });
 
-  const userManagerST = await User.create({
-    username: 'manager_st',
-    email: 'manager.st@motorent.vn',
-    passwordHash: managerPass,
-    firstName: 'Phạm Đức',
-    lastName: 'Quản Lý Sơn Trà',
-    phoneNumber: '0904555666',
-    roles: 'BranchManager',
-    status: 'Active',
-    branchId: branchST._id,
-    identityStatus: 'Verified',
-    tokenVersion: 0,
-    isEmailVerified: true,
-  });
-
   // Assign managers to branches
   branchDAD.managerId = userManagerDAD._id as mongoose.Types.ObjectId;
   await branchDAD.save();
   branchMK.managerId = userManagerMK._id as mongoose.Types.ObjectId;
   await branchMK.save();
-  branchST.managerId = userManagerST._id as mongoose.Types.ObjectId;
-  await branchST.save();
 
   const userStaffDAD = await User.create({
     username: 'staff_dad',
@@ -317,8 +286,8 @@ const seedDatabase = async (): Promise<void> => {
 
   void [userStaffDAD, userStaffMK, userCustomer1, userCustomer2, userCustomer3, userCustomer4];
 
-  // 4. Seed 20 Vehicles (S1 Spec: exactly 20 vehicles balanced across all 5 categories and 3 branches)
-  console.log('[SEED] Creating 20 authentic vehicles across 5 categories...');
+  // 4. Seed 20 Vehicles (balanced across all 5 categories and 2 branches)
+  console.log('[SEED] Creating 20 authentic vehicles across 5 categories and 2 branches...');
   const categoryMap: Record<string, mongoose.Types.ObjectId> = {
     'xe-tay-ga': catScooter._id as mongoose.Types.ObjectId,
     'xe-so': catManual._id as mongoose.Types.ObjectId,
@@ -327,7 +296,7 @@ const seedDatabase = async (): Promise<void> => {
     'xe-dien': catElectric._id as mongoose.Types.ObjectId,
   };
 
-  const branches = [branchDAD, branchMK, branchST];
+  const branches = [branchDAD, branchMK];
 
   const platePrefixes: Record<string, string> = {
     'xe-tay-ga': '43-B1',
@@ -416,7 +385,7 @@ const seedDatabase = async (): Promise<void> => {
       content: [
         '<h2>1. Thủ tục nhận xe tại Sân bay Quốc tế Đà Nẵng diễn ra thế nào?</h2><p>Khách hàng xuất trình CCCD/Hộ chiếu và Giấy phép lái xe hợp lệ (A1/A2) để đối chiếu eKYC trực tuyến. Motorent cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng, ký biên bản bàn giao điện tử kèm 02 mũ bảo hiểm đạt chuẩn.</p>',
         '<h2>2. Chính sách đặt cọc 30% và hoàn cọc hoạt động ra sao?</h2><p>Khi thanh toán cọc 30% qua cổng VNPay hoặc VietQR 24/7, hệ thống tự động khóa biển số xe theo đúng khung giờ thuê đã chọn. Khách hàng thông báo hủy trước 24 giờ so với giờ nhận xe được hoàn lại 100% tiền cọc theo chính sách hệ thống.</p>',
-        '<h2>3. Tôi có thể nhận xe ở Sân bay và trả xe ở chi nhánh khác không?</h2><p>Có. Hệ thống hỗ trợ giao nhận xe liên trạm giữa Chi nhánh Sân Bay Quốc Tế Đà Nẵng, Chi nhánh Bãi Biển Mỹ Khê và Chi nhánh Bán Đảo Sơn Trà.</p>',
+        '<h2>3. Tôi có thể nhận xe ở Sân bay và trả xe ở chi nhánh khác không?</h2><p>Có. Hệ thống hỗ trợ giao nhận xe liên trạm giữa 02 chi nhánh chính thức: Chi nhánh Sân Bay Quốc Tế Đà Nẵng (Hải Châu) và Chi nhánh Bãi Biển Mỹ Khê.</p>',
         '<h2>4. Giá thuê xe đã bao gồm những trang bị nào?</h2><p>Giá niêm yết trên hệ thống đã bao gồm 02 mũ bảo hiểm 3/4 khử khuẩn UV, 02 áo mưa tiện lợi, giá đỡ điện thoại và hỗ trợ kỹ thuật nội thành Đà Nẵng.</p>',
       ].join(''),
       lastUpdatedBy: userAdmin._id,
@@ -480,10 +449,10 @@ const seedDatabase = async (): Promise<void> => {
     Vehicle.countDocuments(),
   ]);
 
-  console.log('\n[SUMMARY TABLE] S1 Seed Acceptance Criteria Verification:');
+  console.log('\n[SUMMARY TABLE] Seed Data Verification:');
   console.table([
-    { Entity: 'Branches', Required: 3, Actual: branchCount, Status: branchCount === 3 ? 'PASS' : 'FAIL' },
-    { Entity: 'Users', Required: 10, Actual: userCount, Status: userCount === 10 ? 'PASS' : 'FAIL' },
+    { Entity: 'Branches', Required: 2, Actual: branchCount, Status: branchCount === 2 ? 'PASS' : 'FAIL' },
+    { Entity: 'Users', Required: 9, Actual: userCount, Status: userCount === 9 ? 'PASS' : 'FAIL' },
     { Entity: 'Categories', Required: 5, Actual: categoryCount, Status: categoryCount === 5 ? 'PASS' : 'FAIL' },
     { Entity: 'Vehicles', Required: 20, Actual: vehicleCount, Status: vehicleCount === 20 ? 'PASS' : 'FAIL' },
   ]);
