@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { AppError } from '../../core/errorHandler';
 import { Notification, NotificationType } from '../../models/Notification';
+import { emitNotificationNew } from './notificationEvents';
 
 export const createUserNotification = async (input: {
   userId: mongoose.Types.ObjectId | string;
@@ -42,3 +43,9 @@ export const markAllNotificationsRead = async (userId: string): Promise<number> 
   const result = await Notification.updateMany({ userId, isRead: false }, { $set: { isRead: true } });
   return result.modifiedCount;
 };
+
+/**
+ * Fast lightweight query for badge count only (UC-45 socket badge sync)
+ */
+export const getUnreadCount = async (userId: string): Promise<number> =>
+  Notification.countDocuments({ userId, isRead: false });

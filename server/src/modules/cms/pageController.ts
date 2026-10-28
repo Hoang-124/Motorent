@@ -11,6 +11,33 @@ import {
 } from './pageUtils';
 
 /**
+ * Public: GET /pages?type=FAQ
+ * Lists all published pages, optionally filtered by type (UC-119 CMS Content Seeding)
+ */
+export const getPublicPages = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const filter: Record<string, unknown> = { isPublished: true };
+    const validTypes = ['FAQ', 'Terms', 'Privacy', 'Other'];
+    if (req.query.type && validTypes.includes(req.query.type as string)) {
+      filter.type = req.query.type;
+    }
+
+    const pages = await StaticPage.find(filter)
+      .select('-updatedBy -__v')
+      .sort({ type: 1, updatedAt: -1 })
+      .lean();
+
+    res.json({ success: true, data: pages });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Admin: GET /admin/pages
  * Lists all pages with pagination and filters (type, isPublished, search)
  */

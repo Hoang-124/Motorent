@@ -10,6 +10,23 @@ const getUserId = (req: AuthenticatedRequest): string => {
   return req.user._id.toString();
 };
 
+/**
+ * GET /notifications/unread-count
+ * Lightweight endpoint — returns only the unread badge count for fast initial sync (UC-45)
+ */
+export const getUnreadCount = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const count = await notificationService.getUnreadCount(getUserId(req));
+    res.json({ success: true, data: { unreadCount: count } });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const listNotifications = async (
   req: AuthenticatedRequest,
   res: Response,

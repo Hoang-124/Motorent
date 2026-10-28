@@ -35,6 +35,7 @@ import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { api } from '../services/api';
+import { getSocket, disconnectSocket } from '../services/socket';
 import type { Notification } from '../types';
 
 const NAVBAR_PROMO_VOUCHERS = [
@@ -213,6 +214,49 @@ export const Navbar: React.FC = () => {
     };
   }, [user]);
 
+  // UC-45: Real-time Socket.IO notification badge & list listener
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const socket = getSocket();
+
+    const handleNewNotification = (newNotif: Notification) => {
+      setNotifications((prev) => {
+        if (prev.some((n) => n._id === newNotif._id)) return prev;
+        return [newNotif, ...prev];
+      });
+      setNotifUnreadCount((c) => c + 1);
+    };
+
+    // UC-45: Server pushes accurate badge count on connect & reconnect
+    const handleBadgeSync = (payload: { unreadCount: number }) => {
+      if (typeof payload?.unreadCount === 'number') {
+        setNotifUnreadCount(payload.unreadCount);
+      }
+    };
+
+    // Re-fetch full notification list when socket reconnects (stale prevention)
+    const handleReconnect = () => {
+      fetchNotifications();
+    };
+
+    const handleBookingStatus = () => {
+      fetchNotifications();
+    };
+
+    socket.on('notification:new', handleNewNotification);
+    socket.on('notification:badge', handleBadgeSync);
+    socket.on('booking:status', handleBookingStatus);
+    socket.io.on('reconnect', handleReconnect);
+
+    return () => {
+      socket.off('notification:new', handleNewNotification);
+      socket.off('notification:badge', handleBadgeSync);
+      socket.off('booking:status', handleBookingStatus);
+      socket.io.off('reconnect', handleReconnect);
+    };
+  }, [isAuthenticated, user, fetchNotifications]);
+
   const isStaffOrAdmin = Boolean(
     isAuthenticated &&
       user &&
@@ -271,6 +315,7 @@ export const Navbar: React.FC = () => {
     setUserDropdownOpen(false);
     setNotifDropdownOpen(false);
     window.dispatchEvent(new CustomEvent('motorent:close-chat'));
+    disconnectSocket();
     logout();
     setMobileMenuOpen(false);
     navigate('/');

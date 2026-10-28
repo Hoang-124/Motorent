@@ -39,4 +39,29 @@ const NotificationSchema = new Schema<INotification>(
 
 NotificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
 
+NotificationSchema.pre('validate', function (next) {
+  if (!this.body && (this as unknown as { message?: string }).message) {
+    this.body = (this as unknown as { message: string }).message;
+  }
+  const validTypes = ['SYSTEM', 'BOOKING', 'REMINDER', 'PROMO', 'MAINTENANCE', 'TRANSFER'];
+  if (this.type && !validTypes.includes(this.type)) {
+    if (this.type.startsWith('BOOKING')) {
+      this.type = 'BOOKING';
+    } else {
+      this.type = 'SYSTEM';
+    }
+  }
+  next();
+});
+
+NotificationSchema.post('save', function (doc) {
+  try {
+    // Dynamic emission to prevent circular import issues during module initialization
+    const { emitNotificationNew } = require('../modules/notifications/notificationEvents');
+    emitNotificationNew(doc);
+  } catch {
+    // Socket emission failure should never break database save
+  }
+});
+
 export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);

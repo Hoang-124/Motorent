@@ -1,12 +1,19 @@
-import React, { useState } from 'react';
-import { HelpCircle, X, ChevronDown, CheckCircle2, ShieldCheck, PhoneCall } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { HelpCircle, X, ChevronDown, ShieldCheck, PhoneCall, Loader2 } from 'lucide-react';
+import { api } from '../services/api';
 
 interface FaqModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const FAQS_DATA = [
+interface FaqItem {
+  q: string;
+  a: string;
+}
+
+// Static fallback data — used when CMS API is unavailable
+export const FAQS_DATA: FaqItem[] = [
   {
     q: 'Thủ tục nhận xe tại Sân bay Quốc tế Đà Nẵng diễn ra thế nào?',
     a: 'Khi hạ cánh tại Ga Quốc nội hoặc Ga T2 Quốc tế, bạn chỉ cần gọi hotline hoặc đi bộ 2 phút đến quầy Motorent đối diện cổng ga. Nhân viên chỉ kiểm tra đối soát eKYC trên điện thoại (không giữ CCCD gốc), ký hợp đồng số hóa và bàn giao xe cùng 2 mũ bảo hiểm 3/4 chỉ trong 3 phút.',
@@ -27,10 +34,71 @@ export const FAQS_DATA = [
     q: 'Chi phí thuê xe đã bao gồm những phụ kiện và dịch vụ gì?',
     a: 'Giá thuê trọn gói đã bao gồm: 02 mũ bảo hiểm 3/4 đạt chuẩn CR tiệt trùng UV, 02 áo mưa tiện lợi, giá đỡ điện thoại nhôm giảm chấn OIS, bảo hiểm trách nhiệm dân sự bắt buộc và dịch vụ cứu hộ kỹ thuật 24/7 trên toàn địa bàn TP. Đà Nẵng.',
   },
+  {
+    q: 'Có hỗ trợ nhận xe tại chi nhánh này và trả tại chi nhánh khác không?',
+    a: 'Có. Motorent có 3 chi nhánh tại Đà Nẵng (Sân bay Đà Nẵng, Bãi biển Mỹ Khê, Bán Đảo Sơn Trà). Bạn có thể chọn nhận xe tại Sân bay và trả xe tại Bãi biển Mỹ Khê hoàn toàn miễn phí phụ thu.',
+  },
 ];
+
+/**
+ * Parse CMS HTML content for FAQ pages into Q&A pairs.
+ * The seeded FAQ content uses <h2>Q</h2><p>A</p> structure.
+ */
+function parseFaqHtml(html: string): FaqItem[] {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const headings = Array.from(doc.querySelectorAll('h2'));
+    const items: FaqItem[] = [];
+
+    headings.forEach((h2) => {
+      const qText = h2.textContent?.trim() ?? '';
+      // Question text may start with "1. ", "2. " etc — strip numbering
+      const q = qText.replace(/^\d+\.\s*/, '');
+      // Get answer from the next sibling <p>
+      let sibling = h2.nextElementSibling;
+      let a = '';
+      while (sibling && sibling.tagName !== 'H2') {
+        a += (sibling.textContent?.trim() ?? '') + ' ';
+        sibling = sibling.nextElementSibling;
+      }
+      if (q && a.trim()) {
+        items.push({ q, a: a.trim() });
+      }
+    });
+
+    return items.length > 0 ? items : FAQS_DATA;
+  } catch {
+    return FAQS_DATA;
+  }
+}
 
 export const FaqModal: React.FC<FaqModalProps> = ({ isOpen, onClose }) => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [faqs, setFaqs] = useState<FaqItem[]>(FAQS_DATA);
+  const [loading, setLoading] = useState(false);
+
+  // UC-119: Fetch FAQ content from seeded CMS API on mount
+  useEffect(() => {
+    if (!isOpen) return;
+    setLoading(true);
+    api
+      .get('/pages?type=FAQ')
+      .then((res) => {
+        const pages: Array<{ content?: string }> = res.data?.data ?? [];
+        // Prefer the 'faq' slug page — fallback to first FAQ page found
+        const faqPage = pages[0];
+        if (faqPage?.content) {
+          const parsed = parseFaqHtml(faqPage.content);
+          setFaqs(parsed);
+        }
+      })
+      .catch(() => {
+        // Silently fall back to static data
+        setFaqs(FAQS_DATA);
+      })
+      .finally(() => setLoading(false));
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -66,36 +134,48 @@ export const FaqModal: React.FC<FaqModalProps> = ({ isOpen, onClose }) => {
 
         {/* FAQ list */}
         <div className="mt-5 space-y-3">
-          {FAQS_DATA.map((faq, index) => {
-            const isOpenItem = openIndex === index;
-            return (
-              <div
-                key={index}
-                className="rounded-2xl border border-white/10 bg-[#161616] overflow-hidden transition-all duration-200"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenIndex(isOpenItem ? null : index)}
-                  className="w-full p-4 sm:p-5 text-left flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer"
-                >
-                  <span className="text-xs sm:text-sm font-bold text-white pr-4">{faq.q}</span>
-                  <ChevronDown className={`w-4 h-4 text-[#A0A0A0] transition-transform flex-shrink-0 ${isOpenItem ? 'rotate-180 text-[#FFC799]' : ''}`} />
-                </button>
-                {isOpenItem && (
-                  <div className="px-4 sm:px-5 pb-5 text-xs sm:text-sm text-[#A0A0A0] leading-relaxed border-t border-white/10 pt-3">
-                    {faq.a}
-                  </div>
-                )}
+          {loading ? (
+            // Skeleton loader while fetching from CMS
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="rounded-2xl border border-white/10 bg-[#161616] overflow-hidden">
+                <div className="p-4 sm:p-5 flex items-center justify-between">
+                  <div className="h-4 bg-white/[0.06] rounded animate-pulse flex-1 mr-8" />
+                  <Loader2 className="w-4 h-4 text-[#A0A0A0] animate-spin flex-shrink-0" />
+                </div>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            faqs.map((faq, index) => {
+              const isOpenItem = openIndex === index;
+              return (
+                <div
+                  key={index}
+                  className="rounded-2xl border border-white/10 bg-[#161616] overflow-hidden transition-all duration-200"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenIndex(isOpenItem ? null : index)}
+                    className="w-full p-4 sm:p-5 text-left flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer"
+                  >
+                    <span className="text-xs sm:text-sm font-bold text-white pr-4">{faq.q}</span>
+                    <ChevronDown className={`w-4 h-4 text-[#A0A0A0] transition-transform flex-shrink-0 ${isOpenItem ? 'rotate-180 text-[#FFC799]' : ''}`} />
+                  </button>
+                  {isOpenItem && (
+                    <div className="px-4 sm:px-5 pb-5 text-xs sm:text-sm text-[#A0A0A0] leading-relaxed border-t border-white/10 pt-3">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
-        {/* Footer info in Modal */}
+        {/* Footer */}
         <div className="mt-6 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center space-x-2 text-[#A0A0A0]">
             <ShieldCheck className="w-4 h-4 text-[#FFC799]" />
-            <span>Hỗ trợ kỹ thuật & Cứu hộ 24/7</span>
+            <span>Hỗ trợ kỹ thuật &amp; Cứu hộ 24/7</span>
           </div>
 
           <a

@@ -473,14 +473,20 @@ const seedDatabase = async (): Promise<void> => {
   vehicles[1].status = 'Rented';
   await vehicles[1].save();
 
-  // 7. Seed Static Pages & Banners
+  // 7. Seed Static Pages & Banners (UC-119: Real CMS Content Seeding)
   await StaticPage.create([
     {
       slug: 'faq',
       title: 'Câu Hỏi Thường Gặp (FAQ)',
       type: 'FAQ',
       isPublished: true,
-      content: '<h2>1. Thủ tục thuê xe máy cần những gì?</h2><p>Khách hàng chỉ cần xuất trình CCCD/Hộ chiếu và Giấy phép lái xe hợp lệ (A1/A2) để thực hiện đối chiếu eKYC trực tuyến. Motorent cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng.</p>',
+      content:
+        '<h2>1. Thủ tục nhận xe tại Sân bay Quốc tế Đà Nẵng diễn ra thế nào?</h2><p>Khi hạ cánh tại Ga Quốc nội hoặc Ga T2 Quốc tế, bạn chỉ cần gọi hotline hoặc đi bộ 2 phút đến quầy Motorent đối diện cổng ga. Nhân viên chỉ kiểm tra đối soát eKYC trên điện thoại (không giữ CCCD gốc), ký hợp đồng số hóa và bàn giao xe cùng 2 mũ bảo hiểm 3/4 chỉ trong 3 phút.</p>' +
+        '<h2>2. Nếu chuyến bay của tôi bị delay hoặc hoãn giờ hạ cánh thì sao?</h2><p>Motorent theo dõi số hiệu chuyến bay của quý khách theo thời gian thực. Khi bạn cọc giữ xe 30%, hệ thống tự động khóa biển số xe riêng cho bạn và bảo lưu lịch xe đến khi bạn thực tế hạ cánh mà không phát sinh thêm bất kỳ chi phí phạt trễ nào.</p>' +
+        '<h2>3. Chính sách hoàn cọc 30% giữ xe hoạt động ra sao?</h2><p>Nếu kế hoạch thay đổi, bạn chỉ cần thông báo hủy chuyến trước 24 giờ so với giờ nhận xe dự kiến, hệ thống Motorent sẽ hoàn lại 100% tiền cọc về tài khoản ngân hàng của bạn trong vòng 1-2 giờ làm việc.</p>' +
+        '<h2>4. Xe của Motorent phù hợp đi lại trong phố hay có thể đi ngoại ô Hội An?</h2><p>Đội xe Motorent chủ yếu là các dòng xe tay ga đô thị, xe điện và xe số đời mới (2023 - 2024) rất gọn nhẹ, cốp rộng để đi lại trong nội thành Đà Nẵng. Ngoài ra xe luôn được bảo dưỡng định kỳ mỗi 1.500 km nên bạn hoàn toàn yên tâm nếu muốn đi thêm các chuyến ngoại ô ngắn như Ngũ Hành Sơn hay Phố cổ Hội An.</p>' +
+        '<h2>5. Chi phí thuê xe đã bao gồm những phụ kiện và dịch vụ gì?</h2><p>Giá thuê trọn gói đã bao gồm: 02 mũ bảo hiểm 3/4 đạt chuẩn CR tiệt trùng UV, 02 áo mưa tiện lợi, giá đỡ điện thoại nhôm giảm chấn OIS, bảo hiểm trách nhiệm dân sự bắt buộc và dịch vụ cứu hộ kỹ thuật 24/7 trên toàn địa bàn TP. Đà Nẵng.</p>' +
+        '<h2>6. Có hỗ trợ nhận xe tại chi nhánh này và trả tại chi nhánh khác không?</h2><p>Có. Motorent có 3 chi nhánh tại Đà Nẵng (Sân bay Đà Nẵng, Bãi biển Mỹ Khê, Bán Đảo Sơn Trà). Bạn có thể chọn nhận xe tại Sân bay và trả xe tại Bãi biển Mỹ Khê hoàn toàn miễn phí phụ thu.</p>',
       lastUpdatedBy: userAdmin._id,
     },
     {
@@ -488,7 +494,12 @@ const seedDatabase = async (): Promise<void> => {
       title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
       type: 'Terms',
       isPublished: true,
-      content: '<h2>1. Quy định chung</h2><p>Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.</p>',
+      content:
+        '<h2>1. Điều kiện đối với người thuê xe</h2><p>Người thuê xe phải từ đủ 18 tuổi trở lên, có Căn cước công dân/Hộ chiếu hợp lệ và Giấy phép lái xe hạng A1 hoặc A2 còn hiệu lực. Motorent áp dụng công nghệ eKYC để đối chiếu thông tin và cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng.</p>' +
+        '<h2>2. Đặt cọc và thanh toán</h2><p>Khách hàng thanh toán đặt cọc 30% giá trị đơn thuê trực tuyến qua cổng VietQR/VNPay để xác nhận giữ xe. 70% số tiền thuê còn lại sẽ được tất toán khi khách hàng nhận xe tại chi nhánh hoặc điểm giao xe theo hợp đồng.</p>' +
+        '<h2>3. Nhận xe và trả xe</h2><p>Khách hàng và nhân viên Motorent tiến hành kiểm tra tình trạng ngoại quan, chụp ảnh hiện trạng xe và chỉ số công-tơ-mét (ODO) tại thời điểm giao xe. Hai bên ký xác nhận vào Biên bản bàn giao điện tử (Check-in Checklist). Khi trả xe, nếu xe nguyên vẹn như ban đầu, thủ tục trả xe (Check-out) hoàn tất trong 3 phút.</p>' +
+        '<h2>4. Trách nhiệm sử dụng xe</h2><p>Khách hàng có trách nhiệm tuân thủ Luật Giao thông Đường bộ Việt Nam, không sử dụng xe vào mục đích vi phạm pháp luật. Khách hàng chịu trách nhiệm đối với các khoản phạt vi phạm giao thông (nếu có) phát sinh trong suốt thời gian thuê xe.</p>' +
+        '<h2>5. Cứu hộ và sự cố kỹ thuật</h2><p>Motorent cung cấp dịch vụ cứu hộ kỹ thuật 24/7 trong bán kính hoạt động tại TP. Đà Nẵng. Trong trường hợp xảy ra sự cố va chạm hoặc trục trặc xe, khách hàng vui lòng liên hệ ngay hotline chi nhánh để được điều phối viên hỗ trợ kịp thời.</p>',
       lastUpdatedBy: userAdmin._id,
     },
     {
@@ -496,21 +507,11 @@ const seedDatabase = async (): Promise<void> => {
       title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
       type: 'Privacy',
       isPublished: true,
-      content: '<h2>1. Cam kết bảo mật dữ liệu</h2><p>Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được đóng dấu bảo mật và lưu trữ theo tiêu chuẩn an toàn cao cấp.</p>',
-      lastUpdatedBy: userAdmin._id,
-    },
-    {
-      slug: 'dieu-khoan-dich-vu',
-      isPublished: true,
-      title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
-      content: 'Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.',
-      lastUpdatedBy: userAdmin._id,
-    },
-    {
-      slug: 'chinh-sach-bao-mat',
-      isPublished: true,
-      title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
-      content: 'Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa lưu trữ theo tiêu chuẩn bảo mật cao cấp.',
+      content:
+        '<h2>1. Mục đích thu thập thông tin</h2><p>Motorent chỉ thu thập các thông tin cần thiết phục vụ cho việc đặt xe, lập hợp đồng thuê xe điện tử và đối soát danh tính eKYC theo quy định pháp luật (Họ tên, Số điện thoại, Email, Số CCCD và GPLX).</p>' +
+        '<h2>2. Bảo mật hình ảnh giấy tờ tùy thân</h2><p>Tất cả hình ảnh CCCD và Giấy phép lái xe do khách hàng tải lên đều được hệ thống tự động gắn Watermark bảo mật điện tử: <em>"CHỈ DÙNG XÁC THỰC THUÊ XE TẠI MOTORENT"</em>, mã hóa dữ liệu đường truyền và lưu trữ trên máy chủ an toàn đạt chuẩn.</p>' +
+        '<h2>3. Cam kết không chia sẻ dữ liệu</h2><p>Motorent cam kết tuyệt đối không bán, trao đổi hoặc chia sẻ thông tin cá nhân của khách hàng cho bất kỳ bên thứ ba nào vì mục đích thương mại, ngoại trừ trường hợp có yêu cầu từ cơ quan chức năng có thẩm quyền theo quy định của pháp luật.</p>' +
+        '<h2>4. Quyền của chủ thể dữ liệu</h2><p>Khách hàng có quyền tra cứu, cập nhật thông tin cá nhân hoặc yêu cầu xóa dữ liệu tài khoản sau khi đã hoàn tất mọi nghĩa vụ hợp đồng thuê xe bằng cách liên hệ bộ phận Chăm sóc khách hàng của Motorent.</p>',
       lastUpdatedBy: userAdmin._id,
     },
   ]);
@@ -530,6 +531,22 @@ const seedDatabase = async (): Promise<void> => {
       imageUrl: 'https://res.cloudinary.com/dsxbuk4pe/image/upload/f_auto,q_auto/v1780643840/bikes/1_3.jpg.png',
       linkUrl: '/bikes',
       order: 2,
+      isActive: true,
+    },
+    {
+      title: 'Thuê Xe Theo Tuần & Tháng - Tiết Kiệm Đến 25%',
+      subtitle: 'Bảo dưỡng định kỳ ODO miễn phí & hỗ trợ đổi xe linh hoạt',
+      imageUrl: 'https://res.cloudinary.com/dsxbuk4pe/image/upload/f_auto,q_auto/v1780643840/bikes/1_4.jpg.png',
+      linkUrl: '/bikes',
+      order: 3,
+      isActive: true,
+    },
+    {
+      title: 'Sân Bay - Biển - Phố Cổ: Một Hành Trình, Ba Điểm Đến',
+      subtitle: 'Đặt lịch sớm qua app, nhận xe trong 3 phút — không giữ CCCD gốc',
+      imageUrl: 'https://res.cloudinary.com/dsxbuk4pe/image/upload/f_auto,q_auto/v1780643840/bikes/1_2.jpg.png',
+      linkUrl: '/bikes?promo=true',
+      order: 4,
       isActive: true,
     },
   ]);

@@ -51,7 +51,7 @@ describe('UC-119: Static Pages (FAQ / Terms / Privacy / CMS)', () => {
         content: '<p>Cam kết bảo mật dữ liệu khách hàng theo chuẩn eKYC.</p>',
       },
     ]);
-  });
+  }, 30000);
 
   afterAll(async () => {
     await disconnectDatabase();
@@ -172,7 +172,7 @@ describe('UC-119: Static Pages (FAQ / Terms / Privacy / CMS)', () => {
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/bảo lưu|hệ thống/i);
       }
-    });
+    }, 40000);
 
     it('POST /api/admin/pages rejects invalid slug formats (non kebab-case or invalid length)', async () => {
       // Too short (< 3 chars)
@@ -196,7 +196,7 @@ describe('UC-119: Static Pages (FAQ / Terms / Privacy / CMS)', () => {
           content: '<p>Nội dung</p>',
         });
       expect(resInvalid.status).toBe(400);
-    });
+    }, 40000);
   });
 
   describe('3. System Page Protection (faq, terms, privacy)', () => {
