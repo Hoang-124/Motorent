@@ -522,3 +522,187 @@ export interface SystemConfig {
   updatedAt: string;
 }
 
+// ==========================================
+// Reports & Analytics Types (UC-86 - UC-106)
+// ==========================================
+export interface DailyReportBooking {
+  _id: string;
+  bookingCode: string;
+  customerName: string;
+  customerPhone: string;
+  vehicleModel: string;
+  licensePlate: string;
+  totalAmount: number;
+  paidAmount: number;
+  status: string;
+  paymentMethod: string;
+  pickupTime: string;
+  returnTime: string;
+  damageFee: number;
+  lateFee: number;
+}
+
+export interface DailyRevenueReport {
+  date: string;
+  dateFormatted: string;
+  branch: Branch | null;
+  metrics: {
+    grossRevenue: number;
+    netRevenue: number;
+    onlineDepositRevenue: number;
+    counterSettlementRevenue: number;
+    additionalFees: number;
+    refunds: number;
+    totalBookings: number;
+    pickupsCount: number;
+    returnsCount: number;
+    cancelledCount: number;
+  };
+  paymentMethods: {
+    vnpay: number;
+    counter: number;
+  };
+  bookings: DailyReportBooking[];
+}
+
+export interface DailyBreakdownItem {
+  day: number;
+  date: string;
+  revenue: number;
+  bookingsCount: number;
+  deposits: number;
+  counterCash: number;
+}
+
+export interface CategoryBreakdownItem {
+  name: string;
+  revenue: number;
+  bookingsCount: number;
+}
+
+export interface MonthlyRevenueReport {
+  month: number;
+  year: number;
+  branch: Branch | null;
+  summary: {
+    totalRevenue: number;
+    totalBookings: number;
+    averageOrderValue: number;
+    previousMonthRevenue: number;
+    growthPercent: number;
+  };
+  dailyBreakdown: DailyBreakdownItem[];
+  categoryBreakdown: CategoryBreakdownItem[];
+}
+
+export interface FleetStatsReport {
+  totalVehicles: number;
+  statusBreakdown: {
+    available: number;
+    rented: number;
+    maintenance: number;
+    transferring: number;
+  };
+  utilizationRate: number;
+  averageRating: number;
+  averageOdometer: number;
+  maintenanceStats: {
+    requiresMaintenanceCount: number;
+    inMaintenance: number;
+    monthlyCost: number;
+    recentLogsCount: number;
+  };
+  topVehicles: Array<{
+    _id: string;
+    vehicleModel: string;
+    licensePlate: string;
+    brand: string;
+    status: string;
+    odometer: number;
+    averageRating: number;
+    dailyPrice: number;
+  }>;
+}
+
+export interface BranchChainItem {
+  branchId: string;
+  branchName: string;
+  branchCode: string;
+  address: string;
+  revenue: number;
+  bookingsCount: number;
+  activeVehicles: number;
+  utilizationRate: number;
+  contributionPercent: number;
+}
+
+export interface ChainRevenueReport {
+  period: string;
+  totalChainRevenue: number;
+  totalBookings: number;
+  totalBranches: number;
+  branchBreakdown: BranchChainItem[];
+}
+
+export interface BranchComparisonItem {
+  branchId: string;
+  branchName: string;
+  branchCode: string;
+  revenue: number;
+  bookingsCount: number;
+  averageOrderValue: number;
+  activeVehicles: number;
+  utilizationRate: number;
+  contributionPercent: number;
+}
+
+export interface BranchComparisonReport {
+  period: string;
+  branches: BranchComparisonItem[];
+  highlights: {
+    topRevenueBranch: string;
+    highestUtilizationBranch: string;
+  };
+}
+
+export interface KpiDashboardData {
+  kpi: {
+    totalRevenue: number;
+    activeRentals: number;
+    completedRentals: number;
+    cancellationRate: number;
+    fleetUtilization: number;
+    fleetTotal: number;
+    averageRating: number;
+  };
+  trend: Array<{
+    date: string;
+    label: string;
+    revenue: number;
+    bookings: number;
+  }>;
+  funnel: Array<{
+    stage: string;
+    count: number;
+    percent: number;
+  }>;
+  topVehicles: any[];
+}
+
+export interface ForecastDayItem {
+  date: string;
+  dayLabel: string;
+  isWeekend: boolean;
+  predictedBookings: number;
+  predictedRevenue: number;
+  expectedUtilization: number;
+  capacityRisk: 'Normal' | 'High' | 'Overload';
+}
+
+export interface DemandForecastData {
+  forecast7Days: ForecastDayItem[];
+  fleetCapacity: number;
+  insights: string[];
+}
+
+

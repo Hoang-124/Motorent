@@ -20,6 +20,7 @@ import reviewRoutes from '../modules/review/reviewRoutes';
 import staffRoutes from '../modules/hr/staffRoutes';
 import scheduleRoutes from '../modules/hr/scheduleRoutes';
 import discountRoutes from '../modules/discount/discountRoutes';
+import reportRoutes from '../modules/report/reportRoutes';
 import * as reviewController from '../modules/review/reviewController';
 import { adminBannerRouter, publicBannerRouter } from '../modules/cms/bannerRoutes';
 import { adminPageRouter, publicPageRouter } from '../modules/cms/pageRoutes';
@@ -64,6 +65,7 @@ router.use('/finance', financeRoutes);
 router.use('/staff', staffRoutes);
 router.use('/schedules', scheduleRoutes);
 router.use('/discounts', discountRoutes);
+router.use('/reports', reportRoutes);
 
 // Customer Review profile route: GET /api/me/reviews
 router.get(

@@ -36,7 +36,8 @@ import {
   Trash2,
   ChevronRight,
   Globe,
-  Languages
+  Languages,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -570,6 +571,15 @@ export const Navbar: React.FC = () => {
                 name: t('nav.auditLog'),
                 path: '/audit',
                 icon: ShieldCheck,
+              },
+            ]
+          : []),
+        ...(['SystemAdmin', 'BranchManager'].includes(user?.roles || '')
+          ? [
+              {
+                name: t('nav.reports'),
+                path: '/reports',
+                icon: BarChart3,
               },
             ]
           : []),

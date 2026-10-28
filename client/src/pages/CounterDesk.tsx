@@ -31,6 +31,7 @@ import {
   Calendar,
   Users,
   Lock,
+  BarChart3,
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User } from '../types';
@@ -46,6 +47,7 @@ import { BannerManager } from '../components/BannerManager';
 import { StaffClockWidget } from '../components/StaffClockWidget';
 import { ShiftCalendarView } from '../components/ShiftCalendarView';
 import { StaffManager } from '../components/StaffManager';
+import { ReportsCenter } from '../components/ReportsCenter';
 
 type ChecklistKey =
   | 'idCardVerified'
@@ -65,7 +67,8 @@ type MainDeskMode =
   | 'complaints'
   | 'banners'
   | 'shifts'
-  | 'staff';
+  | 'staff'
+  | 'reports';
 
 const VALID_DESK_MODES: MainDeskMode[] = [
   'bookings',
@@ -77,6 +80,7 @@ const VALID_DESK_MODES: MainDeskMode[] = [
   'banners',
   'shifts',
   'staff',
+  'reports',
 ];
 
 interface DamageRecordItem {
@@ -1235,18 +1239,33 @@ export const CounterDesk: React.FC = () => {
               </button>
 
               {isManager && (
-                <button
-                  type="button"
-                  onClick={() => switchDeskMode('staff')}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    deskMode === 'staff'
-                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                  <span>09. Quản lý nhân viên (UC-81-83)</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => switchDeskMode('staff')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                      deskMode === 'staff'
+                        ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
+                        : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    <span>09. Quản lý nhân viên (UC-81-83)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => switchDeskMode('reports')}
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                      deskMode === 'reports'
+                        ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
+                        : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span>10. Báo cáo & Phân tích (S3)</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -2979,6 +2998,8 @@ export const CounterDesk: React.FC = () => {
           <ShiftCalendarView />
         ) : deskMode === 'staff' ? (
           <StaffManager />
+        ) : deskMode === 'reports' ? (
+          <ReportsCenter />
         ) : (
           /* UC-61-63: Vehicle Fleet & Status Management Tab */
           <div className="space-y-6">

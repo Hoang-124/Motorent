@@ -59,6 +59,9 @@ const CounterDesk = lazy(() =>
 const BookingPage = lazy(() =>
   import('./pages/BookingPage').then((module) => ({ default: module.BookingPage }))
 );
+const ReportsCenter = lazy(() =>
+  import('./components/ReportsCenter').then((module) => ({ default: module.ReportsCenter }))
+);
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -180,6 +183,32 @@ export function App() {
                           <ManagementNav />
                           <FleetDashboardPage />
                         </>
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/reports"
+                    element={
+                      <RequireRole roles={['BranchManager', 'SystemAdmin']}>
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                          <ManagementNav />
+                          <div className="mt-6">
+                            <ReportsCenter />
+                          </div>
+                        </div>
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/reports"
+                    element={
+                      <RequireRole roles={['BranchManager', 'SystemAdmin']}>
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                          <ManagementNav />
+                          <div className="mt-6">
+                            <ReportsCenter />
+                          </div>
+                        </div>
                       </RequireRole>
                     }
                   />

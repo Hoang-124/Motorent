@@ -35,7 +35,8 @@ import {
   Settings,
   UserPlus,
   FileSpreadsheet,
-  Languages
+  Languages,
+  BarChart3
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Branch, User } from '../types';
@@ -45,9 +46,10 @@ import { ShiftCalendarView } from '../components/ShiftCalendarView';
 import { DiscountsManager } from '../components/DiscountsManager';
 import { SystemConfigManager } from '../components/SystemConfigManager';
 import { FinanceManager } from '../components/FinanceManager';
+import { ReportsCenter } from '../components/ReportsCenter';
 import { I18nManager } from '../components/I18nManager';
 
-type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'finance' | 'i18n' | 'map';
+type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'finance' | 'reports' | 'i18n' | 'map';
 
 interface BranchFormData {
   name: string;
@@ -87,13 +89,13 @@ export const AdminCenter: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const requested = searchParams.get('tab');
-    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'i18n', 'map'];
+    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'reports', 'i18n', 'map'];
     return validTabs.includes(requested as AdminTab) ? (requested as AdminTab) : 'branches';
   });
 
   useEffect(() => {
     const requested = searchParams.get('tab');
-    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'i18n', 'map'];
+    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'reports', 'i18n', 'map'];
     if (requested && validTabs.includes(requested as AdminTab)) {
       setActiveTab(requested as AdminTab);
     }
@@ -722,6 +724,19 @@ export const AdminCenter: React.FC = () => {
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Đối soát & Thuế (UC-120-121)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('reports')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'reports'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span>Báo cáo & Phân tích (S3)</span>
             </button>
 
             <button
@@ -1444,6 +1459,11 @@ export const AdminCenter: React.FC = () => {
             ===================================================================== */}
         {activeTab === 'config' && <SystemConfigManager />}
         {activeTab === 'finance' && <FinanceManager />}
+        {activeTab === 'reports' && (
+          <div className="animate-fade-up">
+            <ReportsCenter />
+          </div>
+        )}
         {activeTab === 'i18n' && <I18nManager />}
 
         {/* =====================================================================
