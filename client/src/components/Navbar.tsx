@@ -29,7 +29,8 @@ import {
   Heart,
   ShieldAlert,
   AlertCircle,
-  Building2
+  Building2,
+  BarChart3,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -408,6 +409,15 @@ export const Navbar: React.FC = () => {
                 name: 'Nhật ký Audit',
                 path: '/audit',
                 icon: ShieldCheck,
+              },
+            ]
+          : []),
+        ...(['SystemAdmin', 'BranchManager'].includes(user?.roles || '')
+          ? [
+              {
+                name: 'Báo cáo',
+                path: '/reports',
+                icon: BarChart3,
               },
             ]
           : []),
