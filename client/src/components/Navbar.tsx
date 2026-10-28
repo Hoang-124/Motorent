@@ -29,10 +29,19 @@ import {
   Heart,
   ShieldAlert,
   AlertCircle,
-  Building2
+  Building2,
+  Sun,
+  Moon,
+  CreditCard,
+  Trash2,
+  ChevronRight,
+  Globe,
+  Languages
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useTheme } from '../context/ThemeContext';
+import { useTranslation } from '../context/I18nContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
 import { api } from '../services/api';
 import { getSocket } from '../services/socket';
@@ -103,6 +112,7 @@ export const Navbar: React.FC = () => {
   const [chatUnread, setChatUnread] = useState<number>(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [notifUnreadCount, setNotifUnreadCount] = useState<number>(0);
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all');
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -112,6 +122,8 @@ export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const { wishlistCount } = useWishlist();
+  const { isLight, toggleTheme } = useTheme();
+  const { locale, toggleLocale, t } = useTranslation();
 
   const avatarSrc = getUserAvatarUrl(user?.avatarUrl);
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
@@ -119,12 +131,6 @@ export const Navbar: React.FC = () => {
   useEffect(() => {
     setAvatarLoadFailed(false);
   }, [user?.avatarUrl]);
-
-  // Ensure unified theme is active (clear any legacy theme attribute)
-  useEffect(() => {
-    document.documentElement.removeAttribute('data-theme');
-    localStorage.removeItem('motorent_theme');
-  }, []);
 
   const fetchNotifications = useCallback(() => {
     if (!isAuthenticated) {
@@ -144,31 +150,40 @@ export const Navbar: React.FC = () => {
       .catch(() => {});
   }, [isAuthenticated]);
 
+  const fetchBookingCount = useCallback(() => {
+    if (!isAuthenticated) {
+      setBookingCount(0);
+      return;
+    }
+    api
+      .get('/bookings/my', { params: { limit: 1 } })
+      .then((res) => {
+        if (res.data?.success) {
+          if (res.data.counts && typeof res.data.counts.all === 'number') {
+            setBookingCount(res.data.counts.all);
+          } else if (res.data.pagination && typeof res.data.pagination.total === 'number') {
+            setBookingCount(res.data.pagination.total);
+          } else if (Array.isArray(res.data.data)) {
+            setBookingCount(res.data.data.length);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [isAuthenticated]);
+
   // Fetch user's booking count & notifications
   useEffect(() => {
     if (isAuthenticated) {
-      api
-        .get('/bookings/my')
-        .then((res) => {
-          if (res.data && res.data.success && Array.isArray(res.data.data)) {
-            const validBookings = res.data.data.filter(
-              (b: { status?: string; paymentMethod?: string; depositPaid?: boolean; isPaid?: boolean }) =>
-                !['Cancelled', 'Rejected'].includes(b.status || '') &&
-                !(b.status === 'Pending' && b.paymentMethod === 'Banking' && !b.depositPaid && !b.isPaid)
-            );
-            setBookingCount(validBookings.length);
-          }
-        })
-        .catch(() => {});
+      fetchBookingCount();
       fetchNotifications();
     } else {
       setBookingCount(0);
       setNotifications([]);
       setNotifUnreadCount(0);
     }
-  }, [isAuthenticated, location.pathname, fetchNotifications]);
+  }, [isAuthenticated, location.pathname, fetchBookingCount, fetchNotifications]);
 
-  // Real-time Socket.IO subscription for live notification badge & booking status updates
+  // Real-time Socket.IO & local custom event subscription for live notification badge & booking count sync
   useEffect(() => {
     if (!isAuthenticated) return;
     const socket = getSocket();
@@ -184,29 +199,28 @@ export const Navbar: React.FC = () => {
 
     const handleBookingStatus = () => {
       fetchNotifications();
-      api
-        .get('/bookings/my')
-        .then((res) => {
-          if (res.data?.success && Array.isArray(res.data.data)) {
-            const validBookings = res.data.data.filter(
-              (b: { status?: string; paymentMethod?: string; depositPaid?: boolean; isPaid?: boolean }) =>
-                !['Cancelled', 'Rejected'].includes(b.status || '') &&
-                !(b.status === 'Pending' && b.paymentMethod === 'Banking' && !b.depositPaid && !b.isPaid)
-            );
-            setBookingCount(validBookings.length);
-          }
-        })
-        .catch(() => {});
+      fetchBookingCount();
+    };
+
+    const handleBookingsUpdatedEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ all?: number }>;
+      if (custom.detail && typeof custom.detail.all === 'number') {
+        setBookingCount(custom.detail.all);
+      } else {
+        fetchBookingCount();
+      }
     };
 
     socket.on('notification:new', handleRealtimeNotif);
     socket.on('booking:status', handleBookingStatus);
+    window.addEventListener('motorent:bookings-updated', handleBookingsUpdatedEvent);
 
     return () => {
       socket.off('notification:new', handleRealtimeNotif);
       socket.off('booking:status', handleBookingStatus);
+      window.removeEventListener('motorent:bookings-updated', handleBookingsUpdatedEvent);
     };
-  }, [isAuthenticated, fetchNotifications]);
+  }, [isAuthenticated, fetchBookingCount, fetchNotifications]);
 
   // Listen to LiveChatWidget state & incoming chat notifications
   useEffect(() => {
@@ -271,12 +285,23 @@ export const Navbar: React.FC = () => {
       }
     }
     setNotifDropdownOpen(false);
-    if (notif.title.toLowerCase().includes('chat') || notif._id.startsWith('chat_')) {
+    const lowerTitle = notif.title.toLowerCase();
+    const lowerBody = (notif.body || '').toLowerCase();
+
+    if (lowerTitle.includes('chat') || lowerTitle.includes('tin nhắn') || notif._id.startsWith('chat_')) {
       window.dispatchEvent(new CustomEvent('motorent:open-chat'));
+    } else if (lowerTitle.includes('ekyc') || lowerBody.includes('ekyc') || lowerBody.includes('cccd')) {
+      navigate(isStaffOrAdmin ? '/counter?mode=ekyc' : '/profile?tab=ekyc');
+    } else if (lowerTitle.includes('khiếu nại') || lowerBody.includes('khiếu nại')) {
+      navigate(isStaffOrAdmin ? '/staff/complaints' : '/complaints');
     } else if (notif.type === 'PROMO') {
       navigate('/bikes?promo=true');
-    } else if (notif.type === 'BOOKING') {
-      navigate(isStaffOrAdmin ? '/counter' : '/profile?tab=bookings');
+    } else if (notif.type === 'BOOKING' || lowerTitle.includes('cọc') || lowerBody.includes('mv-')) {
+      if (!isStaffOrAdmin && notif.relatedId) {
+        navigate(`/booking-details/${notif.relatedId}`);
+      } else {
+        navigate(isStaffOrAdmin ? '/counter' : '/profile?tab=bookings');
+      }
     } else if (notif.type === 'MAINTENANCE' && isStaffOrAdmin) {
       const vehicleId = typeof notif.data?.vehicleId === 'string' ? notif.data.vehicleId : '';
       navigate(`/manager/fleet${vehicleId ? `?vehicle=${encodeURIComponent(vehicleId)}` : ''}`);
@@ -291,6 +316,143 @@ export const Navbar: React.FC = () => {
     if (isAuthenticated) {
       api.put('/notifications/read-all').catch(() => {});
     }
+  };
+
+  const handleDeleteNotif = (e: React.MouseEvent, notif: Notification) => {
+    e.stopPropagation();
+    setNotifications((prev) => prev.filter((n) => n._id !== notif._id));
+    if (!notif.isRead) {
+      setNotifUnreadCount((c) => Math.max(0, c - 1));
+    }
+    if (isAuthenticated && !notif._id.startsWith('chat_')) {
+      api.delete(`/notifications/${notif._id}`).catch(() => {});
+    }
+  };
+
+  const handleClearReadNotifs = () => {
+    setNotifications((prev) => prev.filter((n) => !n.isRead));
+    if (isAuthenticated) {
+      api.delete('/notifications/clear-read').catch(() => {});
+    }
+  };
+
+  const formatNotifTimestamp = (isoDate: string): string => {
+    const date = new Date(isoDate);
+    if (Number.isNaN(date.getTime())) return '';
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+
+    if (diffMin < 1) return 'Vừa xong';
+    if (diffMin < 60) return `${diffMin} phút trước`;
+
+    const timeStr = date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const isSameDay =
+      date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+    if (isSameDay) return `Hôm nay · ${timeStr}`;
+
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    const isYesterday =
+      date.getDate() === yesterday.getDate() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getFullYear() === yesterday.getFullYear();
+    if (isYesterday) return `Hôm qua · ${timeStr}`;
+
+    const dayMonth = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    return `${dayMonth} · ${timeStr}`;
+  };
+
+  const getNotifVisualMeta = (notif: Notification) => {
+    const text = `${notif.title} ${notif.body || ''}`.toLowerCase();
+    if (
+      text.includes('từ chối') ||
+      text.includes('yêu cầu cập nhật') ||
+      text.includes('quá hạn') ||
+      text.includes('khiếu nại') ||
+      text.includes('hủy')
+    ) {
+      return {
+        Icon: AlertCircle,
+        tag: 'Cần chú ý',
+        boxClass: 'bg-[#FF8080]/12 border-[#FF8080]/30 text-[#FF8080]',
+        tagClass: 'text-[#FF8080]',
+      };
+    }
+    if (
+      text.includes('vnpay') ||
+      text.includes('vietqr') ||
+      text.includes('thanh toán') ||
+      text.includes('cọc') ||
+      text.includes('hoàn tiền')
+    ) {
+      return {
+        Icon: CreditCard,
+        tag: 'Thanh toán',
+        boxClass: 'bg-[#FFC799]/15 border-[#FFC799]/30 text-[#FFC799]',
+        tagClass: 'text-[#FFC799]',
+      };
+    }
+    if (text.includes('ekyc') || text.includes('thành công') || text.includes('chấp thuận')) {
+      return {
+        Icon: ShieldCheck,
+        tag: 'Xác thực',
+        boxClass: 'bg-[#99FFE4]/12 border-[#99FFE4]/30 text-[#99FFE4]',
+        tagClass: 'text-[#99FFE4]',
+      };
+    }
+    if (text.includes('chat') || text.includes('tin nhắn')) {
+      return {
+        Icon: MessageSquare,
+        tag: 'Hỗ trợ',
+        boxClass: 'bg-[#FFC799]/15 border-[#FFC799]/30 text-[#FFC799]',
+        tagClass: 'text-[#FFC799]',
+      };
+    }
+    if (notif.type === 'PROMO') {
+      return {
+        Icon: Tag,
+        tag: 'Ưu đãi',
+        boxClass: 'bg-[#FFC799]/15 border-[#FFC799]/30 text-[#FFC799]',
+        tagClass: 'text-[#FFC799]',
+      };
+    }
+    return {
+      Icon: Compass,
+      tag: 'Hệ thống',
+      boxClass: 'bg-white/[0.05] border-white/12 text-[#FFC799]',
+      tagClass: 'text-[#A0A0A0]',
+    };
+  };
+
+  const renderHighlightedNotifBody = (body: string) => {
+    const cleaned = body.replace(
+      /Ảnh CCCD đã được đóng dấu bảo mật tự động\.?/gi,
+      'Hồ sơ giấy tờ đã được mã hóa bảo mật chuẩn AES-256.'
+    );
+    const parts = cleaned.split(/(MV-[A-Z0-9]+|\d{1,3}(?:\.\d{3})+\s*(?:đ|VNĐ))/g);
+    return parts.map((part, idx) => {
+      if (/^MV-[A-Z0-9]+$/.test(part)) {
+        return (
+          <span
+            key={idx}
+            className="inline-flex items-center px-1.5 py-0.2 mx-0.5 rounded bg-white/[0.06] border border-white/10 font-mono-tabular font-semibold text-[10px] text-[#FFC799]"
+          >
+            {part}
+          </span>
+        );
+      }
+      if (/^\d{1,3}(?:\.\d{3})+\s*(?:đ|VNĐ)$/.test(part)) {
+        return (
+          <strong key={idx} className="font-mono-tabular font-semibold text-[#F5F5F5]">
+            {part}
+          </strong>
+        );
+      }
+      return <React.Fragment key={idx}>{part}</React.Fragment>;
+    });
   };
 
   const handleToggleHeaderChat = () => {
@@ -344,12 +506,12 @@ export const Navbar: React.FC = () => {
 
   const roleLabelVi =
     user?.roles === 'SystemAdmin'
-      ? 'Quản trị Hệ thống'
+      ? t('nav.roleAdmin')
       : user?.roles === 'BranchManager'
-        ? 'Quản lý Chi nhánh'
+        ? t('nav.roleManager')
         : user?.roles === 'Staff'
-          ? 'Nhân viên Điều phối'
-          : 'Khách hàng';
+          ? t('nav.roleStaff')
+          : t('nav.roleCustomer');
 
   const handleCopyPromoCode = (code: string) => {
     setCopiedCode(code);
@@ -388,52 +550,52 @@ export const Navbar: React.FC = () => {
   }> = isStaffOrAdmin
     ? [
         {
-          name: 'Bàn giao & Hợp đồng',
+          name: t('nav.counterBookings'),
           path: '/counter?mode=bookings',
           icon: LayoutDashboard,
         },
         {
-          name: 'Duyệt eKYC',
+          name: t('nav.counterEkyc'),
           path: '/counter?mode=ekyc',
           icon: FileCheck2,
         },
         ...(user?.roles === 'SystemAdmin'
           ? [
               {
-                name: 'Quản trị Admin',
+                name: t('nav.adminCenter'),
                 path: '/admin',
                 icon: Building2,
               },
               {
-                name: 'Nhật ký Audit',
+                name: t('nav.auditLog'),
                 path: '/audit',
                 icon: ShieldCheck,
               },
             ]
           : []),
         {
-          name: 'Đội xe',
+          name: t('nav.fleetShort'),
           path: '/bikes',
           icon: Compass,
         },
         {
-          name: 'Chi nhánh',
+          name: t('nav.branches'),
           path: '/branches',
           icon: MapPin,
         },
       ]
     : [
-        { name: 'Trang chủ', path: '/', icon: Compass, action: undefined },
-        { name: 'Đội xe & Bảng giá', path: '/bikes', icon: Compass, action: undefined },
-        { name: 'Chi nhánh', path: '/branches', icon: MapPin, action: undefined },
+        { name: t('nav.home'), path: '/', icon: Compass, action: undefined },
+        { name: t('nav.fleetPricing'), path: '/bikes', icon: Compass, action: undefined },
+        { name: t('nav.branches'), path: '/branches', icon: MapPin, action: undefined },
         {
-          name: 'Quy trình',
+          name: t('nav.procedure'),
           path: '/#procedure',
           icon: FileText,
           action: () => setShowProcedureModal(true),
         },
         {
-          name: 'Ưu đãi',
+          name: t('nav.offers'),
           path: '/bikes?promo=true',
           icon: Flame,
           isHot: true,
@@ -464,37 +626,37 @@ export const Navbar: React.FC = () => {
     <>
       {/* Balanced 3-Zone Architectural Header */}
       <header className="sticky top-0 z-50 w-full bg-[#101010]/95 backdrop-blur-xl border-b border-white/[0.08] transition-all duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[68px] grid grid-cols-2 lg:grid-cols-[1fr_auto_1fr] items-center gap-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-[70px] flex items-center justify-between gap-3 xl:gap-6">
 
-          {/* ZONE 1 (LEFT): Compact Brand Lockup */}
-          <div className="flex items-center justify-self-start">
+          {/* ZONE 1 (LEFT): Architectural Brand Lockup */}
+          <div className="flex items-center shrink-0">
             <Link
               to={isStaffOrAdmin ? '/counter' : '/'}
-              className="inline-flex items-center space-x-3 group shrink-0"
+              className="inline-flex items-center gap-2.5 sm:gap-3 group shrink-0"
             >
-              <div className="w-9 h-9 rounded-xl border border-white/15 bg-[#161616] flex items-center justify-center text-[#FFC799] group-hover:border-[#FFC799] transition-colors">
-                <svg className="w-4 h-4 fill-none stroke-current stroke-[1.8]" viewBox="0 0 24 24">
+              <div className="w-[38px] h-[38px] rounded-xl border border-white/15 bg-[#161616] flex items-center justify-center text-[#FFC799] group-hover:border-[#FFC799] transition-colors shrink-0">
+                <svg className="w-[18px] h-[18px] fill-none stroke-current stroke-[1.8]" viewBox="0 0 24 24">
                   <circle cx="5.5" cy="17.5" r="3.5" />
                   <circle cx="18.5" cy="17.5" r="3.5" />
                   <path d="M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h4" />
                 </svg>
               </div>
-              <div className="flex items-baseline space-x-2">
-                <span className="text-base sm:text-[17px] font-bold tracking-[0.14em] uppercase text-[#F5F5F5]">
+              <div className="flex flex-col justify-center leading-none">
+                <span className="text-[14px] sm:text-[15px] font-bold tracking-[0.16em] uppercase text-[#F5F5F5] whitespace-nowrap">
                   MOTORENT
                 </span>
-                <span className="font-serif-display italic text-sm text-[#FFC799] font-medium">
-                  {isStaffOrAdmin ? 'Operations' : 'Đà Nẵng'}
+                <span className="font-serif-display italic text-[11px] text-[#FFC799] font-medium mt-1 whitespace-nowrap">
+                  {isStaffOrAdmin ? 'Operations Hub' : t('nav.brandSubtitle')}
                 </span>
               </div>
             </Link>
           </div>
 
           {/* ZONE 2 (CENTER): Segmented Navigation Pill Dock */}
-          <nav className="hidden lg:flex items-center justify-self-center bg-[#161616] border border-white/[0.09] rounded-full p-1 gap-1">
+          <nav className="hidden lg:flex items-center h-[38px] bg-[#161616] border border-white/[0.09] rounded-full p-1 gap-0.5 xl:gap-1 shrink-0">
             {navLinks.map((link) => {
               const active = isActive(link.path);
-              const itemClasses = `px-3.5 py-1.5 rounded-full text-xs transition-all flex items-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+              const itemClasses = `h-[30px] px-3 xl:px-3.5 rounded-full text-xs transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 active
                   ? 'bg-[#F5F5F5] text-[#101010] font-semibold shadow-sm'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.04] font-medium'
@@ -517,7 +679,7 @@ export const Navbar: React.FC = () => {
                             : 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
                         }`}
                       >
-                        Mới
+                        {t('nav.newBadge')}
                       </span>
                     )}
                   </button>
@@ -532,20 +694,21 @@ export const Navbar: React.FC = () => {
             })}
           </nav>
 
-          {/* ZONE 3 (RIGHT): Quick Action & Tactile Account Hub */}
-          <div className="flex items-center justify-self-end space-x-2.5 shrink-0">
+          {/* ZONE 3 (RIGHT): Unified Utility Capsule & Account Hub */}
+          <div className="flex items-center gap-2 shrink-0">
 
-            {/* Customer Trips / Guest Quick Action (Hidden for Staff/Admin to avoid clutter) */}
+            {/* Customer Trips / Guest Quick Action */}
             {!isStaffOrAdmin && (
               isAuthenticated && user ? (
                 <Link
                   to="/profile?tab=bookings"
-                  className="hidden sm:inline-flex items-center space-x-2 h-9 px-3.5 rounded-full bg-[#161616] border border-white/10 hover:border-[#FFC799]/50 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] font-medium transition-colors whitespace-nowrap shrink-0"
+                  title={t('nav.myTrips')}
+                  className="hidden md:inline-flex items-center gap-1.5 h-[38px] px-3 xl:px-3.5 rounded-full bg-[#161616] border border-white/[0.09] hover:border-[#FFC799]/50 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] font-medium transition-colors whitespace-nowrap shrink-0"
                 >
-                  <Compass className="w-3.5 h-3.5 text-[#FFC799]" />
-                  <span>Chuyến của tôi</span>
+                  <Compass className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                  <span className="hidden xl:inline">{t('nav.myTrips')}</span>
                   {bookingCount > 0 && (
-                    <span className="px-1.5 py-0.2 rounded-full bg-[#FFC799]/20 text-[#FFC799] font-mono-tabular font-bold text-[10px]">
+                    <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#FFC799]/20 text-[#FFC799] font-mono-tabular font-bold text-[10px] inline-flex items-center justify-center">
                       {bookingCount}
                     </span>
                   )}
@@ -553,172 +716,344 @@ export const Navbar: React.FC = () => {
               ) : (
                 <Link
                   to="/bikes"
-                  className="hidden sm:inline-flex items-center space-x-1.5 h-9 px-3.5 rounded-full bg-[#161616] border border-white/10 hover:border-[#FFC799]/50 text-xs text-[#F5F5F5] font-medium transition-colors whitespace-nowrap shrink-0"
+                  className="hidden xl:inline-flex items-center gap-1.5 h-[38px] px-3.5 rounded-full bg-[#161616] border border-white/[0.09] hover:border-[#FFC799]/50 text-xs text-[#F5F5F5] font-medium transition-colors whitespace-nowrap shrink-0"
                 >
-                  <span>Chọn xe nhanh</span>
+                  <span>{t('nav.quickBook')}</span>
                   <ArrowRight className="w-3 h-3 text-[#FFC799]" />
                 </Link>
               )
             )}
 
-            {/* Wishlist Quick Button (UC-25, UC-26) */}
-            {!isStaffOrAdmin && (
-              <Link
-                to="/wishlist"
-                className="relative w-9 h-9 rounded-full border border-white/12 bg-[#161616] flex items-center justify-center text-[#F5F5F5] hover:border-[#FFC799]/60 hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
-                title="Danh sách xe yêu thích (UC-25, UC-26)"
-                aria-label="Xe yêu thích"
-              >
-                <Heart className="w-4 h-4 text-[#FFC799]" />
-                {wishlistCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FFC799] text-[#101010] font-mono text-[10px] font-black flex items-center justify-center">
-                    {wishlistCount}
-                  </span>
-                )}
-              </Link>
-            )}
+            {/* Unified Utility Capsule: Wishlist + Live Chat + Notifications */}
+            <div className="h-[38px] p-1 rounded-full bg-[#161616] border border-white/[0.09] flex items-center gap-0.5 shrink-0">
+              {/* Wishlist Quick Button (UC-25, UC-26) */}
+              {!isStaffOrAdmin && (
+                <>
+                  <Link
+                    to="/wishlist"
+                    className="relative w-[30px] h-[30px] rounded-full flex items-center justify-center text-[#A0A0A0] hover:bg-white/[0.06] hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
+                    title="Danh sách xe yêu thích (UC-25, UC-26)"
+                    aria-label="Xe yêu thích"
+                  >
+                    <Heart className="w-3.5 h-3.5 text-[#FFC799]" />
+                    {wishlistCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#FFC799] text-[#101010] font-mono text-[9px] font-black flex items-center justify-center">
+                        {wishlistCount}
+                      </span>
+                    )}
+                  </Link>
+                  <span className="w-px h-3.5 bg-white/[0.08]" />
+                </>
+              )}
 
-            {/* Header Live Chat Trigger Button (UC-44 for Customer / UC-66 Inbox for Branch Staff & Manager) */}
-            {user?.roles !== 'SystemAdmin' && (
-              <button
-                type="button"
-                onClick={handleToggleHeaderChat}
-                className={`relative h-9 px-3 rounded-full border flex items-center space-x-1.5 text-xs font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                  chatIsOpen
-                    ? 'bg-[#FFC799] text-[#101010] border-[#FFC799] font-bold'
-                    : 'bg-[#161616] border-white/12 text-[#F5F5F5] hover:border-[#FFC799]/60'
-                }`}
-                title={
-                  isStaffOrAdmin
-                    ? 'Hộp thư Chat Khách hàng tại Chi nhánh (UC-66)'
-                    : 'Trò chuyện trực tuyến với Chi nhánh (UC-44)'
-                }
-              >
-                <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${chatIsOpen ? 'text-[#101010]' : 'text-[#FFC799]'}`} />
-                <span className="hidden sm:inline">
-                  {isStaffOrAdmin ? 'Chat Trạm' : 'Chat'}
-                </span>
-                <span
-                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    chatIsOpen ? 'bg-[#101010]' : 'bg-[#99FFE4]'
+              {/* Header Live Chat Trigger Button (UC-44 / UC-66) */}
+              {user?.roles !== 'SystemAdmin' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleToggleHeaderChat}
+                    className={`relative h-[30px] px-2.5 rounded-full flex items-center gap-1.5 text-xs font-medium transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                      chatIsOpen
+                        ? 'bg-[#FFC799] text-[#101010] font-bold'
+                        : 'text-[#F5F5F5] hover:bg-white/[0.06]'
+                    }`}
+                    title={
+                      isStaffOrAdmin
+                        ? 'Hộp thư Chat Khách hàng tại Chi nhánh (UC-66)'
+                        : 'Trò chuyện trực tuyến với Chi nhánh (UC-44)'
+                    }
+                  >
+                    <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${chatIsOpen ? 'text-[#101010]' : 'text-[#FFC799]'}`} />
+                    <span className="hidden sm:inline text-[11px]">
+                      {isStaffOrAdmin ? t('nav.chatStation') : t('nav.chat')}
+                    </span>
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        chatIsOpen ? 'bg-[#101010]' : 'bg-[#99FFE4]'
+                      }`}
+                    />
+                    {chatUnread > 0 && (
+                      <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black">
+                        {chatUnread}
+                      </span>
+                    )}
+                  </button>
+                  <span className="w-px h-3.5 bg-white/[0.08]" />
+                </>
+              )}
+
+              {/* Header Notification Bell & Popover */}
+              <div className="relative" ref={notifRef}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNotifDropdownOpen((prev) => !prev);
+                    setUserDropdownOpen(false);
+                    window.dispatchEvent(new CustomEvent('motorent:close-chat'));
+                  }}
+                  className={`relative w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                    notifDropdownOpen
+                      ? 'bg-[#FFC799] text-[#101010]'
+                      : 'text-[#F5F5F5] hover:bg-white/[0.06] hover:text-[#FFC799]'
                   }`}
-                />
-                {chatUnread > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.2 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black">
-                    {chatUnread}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* Header Notification Bell & Popover */}
-            <div className="relative" ref={notifRef}>
-              <button
-                type="button"
-                onClick={() => {
-                  setNotifDropdownOpen((prev) => !prev);
-                  setUserDropdownOpen(false);
-                  window.dispatchEvent(new CustomEvent('motorent:close-chat'));
-                }}
-                className={`relative w-9 h-9 rounded-full border flex items-center justify-center transition-all cursor-pointer ${
-                  notifDropdownOpen
-                    ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                    : 'bg-[#161616] border-white/12 text-[#F5F5F5] hover:border-[#FFC799]/60'
-                }`}
-                aria-label="Thông báo"
-                title="Thông báo của bạn"
-              >
-                <Bell className="w-4 h-4" />
-                {notifUnreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[17px] h-[17px] px-1 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black flex items-center justify-center">
-                    {notifUnreadCount}
-                  </span>
-                )}
-              </button>
+                  aria-label="Thông báo"
+                  title="Thông báo của bạn"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  {notifUnreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[9px] font-black flex items-center justify-center">
+                      {notifUnreadCount}
+                    </span>
+                  )}
+                </button>
 
               {notifDropdownOpen && (
-                <div className="absolute right-0 mt-2.5 w-80 sm:w-96 rounded-2xl bg-[#161616] border border-white/15 shadow-[0_24px_60px_rgba(0,0,0,0.85)] overflow-hidden z-50">
-                  <div className="px-4 py-3 bg-[#101010] border-b border-white/10 flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <Bell className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span className="text-xs font-black uppercase tracking-wider text-[#F5F5F5]">
-                        Thông báo hệ thống
-                      </span>
-                      {notifUnreadCount > 0 && (
-                        <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/20 text-[#FFC799] font-mono text-[10px] font-bold">
-                          {notifUnreadCount} mới
-                        </span>
+                <div className="absolute right-0 mt-3 w-[340px] sm:w-[416px] rounded-2xl bg-[#161616] border border-white/15 shadow-[0_24px_60px_rgba(0,0,0,0.85)] overflow-hidden z-50 animate-fade-scale">
+                  {/* Popover Header & Filter Controls */}
+                  <div className="px-4 pt-3.5 pb-3 bg-[#101010] border-b border-white/10 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-[#FFC799]/15 border border-[#FFC799]/30 flex items-center justify-center shrink-0">
+                          <Bell className="w-3.5 h-3.5 text-[#FFC799]" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[13px] font-bold tracking-tight text-[#F5F5F5]">
+                            {t('nav.notifications')}
+                          </span>
+                          {notifUnreadCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-[#FFC799]/20 text-[#FFC799] font-mono-tabular text-[10px] font-bold">
+                              {notifUnreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {isAuthenticated && notifUnreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleMarkAllNotifsRead}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-[#FFC799]/15 border border-white/10 hover:border-[#FFC799]/30 text-[11px] font-semibold text-[#FFC799] transition-colors cursor-pointer"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" />
+                          <span>{t('nav.markAllRead')}</span>
+                        </button>
                       )}
                     </div>
 
-                    {isAuthenticated && notifUnreadCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleMarkAllNotifsRead}
-                        className="inline-flex items-center space-x-1 text-[11px] font-semibold text-[#FFC799] hover:underline cursor-pointer"
-                      >
-                        <CheckCheck className="w-3.5 h-3.5" />
-                        <span>Đọc tất cả</span>
-                      </button>
+                    {isAuthenticated && notifications.length > 0 && (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="inline-flex items-center p-0.5 rounded-lg bg-[#161616] border border-white/10 text-[11px]">
+                          <button
+                            type="button"
+                            onClick={() => setNotifFilter('all')}
+                            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer font-medium ${
+                              notifFilter === 'all'
+                                ? 'bg-[#F5F5F5] text-[#101010] font-semibold shadow-sm'
+                                : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+                            }`}
+                          >
+                            {t('nav.filterAll')} ({notifications.length})
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setNotifFilter('unread')}
+                            className={`px-2.5 py-1 rounded-md transition-all cursor-pointer font-medium ${
+                              notifFilter === 'unread'
+                                ? 'bg-[#F5F5F5] text-[#101010] font-semibold shadow-sm'
+                                : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+                            }`}
+                          >
+                            {t('nav.filterUnread')} ({notifUnreadCount})
+                          </button>
+                        </div>
+
+                        {notifications.some((n) => n.isRead) && (
+                          <button
+                            type="button"
+                            onClick={handleClearReadNotifs}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-[#6E6E6E] hover:text-[#FF8080] transition-colors cursor-pointer"
+                            title={t('nav.clearRead')}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>{t('nav.clearRead')}</span>
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
 
+                  {/* Notification Feed Body */}
                   {!isAuthenticated ? (
-                    <div className="p-6 text-center space-y-3">
-                      <p className="text-xs text-[#A0A0A0]">
-                        Đăng nhập để nhận thông báo trạng thái đơn thuê xe, xác nhận VietQR và tin nhắn hỗ trợ.
+                    <div className="p-7 text-center space-y-3.5">
+                      <div className="w-10 h-10 rounded-2xl bg-[#FFC799]/12 border border-[#FFC799]/25 flex items-center justify-center mx-auto">
+                        <Bell className="w-4 h-4 text-[#FFC799]" />
+                      </div>
+                      <p className="text-xs text-[#A0A0A0] leading-relaxed max-w-[260px] mx-auto">
+                        Đăng nhập để theo dõi trạng thái hợp đồng thuê xe, thanh toán VNPay và tin nhắn hỗ trợ trực tuyến.
                       </p>
                       <Link
                         to="/login"
                         onClick={() => setNotifDropdownOpen(false)}
-                        className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#FFC799] text-[#101010] font-bold text-xs"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold text-xs transition-colors"
                       >
                         <LogIn className="w-3.5 h-3.5" />
                         <span>Đăng nhập ngay</span>
                       </Link>
                     </div>
-                  ) : notifications.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-[#6E6E6E]">
-                      Bạn chưa có thông báo mới nào.
-                    </div>
-                  ) : (
-                    <div className="max-h-[380px] overflow-y-auto divide-y divide-white/[0.06]">
-                      {notifications.map((notif) => (
-                        <button
-                          key={notif._id}
-                          type="button"
-                          onClick={() => handleMarkNotifRead(notif)}
-                          className={`w-full p-3.5 text-left transition-colors flex items-start space-x-3 cursor-pointer ${
-                            !notif.isRead ? 'bg-[#FFC799]/[0.06] hover:bg-[#FFC799]/10' : 'hover:bg-white/[0.03]'
-                          }`}
-                        >
-                          <div
-                            className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                              !notif.isRead ? 'bg-[#FFC799]' : 'bg-white/15'
-                            }`}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-bold text-[#F5F5F5] truncate">
-                                {notif.title}
-                              </span>
-                              <span className="text-[10px] font-mono text-[#6E6E6E] shrink-0">
-                                {new Date(notif.createdAt).toLocaleTimeString('vi-VN', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                })}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-[#A0A0A0] mt-0.5 line-clamp-2 leading-relaxed">
-                              {notif.body}
-                            </p>
+                  ) : (() => {
+                    const filteredNotifs =
+                      notifFilter === 'unread'
+                        ? notifications.filter((n) => !n.isRead)
+                        : notifications;
+
+                    if (filteredNotifs.length === 0) {
+                      return (
+                        <div className="py-10 px-6 text-center space-y-2.5">
+                          <div className="w-10 h-10 rounded-2xl bg-white/[0.04] border border-white/10 flex items-center justify-center mx-auto">
+                            <CheckCircle2 className="w-4 h-4 text-[#99FFE4]" />
                           </div>
-                        </button>
-                      ))}
+                          <p className="text-xs font-semibold text-[#F5F5F5]">
+                            {notifFilter === 'unread'
+                              ? 'Bạn đã đọc hết mọi thông báo'
+                              : 'Chưa có thông báo nào'}
+                          </p>
+                          <p className="text-[11px] text-[#6E6E6E]">
+                            Mọi cập nhật mới về chuyến xe và định danh sẽ xuất hiện tại đây.
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="max-h-[372px] overflow-y-auto overscroll-contain p-2 space-y-1.5">
+                        {filteredNotifs.map((notif) => {
+                          const { Icon, tag, boxClass, tagClass } = getNotifVisualMeta(notif);
+                          return (
+                            <div
+                              key={notif._id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => handleMarkNotifRead(notif)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  handleMarkNotifRead(notif);
+                                }
+                              }}
+                              className={`group relative w-full p-3 rounded-xl text-left transition-all flex items-start gap-3 cursor-pointer border ${
+                                !notif.isRead
+                                  ? 'bg-[#FFC799]/[0.07] hover:bg-[#FFC799]/[0.12] border-[#FFC799]/25'
+                                  : 'bg-transparent hover:bg-white/[0.04] border-transparent hover:border-white/[0.08]'
+                              }`}
+                            >
+                              {/* Category Vector SVG Badge */}
+                              <div
+                                className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 mt-0.5 ${boxClass}`}
+                              >
+                                <Icon className="w-4 h-4" />
+                              </div>
+
+                              {/* Content Column */}
+                              <div className="flex-1 min-w-0 pr-5">
+                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className={`text-[10px] font-semibold uppercase tracking-wider ${tagClass}`}>
+                                      {tag}
+                                    </span>
+                                    {!notif.isRead && (
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] shrink-0" />
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] font-mono-tabular text-[#6E6E6E] shrink-0">
+                                    {formatNotifTimestamp(notif.createdAt)}
+                                  </span>
+                                </div>
+
+                                <p
+                                  className={`text-xs leading-snug truncate ${
+                                    !notif.isRead
+                                      ? 'font-bold text-[#F5F5F5]'
+                                      : 'font-semibold text-[#F5F5F5]'
+                                  }`}
+                                >
+                                  {notif.title}
+                                </p>
+
+                                <p className="text-[11px] text-[#A0A0A0] mt-1 line-clamp-2 leading-relaxed">
+                                  {renderHighlightedNotifBody(notif.body)}
+                                </p>
+                              </div>
+
+                              {/* Hover Dismiss Button & Action Cue */}
+                              <button
+                                type="button"
+                                onClick={(e) => handleDeleteNotif(e, notif)}
+                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 absolute top-2.5 right-2.5 w-6 h-6 rounded-lg flex items-center justify-center text-[#6E6E6E] hover:text-[#FF8080] hover:bg-[#FF8080]/12 transition-all cursor-pointer"
+                                title="Xóa thông báo này"
+                                aria-label="Xóa thông báo"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                              <ChevronRight className="opacity-0 group-hover:opacity-70 w-3.5 h-3.5 text-[#FFC799] absolute bottom-3 right-2.5 transition-all group-hover:translate-x-0.5 pointer-events-none" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Sticky Footer Bar */}
+                  {isAuthenticated && (
+                    <div className="px-4 py-2.5 bg-[#101010] border-t border-white/10 flex items-center justify-between text-[11px]">
+                      <span className="text-[#6E6E6E] font-mono-tabular">
+                        Tổng {notifications.length} thông báo
+                      </span>
+                      <Link
+                        to={isStaffOrAdmin ? '/counter' : '/profile?tab=bookings'}
+                        onClick={() => setNotifDropdownOpen(false)}
+                        className="inline-flex items-center gap-1 font-semibold text-[#FFC799] hover:underline"
+                      >
+                        <span>{isStaffOrAdmin ? 'Mở bàn điều phối' : 'Xem chuyến của tôi'}</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
                     </div>
                   )}
                 </div>
               )}
+              </div>
+
+              <span className="w-px h-3.5 bg-white/[0.08]" />
+
+              {/* Language Switcher (UC-122): Pure Vector SVG Globe + VI/EN Monospace Badge */}
+              <button
+                type="button"
+                onClick={toggleLocale}
+                className="h-[30px] px-2 rounded-full flex items-center gap-1 text-[#F5F5F5] hover:bg-white/[0.06] hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
+                aria-label={locale === 'vi' ? 'Switch language to English' : 'Chuyển sang Tiếng Việt'}
+                title={locale === 'vi' ? 'Switch to English (UC-122)' : 'Chuyển sang Tiếng Việt (UC-122)'}
+              >
+                <Globe className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                <span className="font-mono-tabular text-[10px] font-bold tracking-wider uppercase">
+                  {locale}
+                </span>
+              </button>
+
+              <span className="w-px h-3.5 bg-white/[0.08]" />
+
+              {/* Theme Toggle: Pure SVG Sun / Moon */}
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="relative w-[30px] h-[30px] rounded-full flex items-center justify-center text-[#F5F5F5] hover:bg-white/[0.06] hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
+                aria-label={isLight ? 'Chuyển sang giao diện Tối' : 'Chuyển sang giao diện Sáng'}
+                title={isLight ? 'Chuyển sang giao diện Tối' : 'Chuyển sang giao diện Sáng'}
+              >
+                {isLight ? (
+                  <Moon className="w-3.5 h-3.5 text-[#FFC799] transition-transform duration-300 hover:-rotate-12" />
+                ) : (
+                  <Sun className="w-3.5 h-3.5 text-[#FFC799] transition-transform duration-300 hover:rotate-45" />
+                )}
+              </button>
             </div>
 
             {/* User Profile Dropdown or Login Pill */}
@@ -731,7 +1066,7 @@ export const Navbar: React.FC = () => {
                     setNotifDropdownOpen(false);
                     window.dispatchEvent(new CustomEvent('motorent:close-chat'));
                   }}
-                  className="h-9 flex items-center space-x-2.5 pl-1.5 pr-3 rounded-full bg-[#161616] border border-white/12 text-[#F5F5F5] hover:border-[#FFC799]/60 transition-all text-xs font-medium cursor-pointer"
+                  className="h-[38px] flex items-center gap-2 pl-1.5 pr-3 rounded-full bg-[#161616] border border-white/[0.09] text-[#F5F5F5] hover:border-[#FFC799]/60 transition-all text-xs font-medium cursor-pointer shrink-0"
                 >
                   {avatarSrc && !avatarLoadFailed ? (
                     <img
@@ -740,14 +1075,14 @@ export const Navbar: React.FC = () => {
                       referrerPolicy="no-referrer"
                       crossOrigin="anonymous"
                       onError={() => setAvatarLoadFailed(true)}
-                      className="w-6 h-6 rounded-full object-cover border border-[#FFC799]/40 shrink-0"
+                      className="w-[26px] h-[26px] rounded-full object-cover border border-[#FFC799]/40 shrink-0"
                     />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-[#FFC799] text-[#101010] flex items-center justify-center font-bold text-[10px] shrink-0">
+                    <div className="w-[26px] h-[26px] rounded-full bg-[#FFC799] text-[#101010] flex items-center justify-center font-bold text-[10px] shrink-0">
                       {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
                     </div>
                   )}
-                  <span className="max-w-[96px] truncate">{user.firstName || user.username}</span>
+                  <span className="max-w-[92px] truncate">{user.firstName || user.username}</span>
                   <ChevronDown className={`w-3 h-3 text-[#A0A0A0] transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -819,6 +1154,16 @@ export const Navbar: React.FC = () => {
                           >
                             <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
                             <span>Quản lý Banner (UC-116)</span>
+                          </Link>
+                        )}
+                        {user.roles === 'SystemAdmin' && (
+                          <Link
+                            to="/admin?tab=i18n"
+                            onClick={() => setUserDropdownOpen(false)}
+                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
+                          >
+                            <Languages className="w-3.5 h-3.5 text-[#FFC799]" />
+                            <span>{t('nav.i18nAdminLink')}</span>
                           </Link>
                         )}
                         {user.roles === 'SystemAdmin' && (
@@ -1025,7 +1370,39 @@ export const Navbar: React.FC = () => {
                       </>
                     )}
 
-                    <div className="pt-1 border-t border-white/10">
+                    <div className="pt-1 border-t border-white/10 space-y-1">
+                      <button
+                        type="button"
+                        onClick={toggleLocale}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <Globe className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                          <span>{t('nav.languageLabel')}</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-md bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular font-semibold text-[10px] uppercase">
+                          {locale === 'vi' ? 'Tiếng Việt (VI)' : 'English (EN)'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={toggleTheme}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          {isLight ? (
+                            <Moon className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                          ) : (
+                            <Sun className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                          )}
+                          <span>{t('nav.themeLabel')}</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-md bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular font-semibold text-[10px]">
+                          {isLight ? t('nav.themeLight') : t('nav.themeDark')}
+                        </span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => {
@@ -1035,7 +1412,7 @@ export const Navbar: React.FC = () => {
                         className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#FF8080] hover:bg-[#FF8080]/12 transition-colors cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5 shrink-0" />
-                        <span>Đăng xuất</span>
+                        <span>{t('nav.logout')}</span>
                       </button>
                     </div>
                   </div>
@@ -1044,10 +1421,10 @@ export const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className="group h-9 inline-flex items-center space-x-2 pl-4 pr-1.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs transition-all active:scale-95 whitespace-nowrap shrink-0"
+                className="group h-[38px] inline-flex items-center gap-2 pl-4 pr-1.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs transition-all active:scale-95 whitespace-nowrap shrink-0"
               >
-                <span>Đăng nhập</span>
-                <div className="w-6 h-6 rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center shrink-0 transition-transform group-hover:translate-x-0.5">
+                <span>{t('nav.login')}</span>
+                <div className="w-[26px] h-[26px] rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center shrink-0 transition-transform group-hover:translate-x-0.5">
                   <LogIn className="w-3 h-3" />
                 </div>
               </Link>
@@ -1057,10 +1434,10 @@ export const Navbar: React.FC = () => {
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-full text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-[#161616] transition-colors"
+              className="lg:hidden w-[38px] h-[38px] rounded-full bg-[#161616] border border-white/[0.09] flex items-center justify-center text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors shrink-0"
               aria-label="Toggle mobile menu"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5 text-[#FFC799]" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-4 h-4 text-[#FFC799]" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -1226,13 +1603,47 @@ export const Navbar: React.FC = () => {
               </div>
             )}
 
+            <div className="grid grid-cols-2 gap-2.5 mb-3">
+              <button
+                type="button"
+                onClick={toggleLocale}
+                className="py-3 px-3.5 rounded-2xl bg-[#161616] border border-white/10 flex items-center justify-between text-xs font-semibold text-[#F5F5F5] cursor-pointer"
+              >
+                <div className="flex items-center space-x-2">
+                  <Globe className="w-4 h-4 text-[#FFC799]" />
+                  <span>{locale === 'vi' ? 'Tiếng Việt' : 'English'}</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular text-[10px] font-bold uppercase">
+                  {locale}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="py-3 px-3.5 rounded-2xl bg-[#161616] border border-white/10 flex items-center justify-between text-xs font-semibold text-[#F5F5F5] cursor-pointer"
+              >
+                <div className="flex items-center space-x-2">
+                  {isLight ? (
+                    <Moon className="w-4 h-4 text-[#FFC799]" />
+                  ) : (
+                    <Sun className="w-4 h-4 text-[#FFC799]" />
+                  )}
+                  <span>{t('nav.themeLabel')}</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular text-[10px] font-bold">
+                  {isLight ? t('nav.themeLight') : t('nav.themeDark')}
+                </span>
+              </button>
+            </div>
+
             {isAuthenticated ? (
               <button
                 type="button"
                 onClick={handleConfirmLogout}
                 className="w-full py-3 rounded-full bg-[#FF8080]/12 text-[#FF8080] font-bold text-xs border border-[#FF8080]/30"
               >
-                Đăng xuất
+                {t('nav.logout')}
               </button>
             ) : (
               <Link
@@ -1240,7 +1651,7 @@ export const Navbar: React.FC = () => {
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-full py-3.5 rounded-full bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs flex items-center justify-center space-x-2 shadow-lg shadow-black/50"
               >
-                <span>Đăng nhập hệ thống</span>
+                <span>{t('nav.loginSystem')}</span>
               </Link>
             )}
           </div>

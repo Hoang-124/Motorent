@@ -534,6 +534,7 @@ export interface GetMyBookingsResult {
   };
   counts: {
     all: number;
+    trips: number;
     active: number;
     completed: number;
     cancelled: number;
@@ -615,6 +616,7 @@ export const getMyBookings = async (
     },
     counts: {
       all: allCount,
+      trips: activeCount + completedCount,
       active: activeCount,
       completed: completedCount,
       cancelled: cancelledCount,

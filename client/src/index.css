@@ -4,42 +4,88 @@
 
 @layer base {
   /* ==========================================================================
-     VESPER THEME ARCHITECTURE — MOTORENT ĐÀ NẴNG EDITION
-     Inspired by Rauno Freiberg's Vesper Palette:
-     - 60% Matte Obsidian Carbon Surfaces (#101010 Canvas -> #161616 Card -> #1E1E1E Elevated -> #0A0A0A Well)
-     - 30% Crisp Alabaster (#F5F5F5), Neutral Pewter (#A0A0A0) & Muted Graphite (#6E6E6E) Typography
-     - 10% Vesper Champagne Amber (#FFC799) Primary Accents + Vesper Mint (#99FFE4) Live Telemetry Status
+     VESPER DUAL-THEME ARCHITECTURE — MOTORENT ĐÀ NẴNG EDITION
+     - Dark ("Vesper Obsidian"): Matte Carbon (#101010 -> #161616 -> #1E1E1E) + Champagne (#FFC799)
+     - Light ("Vesper Daylight"): Warm Alabaster (#F6F5F0 -> #FFFFFF -> #EDEAE2) + Burnished Bronze (#B45916)
      ========================================================================== */
-  :root {
+  :root,
+  html[data-theme='dark'] {
     --font-sans: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-serif: 'Cormorant Garamond', Georgia, serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 
     /* 4-Tier Vesper Matte Carbon Surface Hierarchy */
-    --bg-canvas: #101010;          /* Tier 1: Vesper Matte Obsidian Canvas */
-    --bg-surface: #161616;         /* Tier 2: Vesper Graphite Card Surface */
-    --bg-elevated: #1E1E1E;        /* Tier 3: Vesper Elevated Sub-Card / Interactive Control */
-    --bg-hover: #262626;           /* Interactive Hover State */
-    --bg-well: #0A0A0A;            /* Tier 4: Recessed Input / Terminal Well */
-    --bg-studio-paper: #F3F2EE;    /* Warm Studio Stone Backdrop for Vehicles */
+    --bg-canvas: #101010;
+    --bg-header-glass: rgba(16, 16, 16, 0.92);
+    --bg-surface: #161616;
+    --bg-elevated: #1E1E1E;
+    --bg-hover: #262626;
+    --bg-well: #0A0A0A;
+    --bg-studio-paper: #F3F2EE;
 
     /* Vesper Typography Hierarchy */
-    --text-primary: #F5F5F5;       /* Crisp Alabaster White */
-    --text-secondary: #A0A0A0;     /* Neutral Pewter Grey */
-    --text-muted: #6E6E6E;         /* Muted Graphite Grey */
+    --text-primary: #F5F5F5;
+    --text-secondary: #A0A0A0;
+    --text-muted: #6E6E6E;
 
     /* Vesper Signature Accents */
-    --accent-primary: #FFC799;     /* Vesper Champagne Peach / Warm Amber */
-    --accent-hover: #FFD6B3;       /* Bright Champagne Hover */
-    --accent-status: #99FFE4;      /* Vesper Mint — Live Telemetry & Verified Status */
-    --accent-danger: #FF8080;      /* Vesper Soft Coral Red */
+    --accent-primary: #FFC799;
+    --accent-text: #FFC799;
+    --accent-hover: #FFD6B3;
+    --accent-tint: rgba(255, 199, 153, 0.12);
+    --accent-status: #99FFE4;
+    --accent-status-text: #99FFE4;
+    --accent-status-tint: rgba(153, 255, 228, 0.12);
+    --accent-danger: #FF8080;
+    --accent-danger-text: #FF8080;
+    --accent-danger-tint: rgba(255, 128, 128, 0.12);
 
-    /* Architectural Hairline Borders */
+    /* Architectural Hairline Borders & Shadows */
     --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-input: rgba(255, 255, 255, 0.12);
     --border-strong: rgba(255, 199, 153, 0.35);
+    --shadow-surface: none;
+    --shadow-card-hover: 0 20px 40px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 199, 153, 0.32);
+    --scrollbar-thumb: #282828;
 
     /* Smooth Easing Curve */
     --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  html[data-theme='light'] {
+    /* 4-Tier Vesper Daylight Editorial Surface Hierarchy */
+    --bg-canvas: #F6F5F0;
+    --bg-header-glass: rgba(246, 245, 240, 0.92);
+    --bg-surface: #FFFFFF;
+    --bg-elevated: #EDEAE2;
+    --bg-hover: #E3DFD5;
+    --bg-well: #F2EFE9;
+    --bg-studio-paper: #F1EFEA;
+
+    /* High-Contrast Espresso & Warm Charcoal Typography (WCAG AA/AAA) */
+    --text-primary: #161514;
+    --text-secondary: #524F49;
+    --text-muted: #78736A;
+
+    /* Daylight Calibrated Accents (Readable Bronze Text + Warm Champagne Fills) */
+    --accent-primary: #F2AD73;
+    --accent-text: #B45916;
+    --accent-hover: #E89A58;
+    --accent-tint: rgba(180, 89, 22, 0.10);
+    --accent-status: #10B981;
+    --accent-status-text: #0B7A5C;
+    --accent-status-tint: rgba(16, 185, 129, 0.11);
+    --accent-danger: #E04F4F;
+    --accent-danger-text: #C93535;
+    --accent-danger-tint: rgba(201, 53, 53, 0.09);
+
+    /* Crisp Stone Hairlines & Soft Elevation */
+    --border-subtle: rgba(22, 21, 20, 0.09);
+    --border-input: rgba(22, 21, 20, 0.15);
+    --border-strong: rgba(180, 89, 22, 0.35);
+    --shadow-surface: 0 1px 3px rgba(22, 21, 20, 0.04);
+    --shadow-card-hover: 0 18px 36px -14px rgba(22, 21, 20, 0.12), 0 0 0 1px rgba(180, 89, 22, 0.28);
+    --scrollbar-thumb: #C8C3B8;
   }
 
   html {
@@ -49,6 +95,7 @@
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.25s ease, color 0.2s ease;
   }
 
   body {
@@ -57,11 +104,12 @@
     overflow-x: hidden;
     line-height: 1.6;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    transition: background-color 0.25s ease, color 0.2s ease;
   }
 
   ::selection {
     background-color: var(--accent-primary);
-    color: var(--bg-canvas);
+    color: #161514;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -171,7 +219,7 @@
 }
 
 .animate-shimmer {
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 25%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 75%);
+  background: linear-gradient(90deg, rgba(128, 128, 128, 0.05) 25%, rgba(128, 128, 128, 0.12) 50%, rgba(128, 128, 128, 0.05) 75%);
   background-size: 200% 100%;
   animation: shimmerSlide 1.8s infinite linear;
 }
@@ -196,7 +244,7 @@
 
 .smooth-card-hover:hover {
   transform: translate3d(0, -4px, 0);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 199, 153, 0.32);
+  box-shadow: var(--shadow-card-hover);
 }
 
 button,
@@ -208,7 +256,7 @@ a {
    GLOBAL VESPER SURFACE & TOKEN SYNCHRONIZATION ACROSS ALL PAGES
    ============================================================================ */
 
-/* Tier 1: Main Page Canvas (#101010) */
+/* Tier 1: Main Page Canvas */
 .bg-\[\#101010\],
 .bg-\[\#090D0C\],
 .bg-\[\#0E141D\],
@@ -219,8 +267,14 @@ a {
 .bg-\[\#0B1611\],
 .bg-\[\#0E1116\],
 .bg-\[\#111814\],
-.bg-slate-950 {
+.bg-slate-950,
+.bg-zinc-950 {
   background-color: var(--bg-canvas) !important;
+}
+
+.bg-\[\#101010\]\/40,
+.bg-\[\#101010\]\/60 {
+  background-color: var(--bg-well) !important;
 }
 
 .bg-\[\#101010\]\/80,
@@ -233,11 +287,13 @@ a {
 .bg-\[\#0E141D\]\/95,
 .bg-\[\#050D0A\]\/95,
 .bg-\[\#0B1611\]\/95 {
-  background-color: rgba(16, 16, 16, 0.92) !important;
+  background-color: var(--bg-header-glass) !important;
 }
 
-/* Tier 2: Primary Card Surface (#161616) */
+/* Tier 2: Primary Card Surface */
 .bg-\[\#161616\],
+.bg-\[\#141414\],
+.bg-\[\#121212\],
 .bg-\[\#101715\],
 .bg-\[\#161F2E\],
 .bg-\[\#0A1813\],
@@ -248,12 +304,19 @@ a {
 .bg-\[\#1A241E\],
 .bg-slate-900,
 .bg-slate-900\/80,
-.bg-slate-900\/90 {
+.bg-slate-900\/90,
+.bg-zinc-900,
+.bg-zinc-900\/80 {
   background-color: var(--bg-surface) !important;
+  box-shadow: var(--shadow-surface);
 }
 
-/* Tier 3: Elevated Sub-Cards & Interactive Controls (#1E1E1E) */
+/* Tier 3: Elevated Sub-Cards & Interactive Controls */
 .bg-\[\#1E1E1E\],
+.bg-\[\#181818\],
+.bg-\[\#1A1A1A\],
+.bg-\[\#202020\],
+.bg-\[\#222222\],
 .bg-\[\#121917\],
 .bg-\[\#1F2B3F\],
 .bg-\[\#0D1F18\],
@@ -264,31 +327,40 @@ a {
 .bg-slate-800\/50,
 .bg-slate-800\/60,
 .bg-slate-800\/80,
+.bg-zinc-800,
 .bg-white\/\[0\.02\],
 .bg-white\/\[0\.03\],
 .bg-white\/\[0\.04\],
 .bg-white\/\[0\.05\],
-.bg-white\/5 {
+.bg-white\/\[0\.06\],
+.bg-white\/5,
+.bg-white\/10 {
   background-color: var(--bg-elevated) !important;
 }
 
 .hover\:bg-\[\#262626\]:hover,
+.hover\:bg-\[\#282828\]:hover,
+.hover\:bg-\[\#2c2c2c\]:hover,
 .hover\:bg-\[\#1E1E1E\]:hover,
 .hover\:bg-\[\#101715\]:hover,
 .hover\:bg-\[\#121917\]:hover,
 .hover\:bg-\[\#1F2B3F\]:hover,
 .hover\:bg-\[\#1A3226\]:hover,
 .hover\:bg-slate-800:hover,
+.hover\:bg-white\/\[0\.02\]:hover,
 .hover\:bg-white\/\[0\.03\]:hover,
 .hover\:bg-white\/\[0\.04\]:hover,
 .hover\:bg-white\/\[0\.05\]:hover,
+.hover\:bg-white\/\[0\.06\]:hover,
 .hover\:bg-white\/\[0\.08\]:hover,
+.hover\:bg-white\/5:hover,
 .hover\:bg-white\/10:hover {
   background-color: var(--bg-hover) !important;
 }
 
-/* Tier 4: Recessed Input / Code Wells (#0A0A0A) */
+/* Tier 4: Recessed Input / Code Wells */
 .bg-\[\#0A0A0A\],
+.bg-\[\#0D0D0D\],
 .bg-\[\#0A0F16\],
 .bg-\[\#08110D\],
 .bg-\[\#0A0D12\],
@@ -301,9 +373,15 @@ select,
 textarea {
   color-scheme: dark;
   background-color: var(--bg-well) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
+  border-color: var(--border-input) !important;
   color: var(--text-primary) !important;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease !important;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease !important;
+}
+
+html[data-theme='light'] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+html[data-theme='light'] select,
+html[data-theme='light'] textarea {
+  color-scheme: light;
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator,
@@ -315,6 +393,13 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
+html[data-theme='light'] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme='light'] input[type="time"]::-webkit-calendar-picker-indicator,
+html[data-theme='light'] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.75;
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator:hover,
 input[type="time"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
@@ -324,21 +409,24 @@ input[type="time"]::-webkit-calendar-picker-indicator:hover {
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
 select:focus,
 textarea:focus {
-  border-color: var(--accent-primary) !important;
-  box-shadow: 0 0 0 3px rgba(255, 199, 153, 0.15) !important;
+  border-color: var(--accent-text) !important;
+  box-shadow: 0 0 0 3px var(--accent-tint) !important;
 }
 
 /* Clean Structural Borders */
 .border-white\/\[0\.05\],
 .border-white\/\[0\.06\],
+.border-white\/\[0\.07\],
 .border-white\/\[0\.08\],
 .border-white\/\[0\.09\],
 .border-white\/5,
 .border-white\/10,
 .border-white\/12,
 .border-white\/15,
+.border-white\/20,
 .border-slate-700,
 .border-slate-800,
+.border-zinc-800,
 .border-emerald-400\/15,
 .border-emerald-400\/20,
 .border-emerald-400\/25,
@@ -361,21 +449,28 @@ textarea:focus {
 .text-\[\#F0F7F3\],
 .text-\[\#F8FAFC\],
 .text-slate-100,
-.text-slate-200 {
+.text-slate-200,
+.hover\:text-\[\#F5F5F5\]:hover {
   color: var(--text-primary) !important;
 }
 
 .text-\[\#A0A0A0\],
+.text-\[\#D0D0D0\],
+.text-\[\#C8C2B8\],
 .text-\[\#9DA8A2\],
 .text-\[\#B8C4BC\],
 .text-\[\#A8C5B5\],
 .text-\[\#94A3B8\],
 .text-slate-300,
-.text-slate-400 {
+.text-slate-400,
+.text-zinc-300,
+.text-zinc-400 {
   color: var(--text-secondary) !important;
 }
 
 .text-\[\#6E6E6E\],
+.text-\[\#707070\],
+.text-\[\#8A857D\],
 .text-\[\#8E9B94\],
 .text-\[\#8E9B96\],
 .text-\[\#7A8680\],
@@ -384,11 +479,12 @@ textarea:focus {
 .text-\[\#759886\],
 .text-\[\#7E8F84\],
 .text-\[\#64748B\],
-.text-slate-500 {
+.text-slate-500,
+.text-zinc-500 {
   color: var(--text-muted) !important;
 }
 
-/* Vesper Signature Champagne Amber Accent (#FFC799) */
+/* Vesper Signature Champagne / Bronze Text Accent */
 .text-\[\#FFC799\],
 .text-\[\#D4A373\],
 .text-\[\#38BDF8\],
@@ -403,20 +499,27 @@ textarea:focus {
 .hover\:text-\[\#FFC799\]:hover,
 .hover\:text-\[\#D4A373\]:hover,
 .hover\:text-\[\#38BDF8\]:hover {
-  color: var(--accent-primary) !important;
+  color: var(--accent-text) !important;
 }
 
-/* Vesper Signature Mint for Live Telemetry & Verified Status (#99FFE4) */
+/* Vesper Signature Mint / Jade for Live Telemetry & Verified Status */
 .text-\[\#99FFE4\],
 .text-\[\#34D399\],
 .text-\[\#10B981\],
 .text-emerald-400,
 .text-emerald-300 {
-  color: var(--accent-status) !important;
+  color: var(--accent-status-text) !important;
+}
+
+/* Danger / Alert Text */
+.text-\[\#FF8080\],
+.hover\:text-\[\#FF8080\]:hover {
+  color: var(--accent-danger-text) !important;
 }
 
 /* Vesper Accent Borders */
 .border-\[\#FFC799\],
+.border-\[\#FFC799\]\/25,
 .border-\[\#FFC799\]\/30,
 .border-\[\#FFC799\]\/35,
 .border-\[\#FFC799\]\/40,
@@ -448,7 +551,7 @@ textarea:focus {
   border-color: var(--border-strong) !important;
 }
 
-/* Primary Buttons & Highlights */
+/* Primary Inverted Buttons & Active Capsules */
 .bg-\[\#F5F5F5\],
 .bg-\[\#F4F1EA\] {
   background-color: var(--text-primary) !important;
@@ -463,11 +566,12 @@ textarea:focus {
 .bg-sky-500,
 .bg-sky-400 {
   background-color: var(--accent-primary) !important;
-  color: #101010 !important;
+  color: #161514 !important;
 }
 
 /* Subtle Accent Tints */
 .bg-\[\#FFC799\]\/10,
+.bg-\[\#FFC799\]\/12,
 .bg-\[\#FFC799\]\/15,
 .bg-\[\#FFC799\]\/20,
 .bg-\[\#D4A373\]\/10,
@@ -478,11 +582,13 @@ textarea:focus {
 .bg-\[\#38BDF8\]\/10,
 .bg-\[\#38BDF8\]\/15,
 .bg-\[\#38BDF8\]\/20 {
-  background-color: rgba(255, 199, 153, 0.12) !important;
+  background-color: var(--accent-tint) !important;
 }
 
 .hover\:bg-\[\#FFD6B3\]:hover,
 .hover\:bg-\[\#FFC799\]:hover,
+.hover\:bg-\[\#ffb67a\]:hover,
+.hover\:bg-\[\#ffb77d\]:hover,
 .hover\:bg-\[\#D4A373\]:hover,
 .hover\:bg-\[\#38BDF8\]:hover,
 .hover\:bg-\[\#7DD3FC\]:hover,
@@ -492,10 +598,10 @@ textarea:focus {
 .group:hover .group-hover\:bg-\[\#FFC799\],
 .group:hover .group-hover\:bg-\[\#D4A373\] {
   background-color: var(--accent-hover) !important;
-  color: #101010 !important;
+  color: #161514 !important;
 }
 
-/* Keep Vesper Mint (#99FFE4) for Live Status Dots ("Sẵn sàng tại trạm") */
+/* Keep Status Dots Vivid */
 .bg-\[\#99FFE4\],
 .bg-emerald-400 {
   background-color: var(--accent-status) !important;
@@ -506,16 +612,22 @@ textarea:focus {
 .bg-emerald-500\/20,
 .bg-\[\#99FFE4\]\/10,
 .bg-\[\#99FFE4\]\/15 {
-  background-color: rgba(153, 255, 228, 0.12) !important;
+  background-color: var(--accent-status-tint) !important;
 }
 
-/* Unify legacy gradient buttons across ProfilePage, BookingPage, LoginPage to Vesper Champagne */
+.bg-\[\#FF8080\]\/10,
+.bg-\[\#FF8080\]\/12,
+.bg-\[\#FF8080\]\/15 {
+  background-color: var(--accent-danger-tint) !important;
+}
+
+/* Unify legacy gradient buttons across ProfilePage, BookingPage, LoginPage */
 .from-emerald-500.to-teal-500,
 .from-emerald-500.via-teal-500.to-emerald-600,
 .from-emerald-400.to-teal-600 {
   background-image: none !important;
   background-color: var(--accent-primary) !important;
-  color: #101010 !important;
+  color: #161514 !important;
   font-weight: 700 !important;
   box-shadow: 0 8px 24px -6px rgba(255, 199, 153, 0.28) !important;
 }
@@ -523,6 +635,53 @@ textarea:focus {
 .from-emerald-500.to-teal-500:hover,
 .from-emerald-500.via-teal-500.to-emerald-600:hover {
   background-color: var(--accent-hover) !important;
+}
+
+/* ============================================================================
+   DAYLIGHT MODE REFINEMENTS (Contrast, Inverted Pills, Surfaces & Overlays)
+   ============================================================================ */
+html[data-theme='light'] .text-white:not([class*='bg-red-']):not([class*='bg-emerald-6']):not([class*='bg-sky-6']):not([class*='bg-orange-']):not([class*='bg-zinc-7']):not([class*='bg-black/6']):not([class*='bg-black/7']):not([class*='bg-black/8']):not([class*='bg-[#FF8080]']),
+html[data-theme='light'] .hover\:text-white:hover:not([class*='bg-red-']):not([class*='bg-emerald-6']):not([class*='bg-sky-6']):not([class*='bg-orange-']) {
+  color: var(--text-primary) !important;
+}
+
+html[data-theme='light'] .bg-\[\#F5F5F5\]:not(:hover),
+html[data-theme='light'] .bg-\[\#F5F5F5\]:not(:hover) .text-\[\#101010\],
+html[data-theme='light'] .bg-\[\#F5F5F5\]:not(:hover) .text-\[\#101010\]\/80 {
+  color: #F6F5F0 !important;
+}
+
+html[data-theme='light'] .bg-\[\#F5F5F5\] .bg-\[\#101010\] {
+  background-color: #F6F5F0 !important;
+  color: #161514 !important;
+}
+
+html[data-theme='light'] .bg-\[\#F5F5F5\] .bg-\[\#101010\]\/15 {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html[data-theme='light'] .bg-black\/40 {
+  background-color: var(--bg-well) !important;
+}
+
+html[data-theme='light'] .w-px.bg-white\/\[0\.08\],
+html[data-theme='light'] .bg-white\/15 {
+  background-color: rgba(22, 21, 20, 0.12) !important;
+}
+
+html[data-theme='light'] .shadow-2xl.shadow-black,
+html[data-theme='light'] .shadow-\[0_24px_60px_rgba\(0\,0\,0\,0\.85\)\] {
+  box-shadow: 0 20px 48px -12px rgba(22, 21, 20, 0.16), 0 0 0 1px rgba(22, 21, 20, 0.06) !important;
+}
+
+html[data-theme='light'] .text-amber-400 {
+  color: #B45309 !important;
+}
+
+html[data-theme='light'] .text-red-400,
+html[data-theme='light'] .text-red-300,
+html[data-theme='light'] .text-rose-400 {
+  color: #C93535 !important;
 }
 
 /* Warm Studio Stone Backdrop for Vehicle Photography */
@@ -550,7 +709,7 @@ textarea:focus {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #282828;
+  background: var(--scrollbar-thumb);
   border-radius: 9999px;
 }
 

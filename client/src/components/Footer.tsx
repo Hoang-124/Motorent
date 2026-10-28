@@ -10,10 +10,12 @@ import {
   FileCheck2
 } from 'lucide-react';
 import { FaqModal } from './FaqModal';
+import { useTranslation } from '../context/I18nContext';
 
 export const Footer: React.FC = () => {
   const [isFaqOpen, setIsFaqOpen] = useState<boolean>(false);
   const location = useLocation();
+  const { t } = useTranslation();
 
   // Hide B2C marketing footer on the operational CounterDesk workspace
   if (location.pathname.startsWith('/counter')) {
@@ -29,12 +31,12 @@ export const Footer: React.FC = () => {
           <div className="pb-12 mb-12 border-b border-white/[0.08] flex flex-col lg:flex-row lg:items-end justify-between gap-6">
             <div className="space-y-2 max-w-2xl">
               <p className="text-[11px] uppercase tracking-[0.2em] text-[#FFC799] font-medium">
-                Dịch Vụ Thuê Xe Máy Đô Thị &amp; Du Lịch Đà Nẵng
+                {t('footer.mastheadBadge')}
               </p>
               <h2 className="text-2xl sm:text-4xl font-semibold text-[#F5F5F5] tracking-tight leading-snug">
-                Mỗi chiếc xe rời trạm là một hành trình{' '}
+                {t('footer.mastheadTitle')}{' '}
                 <span className="font-serif-display italic font-normal text-[#FFC799]">
-                  dạo phố êm ái và an tâm.
+                  {t('footer.mastheadAccent')}
                 </span>
               </h2>
             </div>
@@ -45,7 +47,7 @@ export const Footer: React.FC = () => {
                 className="inline-flex items-center space-x-2.5 px-5 py-2.5 rounded-full bg-[#1E1E1E] border border-white/12 text-[#F5F5F5] hover:border-[#FFC799]/50 text-xs font-medium transition-colors"
               >
                 <PhoneCall className="w-3.5 h-3.5 text-[#FFC799]" />
-                <span>Tổng đài điều phối:</span>
+                <span>{t('footer.hotlineLabel')}</span>
                 <span className="font-mono-tabular font-semibold">(0236) 3822 101</span>
               </a>
               <button
@@ -53,7 +55,7 @@ export const Footer: React.FC = () => {
                 className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFD6B3] text-[#101010] text-xs font-semibold transition-colors cursor-pointer"
               >
                 <HelpCircle className="w-3.5 h-3.5" />
-                <span>Cẩm nang &amp; Câu hỏi thường gặp</span>
+                <span>{t('footer.faqButton')}</span>
               </button>
             </div>
           </div>
@@ -91,12 +93,12 @@ export const Footer: React.FC = () => {
             {/* Column 2: Vehicle Collection (2 cols) */}
             <div className="lg:col-span-2">
               <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
-                Danh mục xe
+                {t('footer.colFleet')}
               </h4>
               <ul className="space-y-2.5 text-xs">
                 <li>
                   <Link to="/bikes" className="hover:text-[#F5F5F5] transition-colors flex items-center justify-between font-medium text-[#FFC799]">
-                    <span>Toàn bộ đội xe</span>
+                    <span>{t('footer.allFleet')}</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </Link>
                 </li>
@@ -131,7 +133,7 @@ export const Footer: React.FC = () => {
             {/* Column 3: Service Principles (3 cols) */}
             <div className="lg:col-span-3">
               <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
-                Chuẩn mực phục vụ &amp; Chính sách
+                {t('footer.colPolicy')}
               </h4>
               <ul className="space-y-2.5 text-xs">
                 <li>
@@ -139,7 +141,7 @@ export const Footer: React.FC = () => {
                     to="/rental-policy"
                     className="inline-flex items-center space-x-1.5 text-[#F5F5F5] hover:text-[#FFC799] font-medium transition-colors"
                   >
-                    <span>Chính sách thuê xe</span>
+                    <span>{t('footer.rentalPolicy')}</span>
                     <ArrowUpRight className="w-3.5 h-3.5 text-[#FFC799]" />
                   </Link>
                 </li>
@@ -148,7 +150,7 @@ export const Footer: React.FC = () => {
                     to="/faq"
                     className="w-full text-left inline-flex items-center space-x-1.5 text-[#F5F5F5] hover:text-[#FFC799] font-medium transition-colors"
                   >
-                    <span>Giải đáp thủ tục &amp; Câu hỏi thường gặp (FAQ)</span>
+                    <span>{t('footer.faqLink')}</span>
                     <ArrowUpRight className="w-3.5 h-3.5 text-[#FFC799]" />
                   </Link>
                 </li>
@@ -158,7 +160,7 @@ export const Footer: React.FC = () => {
                     className="hover:text-[#F5F5F5] transition-colors flex items-center space-x-1.5"
                   >
                     <FileCheck2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                    <span>Điều khoản dịch vụ &amp; Hợp đồng điện tử</span>
+                    <span>{t('footer.termsLink')}</span>
                   </Link>
                 </li>
                 <li>
@@ -167,7 +169,7 @@ export const Footer: React.FC = () => {
                     className="hover:text-[#F5F5F5] transition-colors flex items-center space-x-1.5"
                   >
                     <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                    <span>Chính sách bảo mật thông tin &amp; eKYC</span>
+                    <span>{t('footer.privacyLink')}</span>
                   </Link>
                 </li>
                 <li className="flex items-center space-x-2 text-[#A0A0A0]">
@@ -183,7 +185,7 @@ export const Footer: React.FC = () => {
             {/* Column 4: Open Typographic Station Ledger (3 cols) */}
             <div className="lg:col-span-3">
               <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
-                Trạm giao nhận tại Đà Nẵng
+                {t('footer.colStations')}
               </h4>
               <div className="divide-y divide-white/[0.08] border-y border-white/[0.08] text-xs">
                 <div className="py-3">
@@ -214,25 +216,25 @@ export const Footer: React.FC = () => {
 
           {/* Bottom Colophon */}
           <div className="pt-8 flex flex-col sm:flex-row justify-between items-center text-xs text-[#6E6E6E] space-y-4 sm:space-y-0">
-            <p>© 2026 Motorent Đà Nẵng. Chế tác dành riêng cho những hành trình tự lái tử tế.</p>
+            <p>{t('footer.copyright')}</p>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px]">
               <Link to="/rental-policy" className="hover:text-[#F5F5F5] transition-colors">
-                Chính sách thuê xe
+                {t('footer.rentalPolicy')}
               </Link>
               <Link to="/faq" className="hover:text-[#F5F5F5] transition-colors">
-                Hỏi đáp FAQ
+                FAQ
               </Link>
               <Link to="/terms" className="hover:text-[#F5F5F5] transition-colors">
-                Điều khoản dịch vụ
+                {t('footer.termsLink')}
               </Link>
               <Link to="/privacy" className="hover:text-[#F5F5F5] transition-colors">
-                Chính sách bảo mật
+                {t('footer.privacyLink')}
               </Link>
               <Link to="/branches" className="hover:text-[#F5F5F5] transition-colors">
-                Bản đồ trạm
+                {t('footer.stationMap')}
               </Link>
               <Link to="/bikes" className="hover:text-[#F5F5F5] transition-colors">
-                Danh mục xe &amp; Bảng giá
+                {t('nav.fleetPricing')}
               </Link>
             </div>
           </div>

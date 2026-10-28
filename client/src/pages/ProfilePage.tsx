@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
   User as UserIcon,
@@ -71,10 +71,18 @@ export const ProfilePage: React.FC = () => {
   });
   const [bookingCounts, setBookingCounts] = useState({
     all: 0,
+    trips: 0,
     active: 0,
     completed: 0,
     cancelled: 0,
   });
+  const [countsLoaded, setCountsLoaded] = useState(false);
+  const bookingPageRef = useRef(bookingPage);
+  const bookingFilterRef = useRef(bookingFilter);
+  const bookingSearchRef = useRef(bookingSearch);
+  bookingPageRef.current = bookingPage;
+  bookingFilterRef.current = bookingFilter;
+  bookingSearchRef.current = bookingSearch;
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState<Booking | null>(null);
   const [cancelReasonInput, setCancelReasonInput] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -198,7 +206,19 @@ export const ProfilePage: React.FC = () => {
           setBookingPagination(res.data.pagination);
         }
         if (res.data.counts) {
-          setBookingCounts(res.data.counts);
+          const nextCounts = {
+            all: res.data.counts.all ?? 0,
+            trips:
+              typeof res.data.counts.trips === 'number'
+                ? res.data.counts.trips
+                : (res.data.counts.active ?? 0) + (res.data.counts.completed ?? 0),
+            active: res.data.counts.active ?? 0,
+            completed: res.data.counts.completed ?? 0,
+            cancelled: res.data.counts.cancelled ?? 0,
+          };
+          setBookingCounts(nextCounts);
+          setCountsLoaded(true);
+          window.dispatchEvent(new CustomEvent('motorent:bookings-updated', { detail: nextCounts }));
         }
       }
     } catch (err) {
@@ -279,6 +299,7 @@ export const ProfilePage: React.FC = () => {
           return b;
         })
       );
+      fetchBookings(bookingPageRef.current, bookingFilterRef.current, bookingSearchRef.current);
     };
 
     socket.on('connect', handleConnect);
@@ -787,8 +808,19 @@ export const ProfilePage: React.FC = () => {
     return getUserAvatarUrl(url);
   };
 
+  const activeBookingsCount = countsLoaded
+    ? bookingCounts.active
+    : bookings.filter((b) => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length;
+  const completedBookingsCount = countsLoaded
+    ? bookingCounts.completed
+    : bookings.filter((b) => b.status === 'Completed').length;
+  const cancelledBookingsCount = countsLoaded
+    ? bookingCounts.cancelled
+    : bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length;
+  const allOrdersCount = countsLoaded ? bookingCounts.all : bookings.length;
+
   const TABS: { id: ProfileTab; num: string; label: string; count?: number; statusTag?: string }[] = [
-    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: bookingCounts.all || bookings.length },
+    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: allOrdersCount },
     { id: 'info', num: '02', label: 'Thông tin cá nhân' },
     {
       id: 'ekyc',
@@ -799,10 +831,6 @@ export const ProfilePage: React.FC = () => {
     { id: 'avatar', num: '04', label: 'Ảnh đại diện' },
     { id: 'password', num: '05', label: 'Đổi mật khẩu' },
   ];
-
-  const activeBookingsCount =
-    bookingCounts.active ||
-    bookings.filter((b) => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length;
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 sm:py-12 bg-editorial-grain">
@@ -979,19 +1007,17 @@ export const ProfilePage: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {[
-                  { key: 'all' as const, label: 'Tất cả đơn', count: bookingCounts.all || bookings.length },
+                  { key: 'all' as const, label: 'Tất cả đơn', count: allOrdersCount },
                   { key: 'active' as const, label: 'Đang giữ xe / Đang thuê', count: activeBookingsCount },
                   {
                     key: 'completed' as const,
                     label: 'Đã hoàn thành',
-                    count: bookingCounts.completed || bookings.filter((b) => b.status === 'Completed').length,
+                    count: completedBookingsCount,
                   },
                   {
                     key: 'cancelled' as const,
                     label: 'Đã hủy',
-                    count:
-                      bookingCounts.cancelled ||
-                      bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length,
+                    count: cancelledBookingsCount,
                   },
                 ].map((f) => {
                   const active = bookingFilter === f.key;

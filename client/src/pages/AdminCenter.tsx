@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2,
   Users,
@@ -33,7 +34,8 @@ import {
   Tag,
   Settings,
   UserPlus,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Languages
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Branch, User } from '../types';
@@ -43,8 +45,9 @@ import { ShiftCalendarView } from '../components/ShiftCalendarView';
 import { DiscountsManager } from '../components/DiscountsManager';
 import { SystemConfigManager } from '../components/SystemConfigManager';
 import { FinanceManager } from '../components/FinanceManager';
+import { I18nManager } from '../components/I18nManager';
 
-type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'finance' | 'map';
+type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'finance' | 'i18n' | 'map';
 
 interface BranchFormData {
   name: string;
@@ -81,7 +84,20 @@ const DA_NANG_PRESETS = [
 ];
 
 export const AdminCenter: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('branches');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const requested = searchParams.get('tab');
+    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'i18n', 'map'];
+    return validTabs.includes(requested as AdminTab) ? (requested as AdminTab) : 'branches';
+  });
+
+  useEffect(() => {
+    const requested = searchParams.get('tab');
+    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'i18n', 'map'];
+    if (requested && validTabs.includes(requested as AdminTab)) {
+      setActiveTab(requested as AdminTab);
+    }
+  }, [searchParams]);
 
   // Branch states
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -706,6 +722,19 @@ export const AdminCenter: React.FC = () => {
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
               <span>Đối soát & Thuế (UC-120-121)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('i18n')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'i18n'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Languages className="w-3.5 h-3.5" />
+              <span>Đa ngôn ngữ (UC-122)</span>
             </button>
 
             <button
@@ -1415,6 +1444,7 @@ export const AdminCenter: React.FC = () => {
             ===================================================================== */}
         {activeTab === 'config' && <SystemConfigManager />}
         {activeTab === 'finance' && <FinanceManager />}
+        {activeTab === 'i18n' && <I18nManager />}
 
         {/* =====================================================================
             MODALS

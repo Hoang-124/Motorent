@@ -1,5 +1,10 @@
 import mongoose, { Document, Schema } from 'mongoose';
 
+export interface II18nOverrides {
+  vi?: Record<string, string>;
+  en?: Record<string, string>;
+}
+
 export interface ISystemConfig extends Document {
   key: string;
   depositPercent: number;              // UC-114: Default deposit % (default 30)
@@ -11,6 +16,8 @@ export interface ISystemConfig extends Document {
   minPointsToRedeem: number;           // UC-115: Minimum points to redeem (default 50)
   supportHotline: string;
   supportEmail: string;
+  defaultLocale: 'vi' | 'en';          // UC-122: Default system UI language
+  i18nOverrides: II18nOverrides;       // UC-122: Admin-managed Vietnamese & English translation overrides
   updatedBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
@@ -28,9 +35,14 @@ const SystemConfigSchema = new Schema<ISystemConfig>(
     minPointsToRedeem: { type: Number, required: true, default: 50, min: 10 },
     supportHotline: { type: String, default: '1900 6868' },
     supportEmail: { type: String, default: 'support@motorent.vn' },
+    defaultLocale: { type: String, enum: ['vi', 'en'], default: 'vi' },
+    i18nOverrides: {
+      type: Schema.Types.Mixed,
+      default: () => ({ vi: {}, en: {} }),
+    },
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
-  { timestamps: true }
+  { timestamps: true, minimize: false }
 );
 
 export const SystemConfig = mongoose.model<ISystemConfig>('SystemConfig', SystemConfigSchema);

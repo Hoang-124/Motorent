@@ -2,13 +2,19 @@ import express from 'express';
 import http from 'http';
 import { Server as SocketIOServer, Namespace, Socket } from 'socket.io';
 import cors from 'cors';
-import helmet from 'helmet';
 import path from 'path';
 
 import jwt from 'jsonwebtoken';
 import { env } from './config/env';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './core/errorHandler';
+import {
+  helmetSecurityMiddleware,
+  apiRateLimiter,
+  xssAndInjectionSanitizer,
+  csrfProtectionMiddleware,
+  isTrustedOrigin,
+} from './core/securityMiddleware';
 import { setSocketServer } from './core/socketRegistry';
 import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
 import { startOdometerAlertJob } from './core/jobs/odometerAlertJob';
@@ -66,31 +72,26 @@ setSocketServer(io);
 // Global Security & Parsers Middlewares
 app.set('trust proxy', env.TRUST_PROXY || 1);
 
-app.use(
-  helmet({
-    crossOriginResourcePolicy: { policy: 'cross-origin' },
-  })
-);
+app.use(helmetSecurityMiddleware);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        (process.env.NODE_ENV !== 'production' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
-      ) {
-        callback(null, true);
-      } else {
-        callback(new Error('Chặn bởi chính sách bảo mật CORS của MOTORENT'));
-      }
+      callback(null, isTrustedOrigin(origin));
     },
     credentials: true,
+    exposedHeaders: ['RateLimit-Limit', 'RateLimit-Remaining', 'RateLimit-Reset'],
   })
 );
 
+app.use(csrfProtectionMiddleware);
+app.use('/api', apiRateLimiter);
+
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+// Global XSS, NoSQL operator & Prototype-pollution sanitizer (S4 Security Hardening)
+app.use(xssAndInjectionSanitizer);
 
 // Serve uploaded static files (avatars, banners, reviews, complaints)
 app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));

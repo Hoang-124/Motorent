@@ -14,6 +14,7 @@ import { BookingWidget } from '../components/BookingWidget';
 import type { Vehicle, Branch } from '../types';
 import { api } from '../services/api';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
+import { useTranslation } from '../context/I18nContext';
 
 interface BookingSearchCriteria {
   pickupBranchId: string;
@@ -30,6 +31,7 @@ const ANGLE_VIEWS = [
 
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const location = useLocation();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -209,9 +211,9 @@ export const HomePage: React.FC = () => {
   const HERO_VEHICLE_LINES = [
     {
       id: 'tay-ga',
-      label: 'Xe Tay Ga Đi Phố',
+      label: t('home.lineScooterTitle'),
       models: scooterRep?.vehicleModel || 'Vision • Air Blade 160',
-      highlight: 'Cốp rộng • Tự động êm ái',
+      highlight: t('home.lineScooterHighlight'),
       priceText: scooterRep ? `${scooterRep.dailyPrice.toLocaleString('vi-VN')}đ/ngày` : 'Từ 130.000đ/ngày',
       imageUrl: getOptimizedVehicleImageUrl(scooterRep?.images?.[1] || scooterRep?.images?.[0]),
       link: '/bikes?type=xe-tay-ga',
@@ -219,9 +221,9 @@ export const HomePage: React.FC = () => {
     },
     {
       id: 'xe-dien',
-      label: 'Xe Máy Điện Đô Thị',
+      label: t('home.lineElectricTitle'),
       models: electricRep?.vehicleModel || 'VinFast Feliz S • Evo',
-      highlight: 'Lướt êm • ~198km/sạc',
+      highlight: t('home.lineElectricHighlight'),
       priceText: electricRep ? `${electricRep.dailyPrice.toLocaleString('vi-VN')}đ/ngày` : 'Từ 150.000đ/ngày',
       imageUrl: getOptimizedVehicleImageUrl(electricRep?.images?.[1] || electricRep?.images?.[0]),
       link: '/bikes?type=xe-dien',
@@ -229,9 +231,9 @@ export const HomePage: React.FC = () => {
     },
     {
       id: 'xe-so',
-      label: 'Xe Số & Côn Tay',
+      label: t('home.lineGearTitle'),
       models: gearRep?.vehicleModel || 'Wave Alpha • Future • Winner',
-      highlight: 'Gọn nhẹ • 1.6L/100km',
+      highlight: t('home.lineGearHighlight'),
       priceText: gearRep ? `${gearRep.dailyPrice.toLocaleString('vi-VN')}đ/ngày` : 'Từ 100.000đ/ngày',
       imageUrl: getOptimizedVehicleImageUrl(gearRep?.images?.[1] || gearRep?.images?.[0]),
       link: '/bikes?type=xe-so',
@@ -289,33 +291,33 @@ export const HomePage: React.FC = () => {
             <div className="lg:col-span-7 space-y-7 pt-1 animate-fade-up">
               <div className="space-y-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-[#FFC799] font-medium">
-                  Thuê Xe Máy Tự Lái Đô Thị &amp; Du Lịch Đà Nẵng
+                  {t('home.heroBadge')}
                 </p>
 
                 <h1 className="text-4xl sm:text-6xl lg:text-[64px] font-bold tracking-tight text-[#F5F5F5] leading-[1.08]">
-                  Dạo phố nhẹ nhàng,
+                  {t('home.heroTitleMain')}
                   <br />
                   <span className="font-serif-display italic font-normal text-[#FFC799]">
-                    lắng nghe nhịp sống Đà Nẵng.
+                    {t('home.heroTitleAccent')}
                   </span>
                 </h1>
               </div>
 
               <p className="text-base sm:text-[17px] text-[#A0A0A0] font-normal leading-[1.75] max-w-xl">
-                Từ những buổi sáng cà phê trung tâm Hải Châu, chiều lướt gió dọc đại lộ biển Mỹ Khê cho đến những chuyến vi vu phố cổ Hội An cuối tuần — Motorent mang đến dàn xe tay ga, xe điện và xe số đời mới êm ái, cốp rộng, tiết kiệm nhiên liệu để bạn tự do di chuyển khắp thành phố.
+                {t('home.heroDescription')}
               </p>
 
               {/* 3 Featured Urban Vehicle Lines with Studio Photography */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] uppercase tracking-[0.15em] text-[#FFC799] font-medium">
-                    Các dòng xe chủ lực đi phố &amp; dạo biển
+                    {t('home.featuredHeading')}
                   </span>
                   <Link
                     to="/bikes"
                     className="text-[11px] text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors flex items-center space-x-1"
                   >
-                    <span>Xem tất cả dòng xe</span>
+                    <span>{t('home.viewAllVehicles')}</span>
                     <ArrowRight className="w-3 h-3" />
                   </Link>
                 </div>

@@ -92,6 +92,8 @@ describe('UC-35: Rental History (Status Tabs & Pagination)', () => {
     expect(res.body.counts.active).toBeGreaterThanOrEqual(2); // Pending + Ongoing
     expect(res.body.counts.completed).toBeGreaterThanOrEqual(1);
     expect(res.body.counts.cancelled).toBeGreaterThanOrEqual(1);
+    expect(res.body.counts.trips).toBe(res.body.counts.active + res.body.counts.completed);
+    expect(res.body.counts.all).toBe(res.body.counts.trips + res.body.counts.cancelled);
   });
 
   it('3. Filters by status=active tab (Pending, Approved, Confirmed, Ongoing)', async () => {

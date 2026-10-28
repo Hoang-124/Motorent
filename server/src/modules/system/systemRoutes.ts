@@ -258,7 +258,67 @@ router.put(
 /**
  * System Policies & Configuration (UC-113, UC-114, UC-115)
  */
+router.delete(
+  '/notifications/clear-read',
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
+        return;
+      }
+
+      const result = await Notification.deleteMany({
+        userId: req.user._id,
+        isRead: true,
+      });
+
+      res.json({
+        success: true,
+        message: 'Đã xóa các thông báo đã đọc.',
+        deletedCount: result.deletedCount,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  '/notifications/:id',
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
+        return;
+      }
+
+      if (mongoose.isValidObjectId(req.params.id)) {
+        await Notification.deleteOne({
+          _id: req.params.id,
+          userId: req.user._id,
+        });
+      }
+
+      res.json({ success: true, message: 'Đã xóa thông báo.' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+import { csrfTokenHandler } from '../../core/securityMiddleware';
 import * as systemConfigController from './systemConfigController';
+
+router.get('/security/csrf-token', csrfTokenHandler);
+router.get('/system/i18n', systemConfigController.getI18nTranslations);
+router.put(
+  '/system/i18n',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  systemConfigController.updateI18nTranslations
+);
 
 router.get('/system/config', systemConfigController.getSystemConfig);
 router.put(

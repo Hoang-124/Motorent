@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { I18nProvider } from './context/I18nContext';
 import { Navbar } from './components/Navbar';
 import { WelcomeToast } from './components/WelcomeToast';
 import { WishlistToast } from './components/WishlistToast';
@@ -72,9 +74,11 @@ function RoleBasedHome() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <WishlistProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <AuthProvider>
+        <BrowserRouter>
+          <WishlistProvider>
           <ScrollToTop />
           <div className="min-h-screen flex flex-col bg-[#101010] font-sans text-[#F5F5F5] antialiased selection:bg-[#FFC799] selection:text-[#101010]">
             <Navbar />
@@ -293,6 +297,8 @@ export function App() {
         </WishlistProvider>
       </BrowserRouter>
     </AuthProvider>
+      </I18nProvider>
+    </ThemeProvider>
   );
 }
 
