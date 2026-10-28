@@ -662,11 +662,36 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const fetchActiveComplaintCount = async () => {
+    try {
+      if (isManager) {
+        const res = await api.get('/manager/complaints/pending', {
+          params: { limit: 1, includeOpen: true },
+        });
+        setPendingComplaintCount(res.data?.pagination?.total || 0);
+      } else {
+        const [openRes, ipRes] = await Promise.all([
+          api.get('/staff/complaints', { params: { status: 'Open', limit: 1 } }),
+          api.get('/staff/complaints', { params: { status: 'InProgress', limit: 1 } }),
+        ]);
+        setPendingComplaintCount((openRes.data?.total || 0) + (ipRes.data?.total || 0));
+      }
+    } catch {
+      // Ignore background count errors silently
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchPendingEkyc();
     fetchBranchVehicles();
   }, []);
+
+  useEffect(() => {
+    if (user?._id) {
+      fetchActiveComplaintCount();
+    }
+  }, [user?._id, isManager]);
 
   useEffect(() => {
     const rawBranch = user?.branchId;
@@ -706,6 +731,8 @@ export const CounterDesk: React.FC = () => {
     setSearchParams({ mode });
     if (mode === 'vehicles') {
       fetchBranchVehicles();
+    } else if (mode === 'complaints') {
+      fetchActiveComplaintCount();
     }
   };
 
@@ -1249,7 +1276,7 @@ export const CounterDesk: React.FC = () => {
               >
                 <AlertCircle className="w-4 h-4" />
                 <span>06. Khiếu nại {isManager ? '(UC-85)' : '(UC-65)'}</span>
-                {isManager && pendingComplaintCount > 0 && (
+                {pendingComplaintCount > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full bg-[#FF8080] text-[#101010] font-black text-[10px]">
                     {pendingComplaintCount}
                   </span>

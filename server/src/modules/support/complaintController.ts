@@ -344,7 +344,7 @@ export const getStaffComplaints = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const result = await complaintService.getStaffComplaints(req.query);
+    const result = await complaintService.getStaffComplaints(req.query, req.user);
 
     res.json({
       success: true,

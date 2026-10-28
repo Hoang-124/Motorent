@@ -287,7 +287,7 @@ export const Navbar: React.FC = () => {
     } else if (lowerTitle.includes('ekyc') || lowerBody.includes('ekyc') || lowerBody.includes('cccd')) {
       navigate(isStaffOrAdmin ? '/counter?mode=ekyc' : '/profile?tab=ekyc');
     } else if (lowerTitle.includes('khiếu nại') || lowerBody.includes('khiếu nại')) {
-      navigate(isStaffOrAdmin ? '/staff/complaints' : '/complaints');
+      navigate(isStaffOrAdmin ? '/counter?mode=complaints' : '/complaints');
     } else if (notif.type === 'PROMO') {
       navigate('/bikes?promo=true');
     } else if (notif.type === 'BOOKING' || lowerTitle.includes('cọc') || lowerBody.includes('mv-')) {

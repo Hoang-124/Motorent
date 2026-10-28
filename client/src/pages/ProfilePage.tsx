@@ -41,7 +41,7 @@ import axios from 'axios';
 import { calculatePasswordStrength } from '../utils/validation';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { compressEkycImage } from '../utils/watermark';
-import type { Booking, Vehicle, Branch, Review } from '../types';
+import type { Booking, Vehicle, Branch, Review, Complaint } from '../types';
 import { ReviewModal } from '../components/ReviewModal';
 import { SecureEkycImage } from '../components/SecureEkycImage';
 
@@ -134,8 +134,9 @@ export const ProfilePage: React.FC = () => {
   const [extendEstimating, setExtendEstimating] = useState(false);
   const [extendError, setExtendError] = useState<string>('');
 
-  // Reviews state (UC-39-41)
+  // Reviews state (UC-39-41) & Complaints state (UC-42-43)
   const [myReviews, setMyReviews] = useState<Review[]>([]);
+  const [myComplaints, setMyComplaints] = useState<Complaint[]>([]);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
   const [selectedReviewForEdit, setSelectedReviewForEdit] = useState<Review | null>(null);
 
@@ -257,9 +258,21 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  const fetchMyComplaints = async () => {
+    try {
+      const res = await api.get('/me/complaints', { params: { limit: 50 } });
+      if (res.data?.data && Array.isArray(res.data.data)) {
+        setMyComplaints(res.data.data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải khiếu nại của tôi:', err);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchMyReviews();
+    fetchMyComplaints();
     api
       .get('/auth/me')
       .then((res) => {
@@ -915,7 +928,19 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* Right Quick Actions */}
-          <div className="flex items-center gap-3 self-start md:self-auto">
+          <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
+            <Link
+              to="/complaints"
+              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#161616] hover:bg-white/10 border border-white/12 hover:border-[#FFC799]/50 text-[#F5F5F5] text-xs font-semibold transition-all active:scale-95"
+            >
+              <AlertCircle className="w-3.5 h-3.5 text-[#FFC799]" />
+              <span>Khiếu nại của tôi</span>
+              {myComplaints.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-[#FFC799]/20 text-[#FFC799] font-mono text-[10px] font-bold">
+                  {myComplaints.length}
+                </span>
+              )}
+            </Link>
             <Link
               to="/bikes"
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all active:scale-95"
@@ -1633,14 +1658,42 @@ export const ProfilePage: React.FC = () => {
                                   </Link>
                                 )}
 
-                              <Link
-                                to={`/complaints/new?bookingId=${b._id}`}
-                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 text-[#A0A0A0] hover:text-amber-400 text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
-                                title="Gửi khiếu nại về chuyến xe này"
-                              >
-                                <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
-                                <span>Khiếu nại</span>
-                              </Link>
+                              {(() => {
+                                const bookingComplaints = myComplaints.filter(
+                                  (c) => c.booking?._id === b._id
+                                );
+                                const latestComplaint = bookingComplaints[0];
+                                const statusLabelMap: Record<Complaint['status'], string> = {
+                                  Open: 'Đã tiếp nhận',
+                                  InProgress: 'Đang xử lý',
+                                  Resolved: 'Đã giải quyết',
+                                  Closed: 'Đã đóng',
+                                };
+                                return (
+                                  <>
+                                    {latestComplaint && (
+                                      <Link
+                                        to={`/complaints?id=${latestComplaint._id}`}
+                                        className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition-colors inline-flex items-center space-x-1.5"
+                                        title="Xem tiến độ xử lý khiếu nại của chuyến xe này"
+                                      >
+                                        <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
+                                        <span>
+                                          Đã khiếu nại: {latestComplaint.code} ({statusLabelMap[latestComplaint.status] || latestComplaint.status})
+                                        </span>
+                                      </Link>
+                                    )}
+                                    <Link
+                                      to={`/complaints/new?bookingId=${b._id}`}
+                                      className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 text-[#A0A0A0] hover:text-amber-400 text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                                      title="Gửi khiếu nại về chuyến xe này"
+                                    >
+                                      <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
+                                      <span>{latestComplaint ? 'Gửi thêm khiếu nại' : 'Khiếu nại'}</span>
+                                    </Link>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
