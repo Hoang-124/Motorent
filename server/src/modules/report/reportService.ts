@@ -297,7 +297,7 @@ export const getFleetStats = async (branchId?: string) => {
   }
 
   const utilizationRate = totalVehicles > 0 ? Math.round((rentedCount / totalVehicles) * 100) : 0;
-  const averageRating = ratedVehiclesCount > 0 ? Number((totalRatingSum / ratedVehiclesCount).toFixed(1)) : 5.0;
+  const averageRating = ratedVehiclesCount > 0 ? Number((totalRatingSum / ratedVehiclesCount).toFixed(1)) : 0;
   const averageOdometer = totalVehicles > 0 ? Math.round(totalOdometer / totalVehicles) : 0;
 
   // Maintenance log costs this month
@@ -322,7 +322,7 @@ export const getFleetStats = async (branchId?: string) => {
       brand: v.brand,
       status: v.status,
       odometer: v.odometer,
-      averageRating: v.averageRating || 5.0,
+      averageRating: v.averageRating || 0,
       dailyPrice: v.dailyPrice,
     }));
 
@@ -507,16 +507,32 @@ export const getKpiDashboard = async (branchId?: string) => {
     }
   }
 
-  // 3. Rental Funnel
-  const totalInteractions = allBookings.length || 1;
+  // 3. Rental Funnel (100% real counts from DB)
+  const totalInteractions = allBookings.length;
   const paidDeposits = allBookings.filter((b) => b.depositPaid || b.isPaid).length;
   const checkedIn = allBookings.filter((b) => b.checkinAt).length;
 
   const funnel = [
-    { stage: 'Đặt đơn ban đầu', count: totalInteractions, percent: 100 },
-    { stage: 'Thanh toán cọc VNPay', count: paidDeposits, percent: Math.round((paidDeposits / totalInteractions) * 100) },
-    { stage: 'Check-in nhận xe tại quầy', count: checkedIn, percent: Math.round((checkedIn / totalInteractions) * 100) },
-    { stage: 'Check-out hoàn tất chuyến đi', count: completedCount, percent: Math.round((completedCount / totalInteractions) * 100) },
+    {
+      stage: 'Đặt đơn ban đầu',
+      count: totalInteractions,
+      percent: totalInteractions > 0 ? 100 : 0,
+    },
+    {
+      stage: 'Thanh toán cọc VNPay',
+      count: paidDeposits,
+      percent: totalInteractions > 0 ? Math.round((paidDeposits / totalInteractions) * 100) : 0,
+    },
+    {
+      stage: 'Check-in nhận xe tại quầy',
+      count: checkedIn,
+      percent: totalInteractions > 0 ? Math.round((checkedIn / totalInteractions) * 100) : 0,
+    },
+    {
+      stage: 'Check-out hoàn tất chuyến đi',
+      count: completedCount,
+      percent: totalInteractions > 0 ? Math.round((completedCount / totalInteractions) * 100) : 0,
+    },
   ];
 
   // 4. Fleet stats
@@ -555,7 +571,7 @@ export const getDemandForecast = async (branchId?: string) => {
 
   const historicalBookings = await Booking.find(query);
   const fleet = await getFleetStats(branchId);
-  const fleetCapacity = fleet.totalVehicles || 20;
+  const fleetCapacity = fleet.totalVehicles;
 
   // Compute average bookings per day of week (0: Sun, 1: Mon, ..., 6: Sat)
   const dayOfWeekCounts: number[] = [0, 0, 0, 0, 0, 0, 0];
@@ -567,9 +583,12 @@ export const getDemandForecast = async (branchId?: string) => {
     dayOfWeekCounts[d] += 1;
   }
 
-  // Base daily average
-  const avgDailyBookings = historicalBookings.length > 0 ? historicalBookings.length / 30 : 6;
-  const avgOrderValue = historicalBookings.length > 0 ? (dayOfWeekTotals.reduce((a, b) => a + b, 0) / historicalBookings.length) : 180000;
+  // Base daily average strictly from real historical DB transactions (zero synthetic baseline)
+  const avgDailyBookings = historicalBookings.length > 0 ? historicalBookings.length / 30 : 0;
+  const avgOrderValue =
+    historicalBookings.length > 0
+      ? dayOfWeekTotals.reduce((a, b) => a + b, 0) / historicalBookings.length
+      : 0;
 
   // Project next 7 days
   const forecast7Days = Array.from({ length: 7 }, (_, i) => {
@@ -579,13 +598,13 @@ export const getDemandForecast = async (branchId?: string) => {
 
     // Seasonal & weekend multiplier
     const weekendMultiplier = isWeekend ? 1.45 : 1.0;
-    // Tourism summer boost (June - August: month 5,6,7 in 0-indexed)
     const month = targetDate.getMonth();
     const seasonalMultiplier = month >= 4 && month <= 7 ? 1.25 : 1.05;
 
     const predictedBookings = Math.round(avgDailyBookings * weekendMultiplier * seasonalMultiplier);
     const predictedRevenue = Math.round(predictedBookings * avgOrderValue);
-    const expectedUtilization = Math.min(100, Math.round((predictedBookings / fleetCapacity) * 100));
+    const expectedUtilization =
+      fleetCapacity > 0 ? Math.min(100, Math.round((predictedBookings / fleetCapacity) * 100)) : 0;
 
     let capacityRisk: 'Normal' | 'High' | 'Overload' = 'Normal';
     if (expectedUtilization >= 90) capacityRisk = 'Overload';
@@ -603,17 +622,32 @@ export const getDemandForecast = async (branchId?: string) => {
   });
 
   const weekendAlert = forecast7Days.some((d) => d.capacityRisk === 'Overload');
+  const insights: string[] = [];
+
+  if (historicalBookings.length === 0) {
+    insights.push(
+      'Chưa có giao dịch thuê xe thực tế trong 30 ngày qua. Hệ thống sẽ tự động cập nhật biểu đồ dự báo khi phát sinh đơn đặt xe thực.'
+    );
+    insights.push(
+      `Tổng công suất hiện tại ghi nhận thực tế từ cơ sở dữ liệu: ${fleetCapacity} xe (${fleet.statusBreakdown.available} xe sẵn sàng giao ngay).`
+    );
+  } else {
+    insights.push(
+      weekendAlert
+        ? 'Cảnh báo nguy cơ thiếu xe cuối tuần: Nhu cầu dự báo từ lịch sử giao dịch vượt 90% công suất đội xe hiện tại.'
+        : `Tỷ lệ khai thác dựa trên ${historicalBookings.length} đơn thuê trong 30 ngày qua đang ở mức ổn định (trung bình ${avgDailyBookings.toFixed(1)} đơn/ngày).`
+    );
+    if (fleet.maintenanceStats.requiresMaintenanceCount > 0 || fleet.maintenanceStats.inMaintenance > 0) {
+      insights.push(
+        `Hiện có ${fleet.maintenanceStats.inMaintenance} xe đang bảo dưỡng và ${fleet.maintenanceStats.requiresMaintenanceCount} xe đến ngưỡng ODO cần kiểm tra kỹ thuật.`
+      );
+    }
+  }
 
   return {
     forecast7Days,
     fleetCapacity,
-    insights: [
-      weekendAlert
-        ? 'Cảnh báo nguy cơ thiếu xe cuối tuần: Nhu cầu dự báo vượt 90% công suất đội xe hiện tại.'
-        : 'Tỷ lệ lấp đầy ổn định, đáp ứng tốt nhu cầu thuê xe bình thường.',
-      'Khuyến nghị chuẩn bị trước 10 mũ bảo hiểm và hoàn tất bảo dưỡng các xe đang có lịch Routine.',
-      'Đề xuất điều phối thêm xe tay ga từ các điểm trả xe về trạm trung tâm trước giờ cao điểm 08:00 sáng.',
-    ],
+    insights,
   };
 };
 

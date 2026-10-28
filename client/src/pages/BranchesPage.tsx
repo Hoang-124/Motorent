@@ -36,6 +36,7 @@ export const BranchesPage: React.FC = () => {
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [nearestBranchId, setNearestBranchId] = useState<string | null>(null);
+  const [gpsError, setGpsError] = useState<string>('');
 
   const isSystemAdmin = isAuthenticated && user?.roles === 'SystemAdmin';
 
@@ -70,8 +71,9 @@ export const BranchesPage: React.FC = () => {
 
   // Handle GPS Search (UC-27)
   const handleFindNearest = () => {
+    setGpsError('');
     if (!navigator.geolocation) {
-      alert('Trình duyệt của bạn không hỗ trợ định vị vị trí GPS.');
+      setGpsError('Trình duyệt của bạn không hỗ trợ định vị vị trí GPS.');
       return;
     }
 
@@ -83,16 +85,14 @@ export const BranchesPage: React.FC = () => {
           lng: pos.coords.longitude,
         };
         setUserCoords(coords);
+        setGpsError('');
         fetchData(coords);
         setIsLocating(false);
       },
-      (err) => {
-        console.warn('GPS error', err);
+      () => {
         setIsLocating(false);
-        // Fallback: Da Nang Center (16.054, 108.202)
-        const fallback = { lat: 16.0544, lng: 108.2022 };
-        setUserCoords(fallback);
-        fetchData(fallback);
+        setUserCoords(null);
+        setGpsError('Không thể truy cập vị trí GPS thực tế. Vui lòng cấp quyền định vị trên trình duyệt để sắp xếp trạm gần nhất.');
       },
       { timeout: 8000 }
     );
@@ -168,7 +168,7 @@ export const BranchesPage: React.FC = () => {
                   Quy mô trạm
                 </span>
                 <span className="text-base sm:text-lg font-bold text-[#F5F5F5] font-mono-tabular mt-0.5 block">
-                  0{branches.length || 2} trạm lớn
+                  {branches.length} trạm hoạt động
                 </span>
               </div>
 
@@ -265,6 +265,19 @@ export const BranchesPage: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {gpsError && (
+          <div className="mb-6 p-3.5 rounded-xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-[#FF8080] text-xs flex items-center justify-between gap-3">
+            <span>{gpsError}</span>
+            <button
+              type="button"
+              onClick={() => setGpsError('')}
+              className="text-[11px] underline hover:text-white cursor-pointer shrink-0"
+            >
+              Đóng
+            </button>
+          </div>
+        )}
 
         {/* MAP VIEW (UC-02) */}
         {viewMode === 'map' && (

@@ -301,11 +301,13 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             >
               <Star className="w-3 h-3 fill-[#FFC799] text-[#FFC799]" />
               <span className="text-[11px] font-bold text-[#F5F5F5]">
-                {avgRating > 0 ? avgRating.toFixed(1) : '5.0'}
+                {avgRating > 0 ? avgRating.toFixed(1) : 'Mới'}
               </span>
-              <span className="text-[10px] text-[#6E6E6E]">
-                ({vehicle.reviewCount || 0})
-              </span>
+              {(vehicle.reviewCount ?? 0) > 0 && (
+                <span className="text-[10px] text-[#6E6E6E]">
+                  ({vehicle.reviewCount})
+                </span>
+              )}
             </div>
           </div>
 

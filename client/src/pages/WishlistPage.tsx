@@ -267,9 +267,9 @@ export const WishlistPage: React.FC = () => {
                           <div className="flex items-center space-x-1">
                             <Star className="w-3 h-3 fill-[#FFC799] text-[#FFC799]" />
                             <span className="font-bold text-[#F5F5F5]">
-                              {(v as unknown as { averageRating?: number }).averageRating && (v as unknown as { averageRating?: number }).averageRating! > 0
-                                ? (v as unknown as { averageRating?: number }).averageRating!.toFixed(1)
-                                : '5.0'}
+                              {v.averageRating && v.averageRating > 0
+                                ? v.averageRating.toFixed(1)
+                                : 'Chưa có ĐG'}
                             </span>
                           </div>
                           <span className="text-[#6E6E6E] font-mono-tabular">

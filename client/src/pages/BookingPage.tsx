@@ -35,7 +35,7 @@ import {
 import axios from 'axios';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import type { Vehicle, Branch, Booking } from '../types';
+import type { Vehicle, Branch, Booking, Discount } from '../types';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import {
   DateTimePicker,
@@ -52,55 +52,26 @@ const ANGLE_VIEWS = [
   { id: 2, label: 'Góc sau', title: 'Góc đuôi xe & khoang lái' },
 ];
 
-const AVAILABLE_VOUCHERS = [
-  {
-    code: 'THEOGIO10',
-    title: 'Giảm 10% (Tối đa 15.000đ)',
-    desc: 'Áp dụng cho mọi gói thuê theo giờ & theo ngày (đơn từ 30.000đ)',
-    discountPercent: 10,
-    maxDiscount: 15000,
-    minOrder: 30000,
-  },
-  {
-    code: 'CHAOBANMOI',
-    title: 'Giảm 20.000đ Khách mới',
-    desc: 'Áp dụng cho đơn thuê từ 1 ngày trở lên (tối thiểu 80.000đ)',
-    discountPercent: 25,
-    maxDiscount: 20000,
-    minOrder: 80000,
-  },
-  {
-    code: 'MOTORENT30',
-    title: 'Giảm 30.000đ Thuê từ 2 ngày',
-    desc: 'Áp dụng cho đơn thuê từ 150.000đ trở lên',
-    discountPercent: 20,
-    maxDiscount: 30000,
-    minOrder: 150000,
-  },
-  {
-    code: 'DANANGVIP',
-    title: 'Giảm 15% (Tối đa 100.000đ)',
-    desc: 'Áp dụng cho đơn thuê dài ngày từ 300.000đ trở lên',
-    discountPercent: 15,
-    maxDiscount: 100000,
-    minOrder: 300000,
-  },
-];
-
-const computeVoucherDiscountAmount = (code: string, baseFee: number): number => {
-  if (!code || baseFee <= 0) return 0;
-  const found = AVAILABLE_VOUCHERS.find((v) => v.code === code.toUpperCase());
-  if (!found) return 0;
-  if (baseFee < found.minOrder) return 0;
-  const raw = Math.round((baseFee * found.discountPercent) / 100);
-  return Math.min(found.maxDiscount, raw);
-};
-
 interface PaymentReceiptInfo {
   transactionId: string;
   amount: number;
   paymentType: 'Deposit30' | 'Full100';
   paidAt: string;
+}
+
+interface BookingEstimateResult {
+  isAvailable: boolean;
+  conflicting: boolean;
+  basePrice: number;
+  discountAmount: number;
+  appliedDiscount: {
+    code: string;
+    discountPercent: number;
+    discountAmount: number;
+  } | null;
+  totalAmount: number;
+  depositAmount: number;
+  remainingAmount: number;
 }
 
 export const BookingPage: React.FC = () => {
@@ -177,21 +148,18 @@ export const BookingPage: React.FC = () => {
   });
   const [step2Submitted, setStep2Submitted] = useState<boolean>(false);
 
-  // Form Step 3: Perks & Interactive Voucher Selection
-  const initialVoucherCode = AVAILABLE_VOUCHERS.some((v) => v.code === voucherParam)
-    ? voucherParam
-    : 'CHAOBANMOI';
-  const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>(initialVoucherCode);
+  // Form Step 3: Perks & Real DB Voucher Selection
+  const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([]);
+  const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>(voucherParam);
   const [customVoucherInput, setCustomVoucherInput] = useState<string>('');
   const [discountFeedback, setDiscountFeedback] = useState<string>('');
+  const [estimateData, setEstimateData] = useState<BookingEstimateResult | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState<boolean>(false);
 
   // Form Step 4: Payment selection & QR Verification
   const [paymentOption, setPaymentOption] = useState<'VietQR' | 'VNPay' | 'Cash'>('VietQR');
   const [paymentScope, setPaymentScope] = useState<'Deposit30' | 'Full100'>('Deposit30');
-  const [vnpayBankCode, setVnpayBankCode] = useState<'NCB' | '' | 'INTCARD'>('NCB');
-  const [qrChecking, setQrChecking] = useState<boolean>(false);
-  const [qrVerified, setQrVerified] = useState<boolean>(false);
-  const [qrPrecheckCode, setQrPrecheckCode] = useState<string>('');
+  const [vnpayBankCode, setVnpayBankCode] = useState<'NCB' | '' | 'INTCARD'>('');
   const [copiedField, setCopiedField] = useState<string>('');
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [downloadingInvoice, setDownloadingInvoice] = useState<boolean>(false);
@@ -200,19 +168,24 @@ export const BookingPage: React.FC = () => {
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [paymentReceipt, setPaymentReceipt] = useState<PaymentReceiptInfo | null>(null);
 
-  // 1. Fetch Vehicle & Branches
+  // 1. Fetch Vehicle, Branches & Active Discounts from DB
   useEffect(() => {
     const fetchInitData = async () => {
       setLoading(true);
       setErrorMsg('');
       try {
-        const [branchesRes, vehicleRes] = await Promise.all([
+        const [branchesRes, vehicleRes, discountsRes] = await Promise.all([
           api.get('/branches'),
           vehicleId ? api.get(`/vehicles/${vehicleId}`) : Promise.resolve(null),
+          api.get('/discounts?activeOnly=true').catch(() => null),
         ]);
 
         const branchList = branchesRes.data?.data || branchesRes.data || [];
         setBranches(branchList);
+
+        if (Array.isArray(discountsRes?.data?.data)) {
+          setAvailableDiscounts(discountsRes.data.data);
+        }
 
         if (vehicleRes && vehicleRes.data) {
           const vehData = vehicleRes.data.data || vehicleRes.data;
@@ -270,9 +243,7 @@ export const BookingPage: React.FC = () => {
       [targetUser.lastName, targetUser.firstName].filter(Boolean).join(' ') ||
       targetUser.username ||
       '';
-    const resolvedIdCard =
-      targetUser.idCardNumber ||
-      (targetUser.identityStatus === 'Verified' ? '048204008692' : '');
+    const resolvedIdCard = targetUser.idCardNumber || '';
 
     setCustomerName(fullName);
     setCustomerPhone(targetUser.phoneNumber || '');
@@ -286,8 +257,7 @@ export const BookingPage: React.FC = () => {
     if (user) {
       const fullName =
         [user.lastName, user.firstName].filter(Boolean).join(' ') || user.username || '';
-      const resolvedIdCard =
-        user.idCardNumber || (user.identityStatus === 'Verified' ? '048204008692' : '');
+      const resolvedIdCard = user.idCardNumber || '';
 
       setCustomerName((prev) => prev || fullName);
       setCustomerPhone((prev) => prev || user.phoneNumber || '');
@@ -351,18 +321,11 @@ export const BookingPage: React.FC = () => {
   const idCardError = validateIdCardNumber(idCardNumber);
   const isStep2Valid = !nameError && !phoneError && !emailError && !idCardError;
 
-  // Reset QR precheck if payment scope or option changes
-  useEffect(() => {
-    setQrVerified(false);
-    setQrPrecheckCode('');
-  }, [paymentScope, paymentOption]);
-
-  // Smart Hourly vs. Daily Pricing Calculation
+  // Smart Hourly vs. Daily Pricing Calculation (with live Server-Side /bookings/estimate sync)
   const startDateTime = new Date(`${pickupDate}T${pickupTime}:00+07:00`);
   const endDateTime = new Date(`${returnDate}T${returnTime}:00+07:00`);
   const durationMs = Math.max(0, endDateTime.getTime() - startDateTime.getTime());
   const totalHours = Math.max(2, Math.ceil(durationMs / (1000 * 3600)));
-  const durationDays = Math.max(1, Math.ceil(totalHours / 24));
 
   const dailyPrice = vehicle ? vehicle.dailyPrice : 0;
   const hourlyPrice =
@@ -370,10 +333,10 @@ export const BookingPage: React.FC = () => {
 
   const isHourlyBilling = totalHours < 24 && totalHours * hourlyPrice < dailyPrice;
 
-  let baseRentalFee = 0;
+  let fallbackBaseRentalFee = 0;
   let billingDurationLabel = '';
   if (totalHours < 24) {
-    baseRentalFee = Math.min(dailyPrice, totalHours * hourlyPrice);
+    fallbackBaseRentalFee = Math.min(dailyPrice, totalHours * hourlyPrice);
     billingDurationLabel = isHourlyBilling
       ? `${totalHours} giờ (Gói theo giờ)`
       : `1 ngày (${totalHours} giờ)`;
@@ -381,7 +344,7 @@ export const BookingPage: React.FC = () => {
     const fullDays = Math.floor(totalHours / 24);
     const remHours = totalHours % 24;
     const remFee = remHours > 0 ? Math.min(dailyPrice, remHours * hourlyPrice) : 0;
-    baseRentalFee = fullDays * dailyPrice + remFee;
+    fallbackBaseRentalFee = fullDays * dailyPrice + remFee;
     if (remHours === 0) {
       billingDurationLabel = `${fullDays} ngày (${totalHours} giờ)`;
     } else if (remFee < dailyPrice) {
@@ -391,42 +354,103 @@ export const BookingPage: React.FC = () => {
     }
   }
 
-  // Dynamic voucher evaluation: if selectedVoucherCode isn't eligible for current baseRentalFee,
-  // check if user explicitly picked it or fall back cleanly
-  const activeDiscountAmount = computeVoucherDiscountAmount(selectedVoucherCode, baseRentalFee);
-  const appliedDiscount =
-    selectedVoucherCode && activeDiscountAmount > 0
-      ? { code: selectedVoucherCode, amount: activeDiscountAmount }
-      : null;
+  // Real-time server estimation & conflict detection via POST /api/bookings/estimate
+  useEffect(() => {
+    if (!vehicle || !pickupBranchId || !returnBranchId) return;
+    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime()) || startDateTime >= endDateTime) {
+      return;
+    }
 
-  const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
-  const totalAmount = Math.max(0, baseRentalFee - discountAmount);
-  const depositAmount = Math.round(totalAmount * 0.3); // Cọc 30%
-  const remainingAmount = totalAmount - depositAmount; // 70% còn lại
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        setEstimateLoading(true);
+        const res = await api.post('/bookings/estimate', {
+          vehicleId: vehicle._id,
+          pickupBranchId,
+          returnBranchId,
+          pickupDateTime: startDateTime.toISOString(),
+          returnDateTime: endDateTime.toISOString(),
+          discountCode: selectedVoucherCode || undefined,
+        });
+        if (active && res.data?.success && res.data?.data) {
+          setEstimateData(res.data.data);
+        }
+      } catch {
+        if (active) setEstimateData(null);
+      } finally {
+        if (active) setEstimateLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [
+    vehicle?._id,
+    pickupBranchId,
+    returnBranchId,
+    pickupDate,
+    pickupTime,
+    returnDate,
+    returnTime,
+    selectedVoucherCode,
+  ]);
+
+  const baseRentalFee = estimateData ? estimateData.basePrice : fallbackBaseRentalFee;
+  const isScheduleConflicting =
+    Boolean(estimateData?.conflicting) ||
+    vehicle?.status === 'Maintenance' ||
+    vehicle?.status === 'Transferring';
+
+  const computeDiscountPreview = (d: Discount, baseFee: number): number => {
+    if (!d.isActive || baseFee <= 0) return 0;
+    if (d.minBookingAmount && baseFee < d.minBookingAmount) return 0;
+    const raw = Math.round((baseFee * d.discountPercent) / 100);
+    return d.maxDiscountAmount && d.maxDiscountAmount > 0 ? Math.min(d.maxDiscountAmount, raw) : raw;
+  };
+
+  const appliedDiscount = estimateData?.appliedDiscount
+    ? {
+        code: estimateData.appliedDiscount.code,
+        amount: estimateData.appliedDiscount.discountAmount,
+      }
+    : null;
+
+  const discountAmount = estimateData ? estimateData.discountAmount : 0;
+  const totalAmount = estimateData ? estimateData.totalAmount : Math.max(0, baseRentalFee - discountAmount);
+  const depositAmount = estimateData ? estimateData.depositAmount : Math.round(totalAmount * 0.3);
+  const remainingAmount = estimateData ? estimateData.remainingAmount : totalAmount - depositAmount;
   const activePayAmount = paymentScope === 'Full100' ? totalAmount : depositAmount;
   const activeRemainingAfterPay = paymentScope === 'Full100' ? 0 : remainingAmount;
 
-  const handleSelectVoucher = (code: string) => {
+  const handleSelectVoucher = async (code: string) => {
     if (!code || code === selectedVoucherCode) {
       setSelectedVoucherCode('');
       setDiscountFeedback('Đã gỡ mã ưu đãi.');
       return;
     }
-    const upper = code.toUpperCase();
-    const vObj = AVAILABLE_VOUCHERS.find((v) => v.code === upper);
-    if (!vObj) {
-      setDiscountFeedback('Mã giảm giá không tồn tại.');
-      return;
+    const upper = code.trim().toUpperCase();
+    try {
+      const validateRes = await api.post('/discounts/validate', {
+        code: upper,
+        bookingAmount: baseRentalFee,
+      });
+      if (validateRes.data?.success && validateRes.data?.data) {
+        const dData = validateRes.data.data;
+        setSelectedVoucherCode(dData.code);
+        setDiscountFeedback(
+          `Đã áp dụng mã ${dData.code}: Giảm ${Number(dData.discountAmount || 0).toLocaleString('vi-VN')}đ`
+        );
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setDiscountFeedback(err.response.data.message);
+      } else {
+        setDiscountFeedback('Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện áp dụng.');
+      }
     }
-    if (baseRentalFee < vObj.minOrder) {
-      setDiscountFeedback(
-        `Mã ${upper} yêu cầu đơn thuê tối thiểu ${vObj.minOrder.toLocaleString('vi-VN')}đ (Hiện tại: ${baseRentalFee.toLocaleString('vi-VN')}đ).`
-      );
-      return;
-    }
-    const amt = computeVoucherDiscountAmount(upper, baseRentalFee);
-    setSelectedVoucherCode(upper);
-    setDiscountFeedback(`Đã áp dụng mã ${upper}: Giảm ${amt.toLocaleString('vi-VN')}đ`);
   };
 
   // Next Step Validator
@@ -444,6 +468,12 @@ export const BookingPage: React.FC = () => {
       }
       if (!pickupBranchId || !returnBranchId) {
         setErrorMsg('Vui lòng chọn chi nhánh nhận xe và chi nhánh trả xe.');
+        return;
+      }
+      if (isScheduleConflicting) {
+        setErrorMsg(
+          'Phương tiện đã có lịch đặt hoặc đang bảo dưỡng trong khung giờ bạn chọn. Vui lòng chọn khung giờ khác hoặc xe khác.'
+        );
         return;
       }
       setCurrentStep(2);
@@ -500,17 +530,6 @@ export const BookingPage: React.FC = () => {
     }
   };
 
-  // Interactive QR Pre-verification in Step 4
-  const handleVerifyQrPrecheck = () => {
-    setQrChecking(true);
-    setErrorMsg('');
-    setTimeout(() => {
-      setQrChecking(false);
-      setQrVerified(true);
-      setQrPrecheckCode(`FT26288${Math.floor(100000 + Math.random() * 900000)}`);
-    }, 900);
-  };
-
   const handleCopyText = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(label);
@@ -550,7 +569,7 @@ export const BookingPage: React.FC = () => {
         // If paying via VNPay, create official payment URL and redirect to gateway
         if (paymentOption === 'VNPay') {
           if (!newBooking?._id) {
-            setErrorMsg('Không thể khởi tạo mã đơn cho cổng VNPay Sandbox.');
+            setErrorMsg('Không thể khởi tạo mã đơn cho cổng VNPay.');
             setSubmitting(false);
             return;
           }
@@ -564,7 +583,7 @@ export const BookingPage: React.FC = () => {
               window.location.href = vnpayRes.data.data.paymentUrl;
               return;
             }
-            setErrorMsg('Không nhận được liên kết chuyển hướng từ cổng VNPay Sandbox.');
+            setErrorMsg('Không nhận được liên kết chuyển hướng từ cổng VNPay.');
             setSubmitting(false);
             return;
           } catch (vnpErr) {
@@ -572,39 +591,44 @@ export const BookingPage: React.FC = () => {
             const vnpMsg =
               axios.isAxiosError(vnpErr) && vnpErr.response?.data?.message
                 ? vnpErr.response.data.message
-                : 'Không thể khởi tạo liên kết VNPay Sandbox. Vui lòng thử lại.';
+                : 'Không thể khởi tạo liên kết VNPay. Vui lòng thử lại.';
             setErrorMsg(vnpMsg);
             setSubmitting(false);
             return;
           }
         }
 
-        // If paying via VietQR online, immediately confirm deposit/full payment on backend
+        // If paying via VietQR online, confirm payment on backend and record real Payment row
         if (paymentOption === 'VietQR') {
           try {
             const confirmRes = await api.post('/payments/vietqr/confirm', {
               bookingId: newBooking._id,
               paymentType: paymentScope,
             });
-            const confirmedBooking: Booking = confirmRes.data?.data?.booking || {
-              ...newBooking,
-              status: 'Approved',
-              depositPaid: true,
-            };
-            const paymentData = confirmRes.data?.data?.payment;
-            setCreatedBooking(confirmedBooking);
-            setPaymentReceipt({
-              transactionId:
-                paymentData?.transactionId ||
-                qrPrecheckCode ||
-                `VIETQR_${Date.now().toString().slice(-8)}`,
-              amount: paymentData?.amount || activePayAmount,
-              paymentType: paymentScope,
-              paidAt: new Date().toLocaleString('vi-VN'),
-            });
-          } catch {
-            // Fallback if confirm endpoint fails
+            if (confirmRes.data?.success && confirmRes.data?.data) {
+              const confirmedBooking: Booking = confirmRes.data.data?.booking || confirmRes.data.data;
+              const serverTxnRef =
+                (confirmedBooking as Booking & { vnpayTxnRef?: string }).vnpayTxnRef ||
+                confirmedBooking.bookingCode;
+              setCreatedBooking(confirmedBooking);
+              setPaymentReceipt({
+                transactionId: serverTxnRef,
+                amount: confirmedBooking.paidAmount || activePayAmount,
+                paymentType: paymentScope,
+                paidAt: new Date().toLocaleString('vi-VN'),
+              });
+            } else {
+              setCreatedBooking(newBooking);
+              setPaymentReceipt(null);
+            }
+          } catch (qrErr) {
+            const qrMsg =
+              axios.isAxiosError(qrErr) && qrErr.response?.data?.message
+                ? qrErr.response.data.message
+                : 'Đơn đặt xe đã tạo thành công nhưng chưa thể xác nhận giao dịch QR tự động. Bạn có thể thanh toán lại trong mục Chuyến xe của tôi.';
+            setErrorMsg(qrMsg);
             setCreatedBooking(newBooking);
+            setPaymentReceipt(null);
           }
         } else {
           setCreatedBooking(newBooking);
@@ -662,7 +686,6 @@ export const BookingPage: React.FC = () => {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Invoice download error:', err);
-      // Fallback: open endpoint in new tab
       window.open(`/api/bookings/${bookingId}/invoice`, '_blank');
     } finally {
       setDownloadingInvoice(false);
@@ -673,7 +696,7 @@ export const BookingPage: React.FC = () => {
     if (!vehicle) return '#';
     const title = encodeURIComponent(`Thuê xe máy MotoRent: ${vehicle.vehicleModel} (${vehicle.licensePlate})`);
     const details = encodeURIComponent(
-      `Hợp đồng thuê xe máy MotoRent Đà Nẵng\nMã đặt xe: ${createdBooking?.bookingCode || 'MV-88692'}\nXe: ${vehicle.vehicleModel} - Biển số: ${vehicle.licensePlate}\nTrạm nhận: ${pickupBranch?.name || ''} (${pickupBranch?.address || ''})\nHotline hỗ trợ 24/7: 0905 123 456`
+      `Hợp đồng thuê xe máy MotoRent Đà Nẵng\nMã đặt xe: ${createdBooking?.bookingCode || ''}\nXe: ${vehicle.vehicleModel} - Biển số: ${vehicle.licensePlate}\nTrạm nhận: ${pickupBranch?.name || ''} (${pickupBranch?.address || ''})${pickupBranch?.phone ? `\nHotline trạm: ${pickupBranch.phone}` : ''}`
     );
     const location = encodeURIComponent(pickupBranch?.address || 'Đà Nẵng');
     try {
@@ -898,22 +921,33 @@ export const BookingPage: React.FC = () => {
             {/* STEP 1: Schedule & Branches */}
             {currentStep === 1 && (
               <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
-                {/* Live Availability & Instant Plate Locking Badge */}
-                <div className="p-3.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/25 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center space-x-2.5">
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    <span className="font-semibold text-emerald-300">
-                      Xe đang sẵn sàng tại trạm • Khóa giữ biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> ngay khi hoàn tất
+                {/* Live Availability & Instant Plate Locking Badge (100% Real-time Server Sync) */}
+                {isScheduleConflicting ? (
+                  <div className="p-3.5 rounded-xl bg-[#FF8080]/12 border border-[#FF8080]/30 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center space-x-2.5 text-[#FF8080]">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span className="font-semibold">
+                        Xe biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> đã có lịch đặt hoặc đang bảo dưỡng trong khung giờ này. Vui lòng đổi thời gian nhận/trả hoặc chọn xe khác.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/25 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                      <span className="font-semibold text-emerald-300">
+                        {estimateLoading ? 'Đang kiểm tra lịch trống thực tế...' : 'Khung giờ hợp lệ & xe sẵn sàng'} • Khóa giữ biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> ngay khi hoàn tất
+                      </span>
+                    </div>
+                    <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold shrink-0">
+                      <Lock className="w-3 h-3" />
+                      <span>Khóa độc quyền</span>
                     </span>
                   </div>
-                  <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold shrink-0">
-                    <Lock className="w-3 h-3" />
-                    <span>Khóa độc quyền</span>
-                  </span>
-                </div>
+                )}
 
                 <div>
                   <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
@@ -1336,7 +1370,8 @@ export const BookingPage: React.FC = () => {
                           <CheckCircle2 className="w-3 h-3" />
                           <span>
                             {user?.identityStatus === 'Verified' &&
-                            idCardNumber === (user.idCardNumber || '048204008692')
+                            Boolean(user.idCardNumber) &&
+                            idCardNumber === user.idCardNumber
                               ? 'Đã đối soát eKYC'
                               : 'Hợp lệ'}
                           </span>
@@ -1484,66 +1519,75 @@ export const BookingPage: React.FC = () => {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {AVAILABLE_VOUCHERS.map((v) => {
-                      const eligible = baseRentalFee >= v.minOrder;
-                      const isSelected = selectedVoucherCode === v.code && eligible;
-                      const estSave = computeVoucherDiscountAmount(v.code, baseRentalFee);
+                  {availableDiscounts.length === 0 ? (
+                    <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0]">
+                      Hiện chưa có chương trình mã giảm giá công khai nào đang mở. Bạn vẫn có thể nhập mã ưu đãi riêng bên dưới nếu có.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {availableDiscounts.map((v) => {
+                        const minOrder = v.minBookingAmount || 0;
+                        const eligible = baseRentalFee >= minOrder;
+                        const isSelected = selectedVoucherCode === v.code && eligible;
+                        const estSave = computeDiscountPreview(v, baseRentalFee);
 
-                      return (
-                        <button
-                          key={v.code}
-                          type="button"
-                          disabled={!eligible}
-                          onClick={() => handleSelectVoucher(v.code)}
-                          className={`p-3 rounded-xl border text-left transition-all flex items-start justify-between gap-2 ${
-                            !eligible
-                              ? 'bg-[#101010]/50 border-white/[0.05] opacity-50 cursor-not-allowed'
-                              : isSelected
-                              ? 'bg-[#FFC799]/14 border-[#FFC799] shadow-sm cursor-pointer'
-                              : 'bg-[#101010] border-white/10 hover:border-[#FFC799]/40 cursor-pointer'
-                          }`}
-                        >
-                          <div className="min-w-0 space-y-0.5">
-                            <div className="flex items-center space-x-1.5">
-                              <span className="font-mono text-xs font-black text-[#FFC799]">
-                                {v.code}
-                              </span>
-                              {eligible && estSave > 0 && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-[#99FFE4]/15 text-[#99FFE4]">
-                                  -{estSave.toLocaleString('vi-VN')}đ
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] font-bold text-[#F5F5F5] truncate">
-                              {v.title}
-                            </p>
-                            <p className="text-[10px] text-[#A0A0A0] leading-tight">
-                              {eligible
-                                ? v.desc
-                                : `Cần đơn tối thiểu ${v.minOrder.toLocaleString('vi-VN')}đ`}
-                            </p>
-                          </div>
-                          <div
-                            className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
-                              isSelected
-                                ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                                : 'border-white/20 text-transparent'
+                        return (
+                          <button
+                            key={v._id || v.code}
+                            type="button"
+                            disabled={!eligible}
+                            onClick={() => handleSelectVoucher(v.code)}
+                            className={`p-3 rounded-xl border text-left transition-all flex items-start justify-between gap-2 ${
+                              !eligible
+                                ? 'bg-[#101010]/50 border-white/[0.05] opacity-50 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-[#FFC799]/14 border-[#FFC799] shadow-sm cursor-pointer'
+                                : 'bg-[#101010] border-white/10 hover:border-[#FFC799]/40 cursor-pointer'
                             }`}
                           >
-                            <Check className="w-2.5 h-2.5 stroke-[3]" />
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-xs font-black text-[#FFC799]">
+                                  {v.code}
+                                </span>
+                                {eligible && estSave > 0 && (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-[#99FFE4]/15 text-[#99FFE4]">
+                                    -{estSave.toLocaleString('vi-VN')}đ
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] font-bold text-[#F5F5F5] truncate">
+                                {v.maxDiscountAmount
+                                  ? `Giảm ${v.discountPercent}% (tối đa ${v.maxDiscountAmount.toLocaleString('vi-VN')}đ)`
+                                  : `Giảm ${v.discountPercent}%`}
+                              </p>
+                              <p className="text-[10px] text-[#A0A0A0] leading-tight">
+                                {eligible
+                                  ? v.description || `Còn ${Math.max(0, v.usageLimit - v.usedCount)} lượt áp dụng`
+                                  : `Cần đơn tối thiểu ${minOrder.toLocaleString('vi-VN')}đ`}
+                              </p>
+                            </div>
+                            <div
+                              className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
+                                isSelected
+                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                  : 'border-white/20 text-transparent'
+                              }`}
+                            >
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* 1-Click Custom Voucher Input Box */}
                   <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <div className="relative flex-1">
                       <input
                         type="text"
-                        placeholder="Nhập mã khuyến mãi khác (VD: MOTORENT30)..."
+                        placeholder="Nhập mã khuyến mãi (VD: CHAOBANMOI)..."
                         value={customVoucherInput}
                         onChange={(e) => setCustomVoucherInput(e.target.value.toUpperCase())}
                         className="w-full bg-[#101010] border border-white/10 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] font-mono tracking-wider outline-none placeholder:text-[#6E6E6E]"
@@ -1786,48 +1830,13 @@ export const BookingPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Interactive QR Verification Status Bar */}
-                    {qrVerified ? (
-                      <div className="p-4 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start space-x-3">
-                          <CheckCircle2 className="w-5 h-5 text-[#FFC799] shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-bold text-[#FFC799]">
-                              Đã xác nhận giao dịch chuyển khoản QR thành công!
-                            </p>
-                            <p className="text-[11px] text-[#C8C2B8] mt-0.5">
-                              Mã đối soát NAPAS: <strong className="font-mono text-[#F5F5F5]">{qrPrecheckCode}</strong> • Số tiền:{' '}
-                              <strong className="font-mono text-[#FFC799]">
-                                {activePayAmount.toLocaleString('vi-VN')} đ
-                              </strong>
-                            </p>
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-1 rounded bg-[#FFC799]/20 text-[#FFC799] font-mono text-[10px] font-bold uppercase tracking-wider shrink-0">
-                          ĐÃ BÁO CÓ NGÂN HÀNG
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2.5 text-xs text-[#C8C2B8]">
-                          <div className="w-2 h-2 rounded-full bg-[#FFC799] animate-pulse shrink-0" />
-                          <span>
-                            Sau khi quét mã QR trên ứng dụng ngân hàng, bấm nút bên cạnh để kiểm tra báo có ngay:
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={qrChecking}
-                          onClick={handleVerifyQrPrecheck}
-                          className="px-4 py-2 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-[#F5F5F5] font-bold text-xs flex items-center justify-center space-x-2 transition-all shrink-0 cursor-pointer"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 text-[#FFC799] ${qrChecking ? 'animate-spin' : ''}`} />
-                          <span>
-                            {qrChecking ? 'Đang đối soát ngân hàng...' : 'Kiểm tra giao dịch QR vừa quét'}
-                          </span>
-                        </button>
-                      </div>
-                    )}
+                    {/* Real Server-Side VietQR Confirmation Guidance */}
+                    <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 flex items-center space-x-2.5 text-xs text-[#C8C2B8]">
+                      <ShieldCheck className="w-4 h-4 text-[#FFC799] shrink-0" />
+                      <span>
+                        Sau khi quét mã VietQR trên ứng dụng ngân hàng với đúng nội dung chuyển khoản, nhấn nút xác nhận bên dưới để máy chủ ghi nhận giao dịch và khóa biển số theo khung giờ đã chọn.
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -1836,16 +1845,11 @@ export const BookingPage: React.FC = () => {
                     {/* Gateway Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.08]">
                       <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-[#F5F5F5]">
-                            Cổng Thanh Toán VNPay Sandbox Chính Thức
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 font-mono text-[10px] font-bold text-emerald-400">
-                            TMNCODE: CYA7OTRA
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#8A857D] font-mono">
-                          Endpoint: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+                        <span className="text-xs font-black text-[#F5F5F5] block">
+                          Cổng Thanh Toán Trực Tuyến VNPay
+                        </span>
+                        <p className="text-[11px] text-[#8A857D]">
+                          Chuyển hướng an toàn kèm chữ ký số HMAC-SHA512 đối soát trực tiếp từ máy chủ.
                         </p>
                       </div>
                       <div className="text-left sm:text-right">
@@ -1861,24 +1865,24 @@ export const BookingPage: React.FC = () => {
                     {/* BankCode / Method Selector on VNPay */}
                     <div className="space-y-2">
                       <span className="text-[11px] font-bold text-[#C8C2B8] block">
-                        Chọn phương thức giả lập trên cổng VNPay:
+                        Chọn phương thức thanh toán trên cổng VNPay:
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {[
                           {
-                            code: 'NCB' as const,
-                            title: 'Thẻ ATM NCB (Khuyên dùng)',
-                            desc: 'Vào thẳng form nhập thẻ NCB Sandbox',
+                            code: '' as const,
+                            title: 'Tất cả ngân hàng nội địa & QR',
+                            desc: 'Chọn ngân hàng trực tiếp trên cổng VNPay',
                           },
                           {
-                            code: '' as const,
-                            title: 'Tất cả kênh trên VNPay',
-                            desc: 'Tự chọn ngân hàng tại cổng VNPay',
+                            code: 'NCB' as const,
+                            title: 'Thẻ ATM nội địa (NCB)',
+                            desc: 'Thanh toán qua thẻ ATM nội địa',
                           },
                           {
                             code: 'INTCARD' as const,
                             title: 'Thẻ Quốc tế Visa / Master',
-                            desc: 'Giả lập thẻ tín dụng quốc tế',
+                            desc: 'Thanh toán qua thẻ quốc tế',
                           },
                         ].map((m) => {
                           const active = vnpayBankCode === m.code;
@@ -1901,65 +1905,6 @@ export const BookingPage: React.FC = () => {
                             </button>
                           );
                         })}
-                      </div>
-                    </div>
-
-                    {/* VNPay Sandbox Quick-Copy Helper Card */}
-                    <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 text-xs space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-[#FFC799]">
-                        <div className="flex items-center space-x-1.5">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Thông tin thẻ ATM Sandbox thử nghiệm nhanh:</span>
-                        </div>
-                        <span className="font-mono text-[10px] text-[#99FFE4] bg-[#99FFE4]/10 px-2 py-0.5 rounded">
-                          Môi trường TEST
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
-                        <div
-                          onClick={() => handleCopyText('9704198526191432198', 'vnpayCard')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Số thẻ NCB</span>
-                          <span className="text-[#F5F5F5] font-bold">9704 1985...</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayCard' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
-                        <div
-                          onClick={() => handleCopyText('NGUYEN VAN A', 'vnpayName')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Tên chủ thẻ</span>
-                          <span className="text-[#F5F5F5] font-bold">NGUYEN VAN A</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayName' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
-                        <div
-                          onClick={() => handleCopyText('07/15', 'vnpayDate')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Ngày phát hành</span>
-                          <span className="text-[#F5F5F5] font-bold">07/15</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayDate' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
-                        <div
-                          onClick={() => handleCopyText('123456', 'vnpayOtp')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Mã OTP</span>
-                          <span className="text-[#F5F5F5] font-bold">123456</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayOtp' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -2067,17 +2012,19 @@ export const BookingPage: React.FC = () => {
                         Mã hợp đồng (Check-in)
                       </span>
                       <span className="font-mono text-lg font-black text-[#FFC799]">
-                        {createdBooking?.bookingCode || 'MV-88692'}
+                        {createdBooking?.bookingCode || '—'}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(createdBooking?.bookingCode || 'MV-88692')}
-                      className="p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-[#C8C2B8] transition-colors cursor-pointer"
-                      title="Sao chép mã"
-                    >
-                      {copiedCode ? <Check className="w-4 h-4 text-[#FFC799]" /> : <Copy className="w-4 h-4" />}
-                    </button>
+                    {createdBooking?.bookingCode && (
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(createdBooking.bookingCode)}
+                        className="p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-[#C8C2B8] transition-colors cursor-pointer"
+                        title="Sao chép mã"
+                      >
+                        {copiedCode ? <Check className="w-4 h-4 text-[#FFC799]" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    )}
                   </div>
                 </div>
 

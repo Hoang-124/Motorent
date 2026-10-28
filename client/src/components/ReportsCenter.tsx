@@ -659,8 +659,10 @@ export const ReportsCenter: React.FC = () => {
 
                 <div className="bg-[#161616] border border-white/10 rounded-2xl p-5">
                   <div className="text-xs font-bold text-[#A0A0A0] uppercase">Đánh giá trung bình</div>
-                  <div className="text-3xl font-black text-amber-400 mt-1.5">{fleetData.averageRating} / 5.0</div>
-                  <div className="text-xs text-[#A0A0A0] mt-1">Từ phản hồi khách hàng</div>
+                  <div className="text-3xl font-black text-amber-400 mt-1.5">
+                    {fleetData.averageRating > 0 ? `${fleetData.averageRating} / 5.0` : 'Chưa có ĐG'}
+                  </div>
+                  <div className="text-xs text-[#A0A0A0] mt-1">Từ phản hồi khách hàng thực tế</div>
                 </div>
 
                 <div className="bg-[#161616] border border-white/10 rounded-2xl p-5">
@@ -725,10 +727,14 @@ export const ReportsCenter: React.FC = () => {
                           <td className="py-3 px-4 text-[#A0A0A0]">{v.brand}</td>
                           <td className="py-3 px-4 text-white">{(v.odometer || 0).toLocaleString('vi-VN')} km</td>
                           <td className="py-3 px-4 font-bold text-amber-400">
-                            <span className="inline-flex items-center gap-1">
-                              {v.averageRating}
-                              <Star size={12} className="fill-amber-400 text-amber-400" />
-                            </span>
+                            {v.averageRating > 0 ? (
+                              <span className="inline-flex items-center gap-1">
+                                {v.averageRating}
+                                <Star size={12} className="fill-amber-400 text-amber-400" />
+                              </span>
+                            ) : (
+                              <span className="text-[#6E6E6E] font-medium">Chưa ĐG</span>
+                            )}
                           </td>
                           <td className="py-3 px-4 text-emerald-400 font-bold">{v.dailyPrice.toLocaleString('vi-VN')} đ</td>
                         </tr>

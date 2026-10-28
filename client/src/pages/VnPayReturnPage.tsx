@@ -117,19 +117,11 @@ export const VnPayReturnPage: React.FC = () => {
             VNPAY_ERROR_MESSAGES[respCode] || 'Xác thực chữ ký số giao dịch VNPay không hợp lệ.';
           setStatusMessage(errorMsg);
         }
-      } catch (err: unknown) {
-        // Fallback: If gateway responded 00, treat as successful
-        if (respCode === '00') {
-          setVerifySuccess(true);
-          setStatusMessage(
-            rawOrderInfo.includes('100%')
-              ? 'Giao dịch thanh toán 100% toàn bộ đã hoàn tất thành công trên cổng VNPay.'
-              : 'Giao dịch cọc 30% đã hoàn tất thành công trên cổng VNPay.'
-          );
-        } else {
-          setVerifySuccess(false);
-          setStatusMessage(VNPAY_ERROR_MESSAGES[respCode] || 'Thanh toán không thành công.');
-        }
+      } catch {
+        setVerifySuccess(false);
+        setStatusMessage(
+          'Không thể xác thực chữ ký giao dịch từ máy chủ. Vui lòng kiểm tra trạng thái đơn thực tế trong mục Chuyến xe của tôi.'
+        );
       } finally {
         setLoading(false);
       }
@@ -194,7 +186,7 @@ export const VnPayReturnPage: React.FC = () => {
             <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
               <span className="text-[#A0A0A0]">Mã hợp đồng thuê xe:</span>
               <span className="font-mono font-bold text-[#FFC799] text-sm">
-                {bookingCode || 'MV-MOTORENT'}
+                {bookingCode || '—'}
               </span>
             </div>
 

@@ -170,17 +170,6 @@ export const createBooking = async (
       throw new AppError(400, 'Phương tiện hiện đang bảo dưỡng định kỳ hoặc đang điều chuyển và chưa sẵn sàng bàn giao.');
     }
 
-    const activeDepositedOrRented = await Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    });
-    if (activeDepositedOrRented || vehicle.status === 'Rented') {
-      throw new AppError(
-        409,
-        'Phương tiện này hiện đã được đặt cọc hoặc đang trong kỳ cho thuê. Vui lòng chọn phương tiện khác.'
-      );
-    }
-
     const [pickupBranch, returnBranch] = await Promise.all([
       Branch.findOne({ _id: data.pickupBranchId, isActive: true }),
       Branch.findOne({ _id: data.returnBranchId, isActive: true }),
@@ -438,28 +427,8 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
     }
   }
 
-  // Conflict check
-  const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
-  const [conflictingBooking, activeDepositedOrRented] = await Promise.all([
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      $or: [
-        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
-        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
-      ],
-      pickupDateTime: { $lt: returnDate },
-      returnDateTime: { $gt: pickupDate },
-    }),
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    }),
-  ]);
-
-  const isAvailable =
-    !conflictingBooking &&
-    !activeDepositedOrRented &&
-    vehicle.status === 'Available';
+  // Conflict check using atomic date-range overlap checker (Rule BR-02)
+  const { available: isAvailable } = await checkVehicleAvailability(vehicle._id, pickupDate, returnDate);
 
   const rentalQuote = await quoteVehicleRental(vehicle, pickupDate, returnDate);
   const basePrice = rentalQuote.rentalAmount;

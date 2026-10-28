@@ -362,9 +362,6 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
       return { RspCode: '02', Message: 'Order already confirmed' };
     }
 
-    // Lock vehicle status to Rented so it is hidden from public available fleet
-    await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
-
     // Record transaction row in Payment collection
     await Payment.create({
       bookingId: booking._id,
@@ -599,9 +596,6 @@ export const confirmVietQrPayment = async (options: {
     updatePayload.paidAt = new Date();
   }
 
-  // Lock vehicle status to Rented BEFORE populating so populated vehicleId reflects status: 'Rented'
-  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
-
   const updatedBooking = await Booking.findByIdAndUpdate(
     booking._id,
     { $set: updatePayload },
@@ -614,9 +608,6 @@ export const confirmVietQrPayment = async (options: {
   if (!updatedBooking) {
     throw new AppError(500, 'Không thể cập nhật trạng thái thanh toán đơn đặt xe.');
   }
-
-  // Lock vehicle status to Rented so it is hidden from public available fleet
-  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
 
   await Payment.create({
     bookingId: booking._id,

@@ -1,36 +1,79 @@
-import React, { useState } from 'react';
-import { HelpCircle, X, ChevronDown, CheckCircle2, ShieldCheck, PhoneCall } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { HelpCircle, X, ChevronDown, ShieldCheck, PhoneCall, RefreshCw } from 'lucide-react';
+import { api } from '../services/api';
+import type { Branch, StaticPage } from '../types';
 
 interface FaqModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const FAQS_DATA = [
-  {
-    q: 'Thủ tục nhận xe tại Sân bay Quốc tế Đà Nẵng diễn ra thế nào?',
-    a: 'Khi hạ cánh tại Ga Quốc nội hoặc Ga T2 Quốc tế, bạn chỉ cần gọi hotline hoặc đi bộ 2 phút đến quầy Motorent đối diện cổng ga. Nhân viên chỉ kiểm tra đối soát eKYC trên điện thoại (không giữ CCCD gốc), ký hợp đồng số hóa và bàn giao xe cùng 2 mũ bảo hiểm 3/4 chỉ trong 3 phút.',
-  },
-  {
-    q: 'Nếu chuyến bay của tôi bị delay hoặc hoãn giờ hạ cánh thì sao?',
-    a: 'Motorent theo dõi số hiệu chuyến bay của quý khách theo thời gian thực. Khi bạn cọc giữ xe 30%, hệ thống tự động khóa biển số xe riêng cho bạn và bảo lưu lịch xe đến khi bạn thực tế hạ cánh mà không phát sinh thêm bất kỳ chi phí phạt trễ nào.',
-  },
-  {
-    q: 'Chính sách hoàn cọc 30% giữ xe hoạt động ra sao?',
-    a: 'Nếu kế hoạch thay đổi, bạn chỉ cần thông báo hủy chuyến trước 24 giờ so với giờ nhận xe dự kiến, hệ thống Motorent sẽ hoàn lại 100% tiền cọc về tài khoản ngân hàng của bạn trong vòng 1-2 giờ làm việc.',
-  },
-  {
-    q: 'Xe của Motorent phù hợp đi lại trong phố hay có thể đi ngoại ô Hội An?',
-    a: 'Đội xe Motorent chủ yếu là các dòng xe tay ga đô thị, xe điện và xe số đời mới (2023 - 2024) rất gọn nhẹ, cốp rộng để đi lại trong nội thành Đà Nẵng. Ngoài ra xe luôn được bảo dưỡng định kỳ mỗi 1.500 km nên bạn hoàn toàn yên tâm nếu muốn đi thêm các chuyến ngoại ô ngắn như Ngũ Hành Sơn hay Phố cổ Hội An.',
-  },
-  {
-    q: 'Chi phí thuê xe đã bao gồm những phụ kiện và dịch vụ gì?',
-    a: 'Giá thuê trọn gói đã bao gồm: 02 mũ bảo hiểm 3/4 đạt chuẩn CR tiệt trùng UV, 02 áo mưa tiện lợi, giá đỡ điện thoại nhôm giảm chấn OIS, bảo hiểm trách nhiệm dân sự bắt buộc và dịch vụ cứu hộ kỹ thuật 24/7 trên toàn địa bàn TP. Đà Nẵng.',
-  },
-];
+interface ParsedFaqItem {
+  q: string;
+  a: string;
+}
+
+const stripHtmlTags = (html: string): string =>
+  html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const parseFaqHtmlContent = (html: string): ParsedFaqItem[] => {
+  if (!html) return [];
+  const items: ParsedFaqItem[] = [];
+  const regex = /<h[1-4][^>]*>([\s\S]*?)<\/h[1-4]>\s*<p[^>]*>([\s\S]*?)<\/p>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(html)) !== null) {
+    const q = stripHtmlTags(match[1]);
+    const a = stripHtmlTags(match[2]);
+    if (q && a) {
+      items.push({ q, a });
+    }
+  }
+  if (items.length === 0) {
+    const plain = stripHtmlTags(html);
+    if (plain) {
+      items.push({ q: 'Thông tin Câu hỏi thường gặp', a: plain });
+    }
+  }
+  return items;
+};
 
 export const FaqModal: React.FC<FaqModalProps> = ({ isOpen, onClose }) => {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
+  const [faqItems, setFaqItems] = useState<ParsedFaqItem[]>([]);
+  const [hotline, setHotline] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    setLoading(true);
+    Promise.all([
+      api.get('/pages/faq').catch(() => null),
+      api.get('/branches').catch(() => null),
+    ])
+      .then(([pageRes, branchRes]) => {
+        if (!active) return;
+        const pageData: StaticPage | undefined = pageRes?.data?.data;
+        if (pageData?.content) {
+          setFaqItems(parseFaqHtmlContent(pageData.content));
+        }
+        const branchList: Branch[] = branchRes?.data?.data || [];
+        if (branchList.length > 0 && branchList[0].phone) {
+          setHotline(branchList[0].phone);
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -51,7 +94,7 @@ export const FaqModal: React.FC<FaqModalProps> = ({ isOpen, onClose }) => {
               Câu hỏi thường gặp (FAQ)
             </h3>
             <p className="text-xs sm:text-sm text-[#A0A0A0] mt-1">
-              Giải đáp nhanh các thắc mắc về quy trình cọc, nhận trả xe và thủ tục eKYC
+              Giải đáp trực tiếp từ cơ sở dữ liệu chính sách chính thức của Motorent
             </p>
           </div>
 
@@ -66,45 +109,58 @@ export const FaqModal: React.FC<FaqModalProps> = ({ isOpen, onClose }) => {
 
         {/* FAQ list */}
         <div className="mt-5 space-y-3">
-          {FAQS_DATA.map((faq, index) => {
-            const isOpenItem = openIndex === index;
-            return (
-              <div
-                key={index}
-                className="rounded-2xl border border-white/10 bg-[#161616] overflow-hidden transition-all duration-200"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenIndex(isOpenItem ? null : index)}
-                  className="w-full p-4 sm:p-5 text-left flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer"
+          {loading ? (
+            <div className="py-8 flex items-center justify-center space-x-2 text-xs text-[#A0A0A0]">
+              <RefreshCw className="w-4 h-4 text-[#FFC799] animate-spin" />
+              <span>Đang tải câu hỏi thường gặp...</span>
+            </div>
+          ) : faqItems.length === 0 ? (
+            <div className="p-5 rounded-2xl border border-white/10 bg-[#101010] text-xs text-[#A0A0A0] text-center">
+              Nội dung FAQ hiện đang được cập nhật trên hệ thống CMS.
+            </div>
+          ) : (
+            faqItems.map((faq, index) => {
+              const isOpenItem = openIndex === index;
+              return (
+                <div
+                  key={index}
+                  className="rounded-2xl border border-white/10 bg-[#161616] overflow-hidden transition-all duration-200"
                 >
-                  <span className="text-xs sm:text-sm font-bold text-white pr-4">{faq.q}</span>
-                  <ChevronDown className={`w-4 h-4 text-[#A0A0A0] transition-transform flex-shrink-0 ${isOpenItem ? 'rotate-180 text-[#FFC799]' : ''}`} />
-                </button>
-                {isOpenItem && (
-                  <div className="px-4 sm:px-5 pb-5 text-xs sm:text-sm text-[#A0A0A0] leading-relaxed border-t border-white/10 pt-3">
-                    {faq.a}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  <button
+                    type="button"
+                    onClick={() => setOpenIndex(isOpenItem ? null : index)}
+                    className="w-full p-4 sm:p-5 text-left flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer"
+                  >
+                    <span className="text-xs sm:text-sm font-bold text-white pr-4">{faq.q}</span>
+                    <ChevronDown className={`w-4 h-4 text-[#A0A0A0] transition-transform flex-shrink-0 ${isOpenItem ? 'rotate-180 text-[#FFC799]' : ''}`} />
+                  </button>
+                  {isOpenItem && (
+                    <div className="px-4 sm:px-5 pb-5 text-xs sm:text-sm text-[#A0A0A0] leading-relaxed border-t border-white/10 pt-3">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Footer info in Modal */}
         <div className="mt-6 pt-5 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center space-x-2 text-[#A0A0A0]">
             <ShieldCheck className="w-4 h-4 text-[#FFC799]" />
-            <span>Hỗ trợ kỹ thuật & Cứu hộ 24/7</span>
+            <span>Hỗ trợ kỹ thuật &amp; Cứu hộ 24/7</span>
           </div>
 
-          <a
-            href="tel:02363822101"
-            className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/30 text-[#F5F5F5] font-bold hover:bg-[#FFC799]/25 transition-colors"
-          >
-            <PhoneCall className="w-3.5 h-3.5" />
-            <span>Tổng đài 0236.3822.101</span>
-          </a>
+          {hotline && (
+            <a
+              href={`tel:${hotline.replace(/[^0-9+]/g, '')}`}
+              className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/30 text-[#F5F5F5] font-bold hover:bg-[#FFC799]/25 transition-colors"
+            >
+              <PhoneCall className="w-3.5 h-3.5" />
+              <span>Tổng đài {hotline}</span>
+            </a>
+          )}
         </div>
       </div>
     </div>

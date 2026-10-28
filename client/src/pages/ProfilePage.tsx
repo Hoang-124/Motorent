@@ -500,7 +500,6 @@ export const ProfilePage: React.FC = () => {
     setQrVerifying(true);
     setErrorMsg('');
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1100));
       const res = await api.post('/payments/vietqr/confirm', {
         bookingId: selectedBookingForQrPay._id,
         paymentType: qrPaymentType,

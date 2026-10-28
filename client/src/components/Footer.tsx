@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   MapPin,
@@ -11,16 +11,41 @@ import {
 } from 'lucide-react';
 import { FaqModal } from './FaqModal';
 import { useTranslation } from '../context/I18nContext';
+import { api } from '../services/api';
+import type { Branch, Category } from '../types';
 
 export const Footer: React.FC = () => {
   const [isFaqOpen, setIsFaqOpen] = useState<boolean>(false);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const location = useLocation();
   const { t } = useTranslation();
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      api.get('/branches').catch(() => null),
+      api.get('/categories').catch(() => null),
+    ]).then(([branchRes, catRes]) => {
+      if (!active) return;
+      if (Array.isArray(branchRes?.data?.data)) {
+        setBranches(branchRes.data.data);
+      }
+      if (Array.isArray(catRes?.data?.data)) {
+        setCategories(catRes.data.data);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Hide B2C marketing footer on the operational CounterDesk workspace
   if (location.pathname.startsWith('/counter')) {
     return null;
   }
+
+  const primaryPhone = branches[0]?.phone || '';
 
   return (
     <>
@@ -42,14 +67,16 @@ export const Footer: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <a
-                href="tel:02363822101"
-                className="inline-flex items-center space-x-2.5 px-5 py-2.5 rounded-full bg-[#1E1E1E] border border-white/12 text-[#F5F5F5] hover:border-[#FFC799]/50 text-xs font-medium transition-colors"
-              >
-                <PhoneCall className="w-3.5 h-3.5 text-[#FFC799]" />
-                <span>{t('footer.hotlineLabel')}</span>
-                <span className="font-mono-tabular font-semibold">(0236) 3822 101</span>
-              </a>
+              {primaryPhone && (
+                <a
+                  href={`tel:${primaryPhone.replace(/[^0-9+]/g, '')}`}
+                  className="inline-flex items-center space-x-2.5 px-5 py-2.5 rounded-full bg-[#1E1E1E] border border-white/12 text-[#F5F5F5] hover:border-[#FFC799]/50 text-xs font-medium transition-colors"
+                >
+                  <PhoneCall className="w-3.5 h-3.5 text-[#FFC799]" />
+                  <span>{t('footer.hotlineLabel')}</span>
+                  <span className="font-mono-tabular font-semibold">{primaryPhone}</span>
+                </a>
+              )}
               <button
                 onClick={() => setIsFaqOpen(true)}
                 className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full bg-[#F5F5F5] hover:bg-[#FFD6B3] text-[#101010] text-xs font-semibold transition-colors cursor-pointer"
@@ -75,13 +102,13 @@ export const Footer: React.FC = () => {
               </div>
 
               <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed pr-4">
-                Hệ thống trạm cho thuê xe máy tự lái đô thị tại TP. Đà Nẵng. Đội xe chính hãng đời 2023–2024 vận hành êm ái, tiết kiệm nhiên liệu, được kiểm tra an toàn trước mỗi chuyến đi. Giao nhận nhanh tại Sân bay Quốc tế, Trung tâm &amp; Biển Mỹ Khê, hợp đồng số hóa eKYC <strong className="text-[#F5F5F5] font-medium">không giữ CCCD gốc</strong>.
+                Hệ thống trạm cho thuê xe máy tự lái đô thị tại TP. Đà Nẵng. Đội xe chính hãng vận hành êm ái, tiết kiệm nhiên liệu, được kiểm tra an toàn trước mỗi chuyến đi. Giao nhận nhanh tại các chi nhánh toàn thành phố, hợp đồng số hóa eKYC <strong className="text-[#F5F5F5] font-medium">không giữ CCCD gốc</strong>.
               </p>
 
               <div className="space-y-2 text-xs text-[#A0A0A0] pt-2 border-t border-white/[0.06]">
                 <div className="flex items-center space-x-2">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] flex-shrink-0" />
-                  <span>Giấy chứng nhận ĐKKD: 0402198010 — Sở KH&amp;ĐT TP. Đà Nẵng</span>
+                  <span>Dữ liệu trạm, danh mục &amp; đội xe đồng bộ thời gian thực</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] flex-shrink-0" />
@@ -90,7 +117,7 @@ export const Footer: React.FC = () => {
               </div>
             </div>
 
-            {/* Column 2: Vehicle Collection (2 cols) */}
+            {/* Column 2: Vehicle Collection from DB Categories (2 cols) */}
             <div className="lg:col-span-2">
               <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
                 {t('footer.colFleet')}
@@ -102,31 +129,13 @@ export const Footer: React.FC = () => {
                     <ArrowUpRight className="w-3.5 h-3.5" />
                   </Link>
                 </li>
-                <li>
-                  <Link to="/bikes?type=xe-tay-ga" className="hover:text-[#F5F5F5] transition-colors">
-                    Xe tay ga đi phố (Vision, Air Blade)
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/bikes?type=xe-so" className="hover:text-[#F5F5F5] transition-colors">
-                    Xe số tiết kiệm xăng (Wave, Future)
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/bikes?type=xe-con-tay" className="hover:text-[#F5F5F5] transition-colors">
-                    Xe côn tay thể thao (Winner, Exciter)
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/bikes?type=xe-dien" className="hover:text-[#F5F5F5] transition-colors">
-                    Xe máy điện dạo phố (VinFast Feliz)
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/bikes?type=xe-phan-khoi-lon" className="hover:text-[#F5F5F5] transition-colors">
-                    Mô tô đi đường trường (CB500X)
-                  </Link>
-                </li>
+                {categories.map((cat) => (
+                  <li key={cat._id}>
+                    <Link to={`/bikes?type=${cat.slug}`} className="hover:text-[#F5F5F5] transition-colors">
+                      {cat.name}
+                    </Link>
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -182,33 +191,28 @@ export const Footer: React.FC = () => {
               </ul>
             </div>
 
-            {/* Column 4: Open Typographic Station Ledger (3 cols) */}
+            {/* Column 4: Open Typographic Station Ledger from DB Branches (3 cols) */}
             <div className="lg:col-span-3">
               <h4 className="text-[11px] font-semibold text-[#F5F5F5] uppercase tracking-[0.14em] mb-4">
                 {t('footer.colStations')}
               </h4>
               <div className="divide-y divide-white/[0.08] border-y border-white/[0.08] text-xs">
-                <div className="py-3">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-[#F5F5F5]">Sân bay Quốc tế Đà Nẵng</p>
-                    <span className="font-mono-tabular text-[10px] text-[#FFC799]">06:00–23:00</span>
+                {branches.map((br) => (
+                  <div key={br._id} className="py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-[#F5F5F5] truncate">
+                        {br.name.replace('Chi nhánh ', '')}
+                      </p>
+                      <span className="font-mono-tabular text-[10px] text-[#FFC799] shrink-0">
+                        {br.hours_open}–{br.hours_close}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#A0A0A0] mt-0.5 flex items-start">
+                      <MapPin className="w-3 h-3 text-[#A0A0A0] mr-1 mt-0.5 flex-shrink-0" />
+                      <span className="line-clamp-1">{br.address}</span>
+                    </p>
                   </div>
-                  <p className="text-[11px] text-[#A0A0A0] mt-0.5 flex items-center">
-                    <MapPin className="w-3 h-3 text-[#A0A0A0] mr-1 flex-shrink-0" />
-                    <span>Cổng Ga Quốc Nội T1 &amp; Ga Quốc Tế T2</span>
-                  </p>
-                </div>
-
-                <div className="py-3">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-[#F5F5F5]">Trạm Biển Mỹ Khê</p>
-                    <span className="font-mono-tabular text-[10px] text-[#FFC799]">07:00–22:30</span>
-                  </div>
-                  <p className="text-[11px] text-[#A0A0A0] mt-0.5 flex items-center">
-                    <MapPin className="w-3 h-3 text-[#A0A0A0] mr-1 flex-shrink-0" />
-                    <span>28 Võ Nguyên Giáp, Quận Sơn Trà</span>
-                  </p>
-                </div>
+                ))}
               </div>
             </div>
 

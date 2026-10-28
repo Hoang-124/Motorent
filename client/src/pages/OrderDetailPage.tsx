@@ -473,9 +473,11 @@ export const OrderDetailPage: React.FC = () => {
                   <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
                     <span className="text-[#A0A0A0] flex items-center gap-1.5">
                       <Fuel className="w-3.5 h-3.5 text-[#FFC799]" />
-                      Nhiên liệu tiêu chuẩn
+                      Loại nhiên liệu
                     </span>
-                    <span className="font-medium text-[#F5F5F5]">Xăng A95 / Đầy bình</span>
+                    <span className="font-medium text-[#F5F5F5]">
+                      {vehicle?.fuelType === 'Electric' ? 'Điện sạc tiêu chuẩn' : 'Xăng tiêu chuẩn'}
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
@@ -586,18 +588,37 @@ export const OrderDetailPage: React.FC = () => {
 
                 <div>
                   <span className="text-[#6E6E6E] block mb-1">Trạng thái eKYC CCCD/GPLX</span>
-                  <span className="font-medium text-emerald-400 flex items-center gap-1">
+                  <span
+                    className={`font-medium flex items-center gap-1 ${
+                      user?.identityStatus === 'Verified'
+                        ? 'text-emerald-400'
+                        : user?.identityStatus === 'Pending'
+                        ? 'text-amber-400'
+                        : 'text-[#A0A0A0]'
+                    }`}
+                  >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    Đã kiểm duyệt nhận xe
+                    {user?.identityStatus === 'Verified'
+                      ? 'Đã xác thực eKYC'
+                      : user?.identityStatus === 'Pending'
+                      ? 'Đang chờ duyệt eKYC'
+                      : user?.identityStatus === 'Rejected'
+                      ? 'Cần bổ sung giấy tờ'
+                      : 'Chưa xác thực eKYC'}
                   </span>
                 </div>
               </div>
 
               <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-[#A0A0A0]">
                 <span>Cần xuất trình bản gốc CCCD/GPLX tại quầy khi nhận bàn giao xe.</span>
-                <span className="text-[#FFC799] font-medium flex items-center gap-1">
-                  <Phone className="w-3 h-3" /> Hotline: 1900 8888
-                </span>
+                {pickupBranch?.phone && (
+                  <a
+                    href={`tel:${pickupBranch.phone.replace(/[^0-9+]/g, '')}`}
+                    className="text-[#FFC799] font-medium flex items-center gap-1 hover:underline"
+                  >
+                    <Phone className="w-3 h-3" /> Hotline trạm: {pickupBranch.phone}
+                  </a>
+                )}
               </div>
             </div>
           </div>

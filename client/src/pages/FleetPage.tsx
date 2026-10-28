@@ -21,30 +21,9 @@ import {
 } from 'lucide-react';
 import { VehicleCard } from '../components/VehicleCard';
 import { BookingModal } from '../components/BookingModal';
-import type { Vehicle, Branch, Category } from '../types';
+import type { Vehicle, Branch, Category, Discount } from '../types';
 import { api } from '../services/api';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
-
-const PROMO_VOUCHERS = [
-  {
-    code: 'CHAOBANMOI',
-    discountText: 'Giảm 20.000đ',
-    title: 'Ưu đãi Khách hàng mới đi phố',
-    condition: 'Áp dụng mọi dòng xe • Không giới hạn số ngày thuê',
-  },
-  {
-    code: 'MOTORENT30',
-    discountText: 'Giảm 30.000đ',
-    title: 'Ưu đãi Đặt lịch Sớm Trực tuyến',
-    condition: 'Áp dụng đặt trực tuyến • Cọc 30% giữ biển số tức thì',
-  },
-  {
-    code: 'LIENTRAM0D',
-    discountText: 'Phụ phí 0đ',
-    title: 'Miễn phí 100% Trả xe Liên trạm',
-    condition: 'Nhận xe tại Sân bay — Trả xe tại Biển Mỹ Khê (hoặc ngược lại)',
-  },
-];
 
 export const FleetPage: React.FC = () => {
   const navigate = useNavigate();
@@ -110,9 +89,10 @@ export const FleetPage: React.FC = () => {
     }, { replace: true });
   };
 
-  // Promo & Voucher State
+  // Promo & Voucher State (100% Real Active Discounts from MongoDB)
+  const [promoDiscounts, setPromoDiscounts] = useState<Discount[]>([]);
   const [showPromoBanner, setShowPromoBanner] = useState<boolean>(promoParam || Boolean(voucherParam));
-  const [selectedVoucher, setSelectedVoucher] = useState<string>(voucherParam || 'CHAOBANMOI');
+  const [selectedVoucher, setSelectedVoucher] = useState<string>(voucherParam || '');
   const [copiedVoucher, setCopiedVoucher] = useState<string>('');
 
   useEffect(() => {
@@ -132,16 +112,20 @@ export const FleetPage: React.FC = () => {
     let active = true;
     const fetchData = async () => {
       try {
-        const [branchesRes, vehiclesRes, categoriesRes] = await Promise.all([
+        const [branchesRes, vehiclesRes, categoriesRes, discountsRes] = await Promise.all([
           api.get('/branches'),
           api.get('/vehicles'),
           api.get('/categories'),
+          api.get('/discounts?activeOnly=true').catch(() => null),
         ]);
 
         if (!active) return;
         if (branchesRes.data?.data) setBranches(branchesRes.data.data);
         if (vehiclesRes.data?.data) setCatalogVehicles(vehiclesRes.data.data);
         if (categoriesRes.data?.data) setCategories(categoriesRes.data.data);
+        if (Array.isArray(discountsRes?.data?.data)) {
+          setPromoDiscounts(discountsRes.data.data);
+        }
       } catch {
         if (active) setMetadataError('Không tải được danh mục hoặc chi nhánh. Vui lòng tải lại trang.');
       }
@@ -284,18 +268,22 @@ export const FleetPage: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowPromoBanner((prev) => !prev)}
-                className={`inline-flex items-center space-x-2 px-4 py-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                  showPromoBanner
-                    ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                    : 'bg-[#161616] hover:border-[#FFC799] border-white/12 text-[#F5F5F5]'
-                }`}
-              >
-                <Tag className="w-3.5 h-3.5" />
-                <span>{showPromoBanner ? 'Ẩn mã ưu đãi' : 'Lấy mã giảm giá (30.000đ)'}</span>
-              </button>
+              {promoDiscounts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowPromoBanner((prev) => !prev)}
+                  className={`inline-flex items-center space-x-2 px-4 py-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                    showPromoBanner
+                      ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                      : 'bg-[#161616] hover:border-[#FFC799] border-white/12 text-[#F5F5F5]'
+                  }`}
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  <span>
+                    {showPromoBanner ? 'Ẩn mã ưu đãi' : `Ưu đãi hiện hành (${promoDiscounts.length})`}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -353,66 +341,81 @@ export const FleetPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              {PROMO_VOUCHERS.map((v) => {
-                const isSelected = selectedVoucher === v.code;
-                const isCopied = copiedVoucher === v.code;
-                return (
-                  <div
-                    key={v.code}
-                    onClick={() => handleCopyVoucher(v.code)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
-                      isSelected
-                        ? 'bg-[#101010] border-[#FFC799]'
-                        : 'bg-[#101010]/60 border-white/10 hover:border-white/25'
-                    }`}
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center space-x-2.5">
-                        <span className="px-2.5 py-0.5 rounded bg-[#FFC799] text-[#101010] font-mono-tabular text-xs font-bold tracking-wider">
-                          {v.code}
-                        </span>
-                        <span className="font-serif-display italic text-base text-[#FFC799] font-semibold">
-                          {v.discountText}
-                        </span>
-                      </div>
-                      <p className="text-xs font-semibold text-[#F5F5F5] truncate">{v.title}</p>
-                      <p className="text-[11px] text-[#6E6E6E]">{v.condition}</p>
-                    </div>
+            {promoDiscounts.length === 0 ? (
+              <div className="p-4 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0] text-center">
+                Hiện chưa có mã ưu đãi nào đang hoạt động trên hệ thống.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {promoDiscounts.map((v) => {
+                  const isSelected = selectedVoucher === v.code;
+                  const isCopied = copiedVoucher === v.code;
+                  const discountText = v.maxDiscountAmount
+                    ? `Giảm ${v.discountPercent}% (tối đa ${v.maxDiscountAmount.toLocaleString('vi-VN')}đ)`
+                    : `Giảm ${v.discountPercent}%`;
+                  const conditionText = v.minBookingAmount
+                    ? `Đơn từ ${v.minBookingAmount.toLocaleString('vi-VN')}đ • Còn ${Math.max(0, v.usageLimit - v.usedCount)} lượt`
+                    : `Còn ${Math.max(0, v.usageLimit - v.usedCount)} lượt áp dụng`;
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyVoucher(v.code);
-                      }}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0 flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  return (
+                    <div
+                      key={v._id || v.code}
+                      onClick={() => handleCopyVoucher(v.code)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
                         isSelected
-                          ? 'bg-[#F5F5F5] text-[#101010]'
-                          : 'bg-white/5 text-[#F5F5F5] hover:bg-white/10 border border-white/10'
+                          ? 'bg-[#101010] border-[#FFC799]'
+                          : 'bg-[#101010]/60 border-white/10 hover:border-white/25'
                       }`}
                     >
-                      {isCopied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Đã chọn</span>
-                        </>
-                      ) : isSelected ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Đang áp dụng</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Áp dụng</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center space-x-2.5">
+                          <span className="px-2.5 py-0.5 rounded bg-[#FFC799] text-[#101010] font-mono-tabular text-xs font-bold tracking-wider">
+                            {v.code}
+                          </span>
+                          <span className="font-serif-display italic text-sm text-[#FFC799] font-semibold">
+                            {discountText}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-[#F5F5F5] truncate">
+                          {v.description || `Ưu đãi giảm ${v.discountPercent}%`}
+                        </p>
+                        <p className="text-[11px] text-[#6E6E6E]">{conditionText}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyVoucher(v.code);
+                        }}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0 flex items-center space-x-1.5 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#F5F5F5] text-[#101010]'
+                            : 'bg-white/5 text-[#F5F5F5] hover:bg-white/10 border border-white/10'
+                        }`}
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Đã chọn</span>
+                          </>
+                        ) : isSelected ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Đang áp dụng</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>Áp dụng</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

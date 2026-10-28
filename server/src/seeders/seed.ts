@@ -24,6 +24,9 @@ import {
   Message,
   Banner,
   StaticPage,
+  Payment,
+  Review,
+  Wishlist,
 } from '../models';
 import { VEHICLE_CATALOG_34 } from './vehicleCatalogData';
 import { SeasonalPricingRule } from '../models/SeasonalPricingRule';
@@ -49,6 +52,9 @@ const seedDatabase = async (): Promise<void> => {
     Vehicle.deleteMany({}),
     SeasonalPricingRule.deleteMany({}),
     Booking.deleteMany({}),
+    Payment.deleteMany({}),
+    Review.deleteMany({}),
+    Wishlist.deleteMany({}),
     VehicleTransfer.deleteMany({}),
     MaintenanceLog.deleteMany({}),
     StaffSchedule.deleteMany({}),
@@ -63,6 +69,8 @@ const seedDatabase = async (): Promise<void> => {
     Banner.deleteMany({}),
     StaticPage.deleteMany({}),
   ]);
+  // Reset loyaltyPoints to 0 for preserved real accounts since all historical bookings were cleared
+  await User.updateMany({}, { $set: { loyaltyPoints: 0 } });
 
   // Passwords
   const adminRawPass = process.env.SEED_ADMIN_PASSWORD || 'Admin@123456';
@@ -257,7 +265,7 @@ const seedDatabase = async (): Promise<void> => {
     roles: 'Customer',
     status: 'Active',
     identityStatus: 'Verified',
-    loyaltyPoints: 120,
+    loyaltyPoints: 0,
     tokenVersion: 0,
     isEmailVerified: true,
   });
@@ -272,7 +280,7 @@ const seedDatabase = async (): Promise<void> => {
     roles: 'Customer',
     status: 'Active',
     identityStatus: 'Verified',
-    loyaltyPoints: 80,
+    loyaltyPoints: 0,
     tokenVersion: 0,
     isEmailVerified: true,
   });
@@ -287,7 +295,7 @@ const seedDatabase = async (): Promise<void> => {
     roles: 'Customer',
     status: 'Active',
     identityStatus: 'Verified',
-    loyaltyPoints: 50,
+    loyaltyPoints: 0,
     tokenVersion: 0,
     isEmailVerified: true,
   });
@@ -307,39 +315,9 @@ const seedDatabase = async (): Promise<void> => {
     isEmailVerified: true,
   });
 
-  // Preserve real customer account if present
-  await User.findOneAndUpdate(
-    { email: 'ht20041975@gmail.com' },
-    {
-      $setOnInsert: {
-        username: 'ht20041975',
-        email: 'ht20041975@gmail.com',
-        firstName: 'Hoàng',
-        lastName: 'Nguyễn',
-        phoneNumber: '0905123456',
-        roles: 'Customer',
-        status: 'Active',
-        isEmailVerified: true,
-        passwordHash: customerPass,
-      },
-      $set: {
-        avatarUrl: '/uploads/avatar-1791966576733-300583633.png',
-        identityStatus: 'Pending',
-        idCardFrontFile: 'idCardFront-1791970550085-630193774.png',
-        idCardBackFile: 'idCardBack-1791970550092-14746793.png',
-        drivingLicenseFile: 'drivingLicense-1791970550094-268328059.png',
-        idCardFrontUrl: '/api/auth/ekyc/document/me/idCardFront',
-        idCardBackUrl: '/api/auth/ekyc/document/me/idCardBack',
-        drivingLicenseUrl: '/api/auth/ekyc/document/me/drivingLicense',
-        ekycConsentAgreed: true,
-        ekycConsentDate: new Date('2026-10-14T16:35:50'),
-        ekycWatermarked: true,
-      },
-    },
-    { upsert: true, new: true }
-  );
+  void [userStaffDAD, userStaffMK, userCustomer1, userCustomer2, userCustomer3, userCustomer4];
 
-  // 4. Seed 20 Vehicles (S1 Spec: exactly 20 vehicles across 5 categories and 3 branches)
+  // 4. Seed 20 Vehicles (S1 Spec: exactly 20 vehicles balanced across all 5 categories and 3 branches)
   console.log('[SEED] Creating 20 authentic vehicles across 5 categories...');
   const categoryMap: Record<string, mongoose.Types.ObjectId> = {
     'xe-tay-ga': catScooter._id as mongoose.Types.ObjectId,
@@ -359,10 +337,14 @@ const seedDatabase = async (): Promise<void> => {
     'xe-dien': '43-MD1',
   };
 
-  // Filter 20 items matching our 5 categories
-  const targetVehicles = VEHICLE_CATALOG_34.filter((item) =>
-    ['xe-tay-ga', 'xe-so', 'xe-con-tay', 'xe-50cc', 'xe-dien'].includes(item.categorySlug)
-  ).slice(0, 20);
+  // Select 20 vehicles balanced across all 5 categories (6 + 4 + 4 + 3 + 3 = 20)
+  const targetVehicles = [
+    ...VEHICLE_CATALOG_34.filter((item) => item.categorySlug === 'xe-tay-ga').slice(0, 6),
+    ...VEHICLE_CATALOG_34.filter((item) => item.categorySlug === 'xe-so').slice(0, 4),
+    ...VEHICLE_CATALOG_34.filter((item) => item.categorySlug === 'xe-con-tay').slice(0, 4),
+    ...VEHICLE_CATALOG_34.filter((item) => item.categorySlug === 'xe-50cc').slice(0, 3),
+    ...VEHICLE_CATALOG_34.filter((item) => item.categorySlug === 'xe-dien').slice(0, 3),
+  ];
 
   const vehiclesData = targetVehicles.map((item, index) => {
     const branch = branches[index % branches.length];
@@ -377,10 +359,8 @@ const seedDatabase = async (): Promise<void> => {
       vehicleModel: item.vehicleModel,
       brand: item.brand,
       licensePlate: plate,
-      odometer: 1500 + index * 280,
-      // Demo vehicles start serviced at their seeded ODO. Later threshold
-      // crossings are detected normally by checkout and the ODO sweep.
-      lastMaintenanceBucket: Math.floor((1500 + index * 280) / 1500),
+      odometer: 0,
+      lastMaintenanceBucket: 0,
       dailyPrice: item.dailyPrice,
       hourlyPrice: item.hourlyPrice,
       status: 'Available' as const,
@@ -389,11 +369,13 @@ const seedDatabase = async (): Promise<void> => {
       yearManufactured: 2024,
       color: item.color,
       requiresMaintenance: false,
+      averageRating: 0,
+      reviewCount: 0,
       images: item.images,
     };
   });
 
-  const vehicles = await Vehicle.create(vehiclesData);
+  await Vehicle.create(vehiclesData);
 
   // 5. Seed Discounts
   console.log('[SEED] Creating standard discount codes...');
@@ -405,7 +387,7 @@ const seedDatabase = async (): Promise<void> => {
       minBookingAmount: 150000,
       maxDiscountAmount: 20000,
       usageLimit: 500,
-      usedCount: 12,
+      usedCount: 0,
       startDate: new Date('2026-01-01'),
       endDate: new Date('2026-12-31'),
       isActive: true,
@@ -417,70 +399,26 @@ const seedDatabase = async (): Promise<void> => {
       minBookingAmount: 400000,
       maxDiscountAmount: 100000,
       usageLimit: 200,
-      usedCount: 25,
+      usedCount: 0,
       startDate: new Date('2026-01-01'),
       endDate: new Date('2026-12-31'),
       isActive: true,
     },
   ]);
 
-  // 6. Seed Sample Bookings
-  console.log('[SEED] Creating sample bookings...');
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const dayAfterTomorrow = new Date();
-  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 3);
-
-  await Booking.create({
-    bookingCode: 'MV-100201',
-    userId: userCustomer1._id,
-    vehicleId: vehicles[0]._id,
-    pickupBranchId: branchDAD._id,
-    returnBranchId: branchMK._id,
-    pickupDateTime: tomorrow,
-    returnDateTime: dayAfterTomorrow,
-    totalAmount: 300000,
-    depositAmount: 90000,
-    remainingAmount: 210000,
-    paymentMethod: 'Banking',
-    isPaid: false,
-    status: 'Confirmed',
-    startOdometer: vehicles[0].odometer,
-  });
-
-  const ongoingStartDate = new Date();
-  ongoingStartDate.setDate(ongoingStartDate.getDate() - 1);
-  const ongoingEndDate = new Date();
-  ongoingEndDate.setDate(ongoingEndDate.getDate() + 1);
-
-  await Booking.create({
-    bookingCode: 'MV-100202',
-    userId: userCustomer2._id,
-    vehicleId: vehicles[1]._id,
-    pickupBranchId: branchDAD._id,
-    returnBranchId: branchDAD._id,
-    pickupDateTime: ongoingStartDate,
-    returnDateTime: ongoingEndDate,
-    totalAmount: 400000,
-    depositAmount: 120000,
-    remainingAmount: 280000,
-    paymentMethod: 'Banking',
-    isPaid: false,
-    status: 'Ongoing',
-    startOdometer: 5120,
-    eSignatureUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text x="10" y="25" fill="%23047857" font-family="serif" font-size="16">Linh Tran</text></svg>',
-  });
-  vehicles[1].status = 'Rented';
-  await vehicles[1].save();
-
-  // 7. Seed Static Pages & Banners
+  // 6. Seed Static Pages & Banners
   await StaticPage.create([
     {
       slug: 'faq',
       title: 'Câu Hỏi Thường Gặp (FAQ)',
       type: 'FAQ',
       isPublished: true,
-      content: '<h2>1. Thủ tục thuê xe máy cần những gì?</h2><p>Khách hàng chỉ cần xuất trình CCCD/Hộ chiếu và Giấy phép lái xe hợp lệ (A1/A2) để thực hiện đối chiếu eKYC trực tuyến. Motorent cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng.</p>',
+      content: [
+        '<h2>1. Thủ tục nhận xe tại Sân bay Quốc tế Đà Nẵng diễn ra thế nào?</h2><p>Khách hàng xuất trình CCCD/Hộ chiếu và Giấy phép lái xe hợp lệ (A1/A2) để đối chiếu eKYC trực tuyến. Motorent cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng, ký biên bản bàn giao điện tử kèm 02 mũ bảo hiểm đạt chuẩn.</p>',
+        '<h2>2. Chính sách đặt cọc 30% và hoàn cọc hoạt động ra sao?</h2><p>Khi thanh toán cọc 30% qua cổng VNPay hoặc VietQR 24/7, hệ thống tự động khóa biển số xe theo đúng khung giờ thuê đã chọn. Khách hàng thông báo hủy trước 24 giờ so với giờ nhận xe được hoàn lại 100% tiền cọc theo chính sách hệ thống.</p>',
+        '<h2>3. Tôi có thể nhận xe ở Sân bay và trả xe ở chi nhánh khác không?</h2><p>Có. Hệ thống hỗ trợ giao nhận xe liên trạm giữa Chi nhánh Sân Bay Quốc Tế Đà Nẵng, Chi nhánh Bãi Biển Mỹ Khê và Chi nhánh Bán Đảo Sơn Trà.</p>',
+        '<h2>4. Giá thuê xe đã bao gồm những trang bị nào?</h2><p>Giá niêm yết trên hệ thống đã bao gồm 02 mũ bảo hiểm 3/4 khử khuẩn UV, 02 áo mưa tiện lợi, giá đỡ điện thoại và hỗ trợ kỹ thuật nội thành Đà Nẵng.</p>',
+      ].join(''),
       lastUpdatedBy: userAdmin._id,
     },
     {
