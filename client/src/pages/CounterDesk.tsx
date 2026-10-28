@@ -32,9 +32,10 @@ import {
   Users,
   Lock,
   BarChart3,
+  MapPin,
 } from 'lucide-react';
 import axios from 'axios';
-import type { Booking, Vehicle, User } from '../types';
+import type { Booking, Vehicle, User, Branch } from '../types';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
@@ -146,10 +147,13 @@ interface PendingEkycUser {
 
 export const CounterDesk: React.FC = () => {
   const { user } = useAuth();
+  const isAdmin = Boolean(user && user.roles === 'SystemAdmin');
   const isManager = Boolean(user && (user.roles === 'BranchManager' || user.roles === 'SystemAdmin'));
+  const [assignedBranch, setAssignedBranch] = useState<Branch | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const modeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
+  const rawModeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
+  const modeParam: MainDeskMode = rawModeParam === 'banners' && !isAdmin ? 'bookings' : rawModeParam;
   const initialMode: MainDeskMode = VALID_DESK_MODES.includes(modeParam) ? modeParam : 'bookings';
 
   const [deskMode, setDeskMode] = useState<MainDeskMode>(initialMode);
@@ -163,8 +167,8 @@ export const CounterDesk: React.FC = () => {
   // Notification banners (replacing alert())
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // UC-54: Branch Queue & Status Filter states
-  const [queueFilter, setQueueFilter] = useState<'today' | 'all'>('today');
+  // UC-54: Branch Queue & Status Filter states (default 'all' so upcoming bookings are visible immediately)
+  const [queueFilter, setQueueFilter] = useState<'today' | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [orderCounts, setOrderCounts] = useState({
     total: 0,
@@ -662,14 +666,37 @@ export const CounterDesk: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const m = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
+    const rawBranch = user?.branchId;
+    const bId =
+      rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+        ? rawBranch._id
+        : rawBranch
+        ? String(rawBranch)
+        : '';
+    if (!bId) {
+      setAssignedBranch(null);
+      return;
+    }
+    api
+      .get('/branches')
+      .then((res) => {
+        const list: Branch[] = res.data?.data || [];
+        const matched = list.find((b) => b._id === bId) || null;
+        setAssignedBranch(matched);
+      })
+      .catch(() => setAssignedBranch(null));
+  }, [user?.branchId]);
+
+  useEffect(() => {
+    const rawM = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
+    const m: MainDeskMode | null = rawM === 'banners' && !isAdmin ? 'bookings' : rawM;
     if (m && VALID_DESK_MODES.includes(m)) {
       setDeskMode(m);
       if (m === 'vehicles') {
         fetchBranchVehicles();
       }
     }
-  }, [searchParams]);
+  }, [searchParams, isAdmin]);
 
   const switchDeskMode = (mode: MainDeskMode) => {
     setDeskMode(mode);
@@ -1098,11 +1125,26 @@ export const CounterDesk: React.FC = () => {
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#99FFE4] animate-pulse"></span>
-              <span className="text-xs font-semibold tracking-wider text-[#FFC799]">
-                Phân hệ Quản lý Vận hành Chi nhánh
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#99FFE4] animate-pulse"></span>
+                <span className="text-xs font-semibold tracking-wider text-[#FFC799]">
+                  Phân hệ Quản lý Vận hành Chi nhánh
+                </span>
+              </div>
+              {assignedBranch ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFC799]/15 border border-[#FFC799]/40 text-[11px] font-bold text-[#FFC799]">
+                  <MapPin className="w-3 h-3" />
+                  <span>
+                    Trạm trực: {assignedBranch.name} ({assignedBranch.code})
+                  </span>
+                </span>
+              ) : isAdmin ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#99FFE4]/15 border border-[#99FFE4]/40 text-[11px] font-bold text-[#99FFE4]">
+                  <MapPin className="w-3 h-3" />
+                  <span>Phạm vi: Toàn hệ thống (Tất cả chi nhánh)</span>
+                </span>
+              ) : null}
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">
               Bàn giao nhận xe tại quầy (Counter Desk)
@@ -1123,7 +1165,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <FileCheck className="w-4 h-4" />
-                <span>01. Bàn giao nhận xe ({bookings.length})</span>
+                <span>01. Bàn giao nhận xe ({orderCounts.total || bookings.length})</span>
               </button>
 
               <button
@@ -1212,18 +1254,20 @@ export const CounterDesk: React.FC = () => {
                 )}
               </button>
 
-              <button
-                type="button"
-                onClick={() => switchDeskMode('banners')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'banners'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span>07. Banner CMS (UC-118)</span>
-              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => switchDeskMode('banners')}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    deskMode === 'banners'
+                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
+                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                  }`}
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  <span>07. Banner CMS (UC-118)</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1370,19 +1414,8 @@ export const CounterDesk: React.FC = () => {
                         {bookings.length}
                       </span>
                     </h3>
-                    {/* Queue Toggle: Today vs All */}
+                    {/* Queue Toggle: All vs Today */}
                     <div className="flex items-center gap-1 bg-[#101010] p-1 rounded-xl border border-white/10">
-                      <button
-                        type="button"
-                        onClick={() => handleQueueToggle('today')}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                          queueFilter === 'today'
-                            ? 'bg-[#FFC799] text-[#101010] shadow-sm'
-                            : 'text-[#A0A0A0] hover:text-white'
-                        }`}
-                      >
-                        Hôm nay ({orderCounts.today})
-                      </button>
                       <button
                         type="button"
                         onClick={() => handleQueueToggle('all')}
@@ -1393,6 +1426,17 @@ export const CounterDesk: React.FC = () => {
                         }`}
                       >
                         Tất cả ({orderCounts.total})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQueueToggle('today')}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          queueFilter === 'today'
+                            ? 'bg-[#FFC799] text-[#101010] shadow-sm'
+                            : 'text-[#A0A0A0] hover:text-white'
+                        }`}
+                      >
+                        Hôm nay ({orderCounts.today})
                       </button>
                     </div>
                   </div>
@@ -2990,7 +3034,7 @@ export const CounterDesk: React.FC = () => {
           </div>
         ) : deskMode === 'chat' ? (
           <StaffChatConsole />
-        ) : deskMode === 'banners' ? (
+        ) : deskMode === 'banners' && isAdmin ? (
           <BannerManager />
         ) : deskMode === 'audit' ? (
           <AuditLogViewer />
