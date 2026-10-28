@@ -252,7 +252,6 @@ export const CounterDesk: React.FC = () => {
   const [signatureData, setSignatureData] = useState<string>('');
   const [receiverName, setReceiverName] = useState<string>('');
   const [receiverPhone, setReceiverPhone] = useState<string>('');
-  const [receiverIdCard, setReceiverIdCard] = useState<string>('');
 
   // Check-out form states (UC-57: 4 photos, ODO, fuel, damage, late fee)
   const [endOdo, setEndOdo] = useState<number>(0);
@@ -318,16 +317,20 @@ export const CounterDesk: React.FC = () => {
       : '';
     setReceiverName(b.receiverName || defaultReceiverName);
     setReceiverPhone(b.receiverPhone || bookingOwner?.phoneNumber || '');
-    setReceiverIdCard(b.receiverIdCard || bookingOwner?.idCardNumber || '');
 
     const bikeOdo =
       typeof b.vehicleId === 'object' && b.vehicleId !== null
-        ? (b.vehicleId as Vehicle).odometer || 0
+        ? (b.vehicleId as Vehicle).odometer ?? 0
         : 0;
 
-    setStartOdo(b.startOdometer || bikeOdo);
+    const resolvedStartOdo =
+      b.status === 'Ongoing' || b.status === 'Completed'
+        ? (b.startOdometer ?? bikeOdo)
+        : bikeOdo;
+
+    setStartOdo(resolvedStartOdo);
     setStartFuel(b.startFuelLevel ? String(b.startFuelLevel) : '100%');
-    setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
+    setEndOdo(b.endOdometer ?? resolvedStartOdo);
     setEndFuel(b.endFuelLevel ? String(b.endFuelLevel) : '100%');
     setDamageFee(b.damageFee || 0);
 
@@ -933,7 +936,6 @@ export const CounterDesk: React.FC = () => {
         verifiedAtCounter: true,
         receiverName: receiverName.trim() || undefined,
         receiverPhone: receiverPhone.trim() || undefined,
-        receiverIdCard: receiverIdCard.trim() || undefined,
       });
 
       if (res.data?.data) {
@@ -1869,13 +1871,13 @@ export const CounterDesk: React.FC = () => {
                                   )}
                               </div>
                               <div className="text-[11px] text-[#A0A0A0] mt-0.5">
-                                Đơn đã xác thực thanh toán hợp lệ: bất kỳ người nhận thực tế nào xuất trình mã đơn và giấy tờ tùy thân/GPLX hợp lệ tại quầy đều được bàn giao xe. Số giấy tờ được mã hóa AES-256-GCM.
+                                Thông tin họ tên và số điện thoại người nhận xe được tự động điền từ tài khoản đặt xe (có thể chỉnh lại nếu nhờ người nhận hộ). Không cần nhập lại số CCCD.
                               </div>
                             </div>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                           <div>
                             <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1">
                               Họ tên người nhận xe thực tế
@@ -1908,23 +1910,6 @@ export const CounterDesk: React.FC = () => {
                               className="w-full bg-[#161616] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                             />
                           </div>
-                          <div>
-                            <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
-                              <span>Số CCCD / Passport / GPLX đối chiếu</span>
-                              <Lock className="w-3 h-3 text-[#99FFE4]" />
-                            </label>
-                            <input
-                              type="text"
-                              value={receiverIdCard}
-                              disabled={
-                                selectedBooking.status !== 'Confirmed' &&
-                                selectedBooking.status !== 'Approved'
-                              }
-                              onChange={(e) => setReceiverIdCard(e.target.value)}
-                              placeholder="Nhập số giấy tờ người nhận..."
-                              className="w-full bg-[#161616] border border-white/10 rounded-lg px-3 py-2 text-xs font-mono text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
-                            />
-                          </div>
                         </div>
                       </div>
 
@@ -1932,14 +1917,19 @@ export const CounterDesk: React.FC = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Odometer Input */}
                         <div>
-                          <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                            <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                            Chỉ số ODO công-tơ-mét khi giao (km)
+                          <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
+                            <span className="flex items-center">
+                              <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                              Chỉ số ODO công-tơ-mét khi giao (km)
+                            </span>
+                            <span className="text-[10px] font-bold text-[#99FFE4]">
+                              Tự động đồng bộ từ xe
+                            </span>
                           </label>
                           <input
                             type="number"
                             min="0"
-                            value={startOdo || ''}
+                            value={Number.isNaN(startOdo) ? 0 : startOdo}
                             onWheel={(e) => e.currentTarget.blur()}
                             onChange={(e) => setStartOdo(e.target.value === '' ? 0 : Number(e.target.value))}
                             disabled={
@@ -1948,7 +1938,7 @@ export const CounterDesk: React.FC = () => {
                             className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                           />
                           <p className="text-[11px] text-[#A0A0A0] mt-1">
-                            Chỉ số ODO làm căn cứ đối chiếu khi khách bàn giao trả xe.
+                            Tự động lấy số ODO hiện tại của xe làm căn cứ đối chiếu khi trả xe.
                           </p>
                         </div>
 
@@ -2321,7 +2311,7 @@ export const CounterDesk: React.FC = () => {
                           <input
                             type="number"
                             min={selectedBooking.startOdometer || 0}
-                            value={endOdo || ''}
+                            value={Number.isNaN(endOdo) ? 0 : endOdo}
                             onWheel={(e) => e.currentTarget.blur()}
                             onChange={(e) => setEndOdo(e.target.value === '' ? 0 : Number(e.target.value))}
                             disabled={selectedBooking.status !== 'Ongoing'}
