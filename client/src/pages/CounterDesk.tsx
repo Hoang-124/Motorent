@@ -1112,11 +1112,11 @@ export const CounterDesk: React.FC = () => {
             </p>
 
             {/* Mode Switcher */}
-            <div className="flex flex-wrap items-center gap-2 mt-4">
+            <div className="flex items-center gap-2 mt-4 overflow-x-auto scrollbar-none flex-nowrap pb-1">
               <button
                 type="button"
                 onClick={() => switchDeskMode('bookings')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'bookings'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1132,7 +1132,7 @@ export const CounterDesk: React.FC = () => {
                   switchDeskMode('ekyc');
                   fetchPendingEkyc();
                 }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'ekyc'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1150,7 +1150,7 @@ export const CounterDesk: React.FC = () => {
               <button
                 type="button"
                 onClick={() => switchDeskMode('chat')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'chat'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1163,7 +1163,7 @@ export const CounterDesk: React.FC = () => {
               <button
                 type="button"
                 onClick={() => switchDeskMode('audit')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'audit'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1179,7 +1179,7 @@ export const CounterDesk: React.FC = () => {
                   switchDeskMode('vehicles');
                   fetchBranchVehicles();
                 }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'vehicles'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1197,7 +1197,7 @@ export const CounterDesk: React.FC = () => {
               <button
                 type="button"
                 onClick={() => switchDeskMode('complaints')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'complaints'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1215,7 +1215,7 @@ export const CounterDesk: React.FC = () => {
               <button
                 type="button"
                 onClick={() => switchDeskMode('banners')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'banners'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1228,7 +1228,7 @@ export const CounterDesk: React.FC = () => {
               <button
                 type="button"
                 onClick={() => switchDeskMode('shifts')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                   deskMode === 'shifts'
                     ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                     : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1243,7 +1243,7 @@ export const CounterDesk: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => switchDeskMode('staff')}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                       deskMode === 'staff'
                         ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                         : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -1256,7 +1256,7 @@ export const CounterDesk: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => switchDeskMode('reports')}
-                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                       deskMode === 'reports'
                         ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
                         : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -2952,7 +2952,7 @@ export const CounterDesk: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setComplaintSubTab('manager')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                     complaintSubTab === 'manager'
                       ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
                       : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
@@ -2970,7 +2970,7 @@ export const CounterDesk: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setComplaintSubTab('queue')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer whitespace-nowrap flex-shrink-0 ${
                     complaintSubTab === 'queue'
                       ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
                       : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'

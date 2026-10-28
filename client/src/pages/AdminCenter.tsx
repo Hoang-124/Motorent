@@ -618,11 +618,11 @@ export const AdminCenter: React.FC = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex flex-wrap items-center bg-[#181818] border border-white/10 rounded-xl p-1 gap-1 shrink-0">
+          <div className="flex items-center bg-[#181818] overflow-x-auto scrollbar-none flex-nowrap max-w-full border border-white/10 rounded-xl p-1 gap-1 shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('branches')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'branches'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
@@ -635,7 +635,7 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('users')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'users'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
@@ -648,7 +648,7 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('staff')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'staff'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
@@ -661,7 +661,7 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('schedules')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'schedules'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
@@ -674,7 +674,7 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('discounts')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'discounts'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
@@ -687,7 +687,7 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('config')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'config'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
@@ -700,7 +700,7 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('finance')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'finance'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
@@ -713,20 +713,20 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveTab('reports')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'reports'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5" />
-              <span>Báo cáo & Phân tích (S3)</span>
+              <span>Báo cáo & Phân tích (S3/S4)</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('map')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all whitespace-nowrap flex-shrink-0 cursor-pointer ${
                 activeTab === 'map'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'

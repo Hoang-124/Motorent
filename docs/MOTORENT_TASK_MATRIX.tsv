@@ -130,12 +130,12 @@ S3	17/10	CMS UI	Static Pages Render	As user, FAQ/Terms pages	Guest	Tuyên	Must	F
 S4	18/10	Polish	UC-122: Multi-lang i18n	As admin, I want translations	Admin	Hoàng	Could	FE	L	none	Vietnamese + English	i18n framework	
 S4	18/10	Polish	UC-38: Download Invoice	As customer, PDF invoice	Customer	Dương	Should	FE/BE	M	UC-36	PDFKit with logo, details	GET /api/bookings/:id/invoice	
 S4	18/10	Polish	Responsive Vehicle Pages	Responsive vehicle section	Guest	Tài	Must	FE	M	UC-12	Mobile/tablet responsive	CSS responsive	
-S4	18/10	Polish	Report Charts Polish	Chart visuals + interactions	Manager	Cả	Must	FE	M	UC-105	Recharts animations	Chart polish	
+S4	18/10	Polish	Report Charts Polish	Chart visuals + interactions	Manager	Cả	Must	FE	M	UC-105	Recharts animations	Chart polish	Hoàn thành
 S4	18/10	Polish	Notif Badge Real-time	Live notification count	Customer	Tuyên	Must	FE	M	UC-45	Socket.IO badge update	Real-time badge	
 S4	19/10	Polish	Security Hardening	Rate limiting, XSS, CSRF, Fail-fast Env	System	Hoàng	Must	BE	M	none	helmet, express-rate-limit, Zod env.ts, CORS whitelist	Security middleware	Hoàn thành
 S4	19/10	Polish	Booking UX Polish	Smooth booking experience	Customer	Dương	Must	FE	M	UC-28	Animations, loading states	UX polish	
 S4	19/10	Polish	Image Optimization	Lazy load, compression	System	Tài	Must	FE	M	none	WebP, lazy load <2s	Performance	
-S4	19/10	Polish	Dashboard Responsive	Mobile admin dashboard	Admin	Cả	Must	FE	M	UC-105	Tablet/mobile layout	Responsive CSS	
+S4	19/10	Polish	Dashboard Responsive	Mobile admin dashboard	Admin	Cả	Must	FE	M	UC-105	Tablet/mobile layout	Responsive CSS	Hoàn thành
 S4	19/10	Polish	CMS Content Seeding	Populate FAQ, banners	System	Tuyên	Must	BE	S	UC-119	Real content populated	Seed data	
 S4	20/10	QA	Cross-team Integration	Full system integration test	All	ALL	Must	FE/BE	L	All	All flows end-to-end	Integration test	
 S4	21/10	QA	Bug Fix Sprint	Fix critical/major bugs	All	ALL	Must	FE/BE	M	QA	0 critical, <5 minor	Bug tracking	
