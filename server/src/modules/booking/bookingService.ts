@@ -1243,6 +1243,16 @@ export const checkoutBooking = async (
 
   await booking.save();
 
+  if (finalDue > 0) {
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: `CHECKOUT-${booking.bookingCode}-${Date.now()}`,
+      amount: Math.round(finalDue),
+      type: 'COUNTER',
+      status: 'SUCCESS',
+    }).catch((err: unknown) => console.error('[Checkout Payment Record Error]', err));
+  }
+
   // Update Vehicle: move to return branch, update ODO, set Available (or Maintenance if severely damaged)
   const vehicle = await Vehicle.findById(booking.vehicleId);
   if (vehicle) {

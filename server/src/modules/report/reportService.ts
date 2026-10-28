@@ -28,12 +28,19 @@ const formatCurrencyVN = (amount: number): string => {
  * UC-86: Daily Revenue Report
  */
 export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
-  const targetDate = dateStr ? new Date(dateStr) : new Date();
-  const startOfDay = new Date(targetDate);
-  startOfDay.setHours(0, 0, 0, 0);
-
-  const endOfDay = new Date(targetDate);
-  endOfDay.setHours(23, 59, 59, 999);
+  let startOfDay: Date;
+  let endOfDay: Date;
+  if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {
+    const [y, m, d] = dateStr.trim().split('-').map(Number);
+    startOfDay = new Date(y, m - 1, d, 0, 0, 0, 0);
+    endOfDay = new Date(y, m - 1, d, 23, 59, 59, 999);
+  } else {
+    const targetDate = dateStr ? new Date(dateStr) : new Date();
+    startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+  }
 
   const branchFilter: Record<string, any> = {};
   if (branchId && mongoose.isValidObjectId(branchId)) {
@@ -62,7 +69,7 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
     createdAt: { $gte: startOfDay, $lte: endOfDay },
     status: 'SUCCESS',
   };
-  if (bookingIds.length > 0 && branchId) {
+  if (branchId && mongoose.isValidObjectId(branchId)) {
     paymentQuery.bookingId = { $in: bookingIds };
   }
 
@@ -82,7 +89,39 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
     }
   }
 
-  // Calculate fees from bookings completed today
+  // Defensive reconciliation: if a booking checked out today was marked isPaid/Completed
+  // before COUNTER Payment rows were recorded, include the unrecorded counter settlement.
+  const checkedOutTodayBookings = bookingsToday.filter(
+    (b) =>
+      b.status === 'Completed' &&
+      b.isPaid &&
+      b.checkoutAt &&
+      b.checkoutAt >= startOfDay &&
+      b.checkoutAt <= endOfDay
+  );
+  if (checkedOutTodayBookings.length > 0) {
+    const allInboundPayments = await Payment.find({
+      bookingId: { $in: checkedOutTodayBookings.map((b) => b._id) },
+      status: 'SUCCESS',
+      type: { $in: ['DEPOSIT', 'FULL', 'COUNTER'] },
+    }).select('bookingId amount');
+
+    const inboundByBooking = new Map<string, number>();
+    for (const p of allInboundPayments) {
+      const key = String(p.bookingId);
+      inboundByBooking.set(key, (inboundByBooking.get(key) || 0) + (p.amount || 0));
+    }
+
+    for (const b of checkedOutTodayBookings) {
+      const recordedInbound = inboundByBooking.get(String(b._id)) || 0;
+      const unrecordedSettlement = Math.max(0, Math.round((b.paidAmount || 0) - recordedInbound));
+      if (unrecordedSettlement > 0) {
+        counterSettlementRevenue += unrecordedSettlement;
+      }
+    }
+  }
+
+  // Calculate fees & operational counters from bookings active today
   let additionalFees = 0;
   let pickupsCount = 0;
   let returnsCount = 0;
@@ -103,7 +142,7 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
     }
   }
 
-  const grossRevenue = onlineDepositRevenue + counterSettlementRevenue + additionalFees;
+  const grossRevenue = onlineDepositRevenue + counterSettlementRevenue;
   const netRevenue = Math.max(0, grossRevenue - refunds);
 
   let branchInfo = null;
@@ -111,8 +150,10 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
     branchInfo = await Branch.findById(branchId).select('name code address phone');
   }
 
+  const localDateStr = `${startOfDay.getFullYear()}-${String(startOfDay.getMonth() + 1).padStart(2, '0')}-${String(startOfDay.getDate()).padStart(2, '0')}`;
+
   return {
-    date: startOfDay.toISOString().slice(0, 10),
+    date: localDateStr,
     dateFormatted: formatDateVN(startOfDay),
     branch: branchInfo,
     metrics: {
@@ -129,7 +170,7 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
     },
     paymentMethods: {
       vnpay: onlineDepositRevenue,
-      counter: counterSettlementRevenue + additionalFees,
+      counter: counterSettlementRevenue,
     },
     bookings: bookingsToday.map((b) => ({
       _id: b._id,

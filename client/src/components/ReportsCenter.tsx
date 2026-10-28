@@ -50,8 +50,11 @@ export const ReportsCenter: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [exporting, setExporting] = useState<boolean>(false);
 
-  // Daily State
-  const [dailyDate, setDailyDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  // Daily State (use local YYYY-MM-DD so early-morning GMT+7 never shifts to yesterday)
+  const [dailyDate, setDailyDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [dailyData, setDailyData] = useState<DailyRevenueReport | null>(null);
 
   // Monthly State
@@ -491,7 +494,7 @@ export const ReportsCenter: React.FC = () => {
                               {b.paymentMethod === 'Banking' ? 'VNPay / Banking' : 'Tiền mặt tại quầy'}
                             </td>
                             <td className="py-3 px-4 font-bold text-white">
-                              {(b.totalAmount || 0).toLocaleString('vi-VN')} đ
+                              {((b.totalAmount || 0) + (b.lateFee || 0) + (b.damageFee || 0)).toLocaleString('vi-VN')} đ
                             </td>
                             <td className="py-3 px-4 font-bold text-emerald-400">
                               {(b.paidAmount || 0).toLocaleString('vi-VN')} đ
