@@ -263,7 +263,7 @@ export const BannerManager: React.FC = () => {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white tracking-tight">
-                Quản lý Banner Quảng cáo (CMS UC-116 & UC-118)
+                Quản lý Banner Quảng cáo
               </h2>
               <p className="text-xs text-[#A0A0A0]">
                 Cấu hình chuỗi banner xoay vòng trên trang chủ, áp dụng quy chuẩn xóa mềm (soft delete) và chuẩn hóa thứ tự tự động.
@@ -277,7 +277,7 @@ export const BannerManager: React.FC = () => {
             type="button"
             onClick={() => loadBanners(currentPage)}
             disabled={loading}
-            className="px-3.5 py-2.5 rounded-xl border border-white/10 bg-[#202020] hover:bg-[#282828] text-[#F5F5F5] text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer"
+            className="px-3.5 py-2.5 rounded-xl border border-white/10 bg-[#202020] hover:bg-[#282828] text-[#F5F5F5] text-xs font-semibold flex items-center space-x-2 transition-all cursor-pointer shrink-0 whitespace-nowrap"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Làm mới</span>
@@ -286,7 +286,7 @@ export const BannerManager: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAddModalOpen(true)}
-            className="px-4 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#ffb77d] text-[#101010] text-xs font-bold flex items-center space-x-2 transition-all shadow-md cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#ffb77d] text-[#101010] text-xs font-bold flex items-center space-x-2 transition-all shadow-md cursor-pointer shrink-0 whitespace-nowrap"
           >
             <Plus className="w-4 h-4" />
             <span>Thêm Banner Mới</span>

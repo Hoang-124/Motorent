@@ -233,11 +233,11 @@ export const ReportsCenter: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header & Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-5">
-        <div>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-5">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-[#FFC799] font-bold">
-            <BarChart3 size={15} />
-            <span>Trung tâm Báo cáo & Phân tích Doanh thu (S3)</span>
+            <BarChart3 size={15} className="shrink-0" />
+            <span>Trung tâm Báo cáo & Phân tích Doanh thu</span>
           </div>
           <h2 className="text-2xl font-extrabold text-white tracking-tight mt-1">
             Báo Cáo Hoạt Động & Hiệu Suất Hệ Thống
@@ -248,7 +248,7 @@ export const ReportsCenter: React.FC = () => {
         </div>
 
         {/* Action Toolbar */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           {isAdmin && (
             <select
               value={selectedBranchId}
@@ -264,16 +264,16 @@ export const ReportsCenter: React.FC = () => {
             </select>
           )}
 
-          {/* UC-89: Export Buttons */}
-          <div className="inline-flex rounded-xl bg-[#161616] border border-white/10 p-0.5">
+          {/* Export Buttons */}
+          <div className="inline-flex rounded-xl bg-[#161616] border border-white/10 p-0.5 shrink-0">
             <button
               type="button"
               disabled={exporting}
               onClick={() => handleExport('excel')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
-              title="Xuất file bảng tính Excel (UC-89)"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+              title="Xuất file bảng tính Excel"
             >
-              <FileSpreadsheet size={15} />
+              <FileSpreadsheet size={15} className="shrink-0" />
               <span>Xuất Excel</span>
             </button>
 
@@ -281,10 +281,10 @@ export const ReportsCenter: React.FC = () => {
               type="button"
               disabled={exporting}
               onClick={() => handleExport('pdf')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50"
-              title="Xuất bản in PDF có logo Motorent (UC-89)"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50 whitespace-nowrap"
+              title="Xuất bản in PDF có logo Motorent"
             >
-              <FileText size={15} />
+              <FileText size={15} className="shrink-0" />
               <span>Xuất PDF</span>
             </button>
           </div>
@@ -292,85 +292,85 @@ export const ReportsCenter: React.FC = () => {
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex flex-wrap items-center bg-[#161616] border border-white/10 rounded-2xl p-1.5 gap-1">
+      <div className="w-full flex flex-wrap items-center bg-[#161616] border border-white/10 rounded-2xl p-1.5 gap-1.5">
         <button
           type="button"
           onClick={() => setActiveTab('daily')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
             activeTab === 'daily'
               ? 'bg-[#FFC799] text-[#101010] shadow-md'
               : 'text-[#A0A0A0] hover:text-white'
           }`}
         >
-          <Clock size={15} />
-          <span>Doanh thu ngày (UC-86)</span>
+          <Clock size={15} className="shrink-0" />
+          <span>Doanh thu ngày</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('monthly')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
             activeTab === 'monthly'
               ? 'bg-[#FFC799] text-[#101010] shadow-md'
               : 'text-[#A0A0A0] hover:text-white'
           }`}
         >
-          <Calendar size={15} />
-          <span>Doanh thu tháng (UC-87-88)</span>
+          <Calendar size={15} className="shrink-0" />
+          <span>Doanh thu tháng</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('fleet')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
             activeTab === 'fleet'
               ? 'bg-[#FFC799] text-[#101010] shadow-md'
               : 'text-[#A0A0A0] hover:text-white'
           }`}
         >
-          <Bike size={15} />
-          <span>Hiệu suất đội xe (UC-90-92)</span>
+          <Bike size={15} className="shrink-0" />
+          <span>Hiệu suất đội xe</span>
         </button>
 
         {isAdmin && (
           <button
             type="button"
             onClick={() => setActiveTab('chain')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
               activeTab === 'chain'
                 ? 'bg-[#FFC799] text-[#101010] shadow-md'
                 : 'text-[#A0A0A0] hover:text-white'
             }`}
           >
-            <Building2 size={15} />
-            <span>Doanh thu chuỗi & So sánh (UC-103-104)</span>
+            <Building2 size={15} className="shrink-0" />
+            <span>Doanh thu chuỗi & So sánh</span>
           </button>
         )}
 
         <button
           type="button"
           onClick={() => setActiveTab('kpi')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
             activeTab === 'kpi'
               ? 'bg-[#FFC799] text-[#101010] shadow-md'
               : 'text-[#A0A0A0] hover:text-white'
           }`}
         >
-          <Layers size={15} />
-          <span>KPI Executive Dashboard (UC-105)</span>
+          <Layers size={15} className="shrink-0" />
+          <span>KPI Executive Dashboard</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab('forecast')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
             activeTab === 'forecast'
               ? 'bg-[#FFC799] text-[#101010] shadow-md'
               : 'text-[#A0A0A0] hover:text-white'
           }`}
         >
-          <Sparkles size={15} />
-          <span>Dự báo nhu cầu xe (UC-106)</span>
+          <Sparkles size={15} className="shrink-0" />
+          <span>Dự báo nhu cầu xe</span>
         </button>
       </div>
 
@@ -806,7 +806,7 @@ export const ReportsCenter: React.FC = () => {
               {/* Side-by-side Branch Comparison Table (UC-104) */}
               <div className="bg-[#161616] border border-white/10 rounded-2xl overflow-hidden">
                 <div className="p-4 border-b border-white/10">
-                  <h3 className="text-sm font-bold text-white">So sánh hiệu suất các chi nhánh (UC-104)</h3>
+                  <h3 className="text-sm font-bold text-white">So sánh hiệu suất các chi nhánh</h3>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">

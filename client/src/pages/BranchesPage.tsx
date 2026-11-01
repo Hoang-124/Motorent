@@ -143,8 +143,8 @@ export const BranchesPage: React.FC = () => {
             1. EDITORIAL MASTHEAD & LIVE NETWORK SUMMARY
             ===================================================================== */}
         <div className="pb-8 mb-10 border-b border-white/[0.08] animate-fade-up">
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-            <div className="max-w-2xl">
+          <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+            <div className="max-w-2xl min-w-0">
               <div className="inline-flex items-center space-x-2 text-[11px] uppercase tracking-[0.16em] text-[#FFC799] font-semibold mb-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4]" />
                 <span>Hệ Thống Trạm Giao Nhận Đô Thị • Đà Nẵng</span>

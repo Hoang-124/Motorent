@@ -724,7 +724,7 @@ export const OrderDetailPage: React.FC = () => {
 
                 {pricing.refundAmount !== undefined && pricing.refundAmount > 0 && (
                   <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] text-emerald-400">
-                    <span>Số tiền hoàn lại (BR-06):</span>
+                    <span>Số tiền hoàn lại:</span>
                     <span className="font-mono-tabular font-bold">
                       {pricing.refundAmount.toLocaleString('vi-VN')} đ ({pricing.refundStatus || 'Chờ duyệt'})
                     </span>
@@ -788,7 +788,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-2.5 px-4 rounded-xl bg-transparent border border-white/10 hover:border-[#FF8080]/40 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-all flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
-                    <span>Hủy đơn đặt xe này (Theo chính sách BR-06)</span>
+                    <span>Hủy đơn đặt xe này</span>
                   </button>
                 )}
 
@@ -846,7 +846,7 @@ export const OrderDetailPage: React.FC = () => {
               </div>
 
               <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0] space-y-1">
-                <p className="font-semibold text-[#F5F5F5]">Chính sách hủy đơn (Rule BR-06):</p>
+                <p className="font-semibold text-[#F5F5F5]">Chính sách hủy đơn:</p>
                 <p>• Hệ thống sẽ tự động đối soát mốc thời gian nhận xe để tính toán số tiền hoàn cọc chính xác.</p>
                 <p>• Biển số xe sẽ được mở khóa lại ngay lập tức cho các khách hàng khác thuê.</p>
               </div>

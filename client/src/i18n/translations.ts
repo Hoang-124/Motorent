@@ -50,7 +50,7 @@ export const VI_TRANSLATIONS = {
   'nav.ekycMenu': 'Định danh điện tử (eKYC)',
   'nav.changePassword': 'Đổi mật khẩu bảo mật',
   'nav.complaintsSupport': 'Khiếu nại & Hỗ trợ',
-  'nav.i18nAdminLink': 'Đa ngôn ngữ i18n (UC-122)',
+  'nav.i18nAdminLink': 'Đa ngôn ngữ i18n',
   'nav.roleAdmin': 'Quản trị Hệ thống',
   'nav.roleManager': 'Quản lý Chi nhánh',
   'nav.roleStaff': 'Nhân viên Điều phối',
@@ -94,7 +94,7 @@ export const VI_TRANSLATIONS = {
   'common.reset': 'Khôi phục mặc định',
   'common.search': 'Tìm kiếm…',
   'admin.centerTitle': 'Trung Tâm Điều Hành',
-  'admin.tabI18n': 'Đa ngôn ngữ (UC-122)',
+  'admin.tabI18n': 'Đa ngôn ngữ',
 } as const;
 
 export type TranslationKey = keyof typeof VI_TRANSLATIONS;
@@ -141,7 +141,7 @@ export const EN_TRANSLATIONS: Record<TranslationKey, string> = {
   'nav.ekycMenu': 'Digital Identity (eKYC)',
   'nav.changePassword': 'Change Security Password',
   'nav.complaintsSupport': 'Support & Claims',
-  'nav.i18nAdminLink': 'Multi-language i18n (UC-122)',
+  'nav.i18nAdminLink': 'Multi-language i18n',
   'nav.roleAdmin': 'System Administrator',
   'nav.roleManager': 'Branch Manager',
   'nav.roleStaff': 'Station Coordinator',
@@ -185,7 +185,7 @@ export const EN_TRANSLATIONS: Record<TranslationKey, string> = {
   'common.reset': 'Reset Defaults',
   'common.search': 'Search…',
   'admin.centerTitle': 'Operations Command',
-  'admin.tabI18n': 'Multi-lang i18n (UC-122)',
+  'admin.tabI18n': 'Multi-language i18n',
 };
 
 export const DEFAULT_TRANSLATIONS: Record<SupportedLocale, Record<TranslationKey, string>> = {

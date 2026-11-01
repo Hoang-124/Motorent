@@ -1489,7 +1489,7 @@ export const ProfilePage: React.FC = () => {
                                   )}
                                   {(b.refundAmount ?? 0) > 0 && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-[#FFC799]/15 border border-[#FFC799]/25 text-[#FFC799] font-semibold font-mono-tabular">
-                                      Hoàn tiền BR-06: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
+                                      Hoàn tiền: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
                                     </span>
                                   )}
                                   {(b.refundForfeitAmount ?? 0) > 0 && (
@@ -1631,7 +1631,7 @@ export const ProfilePage: React.FC = () => {
                                 disabled={downloadingInvoiceId === b._id}
                                 onClick={() => handleDownloadInvoice(b._id, b.bookingCode)}
                                 className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#99FFE4]/40 text-[#A0A0A0] hover:text-[#99FFE4] text-xs font-medium transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                                title="Tải hóa đơn điện tử & Biên lai thanh toán PDF (UC-38)"
+                                title="Tải hóa đơn điện tử & Biên lai thanh toán PDF"
                               >
                                 {downloadingInvoiceId === b._id ? (
                                   <>
@@ -2444,7 +2444,7 @@ export const ProfilePage: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-white uppercase tracking-wider text-[11px]">
-                    Chính sách hủy đơn BR-06
+                    Chính sách hủy đơn
                   </span>
                   <span className="font-mono-tabular font-medium">
                     {hoursUntilPickup > 0
@@ -2456,11 +2456,11 @@ export const ProfilePage: React.FC = () => {
                 {paid > 0 ? (
                   isMoreThan24h ? (
                     <p className="leading-relaxed text-[#FFC799]">
-                      Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách BR-06, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.
+                      Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách hủy đơn, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.
                     </p>
                   ) : (
                     <p className="leading-relaxed text-amber-300">
-                      Bạn đang hủy trong vòng 24 giờ trước giờ nhận xe. Theo chính sách BR-06, hệ thống sẽ <strong>khấu trừ 50% tiền đặt cọc</strong> và hoàn lại số tiền còn lại.
+                      Bạn đang hủy trong vòng 24 giờ trước giờ nhận xe. Theo chính sách hủy đơn, hệ thống sẽ <strong>khấu trừ 50% tiền đặt cọc</strong> và hoàn lại số tiền còn lại.
                     </p>
                   )
                 ) : (
@@ -2476,7 +2476,7 @@ export const ProfilePage: React.FC = () => {
                       <div className="font-bold text-white">{paid.toLocaleString('vi-VN')} đ</div>
                     </div>
                     <div className="bg-black/30 p-2 rounded-lg">
-                      <div className="text-[#A0A0A0] text-[10px]">Phí khấu trừ BR-06</div>
+                      <div className="text-[#A0A0A0] text-[10px]">Phí khấu trừ</div>
                       <div className="font-bold text-[#FF8080]">
                         {forfeitAmount > 0 ? `-${forfeitAmount.toLocaleString('vi-VN')} đ` : '0 đ'}
                       </div>
@@ -2574,7 +2574,7 @@ export const ProfilePage: React.FC = () => {
 
             <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-1">
               <div className="flex justify-between text-emerald-300">
-                <span>Số tiền hoàn theo BR-06:</span>
+                <span>Số tiền hoàn:</span>
                 <strong className="font-mono-tabular text-sm text-emerald-400">
                   {(selectedBookingForRefund.refundAmount || 0).toLocaleString('vi-VN')} đ
                 </strong>

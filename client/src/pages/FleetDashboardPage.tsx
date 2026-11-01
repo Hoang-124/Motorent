@@ -131,7 +131,7 @@ export function FleetDashboardPage() {
 
   if (!canManage) return <div role="alert" className="mx-auto max-w-7xl px-4 pb-20 pt-28 text-[#FFB3B3]">Bạn không có quyền xem tổng quan đội xe.</div>;
 
-  return <div className="mx-auto max-w-7xl px-4 pb-20 pt-28 text-[#F5F5F5] sm:px-6 lg:px-8" aria-busy={loading}>
+  return <div className="mx-auto max-w-7xl px-4 pb-20 pt-10 text-[#F5F5F5] sm:px-6 lg:px-8" aria-busy={loading}>
     <div className="mb-8 flex flex-wrap items-end justify-between gap-6">
       <div><p className="mb-3 text-[10px] font-semibold uppercase tracking-[.3em] text-[#FFC799]">Motorent / Tổng quan</p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Nhịp vận hành đội xe</h1>

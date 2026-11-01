@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticateJWT } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
 import { auditLogger } from '../../core/auditMiddleware';
+import { vehicleImagesUpload } from '../../core/uploadMiddleware';
 import * as vehicleController from './vehicleController';
 import * as categoryController from '../category/categoryController';
 
@@ -27,6 +28,16 @@ router.post(
   authorize('SystemAdmin'),
   auditLogger('CREATE_CATEGORY', 'Category'),
   categoryController.createCategory
+);
+
+// Upload local vehicle photos (UC-67, UC-69)
+router.post(
+  '/upload-images',
+  authenticateJWT,
+  authorize('BranchManager', 'SystemAdmin'),
+  vehicleImagesUpload.array('images', 10),
+  auditLogger('UPLOAD_VEHICLE_IMAGES', 'Vehicle'),
+  vehicleController.uploadVehicleImages
 );
 
 // Protected vehicle management routes

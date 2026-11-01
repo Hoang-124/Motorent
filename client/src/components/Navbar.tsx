@@ -38,6 +38,9 @@ import {
   Globe,
   Languages,
   BarChart3,
+  Wrench,
+  Calendar,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -459,10 +462,10 @@ export const Navbar: React.FC = () => {
     setShowLogoutConfirm(false);
     setUserDropdownOpen(false);
     setNotifDropdownOpen(false);
-    window.dispatchEvent(new CustomEvent('motorent:close-chat'));
-    logout();
     setMobileMenuOpen(false);
-    navigate('/');
+    window.dispatchEvent(new CustomEvent('motorent:close-chat'));
+    navigate('/login', { replace: true });
+    logout();
   };
 
   useEffect(() => {
@@ -541,53 +544,92 @@ export const Navbar: React.FC = () => {
     icon: React.ComponentType<{ className?: string }>;
     isHot?: boolean;
     action?: () => void;
-  }> = isStaffOrAdmin
-    ? [
-        {
-          name: t('nav.counterBookings'),
-          path: '/counter?mode=bookings',
-          icon: LayoutDashboard,
-        },
-        {
-          name: t('nav.counterEkyc'),
-          path: '/counter?mode=ekyc',
-          icon: FileCheck2,
-        },
-        ...(user?.roles === 'SystemAdmin'
-          ? [
-              {
-                name: t('nav.adminCenter'),
-                path: '/admin',
-                icon: Building2,
-              },
-              {
-                name: t('nav.auditLog'),
-                path: '/audit',
-                icon: ShieldCheck,
-              },
-            ]
-          : []),
-        ...(['SystemAdmin', 'BranchManager'].includes(user?.roles || '')
-          ? [
-              {
-                name: t('nav.reports'),
-                path: '/reports',
-                icon: BarChart3,
-              },
-            ]
-          : []),
-        {
-          name: t('nav.fleetShort'),
-          path: '/bikes',
-          icon: Compass,
-        },
-        {
-          name: t('nav.branches'),
-          path: '/branches',
-          icon: MapPin,
-        },
-      ]
-    : [
+  }> =
+    user?.roles === 'SystemAdmin'
+      ? [
+          {
+            name: t('nav.adminCenter'),
+            path: '/admin',
+            icon: Building2,
+          },
+          {
+            name: 'Danh mục xe',
+            path: '/admin/categories',
+            icon: Compass,
+          },
+          {
+            name: t('nav.reports'),
+            path: '/reports',
+            icon: BarChart3,
+          },
+          {
+            name: t('nav.auditLog'),
+            path: '/audit',
+            icon: ShieldCheck,
+          },
+          {
+            name: 'Ma trận quyền',
+            path: '/admin/rbac',
+            icon: Lock,
+          },
+        ]
+      : user?.roles === 'BranchManager'
+      ? [
+          {
+            name: 'Tổng quan trạm',
+            path: '/manager/dashboard',
+            icon: LayoutDashboard,
+          },
+          {
+            name: 'Quản lý xe & giá',
+            path: '/manager/vehicles',
+            icon: Compass,
+          },
+          {
+            name: t('nav.counterBookings'),
+            path: '/counter?mode=bookings',
+            icon: LayoutDashboard,
+          },
+          {
+            name: t('nav.counterEkyc'),
+            path: '/counter?mode=ekyc',
+            icon: FileCheck2,
+          },
+          {
+            name: t('nav.reports'),
+            path: '/reports',
+            icon: BarChart3,
+          },
+        ]
+      : user?.roles === 'Staff'
+      ? [
+          {
+            name: t('nav.counterBookings'),
+            path: '/counter?mode=bookings',
+            icon: LayoutDashboard,
+          },
+          {
+            name: t('nav.counterEkyc'),
+            path: '/counter?mode=ekyc',
+            icon: FileCheck2,
+          },
+          {
+            name: 'Đội xe tại trạm',
+            path: '/counter?mode=vehicles',
+            icon: Wrench,
+          },
+          {
+            name: 'Lịch phân ca',
+            path: '/counter?mode=shifts',
+            icon: Calendar,
+          },
+          {
+            name: t('nav.fleetShort'),
+            path: '/bikes',
+            icon: Compass,
+          },
+        ]
+      : [
         { name: t('nav.home'), path: '/', icon: Compass, action: undefined },
         { name: t('nav.fleetPricing'), path: '/bikes', icon: Compass, action: undefined },
         { name: t('nav.branches'), path: '/branches', icon: MapPin, action: undefined },
@@ -613,6 +655,45 @@ export const Navbar: React.FC = () => {
       const currentMode = new URLSearchParams(location.search).get('mode') || 'bookings';
       return currentMode === targetMode;
     }
+    if (path.includes('?tab=')) {
+      const [basePath, queryPart] = path.split('?');
+      const targetTab = new URLSearchParams(queryPart).get('tab');
+      if (location.pathname !== basePath) return false;
+      const currentTab = new URLSearchParams(location.search).get('tab');
+      return currentTab === targetTab;
+    }
+    if (path === '/admin') {
+      const currentTab = new URLSearchParams(location.search).get('tab');
+      return (location.pathname === '/admin' || location.pathname === '/admin-center') && currentTab !== 'i18n';
+    }
+    if (path === '/manager/dashboard') {
+      return location.pathname === '/manager/dashboard' || location.pathname === '/fleet-dashboard';
+    }
+    if (path === '/manager/fleet') {
+      return location.pathname === '/manager/fleet' || location.pathname === '/manager/fleet-operations';
+    }
+    if (path === '/reports') {
+      return (
+        location.pathname === '/reports' ||
+        location.pathname === '/admin/reports' ||
+        (location.pathname === '/counter' && new URLSearchParams(location.search).get('mode') === 'reports')
+      );
+    }
+    if (path === '/audit') {
+      return (
+        location.pathname === '/audit' ||
+        (location.pathname === '/counter' && new URLSearchParams(location.search).get('mode') === 'audit')
+      );
+    }
+    if (path === '/admin/rbac') {
+      return ['/admin/rbac', '/rbac', '/rbac-matrix'].includes(location.pathname);
+    }
+    if (path === '/staff/complaints' || path === '/manager/complaints') {
+      return (
+        location.pathname === path ||
+        (location.pathname === '/counter' && new URLSearchParams(location.search).get('mode') === 'complaints')
+      );
+    }
     if (path === '/#procedure') {
       return showProcedureModal || location.hash === '#procedure';
     }
@@ -624,6 +705,18 @@ export const Navbar: React.FC = () => {
     }
     return location.pathname === path;
   };
+
+  const getDropdownItemClass = (path: string, extra = 'gap-2.5') => {
+    const active = isActive(path);
+    return `flex items-center ${extra} px-3 py-2 rounded-xl transition-all ${
+      active
+        ? 'bg-[#FFC799] text-[#101010] font-bold shadow-sm'
+        : 'text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05]'
+    }`;
+  };
+
+  const getDropdownIconClass = (path: string) =>
+    `w-3.5 h-3.5 shrink-0 ${isActive(path) ? 'text-[#101010]' : 'text-[#FFC799]'}`;
 
   return (
     <>
@@ -729,13 +822,13 @@ export const Navbar: React.FC = () => {
 
             {/* Unified Utility Capsule: Wishlist + Live Chat + Notifications */}
             <div className="h-[38px] p-1 rounded-full bg-[#161616] border border-white/[0.09] flex items-center gap-0.5 shrink-0">
-              {/* Wishlist Quick Button (UC-25, UC-26) */}
+              {/* Wishlist Quick Button */}
               {!isStaffOrAdmin && (
                 <>
                   <Link
                     to="/wishlist"
                     className="relative w-[30px] h-[30px] rounded-full flex items-center justify-center text-[#A0A0A0] hover:bg-white/[0.06] hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
-                    title="Danh sách xe yêu thích (UC-25, UC-26)"
+                    title="Danh sách xe yêu thích"
                     aria-label="Xe yêu thích"
                   >
                     <Heart className="w-3.5 h-3.5 text-[#FFC799]" />
@@ -749,7 +842,7 @@ export const Navbar: React.FC = () => {
                 </>
               )}
 
-              {/* Header Live Chat Trigger Button (UC-44 / UC-66) */}
+              {/* Header Live Chat Trigger Button */}
               {user?.roles !== 'SystemAdmin' && (
                 <>
                   <button
@@ -762,8 +855,8 @@ export const Navbar: React.FC = () => {
                     }`}
                     title={
                       isStaffOrAdmin
-                        ? 'Hộp thư Chat Khách hàng tại Chi nhánh (UC-66)'
-                        : 'Trò chuyện trực tuyến với Chi nhánh (UC-44)'
+                        ? 'Hộp thư Chat Khách hàng tại Chi nhánh'
+                        : 'Trò chuyện trực tuyến với Chi nhánh'
                     }
                   >
                     <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${chatIsOpen ? 'text-[#101010]' : 'text-[#FFC799]'}`} />
@@ -1027,13 +1120,13 @@ export const Navbar: React.FC = () => {
 
               <span className="w-px h-3.5 bg-white/[0.08]" />
 
-              {/* Language Switcher (UC-122): Pure Vector SVG Globe + VI/EN Monospace Badge */}
+              {/* Language Switcher: Pure Vector SVG Globe + VI/EN Monospace Badge */}
               <button
                 type="button"
                 onClick={toggleLocale}
                 className="h-[30px] px-2 rounded-full flex items-center gap-1 text-[#F5F5F5] hover:bg-white/[0.06] hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
                 aria-label={locale === 'vi' ? 'Switch language to English' : 'Chuyển sang Tiếng Việt'}
-                title={locale === 'vi' ? 'Switch to English (UC-122)' : 'Chuyển sang Tiếng Việt (UC-122)'}
+                title={locale === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
               >
                 <Globe className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
                 <span className="font-mono-tabular text-[10px] font-bold tracking-wider uppercase">
@@ -1091,183 +1184,298 @@ export const Navbar: React.FC = () => {
 
                 {/* Dropdown Menu */}
                 {userDropdownOpen && (
-                  <div className="absolute right-0 mt-2.5 w-72 rounded-2xl bg-[#161616] border border-white/15 shadow-2xl shadow-black p-2 text-xs space-y-1 z-50">
-                    <div className="px-3 py-2.5 border-b border-white/10 mb-1 flex items-center space-x-2.5">
-                      {avatarSrc && !avatarLoadFailed ? (
-                        <img
-                          src={avatarSrc}
-                          alt="Avatar"
-                          referrerPolicy="no-referrer"
-                          crossOrigin="anonymous"
-                          className="w-8 h-8 rounded-full object-cover border border-[#FFC799]/40 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-[#FFC799] text-[#101010] flex items-center justify-center font-bold text-xs shrink-0">
-                          {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
+                  <div className="absolute right-0 mt-2.5 w-72 rounded-2xl bg-[#161616] border border-white/15 shadow-2xl shadow-black overflow-hidden text-xs z-50 flex flex-col max-h-[calc(100dvh-5.5rem)]">
+                    {/* Fixed Top Header with Quick Logout */}
+                    <div className="px-3.5 py-2.5 border-b border-white/10 bg-[#101010] flex items-center justify-between gap-2 shrink-0">
+                      <div className="flex items-center space-x-2.5 min-w-0 flex-1">
+                        {avatarSrc && !avatarLoadFailed ? (
+                          <img
+                            src={avatarSrc}
+                            alt="Avatar"
+                            referrerPolicy="no-referrer"
+                            crossOrigin="anonymous"
+                            className="w-8 h-8 rounded-full object-cover border border-[#FFC799]/40 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-[#FFC799] text-[#101010] flex items-center justify-center font-bold text-xs shrink-0">
+                            {user.firstName ? user.firstName[0].toUpperCase() : user.username[0].toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-[#F5F5F5] truncate">
+                            {user.firstName ? `${user.firstName} ${user.lastName || ''}` : user.username}
+                          </p>
+                          <p className="text-[10px] text-[#FFC799] font-mono-tabular truncate">
+                            {roleLabelVi} ({user.roles})
+                          </p>
                         </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-[#F5F5F5] truncate">
-                          {user.firstName ? `${user.firstName} ${user.lastName || ''}` : user.username}
-                        </p>
-                        <p className="text-[10px] text-[#FFC799] font-mono-tabular">
-                          {roleLabelVi} ({user.roles})
-                        </p>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          setShowLogoutConfirm(true);
+                        }}
+                        title={t('nav.logout')}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#FF8080]/15 hover:bg-[#FF8080]/25 border border-[#FF8080]/30 text-[#FF8080] font-bold text-[11px] transition-colors cursor-pointer shrink-0"
+                      >
+                        <LogOut className="w-3.5 h-3.5 shrink-0" />
+                        <span>Thoát</span>
+                      </button>
                     </div>
+
+                    {/* Scrollable Middle Links */}
+                    <div className="p-2 space-y-1 overflow-y-auto overscroll-contain flex-1 min-h-0">
 
                     {isStaffOrAdmin ? (
                       <>
-                        {/* Staff / Manager / Admin Operational Menu */}
-                        {['SystemAdmin', 'BranchManager'].includes(user.roles) && (
-                          <Link
-                            to="/manager/dashboard"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                          >
-                            <LayoutDashboard className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Tổng quan đội xe</span>
-                          </Link>
-                        )}
+                        {/* 1. SystemAdmin Menu (Global Chain Administration ONLY) */}
                         {user.roles === 'SystemAdmin' && (
-                          <Link
-                            to="/admin"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                          >
-                            <Building2 className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Trung tâm Quản trị Admin</span>
-                          </Link>
+                          <>
+                            <Link
+                              to="/admin"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/admin')}
+                            >
+                              <Building2 className={getDropdownIconClass('/admin')} />
+                              <span>Trung tâm Quản trị Hệ thống</span>
+                            </Link>
+                            <Link
+                              to="/admin/categories"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/admin/categories')}
+                            >
+                              <Compass className={getDropdownIconClass('/admin/categories')} />
+                              <span>Danh mục dòng xe · Admin</span>
+                            </Link>
+                            <Link
+                              to="/admin/banners"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/admin/banners')}
+                            >
+                              <Sparkles className={getDropdownIconClass('/admin/banners')} />
+                              <span>Quản lý Banner trang chủ</span>
+                            </Link>
+                            <Link
+                              to="/admin/pages"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/admin/pages')}
+                            >
+                              <FileText className={getDropdownIconClass('/admin/pages')} />
+                              <span>Quản lý Trang tĩnh &amp; Chính sách</span>
+                            </Link>
+                            <Link
+                              to="/admin?tab=i18n"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/admin?tab=i18n')}
+                            >
+                              <Languages className={getDropdownIconClass('/admin?tab=i18n')} />
+                              <span>{t('nav.i18nAdminLink')}</span>
+                            </Link>
+                            <Link
+                              to="/reports"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/reports')}
+                            >
+                              <BarChart3 className={getDropdownIconClass('/reports')} />
+                              <span>Báo cáo &amp; So sánh Chi nhánh</span>
+                            </Link>
+                            <Link
+                              to="/audit"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/audit')}
+                            >
+                              <ShieldCheck className={getDropdownIconClass('/audit')} />
+                              <span>Nhật ký Bảo mật Audit</span>
+                            </Link>
+                            <Link
+                              to="/admin/rbac"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/admin/rbac')}
+                            >
+                              <Lock className={getDropdownIconClass('/admin/rbac')} />
+                              <span>Ma trận Phân quyền Hệ thống</span>
+                            </Link>
+                          </>
                         )}
-                        {user.roles === 'SystemAdmin' && (
-                          <Link
-                            to="/admin/categories"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                          >
-                            <Compass className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Danh mục xe · Admin</span>
-                          </Link>
+
+                        {/* 2. BranchManager Menu (Branch-level Management & Operations) */}
+                        {user.roles === 'BranchManager' && (
+                          <>
+                            <Link
+                              to="/manager/dashboard"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/manager/dashboard')}
+                            >
+                              <LayoutDashboard className={getDropdownIconClass('/manager/dashboard')} />
+                              <span>Tổng quan đội xe chi nhánh</span>
+                            </Link>
+                            <Link
+                              to="/manager/vehicles"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/manager/vehicles')}
+                            >
+                              <Compass className={getDropdownIconClass('/manager/vehicles')} />
+                              <span>Quản lý xe &amp; giá thuê</span>
+                            </Link>
+                            <Link
+                              to="/manager/fleet"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/manager/fleet')}
+                            >
+                              <FileCheck2 className={getDropdownIconClass('/manager/fleet')} />
+                              <span>Điều chuyển &amp; bảo dưỡng</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=staff"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=staff')}
+                            >
+                              <Users className={getDropdownIconClass('/counter?mode=staff')} />
+                              <span>Quản lý nhân viên chi nhánh</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=shifts"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=shifts')}
+                            >
+                              <Calendar className={getDropdownIconClass('/counter?mode=shifts')} />
+                              <span>Lịch phân ca &amp; Chấm công</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=bookings"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=bookings')}
+                            >
+                              <LayoutDashboard className={getDropdownIconClass('/counter?mode=bookings')} />
+                              <span>Bàn giao xe &amp; Hợp đồng</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=ekyc"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=ekyc')}
+                            >
+                              <FileCheck2 className={getDropdownIconClass('/counter?mode=ekyc')} />
+                              <span>Xét duyệt hồ sơ eKYC</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=vehicles"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=vehicles')}
+                            >
+                              <Wrench className={getDropdownIconClass('/counter?mode=vehicles')} />
+                              <span>Đội xe &amp; Trạng thái tại trạm</span>
+                            </Link>
+                            <Link
+                              to="/manager/complaints"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/manager/complaints')}
+                            >
+                              <AlertCircle className={getDropdownIconClass('/manager/complaints')} />
+                              <span>Kết luận Khiếu nại chi nhánh</span>
+                            </Link>
+                            <Link
+                              to="/reports"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/reports')}
+                            >
+                              <BarChart3 className={getDropdownIconClass('/reports')} />
+                              <span>Báo cáo &amp; Phân tích chi nhánh</span>
+                            </Link>
+                          </>
                         )}
-                        {user.roles === 'SystemAdmin' && (
-                          <Link
-                            to="/admin/banners"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                          >
-                            <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Quản lý Banner (UC-116)</span>
-                          </Link>
+
+                        {/* 3. Staff Menu (Counter Desk & Daily Station Operations) */}
+                        {user.roles === 'Staff' && (
+                          <>
+                            <Link
+                              to="/counter?mode=bookings"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=bookings')}
+                            >
+                              <LayoutDashboard className={getDropdownIconClass('/counter?mode=bookings')} />
+                              <span>Bàn giao xe &amp; Hợp đồng</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=ekyc"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=ekyc')}
+                            >
+                              <FileCheck2 className={getDropdownIconClass('/counter?mode=ekyc')} />
+                              <span>Xét duyệt hồ sơ eKYC</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=vehicles"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=vehicles')}
+                            >
+                              <Wrench className={getDropdownIconClass('/counter?mode=vehicles')} />
+                              <span>Đội xe &amp; Trạng thái tại trạm</span>
+                            </Link>
+                            <Link
+                              to="/manager/fleet"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/manager/fleet')}
+                            >
+                              <FileCheck2 className={getDropdownIconClass('/manager/fleet')} />
+                              <span>Phiếu kỹ thuật &amp; ODO</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=shifts"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=shifts')}
+                            >
+                              <Calendar className={getDropdownIconClass('/counter?mode=shifts')} />
+                              <span>Lịch phân ca &amp; Chấm công</span>
+                            </Link>
+                            <Link
+                              to="/counter?mode=chat"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/counter?mode=chat', 'justify-between')}
+                            >
+                              <div className="flex items-center space-x-2.5">
+                                <MessageSquare className={getDropdownIconClass('/counter?mode=chat')} />
+                                <span>Tổng đài Live Chat</span>
+                              </div>
+                              {chatUnread > 0 && (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-bold ${
+                                    isActive('/counter?mode=chat')
+                                      ? 'bg-[#101010] text-[#FFC799]'
+                                      : 'bg-[#FF8080] text-[#101010]'
+                                  }`}
+                                >
+                                  {chatUnread} mới
+                                </span>
+                              )}
+                            </Link>
+                            <Link
+                              to="/staff/complaints"
+                              onClick={() => setUserDropdownOpen(false)}
+                              className={getDropdownItemClass('/staff/complaints')}
+                            >
+                              <AlertCircle className={getDropdownIconClass('/staff/complaints')} />
+                              <span>Xử lý Khiếu nại</span>
+                            </Link>
+                          </>
                         )}
-                        {user.roles === 'SystemAdmin' && (
-                          <Link
-                            to="/admin?tab=i18n"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                          >
-                            <Languages className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>{t('nav.i18nAdminLink')}</span>
-                          </Link>
-                        )}
-                        {user.roles === 'SystemAdmin' && (
-                          <Link
-                            to="/admin/pages"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                          >
-                            <FileText className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Quản lý Trang tĩnh (UC-119)</span>
-                          </Link>
-                        )}
-                        {['SystemAdmin', 'BranchManager'].includes(user.roles) && (
-                          <Link
-                            to="/manager/vehicles"
-                            onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                          >
-                            <Compass className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Quản lý xe &amp; giá thuê</span>
-                          </Link>
-                        )}
-                        <Link
-                          to="/manager/fleet"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
-                        >
-                          <FileCheck2 className="w-3.5 h-3.5 text-[#FFC799]" />
-                          <span>{user.roles === 'Staff' ? 'Phiếu kỹ thuật & ODO' : 'Điều chuyển & bảo dưỡng'}</span>
-                        </Link>
-                        <Link
-                          to="/counter?mode=bookings"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <LayoutDashboard className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Bàn giao xe &amp; Hợp đồng</span>
-                        </Link>
-                        <Link
-                          to="/counter?mode=ekyc"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <FileCheck2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Xét duyệt hồ sơ eKYC</span>
-                        </Link>
-                        <Link
-                          to="/counter?mode=chat"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <div className="flex items-center space-x-2.5">
-                            <MessageSquare className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span>Tổng đài Live Chat (UC-66)</span>
-                          </div>
-                          {chatUnread > 0 && (
-                            <span className="px-1.5 py-0.5 rounded bg-[#FF8080] text-[#101010] font-mono text-[10px] font-bold">
-                              {chatUnread} mới
-                            </span>
-                          )}
-                        </Link>
-                        <Link
-                          to={user?.roles === 'Staff' ? '/staff/complaints' : '/manager/complaints'}
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <AlertCircle className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>{user?.roles === 'Staff' ? 'Xử lý Khiếu nại (UC-65)' : 'Kết luận Khiếu nại (UC-85)'}</span>
-                        </Link>
-                        <Link
-                          to="/audit"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Nhật ký Bảo mật Audit (UC-102)</span>
-                        </Link>
-                        <Link
-                          to="/admin/rbac"
-                          onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
-                        >
-                          <Lock className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Ma trận Phân quyền (UC-99)</span>
-                        </Link>
 
                         <div className="border-t border-white/10 pt-1.5 space-y-1">
                           <Link
                             to="/profile?tab=info"
                             onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                            className={getDropdownItemClass('/profile?tab=info')}
                           >
-                            <UserIcon className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <UserIcon className={getDropdownIconClass('/profile?tab=info')} />
                             <span>Hồ sơ nhân sự &amp; Chỉnh sửa</span>
                           </Link>
                           <Link
                             to="/profile?tab=password"
                             onClick={() => setUserDropdownOpen(false)}
-                            className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                            className={getDropdownItemClass('/profile?tab=password')}
                           >
-                            <Lock className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <Lock className={getDropdownIconClass('/profile?tab=password')} />
                             <span>Đổi mật khẩu bảo mật</span>
                           </Link>
                         </div>
@@ -1278,14 +1486,18 @@ export const Navbar: React.FC = () => {
                         <Link
                           to="/wishlist"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                          className={getDropdownItemClass('/wishlist', 'justify-between')}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <Heart className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <Heart className={getDropdownIconClass('/wishlist')} />
                             <span className="truncate">Xe yêu thích</span>
                           </div>
                           {wishlistCount > 0 && (
-                            <span className="text-[10px] text-[#FFC799] font-mono-tabular shrink-0 ml-2">
+                            <span
+                              className={`text-[10px] font-mono-tabular shrink-0 ml-2 ${
+                                isActive('/wishlist') ? 'text-[#101010] font-bold' : 'text-[#FFC799]'
+                              }`}
+                            >
                               {wishlistCount} xe
                             </span>
                           )}
@@ -1294,13 +1506,17 @@ export const Navbar: React.FC = () => {
                         <Link
                           to="/profile?tab=bookings"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                          className={getDropdownItemClass('/profile?tab=bookings', 'justify-between')}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <Compass className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <Compass className={getDropdownIconClass('/profile?tab=bookings')} />
                             <span className="truncate">Chuyến xe của tôi</span>
                           </div>
-                          <span className="text-[10px] text-[#A0A0A0] font-mono-tabular shrink-0 ml-2">
+                          <span
+                            className={`text-[10px] font-mono-tabular shrink-0 ml-2 ${
+                              isActive('/profile?tab=bookings') ? 'text-[#101010] font-bold' : 'text-[#A0A0A0]'
+                            }`}
+                          >
                             {bookingCount} chuyến
                           </span>
                         </Link>
@@ -1308,10 +1524,10 @@ export const Navbar: React.FC = () => {
                         <Link
                           to="/complaints"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                          className={getDropdownItemClass('/complaints', 'justify-between')}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <ShieldAlert className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <ShieldAlert className={getDropdownIconClass('/complaints')} />
                             <span className="truncate">Khiếu nại &amp; Hỗ trợ</span>
                           </div>
                         </Link>
@@ -1319,10 +1535,10 @@ export const Navbar: React.FC = () => {
                         <Link
                           to="/profile?tab=info"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                          className={getDropdownItemClass('/profile?tab=info', 'justify-between')}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <UserIcon className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <UserIcon className={getDropdownIconClass('/profile?tab=info')} />
                             <span className="truncate">Thông tin cá nhân &amp; Chỉnh sửa</span>
                           </div>
                         </Link>
@@ -1330,30 +1546,48 @@ export const Navbar: React.FC = () => {
                         <Link
                           to="/profile?tab=avatar"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                          className={getDropdownItemClass('/profile?tab=avatar', 'justify-between')}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <Camera className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <Camera className={getDropdownIconClass('/profile?tab=avatar')} />
                             <span className="truncate">Đổi ảnh đại diện</span>
                           </div>
-                          <span className="text-[10px] text-[#A0A0A0] font-mono-tabular shrink-0 ml-2">5MB</span>
+                          <span
+                            className={`text-[10px] font-mono-tabular shrink-0 ml-2 ${
+                              isActive('/profile?tab=avatar') ? 'text-[#101010] font-bold' : 'text-[#A0A0A0]'
+                            }`}
+                          >
+                            5MB
+                          </span>
                         </Link>
 
                         <Link
                           to="/profile?tab=ekyc"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                          className={getDropdownItemClass('/profile?tab=ekyc', 'justify-between')}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <FileCheck2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <FileCheck2 className={getDropdownIconClass('/profile?tab=ekyc')} />
                             <span className="truncate">Định danh điện tử (eKYC)</span>
                           </div>
                           {user.identityStatus === 'Verified' ? (
-                            <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] font-medium text-[10px] shrink-0 ml-2">
+                            <span
+                              className={`px-1.5 py-0.5 rounded font-medium text-[10px] shrink-0 ml-2 ${
+                                isActive('/profile?tab=ekyc')
+                                  ? 'bg-[#101010]/20 text-[#101010] font-bold'
+                                  : 'bg-[#FFC799]/15 text-[#FFC799]'
+                              }`}
+                            >
                               Đã duyệt
                             </span>
                           ) : (
-                            <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] font-medium text-[10px] shrink-0 ml-2">
+                            <span
+                              className={`px-1.5 py-0.5 rounded font-medium text-[10px] shrink-0 ml-2 ${
+                                isActive('/profile?tab=ekyc')
+                                  ? 'bg-[#101010]/20 text-[#101010] font-bold'
+                                  : 'bg-[#FFC799]/15 text-[#FFC799]'
+                              }`}
+                            >
                               Cần làm
                             </span>
                           )}
@@ -1362,49 +1596,60 @@ export const Navbar: React.FC = () => {
                         <Link
                           to="/profile?tab=password"
                           onClick={() => setUserDropdownOpen(false)}
-                          className="flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
+                          className={getDropdownItemClass('/profile?tab=password', 'justify-between')}
                         >
                           <div className="flex items-center space-x-2.5 min-w-0">
-                            <Lock className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <Lock className={getDropdownIconClass('/profile?tab=password')} />
                             <span className="truncate">Đổi mật khẩu bảo mật</span>
                           </div>
-                          <span className="text-[10px] text-[#A0A0A0] font-mono-tabular shrink-0 ml-2">≥ 8 ký tự</span>
+                          <span
+                            className={`text-[10px] font-mono-tabular shrink-0 ml-2 ${
+                              isActive('/profile?tab=password') ? 'text-[#101010] font-bold' : 'text-[#A0A0A0]'
+                            }`}
+                          >
+                            ≥ 8 ký tự
+                          </span>
                         </Link>
                       </>
                     )}
 
-                    <div className="pt-1 border-t border-white/10 space-y-1">
-                      <button
-                        type="button"
-                        onClick={toggleLocale}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center space-x-2.5">
-                          <Globe className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>{t('nav.languageLabel')}</span>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular font-semibold text-[10px] uppercase">
-                          {locale === 'vi' ? 'Tiếng Việt (VI)' : 'English (EN)'}
-                        </span>
-                      </button>
+                    </div>
 
-                      <button
-                        type="button"
-                        onClick={toggleTheme}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors cursor-pointer"
-                      >
-                        <div className="flex items-center space-x-2.5">
-                          {isLight ? (
-                            <Moon className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          ) : (
-                            <Sun className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          )}
-                          <span>{t('nav.themeLabel')}</span>
-                        </div>
-                        <span className="px-2 py-0.5 rounded-md bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular font-semibold text-[10px]">
-                          {isLight ? t('nav.themeLight') : t('nav.themeDark')}
-                        </span>
-                      </button>
+                    {/* Fixed Bottom Footer: Language, Theme & Prominent Logout */}
+                    <div className="p-2 border-t border-white/10 bg-[#101010] space-y-1 shrink-0">
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={toggleLocale}
+                          className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-[#161616] border border-white/10 text-[#A0A0A0] hover:text-[#F5F5F5] hover:border-[#FFC799]/40 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center space-x-1.5">
+                            <Globe className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            <span className="text-[11px]">Ngôn ngữ</span>
+                          </div>
+                          <span className="font-mono-tabular font-bold text-[10px] text-[#FFC799] uppercase">
+                            {locale}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={toggleTheme}
+                          className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-[#161616] border border-white/10 text-[#A0A0A0] hover:text-[#F5F5F5] hover:border-[#FFC799]/40 transition-colors cursor-pointer"
+                        >
+                          <div className="flex items-center space-x-1.5">
+                            {isLight ? (
+                              <Moon className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            ) : (
+                              <Sun className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+                            )}
+                            <span className="text-[11px]">Giao diện</span>
+                          </div>
+                          <span className="font-mono-tabular font-bold text-[10px] text-[#FFC799]">
+                            {isLight ? t('nav.themeLight') : t('nav.themeDark')}
+                          </span>
+                        </button>
+                      </div>
 
                       <button
                         type="button"
@@ -1412,7 +1657,7 @@ export const Navbar: React.FC = () => {
                           setUserDropdownOpen(false);
                           setShowLogoutConfirm(true);
                         }}
-                        className="w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#FF8080] hover:bg-[#FF8080]/12 transition-colors cursor-pointer"
+                        className="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl bg-[#FF8080]/15 hover:bg-[#FF8080]/25 border border-[#FF8080]/30 text-[#FF8080] font-bold transition-colors cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5 shrink-0" />
                         <span>{t('nav.logout')}</span>

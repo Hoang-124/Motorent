@@ -26,6 +26,14 @@ export interface Category {
   description?: string;
 }
 
+export interface SeasonalPricingRuleSummary {
+  _id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  multiplier: number;
+}
+
 export interface Vehicle {
   _id: string;
   branchId: string | Branch;
@@ -36,6 +44,12 @@ export interface Vehicle {
   odometer: number;
   dailyPrice: number;
   hourlyPrice?: number;
+  baseDailyPrice?: number;
+  baseHourlyPrice?: number;
+  effectiveDailyPrice?: number;
+  effectiveHourlyPrice?: number;
+  activeSeasonalRule?: SeasonalPricingRuleSummary | null;
+  seasonalRules?: SeasonalPricingRuleSummary[];
   status: 'Available' | 'Rented' | 'Maintenance' | 'Transferring';
   transmissionType: 'Automatic' | 'Manual' | 'Semi-Auto';
   fuelType: 'Gasoline' | 'Electric';

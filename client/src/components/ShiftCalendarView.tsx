@@ -286,7 +286,7 @@ export const ShiftCalendarView: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <CalendarIcon className="text-[#FFC799]" size={26} />
-            Lịch Phân Ca & Chấm Công Tuần (UC-84)
+            Lịch Phân Ca & Chấm Công Tuần
           </h2>
           <p className="text-sm text-[#A0A0A0] mt-1">
             Bảng theo dõi ca làm việc, chống trùng lịch và ghi nhận trạng thái điểm danh nhân sự.
@@ -297,7 +297,7 @@ export const ShiftCalendarView: React.FC = () => {
           <button
             type="button"
             onClick={() => handleOpenAssignModal()}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10 shrink-0 whitespace-nowrap self-start sm:self-auto"
           >
             <Plus size={18} />
             Xếp ca trực mới
@@ -528,7 +528,7 @@ export const ShiftCalendarView: React.FC = () => {
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <CalendarIcon className="text-[#FFC799]" size={20} />
-                Xếp ca trực nhân sự (UC-84)
+                Xếp ca trực nhân sự
               </h3>
               <button
                 type="button"

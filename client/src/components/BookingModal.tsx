@@ -748,7 +748,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 text-xs text-[#A0A0A0] flex items-start space-x-2">
             <ShieldCheck className="w-4 h-4 text-[#FFC799] mt-0.5 flex-shrink-0" />
             <p className="leading-relaxed">
-              <strong className="text-white">Cam kết an toàn:</strong> Cổng thanh toán VNPay Sandbox bảo mật SSL/TLS. Miễn phí hủy đặt xe theo chính sách BR-06 trước 24 giờ.
+              <strong className="text-white">Cam kết an toàn:</strong> Cổng thanh toán VNPay Sandbox bảo mật SSL/TLS. Miễn phí hủy đặt xe trước 24 giờ.
             </p>
           </div>
 

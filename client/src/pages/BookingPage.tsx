@@ -63,6 +63,16 @@ interface BookingEstimateResult {
   isAvailable: boolean;
   conflicting: boolean;
   basePrice: number;
+  baseRentalBeforeSeasonal?: number;
+  seasonalSurcharge?: number;
+  breakdown?: {
+    date: string;
+    hours: number;
+    ruleName: string | null;
+    multiplier: number;
+    baseAmount: number;
+    adjustedAmount: number;
+  }[];
   discountAmount: number;
   appliedDiscount: {
     code: string;
@@ -327,9 +337,11 @@ export const BookingPage: React.FC = () => {
   const durationMs = Math.max(0, endDateTime.getTime() - startDateTime.getTime());
   const totalHours = Math.max(2, Math.ceil(durationMs / (1000 * 3600)));
 
-  const dailyPrice = vehicle ? vehicle.dailyPrice : 0;
+  const dailyPrice = vehicle ? (vehicle.effectiveDailyPrice ?? vehicle.dailyPrice) : 0;
   const hourlyPrice =
-    vehicle?.hourlyPrice || (dailyPrice ? Math.round(dailyPrice / 5 / 1000) * 1000 : 0);
+    vehicle?.effectiveHourlyPrice ||
+    vehicle?.hourlyPrice ||
+    (dailyPrice ? Math.round(dailyPrice / 5 / 1000) * 1000 : 0);
 
   const isHourlyBilling = totalHours < 24 && totalHours * hourlyPrice < dailyPrice;
 
@@ -2289,7 +2301,7 @@ export const BookingPage: React.FC = () => {
                     )}
                   </span>
                   <span className={`font-mono font-bold ${isHourlyBilling ? 'text-[#FFC799]' : 'text-[#8A857D]'}`}>
-                    {hourlyPrice.toLocaleString('vi-VN')} đ/giờ
+                    {(vehicle.effectiveHourlyPrice ?? hourlyPrice).toLocaleString('vi-VN')} đ/giờ
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-1">
@@ -2302,7 +2314,7 @@ export const BookingPage: React.FC = () => {
                     )}
                   </span>
                   <span className={`font-mono font-bold ${!isHourlyBilling ? 'text-[#F5F5F5]' : 'text-[#8A857D]'}`}>
-                    {dailyPrice.toLocaleString('vi-VN')} đ/ngày
+                    {(vehicle.effectiveDailyPrice ?? dailyPrice).toLocaleString('vi-VN')} đ/ngày
                   </span>
                 </div>
                 <div className="flex justify-between py-1">

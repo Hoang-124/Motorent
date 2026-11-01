@@ -228,7 +228,7 @@ export const DiscountsManager: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <Tag className="text-[#FFC799]" size={26} />
-            Quản trị Khuyến Mãi & Voucher Giảm Giá (UC-110 - UC-112)
+            Quản trị Khuyến Mãi & Voucher Giảm Giá
           </h2>
           <p className="text-sm text-[#A0A0A0] mt-1">
             Thiết lập mã coupon, tỷ lệ chiết khấu (%), điều kiện đơn tối thiểu và giới hạn số lượt sử dụng.
@@ -238,7 +238,7 @@ export const DiscountsManager: React.FC = () => {
         <button
           type="button"
           onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10 shrink-0 whitespace-nowrap self-start sm:self-auto"
         >
           <Plus size={18} />
           Tạo mã giảm giá mới
@@ -461,7 +461,7 @@ export const DiscountsManager: React.FC = () => {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Tag className="text-[#FFC799]" size={20} />
-                {editingDiscount ? 'Cập nhật mã giảm giá (UC-111)' : 'Khởi tạo mã giảm giá mới (UC-110)'}
+                {editingDiscount ? 'Cập nhật mã giảm giá' : 'Khởi tạo mã giảm giá mới'}
               </h3>
               <button
                 type="button"

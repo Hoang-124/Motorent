@@ -55,7 +55,13 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
       ? vehicle.branchId.name
       : 'Trạm Trung tâm Đà Nẵng';
 
-  const depositPreview = Math.round(vehicle.dailyPrice * 0.3);
+  const activeSeasonalRule = vehicle.activeSeasonalRule ?? null;
+  const effectiveDailyPrice =
+    vehicle.effectiveDailyPrice ??
+    (activeSeasonalRule
+      ? Math.round(vehicle.dailyPrice * activeSeasonalRule.multiplier)
+      : vehicle.dailyPrice);
+  const depositPreview = Math.round(effectiveDailyPrice * 0.3);
   const isElectric = vehicle.fuelType === 'Electric';
 
   const transmissionLabel =
@@ -360,7 +366,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
           <div>
             <div className="flex items-baseline space-x-1">
               <span className="text-xl sm:text-2xl font-bold text-[#F5F5F5] font-mono-tabular tracking-tight">
-                {vehicle.dailyPrice.toLocaleString('vi-VN')}đ
+                {effectiveDailyPrice.toLocaleString('vi-VN')}đ
               </span>
               <span className="text-xs text-[#A0A0A0]">/ ngày</span>
             </div>

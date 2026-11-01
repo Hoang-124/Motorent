@@ -127,7 +127,7 @@ export const SystemConfigManager: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <Settings className="text-[#FFC799]" size={26} />
-            Cấu Hình Chính Sách & Quy Chuẩn Hệ Thống (UC-113 - UC-115)
+            Cấu Hình Chính Sách & Quy Chuẩn Hệ Thống
           </h2>
           <p className="text-sm text-[#A0A0A0] mt-1">
             Thiết lập tỷ lệ cọc giữ xe, quy tắc phạt hủy, phí trễ giờ và cơ chế điểm thưởng tích lũy (Loyalty).
@@ -137,7 +137,7 @@ export const SystemConfigManager: React.FC = () => {
         <button
           type="button"
           onClick={fetchConfig}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-[#161616] text-[#D0D0D0] hover:text-white hover:border-[#FFC799] text-sm transition-colors self-start sm:self-auto"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-[#161616] text-[#D0D0D0] hover:text-white hover:border-[#FFC799] text-sm transition-colors self-start sm:self-auto shrink-0 whitespace-nowrap"
         >
           <RefreshCw size={16} />
           Tải lại dữ liệu
@@ -149,7 +149,7 @@ export const SystemConfigManager: React.FC = () => {
         <div className="bg-[#161616] border border-white/10 rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
             <Percent className="text-[#FFC799]" size={20} />
-            <h3 className="text-base font-bold text-white">1. Chính Sách Đặt Cọc Trực Tuyến (UC-114)</h3>
+            <h3 className="text-base font-bold text-white">1. Chính Sách Đặt Cọc Trực Tuyến</h3>
           </div>
 
           <div className="max-w-xl">
@@ -178,7 +178,7 @@ export const SystemConfigManager: React.FC = () => {
         <div className="bg-[#161616] border border-white/10 rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
             <RotateCcw className="text-[#FFC799]" size={20} />
-            <h3 className="text-base font-bold text-white">2. Chính Sách Hủy Đơn & Phí Trễ Giờ (UC-113)</h3>
+            <h3 className="text-base font-bold text-white">2. Chính Sách Hủy Đơn & Phí Trễ Giờ</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -250,7 +250,7 @@ export const SystemConfigManager: React.FC = () => {
         <div className="bg-[#161616] border border-white/10 rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2.5 border-b border-white/10 pb-3">
             <Award className="text-[#FFC799]" size={20} />
-            <h3 className="text-base font-bold text-white">3. Cơ Chế Điểm Thưởng Tích Lũy (Loyalty Rules UC-115)</h3>
+            <h3 className="text-base font-bold text-white">3. Cơ Chế Điểm Thưởng Tích Lũy (Loyalty)</h3>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

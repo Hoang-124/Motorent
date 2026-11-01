@@ -18,7 +18,7 @@ export const ManagerComplaintsPage: React.FC = () => {
               <span>TRUNG TÂM PHÊ CHUẨN • COMPLAINT RESOLUTION</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-[#F5F5F5] mt-1">
-              Quản lý &amp; Kết luận Khiếu nại (UC-65 / UC-85)
+              Quản lý &amp; Kết luận Khiếu nại
             </h1>
             <p className="text-xs text-[#A0A0A0] mt-1">
               Tiếp nhận khiếu nại mới, phản hồi khách hàng, phê duyệt kết luận cuối cùng và đóng hồ sơ vĩnh viễn.
@@ -45,7 +45,7 @@ export const ManagerComplaintsPage: React.FC = () => {
             }`}
           >
             <ShieldAlert className="w-3.5 h-3.5" />
-            <span>01. Tiếp nhận &amp; Kết luận (UC-85)</span>
+            <span>01. Tiếp nhận &amp; Kết luận</span>
             {pendingCount > 0 && (
               <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black">
                 {pendingCount}
@@ -63,7 +63,7 @@ export const ManagerComplaintsPage: React.FC = () => {
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
-            <span>02. Toàn bộ hàng đợi &amp; Lịch sử đóng (UC-65)</span>
+            <span>02. Toàn bộ hàng đợi &amp; Lịch sử đóng</span>
           </button>
         </div>
 

@@ -5,9 +5,9 @@ import { auditLogger } from '../../core/auditMiddleware';
 import * as controller from './fleetController';
 
 const router = Router();
-router.use(authenticateJWT, authorize('BranchManager', 'SystemAdmin'));
-router.get('/', controller.listTransfers);
-router.post('/', auditLogger('REQUEST_VEHICLE_TRANSFER', 'VehicleTransfer'), controller.requestTransfer);
-router.put('/:id/approve', auditLogger('APPROVE_VEHICLE_TRANSFER', 'VehicleTransfer'), controller.approveTransfer);
-router.put('/:id/reject', auditLogger('REJECT_VEHICLE_TRANSFER', 'VehicleTransfer'), controller.rejectTransfer);
+router.use(authenticateJWT);
+router.get('/', authorize('Staff', 'BranchManager', 'SystemAdmin'), controller.listTransfers);
+router.post('/', authorize('BranchManager', 'SystemAdmin'), auditLogger('REQUEST_VEHICLE_TRANSFER', 'VehicleTransfer'), controller.requestTransfer);
+router.put('/:id/approve', authorize('BranchManager', 'SystemAdmin'), auditLogger('APPROVE_VEHICLE_TRANSFER', 'VehicleTransfer'), controller.approveTransfer);
+router.put('/:id/reject', authorize('BranchManager', 'SystemAdmin'), auditLogger('REJECT_VEHICLE_TRANSFER', 'VehicleTransfer'), controller.rejectTransfer);
 export default router;

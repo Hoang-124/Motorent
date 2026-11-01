@@ -141,10 +141,10 @@ export const FinanceManager: React.FC = () => {
           ===================================================================== */}
       <div className="bg-[#161616] border border-white/10 rounded-2xl p-6 space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/[0.08]">
-          <div>
+          <div className="min-w-0">
             <div className="inline-flex items-center space-x-1.5 text-[11px] uppercase tracking-wider text-[#FFC799] font-semibold mb-1">
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Báo cáo Kế toán &amp; Thuế GTGT • UC-121</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+              <span>Báo cáo Kế toán &amp; Thuế GTGT</span>
             </div>
             <h2 className="text-lg font-bold text-[#F5F5F5]">
               Kết xuất Sổ cái Doanh thu &amp; Khấu trừ Thuế VAT (.xlsx)
@@ -158,16 +158,16 @@ export const FinanceManager: React.FC = () => {
             type="button"
             disabled={exporting}
             onClick={handleExportTaxExcel}
-            className="inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#ffe2cc] text-[#101010] text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#ffe2cc] text-[#101010] text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap self-start md:self-auto"
           >
             {exporting ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
                 <span>Đang tạo tệp Excel...</span>
               </>
             ) : (
               <>
-                <Download className="w-4 h-4" />
+                <Download className="w-4 h-4 shrink-0" />
                 <span>Tải Báo Cáo Thuế (.xlsx)</span>
               </>
             )}
@@ -243,7 +243,7 @@ export const FinanceManager: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-1.5 text-[11px] uppercase tracking-wider text-[#99FFE4] font-semibold mb-1">
               <Scale className="w-3.5 h-3.5" />
-              <span>Đối soát Giao dịch Thanh toán • UC-120</span>
+              <span>Đối soát Giao dịch Thanh toán</span>
             </div>
             <h2 className="text-lg font-bold text-[#F5F5F5]">
               Đối soát Sổ phụ Cổng VNPay, VietQR &amp; Thu hộ Tại quầy

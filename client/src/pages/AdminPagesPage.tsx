@@ -297,7 +297,7 @@ export const AdminPagesPage: React.FC = () => {
           <div className="space-y-1">
             <div className="flex items-center space-x-2 text-xs font-mono uppercase tracking-wider text-[#FFC799]">
               <Globe className="w-4 h-4" />
-              <span>CMS CONTENT HUB • UC-119</span>
+              <span>QUẢN TRỊ NỘI DUNG CMS</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#F5F5F5]">
               Quản Lý Trang Tĩnh &amp; Cẩm Nang Dịch Vụ
@@ -317,7 +317,7 @@ export const AdminPagesPage: React.FC = () => {
             </button>
             <button
               onClick={handleOpenCreate}
-              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold transition-all shadow-md hover:shadow-lg cursor-pointer"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold transition-all shadow-md hover:shadow-lg cursor-pointer shrink-0 whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
               <span>Thêm Trang Mới</span>

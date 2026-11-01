@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ShieldAlert } from 'lucide-react';
 
@@ -25,6 +25,15 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
   }
 
   if (!roles.includes(user.roles)) {
+    const fallbackHome =
+      user.roles === 'SystemAdmin'
+        ? '/admin'
+        : user.roles === 'BranchManager'
+        ? '/manager/dashboard'
+        : user.roles === 'Staff'
+        ? '/counter'
+        : '/';
+
     return (
       <div className="max-w-md mx-auto my-16 p-8 bg-[#161616] border border-[#FF8080]/30 rounded-3xl text-center shadow-2xl shadow-black/50">
         <div className="w-12 h-12 bg-[#FF8080]/12 text-[#FF8080] rounded-full flex items-center justify-center mx-auto mb-4 border border-[#FF8080]/30">
@@ -34,12 +43,13 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
         <p className="text-xs text-[#A0A0A0] mb-6">
           Chức năng này chỉ dành cho nhân sự thuộc vai trò: {roles.join(', ')}. Tài khoản của bạn hiện là: {user.roles}.
         </p>
-        <a
-          href="/"
-          className="inline-block px-5 py-2.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white rounded-xl text-xs font-bold transition-colors"
+        <Link
+          to={fallbackHome}
+          replace
+          className="inline-block px-5 py-2.5 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] rounded-xl text-xs font-bold transition-colors"
         >
-          Trở về Trang chủ
-        </a>
+          Về trang làm việc của bạn
+        </Link>
       </div>
     );
   }

@@ -6,12 +6,29 @@ import * as reviewService from '../review/reviewService';
 import { Review } from '../../models/Review';
 import { Feedback } from '../../models/Feedback';
 import { AppError } from '../../core/errorHandler';
+import { validateImageMagicBytes } from '../../core/uploadMiddleware';
 
 const createCategorySchema = z.object({
   name: z.string().trim().min(2, 'Tên danh mục phải có tối thiểu 2 ký tự'),
   slug: z.string().trim().min(2, 'Slug danh mục phải có tối thiểu 2 ký tự'),
   description: z.string().optional(),
 });
+
+const vehicleImageUrlSchema = z
+  .string()
+  .trim()
+  .refine(
+    (val) => {
+      if (val.startsWith('/uploads/')) return true;
+      try {
+        const parsed = new URL(val);
+        return ['http:', 'https:'].includes(parsed.protocol);
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Ảnh cần là một URL hợp lệ (http/https) hoặc tệp ảnh đã tải lên (/uploads/...)' }
+  );
 
 const createVehicleSchema = z.object({
   branchId: z.string().regex(/^[a-f\d]{24}$/i, 'ID chi nhánh không hợp lệ'),
@@ -27,12 +44,7 @@ const createVehicleSchema = z.object({
   color: z.string().trim().max(80).optional(),
   odometer: z.coerce.number().finite().nonnegative().optional(),
   images: z
-    .array(
-      z
-        .string()
-        .url('Ảnh cần là một URL hợp lệ')
-        .regex(/^https?:\/\//i, 'Chỉ chấp nhận URL ảnh http/https')
-    )
+    .array(vehicleImageUrlSchema)
     .max(10, 'Mỗi xe có tối đa 10 ảnh')
     .optional(),
 });
@@ -149,10 +161,13 @@ export const getVehicle = async (
 ): Promise<void> => {
   try {
     const vehicle = await vehicleService.getVehicleById(req.params.id);
-    const rating = await vehicleService.getVehicleRatingSummary(req.params.id);
+    const [rating, [enriched]] = await Promise.all([
+      vehicleService.getVehicleRatingSummary(req.params.id),
+      vehicleService.attachSeasonalPricing([vehicle.toObject()]),
+    ]);
     res.json({
       success: true,
-      data: { ...vehicle.toObject(), ...rating },
+      data: { ...enriched, ...rating },
     });
   } catch (error) {
     next(error);
@@ -395,6 +410,41 @@ export const updateVehicleStatus = async (
       success: true,
       message: `Cập nhật trạng thái xe thành "${vehicle.status}" thành công.`,
       data: vehicle,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const uploadVehicleImages = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const files = (req.files as Express.Multer.File[]) || [];
+    if (files.length === 0) {
+      throw new AppError(400, 'Vui lòng chọn ít nhất 1 tệp ảnh xe từ máy tính.');
+    }
+
+    const uploadedUrls: string[] = [];
+    for (const file of files) {
+      const valid = await validateImageMagicBytes(file.path);
+      if (!valid) {
+        throw new AppError(
+          400,
+          `Tệp "${file.originalname}" không đúng định dạng ảnh JPEG, PNG hoặc WebP.`
+        );
+      }
+      uploadedUrls.push(`/uploads/${file.filename}`);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: `Đã tải lên thành công ${uploadedUrls.length} ảnh xe.`,
+      data: {
+        urls: uploadedUrls,
+      },
     });
   } catch (error) {
     next(error);

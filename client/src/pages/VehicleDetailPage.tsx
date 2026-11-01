@@ -542,7 +542,12 @@ export const VehicleDetailPage: React.FC = () => {
                 <div className="rounded-2xl border border-white/5 bg-white/[0.035] p-4">
                   <p className="text-xs text-[#A0A0A0]">Thuê theo ngày</p>
                   <p className="mt-1 text-xl font-black text-white">
-                    {money(vehicle.dailyPrice)}
+                    {money(
+                      vehicle.effectiveDailyPrice ??
+                        (vehicle.activeSeasonalRule
+                          ? Math.round(vehicle.dailyPrice * vehicle.activeSeasonalRule.multiplier)
+                          : vehicle.dailyPrice)
+                    )}
                     <span className="ml-1 text-xs font-semibold text-[#A0A0A0]">/ngày</span>
                   </p>
                 </div>
@@ -550,7 +555,12 @@ export const VehicleDetailPage: React.FC = () => {
                   <div className="rounded-2xl border border-white/5 bg-white/[0.035] p-4">
                     <p className="text-xs text-[#A0A0A0]">Thuê theo giờ</p>
                     <p className="mt-1 text-xl font-black text-white">
-                      {money(vehicle.hourlyPrice)}
+                      {money(
+                        vehicle.effectiveHourlyPrice ??
+                          (vehicle.activeSeasonalRule
+                            ? Math.round(vehicle.hourlyPrice * vehicle.activeSeasonalRule.multiplier)
+                            : vehicle.hourlyPrice)
+                      )}
                       <span className="ml-1 text-xs font-semibold text-[#A0A0A0]">/giờ</span>
                     </p>
                   </div>

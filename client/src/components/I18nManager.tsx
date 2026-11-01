@@ -175,14 +175,14 @@ export const I18nManager: React.FC = () => {
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Top KPI & Live Language Studio Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="bg-[#161616] border border-white/10 rounded-2xl p-5 flex flex-col justify-between gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] uppercase tracking-wider text-[#A0A0A0] flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5 text-[#FFC799]" />
-              <span>Ngôn ngữ đang xem (Live)</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-[#A0A0A0] flex items-center gap-1.5 min-w-0">
+              <Globe className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+              <span className="truncate">Ngôn ngữ đang xem (Live)</span>
             </span>
-            <span className="px-2 py-0.5 rounded-full bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular text-[10px] font-bold uppercase">
+            <span className="px-2 py-0.5 rounded-full bg-[#FFC799]/15 text-[#FFC799] font-mono-tabular text-[10px] font-bold uppercase shrink-0">
               {locale}
             </span>
           </div>
@@ -190,7 +190,7 @@ export const I18nManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setLocale('vi')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
                 locale === 'vi'
                   ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
                   : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
@@ -201,7 +201,7 @@ export const I18nManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setLocale('en')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
                 locale === 'en'
                   ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
                   : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
@@ -213,17 +213,17 @@ export const I18nManager: React.FC = () => {
         </div>
 
         <div className="bg-[#161616] border border-white/10 rounded-2xl p-5 flex flex-col justify-between gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] uppercase tracking-wider text-[#A0A0A0] flex items-center gap-1.5">
-              <Languages className="w-3.5 h-3.5 text-[#FFC799]" />
-              <span>Ngôn ngữ mặc định hệ thống</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] uppercase tracking-wider text-[#A0A0A0] flex items-center gap-1.5 min-w-0">
+              <Languages className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
+              <span className="truncate">Ngôn ngữ mặc định hệ thống</span>
             </span>
           </div>
           <div className="flex items-center gap-2 pt-1">
             <button
               type="button"
               onClick={() => setDraftDefaultLocale('vi')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
                 draftDefaultLocale === 'vi'
                   ? 'bg-[#F5F5F5] text-[#101010] border-[#F5F5F5]'
                   : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
@@ -234,7 +234,7 @@ export const I18nManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setDraftDefaultLocale('en')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer border ${
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
                 draftDefaultLocale === 'en'
                   ? 'bg-[#F5F5F5] text-[#101010] border-[#F5F5F5]'
                   : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
@@ -327,7 +327,7 @@ export const I18nManager: React.FC = () => {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] disabled:opacity-50 text-[#101010] text-xs font-bold transition-all cursor-pointer shadow"
             >
               <Save className="w-3.5 h-3.5" />
-              <span>{saving ? 'Đang lưu…' : 'Lưu bộ từ điển (UC-122)'}</span>
+              <span>{saving ? 'Đang lưu…' : 'Lưu bộ từ điển'}</span>
             </button>
           </div>
         </div>

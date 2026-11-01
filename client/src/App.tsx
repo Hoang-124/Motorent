@@ -34,6 +34,7 @@ import { ManagerComplaintsPage } from './pages/ManagerComplaintsPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 import { ManagementNav } from './components/ManagementNav';
+import { ReportsCenter } from './components/ReportsCenter';
 
 const VehicleDetailPage = lazy(() =>
   import('./pages/VehicleDetailPage').then((module) => ({ default: module.VehicleDetailPage }))
@@ -59,9 +60,6 @@ const CounterDesk = lazy(() =>
 const BookingPage = lazy(() =>
   import('./pages/BookingPage').then((module) => ({ default: module.BookingPage }))
 );
-const ReportsCenter = lazy(() =>
-  import('./components/ReportsCenter').then((module) => ({ default: module.ReportsCenter }))
-);
 
 function RoleBasedHome() {
   const { user, isAuthenticated } = useAuth();
@@ -70,7 +68,18 @@ function RoleBasedHome() {
     user &&
     ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles)
   ) {
-    return <Navigate to="/counter" replace />;
+    return (
+      <Navigate
+        to={
+          user.roles === 'SystemAdmin'
+            ? '/admin'
+            : user.roles === 'BranchManager'
+            ? '/manager/dashboard'
+            : '/counter'
+        }
+        replace
+      />
+    );
   }
   return <HomePage />;
 }
@@ -225,7 +234,7 @@ export function App() {
                   <Route
                     path="/audit"
                     element={
-                      <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                      <RequireRole roles={['SystemAdmin']}>
                         <AuditLogPage />
                       </RequireRole>
                     }

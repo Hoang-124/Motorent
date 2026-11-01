@@ -244,7 +244,7 @@ export const StaffManager: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <Users className="text-[#FFC799]" size={26} />
-            Quản lý Nhân sự & Đội ngũ quầy (UC-81 - UC-83)
+            Quản lý Nhân sự & Đội ngũ quầy
           </h2>
           <p className="text-sm text-[#A0A0A0] mt-1">
             Thêm mới, cập nhật hồ sơ và quản lý trạng thái tài khoản nhân viên các trạm.
@@ -254,7 +254,7 @@ export const StaffManager: React.FC = () => {
         <button
           type="button"
           onClick={handleOpenAddModal}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10 shrink-0 whitespace-nowrap self-start sm:self-auto"
         >
           <UserPlus size={18} />
           Thêm nhân viên mới
@@ -493,7 +493,7 @@ export const StaffManager: React.FC = () => {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Users className="text-[#FFC799]" size={20} />
-                {editingStaff ? 'Cập nhật thông tin nhân viên (UC-82)' : 'Thêm tài khoản nhân viên mới (UC-81)'}
+                {editingStaff ? 'Cập nhật thông tin nhân viên' : 'Thêm tài khoản nhân viên mới'}
               </h3>
               <button
                 type="button"
