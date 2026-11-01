@@ -173,7 +173,48 @@ describe('UC-29 & UC-30: VNPay Payment Integration & IPN Webhook', () => {
     expect(updatedBooking?.vnpayTransactionNo).toBe('14889922');
   });
 
-  it('6. GET /api/payments/vnpay/ipn - Handles idempotency (RspCode 02 when already confirmed)', async () => {
+  it('6. Charges 30% of the extension fee after the original booking has been paid in full', async () => {
+    await Booking.findByIdAndUpdate(testBookingId, {
+      $set: {
+        totalAmount: 450000,
+        depositAmount: 345000,
+        remainingAmount: 150000,
+        paidAmount: 300000,
+        depositPaid: false,
+        isPaid: false,
+        status: 'Confirmed',
+        paymentType: 'Deposit30',
+      },
+    });
+
+    const createRes = await request(app)
+      .post('/api/payments/vnpay/create')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ bookingId: testBookingId, paymentType: 'Deposit30' });
+
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.data.amount).toBe(45000);
+
+    const topUpParams: Record<string, string> = {
+      vnp_TxnRef: `${testBookingCode}__TOPUP_${Date.now()}`,
+      vnp_Amount: String(45000 * 100),
+      vnp_ResponseCode: '00',
+      vnp_TransactionStatus: '00',
+      vnp_TransactionNo: '14889923',
+      vnp_BankCode: 'NCB',
+    };
+    topUpParams.vnp_SecureHash = sortAndSignParams(topUpParams, TEST_SECRET).secureHash;
+
+    const ipnRes = await request(app).get('/api/payments/vnpay/ipn').query(topUpParams);
+    expect(ipnRes.body.RspCode).toBe('00');
+
+    const updatedBooking = await Booking.findById(testBookingId);
+    expect(updatedBooking?.paidAmount).toBe(345000);
+    expect(updatedBooking?.depositPaid).toBe(true);
+    expect(updatedBooking?.remainingAmount).toBe(105000);
+  });
+
+  it('7. GET /api/payments/vnpay/ipn - Handles idempotency (RspCode 02 when already confirmed)', async () => {
     const validParams: Record<string, string> = {
       vnp_TxnRef: `${testBookingCode}__${Date.now()}`,
       vnp_Amount: String(depositAmount * 100),
@@ -194,7 +235,7 @@ describe('UC-29 & UC-30: VNPay Payment Integration & IPN Webhook', () => {
     expect(res.body.Message).toContain('Order already confirmed');
   });
 
-  it('7. GET /api/payments/vnpay/return - Verifies redirect params for frontend receipt', async () => {
+  it('8. GET /api/payments/vnpay/return - Verifies redirect params for frontend receipt', async () => {
     const returnParams: Record<string, string> = {
       vnp_TxnRef: testBookingCode,
       vnp_Amount: String(depositAmount * 100),

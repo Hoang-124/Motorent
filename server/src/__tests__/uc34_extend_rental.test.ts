@@ -9,6 +9,7 @@ import { Booking } from '../models/Booking';
 import { Vehicle } from '../models/Vehicle';
 import { Branch } from '../models/Branch';
 import { User } from '../models/User';
+import { SeasonalPricingRule } from '../models/SeasonalPricingRule';
 
 describe('UC-34: Extend Rental (FE/BE Extension Flow)', () => {
   let customerToken: string;
@@ -18,6 +19,7 @@ describe('UC-34: Extend Rental (FE/BE Extension Flow)', () => {
   let branchDAD: any;
   let activeBooking: any;
   let conflictingBooking: any;
+  let seasonalRuleId: string | undefined;
 
   beforeAll(async () => {
     await setupTestEnvironment();
@@ -82,6 +84,9 @@ describe('UC-34: Extend Rental (FE/BE Extension Flow)', () => {
     }
     if (conflictingBooking?._id) {
       await Booking.deleteOne({ _id: conflictingBooking._id });
+    }
+    if (seasonalRuleId) {
+      await SeasonalPricingRule.findByIdAndDelete(seasonalRuleId);
     }
   });
 
@@ -187,6 +192,17 @@ describe('UC-34: Extend Rental (FE/BE Extension Flow)', () => {
 
     const extendReturn = new Date(activeBooking.returnDateTime.getTime() + 24 * 3600 * 1000);
     extendReturn.setHours(17, 0, 0, 0);
+    const addedIntervalMidpoint = new Date((activeBooking.returnDateTime.getTime() + extendReturn.getTime()) / 2);
+    const seasonalDate = new Date(addedIntervalMidpoint.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+    const seasonalRule = await SeasonalPricingRule.create({
+      vehicleId: vehicleDoc._id,
+      branchId: branchDAD._id,
+      name: 'UC34 extension seasonal test',
+      startDate: seasonalDate,
+      endDate: seasonalDate,
+      multiplier: 1.5,
+    });
+    seasonalRuleId = seasonalRule._id.toString();
 
     const res = await request(app)
       .put(`/api/bookings/${activeBooking._id}/extend`)
@@ -204,6 +220,12 @@ describe('UC-34: Extend Rental (FE/BE Extension Flow)', () => {
     expect(updated.extensionCount).toBe(1);
     expect(updated.extensionSummary).toBeDefined();
     expect(updated.extensionSummary.addedAmount).toBeGreaterThan(0);
+    expect(updated.extensionSummary.addedSeasonalSurcharge).toBeGreaterThan(0);
+    expect(updated.extensionSummary.extensionDepositAmount).toBe(Math.round(updated.extensionSummary.addedAmount * 0.3));
+    expect(updated.extensionSummary.depositTopUpAmount).toBe(
+      Math.max(0, updated.depositAmount - activeBooking.paidAmount)
+    );
+    expect(updated.extensionSummary.depositTopUpAmount).toBe(updated.extensionSummary.extensionDepositAmount);
     expect(updated.totalAmount).toBe(activeBooking.totalAmount + updated.extensionSummary.addedAmount);
     expect(updated.remainingAmount).toBe(activeBooking.remainingAmount + updated.extensionSummary.addedAmount);
 
@@ -211,6 +233,8 @@ describe('UC-34: Extend Rental (FE/BE Extension Flow)', () => {
     const dbBooking = await Booking.findById(activeBooking._id);
     expect(dbBooking?.extensionCount).toBe(1);
     expect(dbBooking?.totalAmount).toBe(updated.totalAmount);
+    expect(dbBooking?.depositAmount).toBe(updated.depositAmount);
+    expect(dbBooking?.seasonalSurcharge).toBeGreaterThan(0);
     expect(dbBooking?.remainingAmount).toBe(updated.remainingAmount);
     expect(dbBooking?.originalReturnDateTime).toBeDefined();
   });

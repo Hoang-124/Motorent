@@ -1,6 +1,8 @@
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import mongoose from 'mongoose';
+import { registerUnicodePdfFonts } from '../../core/pdfFonts';
+import { effectivePaymentDate, paymentLedgerDateFilter } from '../../core/paymentLedger';
 import {
   Booking,
   Payment,
@@ -22,6 +24,23 @@ const formatDateVN = (d: Date): string => {
 
 const formatCurrencyVN = (amount: number): string => {
   return `${(amount || 0).toLocaleString('vi-VN')} đ`;
+};
+
+const paymentBelongsToBranch = (payment: any, branchId?: string): boolean => {
+  if (!branchId || !mongoose.isValidObjectId(branchId)) return true;
+  const booking = payment.bookingId;
+  const pickupBranchId = booking?.pickupBranchId?._id || booking?.pickupBranchId;
+  return String(pickupBranchId || '') === branchId;
+};
+
+const paymentDirection = (type: string): 'IN' | 'OUT' => (type === 'REFUND' ? 'OUT' : 'IN');
+
+const paymentTypeLabel = (type: string): string => {
+  if (type === 'DEPOSIT') return 'Cọc';
+  if (type === 'FULL') return 'Thanh toán đủ';
+  if (type === 'COUNTER') return 'Thu tại quầy';
+  if (type === 'REFUND') return 'Hoàn tiền';
+  return type;
 };
 
 /**
@@ -63,61 +82,24 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
     .populate('returnBranchId', 'name code')
     .sort({ createdAt: -1 });
 
-  // 2. Fetch Payments made today
-  const bookingIds = bookingsToday.map((b) => b._id);
-  const paymentQuery: Record<string, any> = {
-    createdAt: { $gte: startOfDay, $lte: endOfDay },
-    status: 'SUCCESS',
-  };
-  if (branchId && mongoose.isValidObjectId(branchId)) {
-    paymentQuery.bookingId = { $in: bookingIds };
-  }
-
-  const paymentsToday = await Payment.find(paymentQuery).populate('bookingId', 'bookingCode');
+  // The ledger date is the date the money entered or left the account, independent of booking dates.
+  const paymentsToday = (await Payment.find(paymentLedgerDateFilter(startOfDay, endOfDay))
+    .populate('bookingId', 'bookingCode pickupBranchId')
+    .sort({ createdAt: -1 }))
+    .filter((payment) => paymentBelongsToBranch(payment, branchId));
+  const successfulPayments = paymentsToday.filter((payment) => payment.status === 'SUCCESS');
 
   let onlineDepositRevenue = 0;
   let counterSettlementRevenue = 0;
   let refunds = 0;
 
-  for (const p of paymentsToday) {
+  for (const p of successfulPayments) {
     if (p.type === 'DEPOSIT' || p.type === 'FULL') {
       onlineDepositRevenue += p.amount;
     } else if (p.type === 'COUNTER') {
       counterSettlementRevenue += p.amount;
     } else if (p.type === 'REFUND') {
       refunds += p.amount;
-    }
-  }
-
-  // Defensive reconciliation: if a booking checked out today was marked isPaid/Completed
-  // before COUNTER Payment rows were recorded, include the unrecorded counter settlement.
-  const checkedOutTodayBookings = bookingsToday.filter(
-    (b) =>
-      b.status === 'Completed' &&
-      b.isPaid &&
-      b.checkoutAt &&
-      b.checkoutAt >= startOfDay &&
-      b.checkoutAt <= endOfDay
-  );
-  if (checkedOutTodayBookings.length > 0) {
-    const allInboundPayments = await Payment.find({
-      bookingId: { $in: checkedOutTodayBookings.map((b) => b._id) },
-      status: 'SUCCESS',
-      type: { $in: ['DEPOSIT', 'FULL', 'COUNTER'] },
-    }).select('bookingId amount');
-
-    const inboundByBooking = new Map<string, number>();
-    for (const p of allInboundPayments) {
-      const key = String(p.bookingId);
-      inboundByBooking.set(key, (inboundByBooking.get(key) || 0) + (p.amount || 0));
-    }
-
-    for (const b of checkedOutTodayBookings) {
-      const recordedInbound = inboundByBooking.get(String(b._id)) || 0;
-      const unrecordedSettlement = Math.max(0, Math.round((b.paidAmount || 0) - recordedInbound));
-      if (unrecordedSettlement > 0) {
-        counterSettlementRevenue += unrecordedSettlement;
-      }
     }
   }
 
@@ -143,7 +125,7 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
   }
 
   const grossRevenue = onlineDepositRevenue + counterSettlementRevenue;
-  const netRevenue = Math.max(0, grossRevenue - refunds);
+  const netRevenue = grossRevenue - refunds;
 
   let branchInfo = null;
   if (branchId && mongoose.isValidObjectId(branchId)) {
@@ -168,6 +150,19 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
       returnsCount,
       cancelledCount,
     },
+    transactions: paymentsToday.map((payment) => {
+      const booking = payment.bookingId as any;
+      return {
+        txnRef: payment.txnRef,
+        bookingCode: booking?.bookingCode || 'Không rõ đơn',
+        type: payment.type,
+        typeLabel: paymentTypeLabel(payment.type),
+        status: payment.status,
+        amount: payment.amount,
+        direction: paymentDirection(payment.type),
+        createdAt: effectivePaymentDate(payment),
+      };
+    }),
     paymentMethods: {
       vnpay: onlineDepositRevenue,
       counter: counterSettlementRevenue,
@@ -216,7 +211,7 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
     branchFilter.pickupBranchId = new mongoose.Types.ObjectId(branchId);
   }
 
-  // Fetch current month bookings
+  // Booking counts and category mix use booking creation dates. Cash flow uses ledger dates.
   const currentMonthBookings = await Booking.find({
     ...branchFilter,
     createdAt: { $gte: startOfMonth, $lte: endOfMonth },
@@ -230,14 +225,38 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
     status: { $nin: ['Cancelled', 'Rejected'] },
   });
 
-  // Calculate totals
-  const currentTotalRevenue = currentMonthBookings.reduce((sum, b) => sum + (b.totalAmount || 0) + (b.lateFee || 0) + (b.damageFee || 0), 0);
-  const prevTotalRevenue = prevMonthBookings.reduce((sum, b) => sum + (b.totalAmount || 0) + (b.lateFee || 0) + (b.damageFee || 0), 0);
+  const [currentPaymentsRaw, previousPaymentsRaw] = await Promise.all([
+    Payment.find(paymentLedgerDateFilter(startOfMonth, endOfMonth))
+      .populate('bookingId', 'bookingCode pickupBranchId')
+      .sort({ createdAt: -1 }),
+    Payment.find(paymentLedgerDateFilter(startOfPrevMonth, endOfPrevMonth))
+      .populate('bookingId', 'bookingCode pickupBranchId'),
+  ]);
+  const currentPayments = currentPaymentsRaw.filter((payment) => paymentBelongsToBranch(payment, branchId));
+  const previousPayments = previousPaymentsRaw.filter((payment) => paymentBelongsToBranch(payment, branchId));
+
+  const sumCashIn = (payments: typeof currentPayments): number =>
+    payments.reduce(
+      (sum, payment) =>
+        payment.status === 'SUCCESS' && payment.type !== 'REFUND' ? sum + Math.round(payment.amount || 0) : sum,
+      0
+    );
+  const sumCashOut = (payments: typeof currentPayments): number =>
+    payments.reduce(
+      (sum, payment) =>
+        payment.status === 'SUCCESS' && payment.type === 'REFUND' ? sum + Math.round(payment.amount || 0) : sum,
+      0
+    );
+
+  const currentCashIn = sumCashIn(currentPayments);
+  const currentRefunds = sumCashOut(currentPayments);
+  const currentNetRevenue = currentCashIn - currentRefunds;
+  const previousNetRevenue = sumCashIn(previousPayments) - sumCashOut(previousPayments);
 
   let growthPercent = 0;
-  if (prevTotalRevenue > 0) {
-    growthPercent = Math.round(((currentTotalRevenue - prevTotalRevenue) / prevTotalRevenue) * 100);
-  } else if (currentTotalRevenue > 0) {
+  if (previousNetRevenue > 0) {
+    growthPercent = Math.round(((currentNetRevenue - previousNetRevenue) / previousNetRevenue) * 100);
+  } else if (currentNetRevenue > 0) {
     growthPercent = 100;
   }
 
@@ -249,6 +268,8 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
       day,
       date: dStr,
       revenue: 0,
+      refunds: 0,
+      netRevenue: 0,
       bookingsCount: 0,
       deposits: 0,
       counterCash: 0,
@@ -259,13 +280,43 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
     const bDate = new Date(b.createdAt);
     const dayIndex = bDate.getDate() - 1;
     if (dayIndex >= 0 && dayIndex < daysInMonth) {
-      const rev = (b.totalAmount || 0) + (b.lateFee || 0) + (b.damageFee || 0);
-      dailyBreakdown[dayIndex].revenue += rev;
       dailyBreakdown[dayIndex].bookingsCount += 1;
-      dailyBreakdown[dayIndex].deposits += b.depositAmount || 0;
-      dailyBreakdown[dayIndex].counterCash += Math.max(0, rev - (b.depositAmount || 0));
     }
   }
+
+  const transactions = currentPayments.map((payment) => {
+    const booking = payment.bookingId as any;
+    return {
+      txnRef: payment.txnRef,
+      bookingCode: booking?.bookingCode || 'Không rõ đơn',
+      type: payment.type,
+      typeLabel: paymentTypeLabel(payment.type),
+      status: payment.status,
+      amount: payment.amount,
+      direction: paymentDirection(payment.type),
+      createdAt: effectivePaymentDate(payment),
+    };
+  });
+
+  for (const payment of currentPayments) {
+    if (payment.status !== 'SUCCESS') continue;
+    const dayIndex = effectivePaymentDate(payment).getDate() - 1;
+    const day = dailyBreakdown[dayIndex];
+    if (!day) continue;
+    const amount = Math.round(payment.amount || 0);
+    if (payment.type === 'REFUND') {
+      day.refunds += amount;
+    } else if (payment.type === 'DEPOSIT' || payment.type === 'FULL') {
+      day.deposits += amount;
+      day.revenue += amount;
+    } else if (payment.type === 'COUNTER') {
+      day.counterCash += amount;
+      day.revenue += amount;
+    }
+  }
+  dailyBreakdown.forEach((day) => {
+    day.netRevenue = day.revenue - day.refunds;
+  });
 
   // Category breakdown
   const categoryCounts: Record<string, { name: string; revenue: number; bookingsCount: number }> = {};
@@ -289,13 +340,17 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
     year,
     branch: branchInfo,
     summary: {
-      totalRevenue: currentTotalRevenue,
+      totalRevenue: currentNetRevenue,
+      grossRevenue: currentCashIn,
+      totalRefunds: currentRefunds,
+      netCashflow: currentNetRevenue,
       totalBookings: currentMonthBookings.length,
-      averageOrderValue: currentMonthBookings.length > 0 ? Math.round(currentTotalRevenue / currentMonthBookings.length) : 0,
-      previousMonthRevenue: prevTotalRevenue,
+      averageOrderValue: currentMonthBookings.length > 0 ? Math.round(currentNetRevenue / currentMonthBookings.length) : 0,
+      previousMonthRevenue: previousNetRevenue,
       growthPercent,
     },
     dailyBreakdown,
+    transactions,
     categoryBreakdown: Object.values(categoryCounts),
   };
 };
@@ -700,6 +755,47 @@ export const generateExcelReport = async (reportType: string, branchId?: string,
   workbook.creator = 'Motorent Vietnam';
   workbook.created = new Date();
 
+  const addTransactionSheet = (transactions: Array<{
+    txnRef: string;
+    bookingCode: string;
+    typeLabel: string;
+    status: string;
+    amount: number;
+    direction: 'IN' | 'OUT';
+    createdAt: Date;
+  }>) => {
+    const sheet = workbook.addWorksheet('Sổ giao dịch');
+    sheet.columns = [
+      { header: 'Thời gian', key: 'createdAt', width: 22 },
+      { header: 'Mã giao dịch', key: 'txnRef', width: 34 },
+      { header: 'Mã đơn', key: 'bookingCode', width: 22 },
+      { header: 'Loại giao dịch', key: 'typeLabel', width: 22 },
+      { header: 'Trạng thái', key: 'status', width: 16 },
+      { header: 'Hướng tiền', key: 'direction', width: 14 },
+      { header: 'Tiền vào (VND)', key: 'cashIn', width: 20, style: { numFmt: '#,##0' } },
+      { header: 'Tiền ra (VND)', key: 'cashOut', width: 20, style: { numFmt: '#,##0' } },
+    ];
+    sheet.getColumn('createdAt').numFmt = 'dd/mm/yyyy hh:mm';
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
+    for (const transaction of transactions) {
+      const isSuccessful = transaction.status === 'SUCCESS';
+      sheet.addRow({
+        createdAt: transaction.createdAt,
+        txnRef: transaction.txnRef,
+        bookingCode: transaction.bookingCode,
+        typeLabel: transaction.typeLabel,
+        status: transaction.status,
+        direction: transaction.direction === 'IN' ? 'Tiền vào' : 'Tiền ra',
+        cashIn: isSuccessful && transaction.direction === 'IN' ? transaction.amount : 0,
+        cashOut: isSuccessful && transaction.direction === 'OUT' ? transaction.amount : 0,
+      });
+    }
+    sheet.getColumn('createdAt').numFmt = 'dd/mm/yyyy hh:mm';
+    sheet.views = [{ state: 'frozen', ySplit: 1 }];
+  };
+
   if (reportType === 'daily') {
     const data = await getDailyRevenue(branchId, dateStr);
     const sheet = workbook.addWorksheet('Báo Cáo Doanh Thu Ngày');
@@ -741,6 +837,10 @@ export const generateExcelReport = async (reportType: string, branchId?: string,
       ]);
     }
 
+    sheet.getColumn(7).numFmt = '#,##0';
+    sheet.views = [{ state: 'frozen', ySplit: 10 }];
+    addTransactionSheet(data.transactions);
+
     // Auto-fit columns
     sheet.columns.forEach((col) => {
       let maxLen = 12;
@@ -756,7 +856,7 @@ export const generateExcelReport = async (reportType: string, branchId?: string,
     const data = await getMonthlyRevenue(branchId, monthParam, yearParam);
     const sheet = workbook.addWorksheet(`Doanh Thu T${data.month}-${data.year}`);
 
-    sheet.mergeCells('A1:F1');
+    sheet.mergeCells('A1:G1');
     const titleCell = sheet.getCell('A1');
     titleCell.value = `MOTORENT - BÁO CÁO DOANH THU THÁNG ${data.month}/${data.year}`;
     titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FFFFFFFF' } };
@@ -765,19 +865,32 @@ export const generateExcelReport = async (reportType: string, branchId?: string,
     sheet.getRow(1).height = 35;
 
     sheet.addRow(['Chi nhánh:', data.branch ? `${data.branch.name} (${data.branch.code})` : 'Toàn hệ thống']);
-    sheet.addRow(['Tổng doanh thu tháng:', data.summary.totalRevenue]);
+    sheet.addRow(['Tổng tiền vào thành công:', data.summary.grossRevenue]);
+    sheet.addRow(['Tổng tiền hoàn ra thành công:', data.summary.totalRefunds]);
+    sheet.addRow(['Dòng tiền thuần trong tháng:', data.summary.netCashflow]);
     sheet.addRow(['Tổng đơn đặt xe:', data.summary.totalBookings]);
     sheet.addRow(['Giá trị đơn trung bình (AOV):', data.summary.averageOrderValue]);
     sheet.addRow(['Tăng trưởng so với tháng trước:', `${data.summary.growthPercent}%`]);
     sheet.addRow([]);
 
-    const headerRow = sheet.addRow(['Ngày', 'Số Lượng Đơn', 'Cọc Online (VND)', 'Thu Tại Quầy (VND)', 'Tổng Doanh Thu (VND)']);
+    const headerRow = sheet.addRow([
+      'Ngày',
+      'Số Lượng Đơn',
+      'Cọc / Thanh toán online (VND)',
+      'Thu Tại Quầy (VND)',
+      'Tổng Tiền Vào (VND)',
+      'Hoàn Tiền Ra (VND)',
+      'Dòng Tiền Thuần (VND)',
+    ]);
     headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
     headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
 
     for (const d of data.dailyBreakdown) {
-      sheet.addRow([d.date, d.bookingsCount, d.deposits, d.counterCash, d.revenue]);
+      sheet.addRow([d.date, d.bookingsCount, d.deposits, d.counterCash, d.revenue, d.refunds, d.netRevenue]);
     }
+    for (const column of [3, 4, 5, 6, 7]) sheet.getColumn(column).numFmt = '#,##0';
+    sheet.views = [{ state: 'frozen', ySplit: 10 }];
+    addTransactionSheet(data.transactions);
 
     sheet.columns.forEach((col) => {
       let maxLen = 14;
@@ -788,6 +901,14 @@ export const generateExcelReport = async (reportType: string, branchId?: string,
       col.width = Math.min(maxLen + 3, 30);
     });
   }
+
+  workbook.eachSheet((sheet) => {
+    sheet.eachRow({ includeEmpty: true }, (row) => {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.font = { ...cell.font, name: 'Arial' };
+      });
+    });
+  });
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
@@ -805,49 +926,52 @@ export const generatePdfReport = async (reportType: string, branchId?: string, d
       doc.on('data', buffers.push.bind(buffers));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
 
+      const fonts = registerUnicodePdfFonts(doc);
+
       // Header Brand
       doc.rect(40, 40, 515, 60).fill('#1F2937');
-      doc.fillColor('#FFC799').font('Helvetica-Bold').fontSize(18).text('MOTORENT VIETNAM', 55, 52);
-      doc.fillColor('#9CA3AF').font('Helvetica').fontSize(9).text('HE THONG CHO THUE XE MAY SO 1 DA NANG - MOTORENT.VN', 55, 76);
+      doc.fillColor('#FFC799').font(fonts.bold).fontSize(18).text('MOTORENT VIETNAM', 55, 52);
+      doc.fillColor('#9CA3AF').font(fonts.regular).fontSize(9).text('Hệ thống cho thuê xe máy số 1 Đà Nẵng - MOTORENT.VN', 55, 76);
 
       let currentY = 120;
 
       if (reportType === 'daily') {
         const data = await getDailyRevenue(branchId, dateStr);
 
-        doc.fillColor('#111827').fontSize(14).text(`BAO CAO DOANH THU NGAY: ${data.dateFormatted}`, 40, currentY, { underline: true });
+        doc.fillColor('#111827').font(fonts.bold).fontSize(14).text(`BÁO CÁO DOANH THU NGÀY: ${data.dateFormatted}`, 40, currentY, { underline: true });
         currentY += 25;
 
-        doc.fontSize(10).fillColor('#374151');
-        doc.text(`Chi nhanh: ${data.branch ? `${data.branch.name} (${data.branch.code})` : 'Toan he thong'}`, 40, currentY);
+        doc.font(fonts.regular).fontSize(10).fillColor('#374151');
+        doc.text(`Chi nhánh: ${data.branch ? `${data.branch.name} (${data.branch.code})` : 'Toàn hệ thống'}`, 40, currentY);
         currentY += 15;
-        doc.text(`Thoi diem xuat bao cao: ${new Date().toLocaleString('vi-VN')}`, 40, currentY);
+        doc.text(`Thời điểm xuất báo cáo: ${new Date().toLocaleString('vi-VN')}`, 40, currentY);
         currentY += 25;
 
         // KPI Box
-        doc.rect(40, currentY, 515, 70).fillAndStroke('#F3F4F6', '#E5E7EB');
-        doc.fillColor('#111827').fontSize(11).text('TONG QUAN TAI CHINH', 55, currentY + 10);
-        doc.fontSize(9).fillColor('#4B5563');
-        doc.text(`Tong doanh thu thuan: ${formatCurrencyVN(data.metrics.netRevenue)}`, 55, currentY + 30);
-        doc.text(`Thu coc online VNPay: ${formatCurrencyVN(data.metrics.onlineDepositRevenue)}`, 55, currentY + 45);
-        doc.text(`Tat toan tai quay: ${formatCurrencyVN(data.metrics.counterSettlementRevenue)}`, 300, currentY + 30);
-        doc.text(`Tong so chuyen xe: ${data.metrics.totalBookings} don`, 300, currentY + 45);
+        doc.rect(40, currentY, 515, 88).fillAndStroke('#F3F4F6', '#E5E7EB');
+        doc.fillColor('#111827').font(fonts.bold).fontSize(11).text('TỔNG QUAN TÀI CHÍNH', 55, currentY + 10);
+        doc.font(fonts.regular).fontSize(9).fillColor('#4B5563');
+        doc.text(`Dòng tiền thuần: ${formatCurrencyVN(data.metrics.netRevenue)}`, 55, currentY + 30);
+        doc.text(`Tiền vào VNPay: ${formatCurrencyVN(data.metrics.onlineDepositRevenue)}`, 55, currentY + 45);
+        doc.text(`Tiền ra hoàn khách: ${formatCurrencyVN(data.metrics.refunds)}`, 55, currentY + 60);
+        doc.text(`Thu tại quầy: ${formatCurrencyVN(data.metrics.counterSettlementRevenue)}`, 300, currentY + 30);
+        doc.text(`Tổng đơn phát sinh: ${data.metrics.totalBookings}`, 300, currentY + 45);
 
-        currentY += 90;
+        currentY += 108;
 
         // Bookings table summary
-        doc.fillColor('#111827').fontSize(11).text('DANH SACH DON HANG PHAT SINH TRONG NGAY', 40, currentY);
+        doc.fillColor('#111827').font(fonts.bold).fontSize(11).text('DANH SÁCH ĐƠN PHÁT SINH TRONG NGÀY', 40, currentY);
         currentY += 20;
 
         // Table Header
         doc.rect(40, currentY, 515, 20).fill('#374151');
-        doc.fillColor('#FFFFFF').fontSize(8);
-        doc.text('Ma don', 45, currentY + 6);
-        doc.text('Khach hang', 120, currentY + 6);
-        doc.text('Xe may', 220, currentY + 6);
-        doc.text('Bien so', 320, currentY + 6);
-        doc.text('Phuong thuc', 400, currentY + 6);
-        doc.text('Tong tien', 480, currentY + 6);
+        doc.fillColor('#FFFFFF').font(fonts.bold).fontSize(8);
+        doc.text('Mã đơn', 45, currentY + 6);
+        doc.text('Khách hàng', 120, currentY + 6);
+        doc.text('Xe máy', 220, currentY + 6);
+        doc.text('Biển số', 320, currentY + 6);
+        doc.text('Phương thức', 400, currentY + 6);
+        doc.text('Tổng tiền', 480, currentY + 6);
 
         currentY += 20;
 
@@ -856,12 +980,12 @@ export const generatePdfReport = async (reportType: string, branchId?: string, d
           const b = data.bookings[i];
           const rowBg = i % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
           doc.rect(40, currentY, 515, 18).fill(rowBg);
-          doc.fillColor('#1F2937').fontSize(8);
+          doc.fillColor('#1F2937').font(fonts.regular).fontSize(8);
           doc.text(b.bookingCode, 45, currentY + 5);
           doc.text(b.customerName.slice(0, 15), 120, currentY + 5);
           doc.text(b.vehicleModel.slice(0, 16), 220, currentY + 5);
           doc.text(b.licensePlate, 320, currentY + 5);
-          doc.text(b.paymentMethod === 'Banking' ? 'VNPay' : 'Tien mat', 400, currentY + 5);
+          doc.text(b.paymentMethod === 'Banking' ? 'VNPay' : 'Tiền mặt', 400, currentY + 5);
           doc.text(formatCurrencyVN(b.totalAmount), 475, currentY + 5);
           currentY += 18;
         }
@@ -869,34 +993,36 @@ export const generatePdfReport = async (reportType: string, branchId?: string, d
       } else {
         const data = await getMonthlyRevenue(branchId, monthParam, yearParam);
 
-        doc.fillColor('#111827').fontSize(14).text(`BAO CAO DOANH THU THANG ${data.month}/${data.year}`, 40, currentY, { underline: true });
+        doc.fillColor('#111827').font(fonts.bold).fontSize(14).text(`BÁO CÁO DOANH THU THÁNG ${data.month}/${data.year}`, 40, currentY, { underline: true });
         currentY += 25;
 
-        doc.fontSize(10).fillColor('#374151');
-        doc.text(`Chi nhanh: ${data.branch ? `${data.branch.name} (${data.branch.code})` : 'Toan he thong'}`, 40, currentY);
+        doc.font(fonts.regular).fontSize(10).fillColor('#374151');
+        doc.text(`Chi nhánh: ${data.branch ? `${data.branch.name} (${data.branch.code})` : 'Toàn hệ thống'}`, 40, currentY);
         currentY += 15;
-        doc.text(`Thoi gian xuat file: ${new Date().toLocaleString('vi-VN')}`, 40, currentY);
+        doc.text(`Thời gian xuất tệp: ${new Date().toLocaleString('vi-VN')}`, 40, currentY);
         currentY += 25;
 
-        doc.rect(40, currentY, 515, 60).fillAndStroke('#F3F4F6', '#E5E7EB');
-        doc.fillColor('#111827').fontSize(11).text('KET QUA KINH DOANH THANG', 55, currentY + 10);
-        doc.fontSize(9).fillColor('#4B5563');
-        doc.text(`Tong doanh thu thang: ${formatCurrencyVN(data.summary.totalRevenue)}`, 55, currentY + 30);
-        doc.text(`Tong don thue hoan tat: ${data.summary.totalBookings} luot`, 55, currentY + 45);
-        doc.text(`Tang truong so voi thang truoc: ${data.summary.growthPercent}%`, 300, currentY + 30);
-        doc.text(`Gia tri don trung binh: ${formatCurrencyVN(data.summary.averageOrderValue)}`, 300, currentY + 45);
+        doc.rect(40, currentY, 515, 78).fillAndStroke('#F3F4F6', '#E5E7EB');
+        doc.fillColor('#111827').font(fonts.bold).fontSize(11).text('DÒNG TIỀN THÁNG', 55, currentY + 10);
+        doc.font(fonts.regular).fontSize(9).fillColor('#4B5563');
+        doc.text(`Tiền vào: ${formatCurrencyVN(data.summary.grossRevenue)}`, 55, currentY + 30);
+        doc.text(`Tiền hoàn ra: ${formatCurrencyVN(data.summary.totalRefunds)}`, 55, currentY + 45);
+        doc.text(`Thuần: ${formatCurrencyVN(data.summary.netCashflow)}`, 55, currentY + 60);
+        doc.text(`Số đơn đặt: ${data.summary.totalBookings}`, 300, currentY + 30);
+        doc.text(`Tăng trưởng thuần: ${data.summary.growthPercent}%`, 300, currentY + 45);
+        doc.text(`Giá trị đơn TB: ${formatCurrencyVN(data.summary.averageOrderValue)}`, 300, currentY + 60);
 
-        currentY += 85;
+        currentY += 103;
 
-        doc.fillColor('#111827').fontSize(11).text('BIEN DO DOANH THU THEO NGAY', 40, currentY);
+        doc.fillColor('#111827').font(fonts.bold).fontSize(11).text('DÒNG TIỀN THEO NGÀY', 40, currentY);
         currentY += 20;
 
         doc.rect(40, currentY, 515, 20).fill('#374151');
-        doc.fillColor('#FFFFFF').fontSize(8);
-        doc.text('Ngay', 55, currentY + 6);
-        doc.text('So luong don', 180, currentY + 6);
-        doc.text('Tien coc online', 300, currentY + 6);
-        doc.text('Doanh thu trong ngay', 420, currentY + 6);
+        doc.fillColor('#FFFFFF').font(fonts.bold).fontSize(8);
+        doc.text('Ngày', 55, currentY + 6);
+        doc.text('Số đơn', 180, currentY + 6);
+        doc.text('Tiền vào', 300, currentY + 6);
+        doc.text('Tiền hoàn', 420, currentY + 6);
 
         currentY += 20;
 
@@ -908,18 +1034,18 @@ export const generatePdfReport = async (reportType: string, branchId?: string, d
           const d = data.dailyBreakdown[i];
           const rowBg = i % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
           doc.rect(40, currentY, 515, 16).fill(rowBg);
-          doc.fillColor('#1F2937').fontSize(8);
+          doc.fillColor('#1F2937').font(fonts.regular).fontSize(8);
           doc.text(d.date, 55, currentY + 4);
-          doc.text(`${d.bookingsCount} don`, 180, currentY + 4);
-          doc.text(formatCurrencyVN(d.deposits), 300, currentY + 4);
-          doc.text(formatCurrencyVN(d.revenue), 420, currentY + 4);
+          doc.text(`${d.bookingsCount} đơn`, 180, currentY + 4);
+          doc.text(formatCurrencyVN(d.revenue), 300, currentY + 4);
+          doc.text(formatCurrencyVN(d.refunds), 420, currentY + 4);
           currentY += 16;
         }
       }
 
       // Footer
-      doc.fontSize(8).fillColor('#9CA3AF').text(
-        'Bao cao duoc tao tu dong boi he thong Motorent Enterprise. Moi thac mac vui long lien he phong Tai chinh - Ke toan.',
+      doc.font(fonts.regular).fontSize(8).fillColor('#9CA3AF').text(
+        'Báo cáo được tạo tự động bởi hệ thống Motorent Enterprise. Mọi thắc mắc vui lòng liên hệ phòng Tài chính - Kế toán.',
         40,
         780,
         { align: 'center', width: 515 }

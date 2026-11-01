@@ -1,9 +1,11 @@
 import PDFDocument from 'pdfkit';
-import fs from 'fs';
 import { Response } from 'express';
 import { Booking, IBooking } from '../../models/Booking';
+import { Payment } from '../../models/Payment';
 import { AppError } from '../../core/errorHandler';
 import { assertBranchAccess } from '../../core/permissions';
+import { registerUnicodePdfFonts } from '../../core/pdfFonts';
+import { effectivePaymentDate } from '../../core/paymentLedger';
 
 export const streamBookingInvoicePdf = async (
   bookingId: string,
@@ -19,6 +21,10 @@ export const streamBookingInvoicePdf = async (
   if (!booking) {
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
+
+  const paymentRows = (await Payment.find({ bookingId: booking._id })).sort(
+    (a, b) => effectivePaymentDate(a).getTime() - effectivePaymentDate(b).getTime()
+  );
 
   // Permission check
   if (requestingUser.roles === 'Customer') {
@@ -51,22 +57,9 @@ export const streamBookingInvoicePdf = async (
 
   doc.pipe(res);
 
-  // Register native Windows Arial font for UTF-8 Vietnamese rendering if available
-  const winArial = 'C:/Windows/Fonts/arial.ttf';
-  const winArialBold = 'C:/Windows/Fonts/arialbd.ttf';
-  const hasCustomFont = fs.existsSync(winArial);
-
-  if (hasCustomFont) {
-    doc.registerFont('CustomRegular', winArial);
-    if (fs.existsSync(winArialBold)) {
-      doc.registerFont('CustomBold', winArialBold);
-    } else {
-      doc.registerFont('CustomBold', winArial);
-    }
-  }
-
-  const primaryFont = hasCustomFont ? 'CustomRegular' : 'Helvetica';
-  const boldFont = hasCustomFont ? 'CustomBold' : 'Helvetica-Bold';
+  const fonts = registerUnicodePdfFonts(doc);
+  const primaryFont = fonts.regular;
+  const boldFont = fonts.bold;
 
   // --- Header & Branding ---
   doc.rect(40, 40, 515, 60).fill('#161616');
@@ -122,16 +115,34 @@ export const streamBookingInvoicePdf = async (
 
   // Table Rows
   let y = 360;
-  const days = Math.max(1, Math.ceil((new Date(booking.returnDateTime).getTime() - new Date(booking.pickupDateTime).getTime()) / (1000 * 3600 * 24)));
-  const dailyRate = (booking as unknown as { dailyPrice?: number }).dailyPrice || vehicleObj.dailyPrice || 0;
+  const baseRentalAmount = booking.baseRentalAmount ?? booking.totalAmount + (booking.discountAmount || 0);
+  const seasonalSurcharge = booking.seasonalSurcharge || 0;
 
   // Row 1: Tiền thuê xe
   doc.fillColor('#333333').font(primaryFont).fontSize(9);
-  doc.text(`Thuê xe ${vehicleObj.brand || ''} ${vehicleObj.vehicleModel || ''}`, 50, y);
-  doc.text(`${dailyRate.toLocaleString('vi-VN')} đ/ngày`, 280, y);
-  doc.text(`${days} ngày`, 380, y);
-  doc.text(`${(dailyRate * days).toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
+  doc.text(`Thuê xe ${vehicleObj.brand || ''} ${vehicleObj.vehicleModel || ''} (giá cơ bản)`, 50, y);
+  doc.text('-', 280, y);
+  doc.text('-', 380, y);
+  doc.text(`${baseRentalAmount.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
   y += 20;
+
+  if (seasonalSurcharge !== 0) {
+    doc.text(
+      seasonalSurcharge > 0 ? 'Phụ thu giá theo mùa (bao gồm gia hạn)' : 'Điều chỉnh giá theo mùa (bao gồm gia hạn)',
+      50,
+      y
+    );
+    doc.text('-', 280, y);
+    doc.text('-', 380, y);
+    doc.fillColor(seasonalSurcharge < 0 ? '#2E7D32' : '#333333').text(
+      `${seasonalSurcharge > 0 ? '+' : ''}${seasonalSurcharge.toLocaleString('vi-VN')} đ`,
+      460,
+      y,
+      { align: 'right', width: 85 }
+    );
+    doc.fillColor('#333333');
+    y += 20;
+  }
 
   // Row 2: Khuyến mãi (nếu có)
   if (booking.discountAmount && booking.discountAmount > 0) {
@@ -174,12 +185,17 @@ export const streamBookingInvoicePdf = async (
   y += 18;
 
   doc.font(primaryFont).fontSize(9);
-  doc.text('Đã thanh toán (Cọc 30% / Online):', 300, y);
-  doc.fillColor('#2E7D32').text(`${(booking.paidAmount || booking.depositAmount || 0).toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
+  doc.text('Mức cọc yêu cầu (gồm cọc gia hạn):', 300, y);
+  doc.fillColor('#333333').text(`${(booking.depositAmount || 0).toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
+  y += 16;
+
+  doc.text('Đã thanh toán:', 300, y);
+  const paidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
+  doc.fillColor('#2E7D32').text(`${paidAmount.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
   doc.fillColor('#333333');
   y += 16;
 
-  doc.text('Còn lại phải thanh toán tại quầy (70%):', 300, y);
+  doc.text('Còn lại phải thanh toán:', 300, y);
   doc.fillColor(booking.isPaid ? '#2E7D32' : '#C62828').text(`${(booking.remainingAmount || 0).toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
   doc.fillColor('#333333');
   y += 22;
@@ -205,6 +221,94 @@ export const streamBookingInvoicePdf = async (
   doc.rect(420, 740, 130, 40).strokeColor('#FF7A00').lineWidth(1).stroke();
   doc.fillColor('#FF7A00').font(boldFont).fontSize(8).text('MOTORENT E-INVOICE', 420, 748, { align: 'center', width: 130 });
   doc.fontSize(7).text('HỆ THỐNG XÁC THỰC', 420, 762, { align: 'center', width: 130 });
+
+  if (paymentRows.length > 0) {
+    doc.addPage();
+    doc.rect(40, 40, 515, 60).fill('#161616');
+    doc.fillColor('#FFC799').font(boldFont).fontSize(18).text('MOTORENT VIETNAM', 55, 52);
+    doc.fillColor('#A0A0A0').font(primaryFont).fontSize(9).text('SỔ GIAO DỊCH CỦA HỢP ĐỒNG', 55, 78);
+    doc.fillColor('#101010').font(boldFont).fontSize(14).text(`Mã hợp đồng: ${booking.bookingCode}`, 40, 120);
+
+    const cashIn = paymentRows.reduce(
+      (sum, payment) => sum + (payment.status === 'SUCCESS' && payment.type !== 'REFUND' ? payment.amount : 0),
+      0
+    );
+    const cashOut = paymentRows.reduce(
+      (sum, payment) => sum + (payment.status === 'SUCCESS' && payment.type === 'REFUND' ? payment.amount : 0),
+      0
+    );
+    const pendingRefund = paymentRows.reduce(
+      (sum, payment) => sum + (payment.status === 'PENDING' && payment.type === 'REFUND' ? payment.amount : 0),
+      0
+    );
+
+    let ledgerY = 155;
+    const drawLedgerHeader = () => {
+      doc.rect(40, ledgerY, 515, 24).fill('#374151');
+      doc.fillColor('#FFFFFF').font(boldFont).fontSize(8);
+      doc.text('Mã giao dịch', 46, ledgerY + 8, { width: 165 });
+      doc.text('Thời gian', 216, ledgerY + 8, { width: 88 });
+      doc.text('Loại / trạng thái', 308, ledgerY + 8, { width: 100 });
+      doc.text('Tiền vào', 414, ledgerY + 8, { width: 65, align: 'right' });
+      doc.text('Tiền ra', 483, ledgerY + 8, { width: 65, align: 'right' });
+      ledgerY += 24;
+    };
+
+    drawLedgerHeader();
+    for (let i = 0; i < paymentRows.length; i++) {
+      if (ledgerY > 735) {
+        doc.addPage();
+        ledgerY = 45;
+        drawLedgerHeader();
+      }
+      const payment = paymentRows[i];
+      const isSuccessful = payment.status === 'SUCCESS';
+      const rowFill = i % 2 === 0 ? '#FFFFFF' : '#F9FAFB';
+      doc.rect(40, ledgerY, 515, 22).fill(rowFill);
+      doc.fillColor('#1F2937').font(primaryFont).fontSize(7.5);
+      doc.text(payment.txnRef, 46, ledgerY + 7, { width: 165, ellipsis: true });
+      doc.text(effectivePaymentDate(payment).toLocaleString('vi-VN'), 216, ledgerY + 7, { width: 88 });
+      const typeLabel = payment.type === 'REFUND'
+        ? 'Hoàn tiền'
+        : payment.type === 'COUNTER'
+          ? 'Thu tại quầy'
+          : payment.type === 'DEPOSIT'
+            ? 'Tiền cọc'
+            : 'Thanh toán đủ';
+      doc.text(`${typeLabel} · ${payment.status}`, 308, ledgerY + 7, { width: 100 });
+      doc.text(
+        isSuccessful && payment.type !== 'REFUND' ? `${payment.amount.toLocaleString('vi-VN')} đ` : '—',
+        414,
+        ledgerY + 7,
+        { width: 65, align: 'right' }
+      );
+      doc.text(
+        isSuccessful && payment.type === 'REFUND' ? `${payment.amount.toLocaleString('vi-VN')} đ` : '—',
+        483,
+        ledgerY + 7,
+        { width: 65, align: 'right' }
+      );
+      ledgerY += 22;
+    }
+
+    ledgerY += 14;
+    if (ledgerY > 720) {
+      doc.addPage();
+      ledgerY = 50;
+    }
+    doc.strokeColor('#DDDDDD').moveTo(40, ledgerY).lineTo(555, ledgerY).stroke();
+    ledgerY += 14;
+    doc.fillColor('#1F2937').font(boldFont).fontSize(10);
+    doc.text(`Tổng tiền vào thành công: ${cashIn.toLocaleString('vi-VN')} đ`, 55, ledgerY);
+    ledgerY += 18;
+    doc.text(`Tổng hoàn tiền thành công: ${cashOut.toLocaleString('vi-VN')} đ`, 55, ledgerY);
+    ledgerY += 18;
+    doc.text(`Dòng tiền ròng: ${(cashIn - cashOut).toLocaleString('vi-VN')} đ`, 55, ledgerY);
+    if (pendingRefund > 0) {
+      ledgerY += 18;
+      doc.fillColor('#E65100').text(`Hoàn tiền đang chờ xử lý: ${pendingRefund.toLocaleString('vi-VN')} đ`, 55, ledgerY);
+    }
+  }
 
   doc.end();
 };

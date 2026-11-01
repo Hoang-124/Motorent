@@ -237,12 +237,26 @@ export async function createReview(params: CreateReviewParams): Promise<IReview>
       throw new AppError(check.statusCode || 400, check.message || 'Không thể đánh giá chuyến xe.');
     }
 
-    // 2. Check if review already exists for this booking (including soft-deleted)
+    // 2. Restore a previously deleted review or reject a second active review.
     const reviewQuery = Review.findOne({ bookingId });
     if (session) reviewQuery.session(session);
     const existing = await reviewQuery;
     if (existing) {
-      throw new AppError(409, 'Đơn đặt xe này đã được đánh giá trước đó.');
+      if (!existing.deletedAt) {
+        throw new AppError(409, 'Đơn đặt xe này đã được đánh giá trước đó.');
+      }
+      if (existing.userId.toString() !== userId.toString()) {
+        throw new AppError(404, 'Không tìm thấy đánh giá.');
+      }
+
+      existing.rating = rating;
+      existing.comment = trimmedComment;
+      existing.photos = photos;
+      existing.deletedAt = null;
+      if (session) await existing.save({ session });
+      else await existing.save();
+      await recalculateVehicleRating(existing.vehicleId, session);
+      return existing;
     }
 
     // 3. Extract vehicleId directly from the booking (never trust client)

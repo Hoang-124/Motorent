@@ -144,20 +144,17 @@ export const createPaymentUrl = async (
     throw new AppError(400, 'Đơn đặt xe này đã được thanh toán hoàn tất.');
   }
 
-  if (paymentType === 'Deposit30' && booking.depositPaid) {
-    throw new AppError(400, 'Đơn đặt xe này đã hoàn tất cọc 30%. Vui lòng tất toán tại quầy hoặc chọn thanh toán đầy đủ.');
-  }
-
-  // Calculate amount to pay: Deposit 30% vs Full 100%
+  // Initial bookings require 30%; each extension adds a separate 30% deposit on its added fee.
+  const currentPaidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
   const amountToPay =
     paymentType === 'Full100'
-      ? booking.depositPaid && booking.remainingAmount
-        ? booking.remainingAmount
-        : booking.totalAmount
-      : booking.depositAmount;
+      ? Math.max(0, booking.totalAmount - currentPaidAmount)
+      : Math.max(0, booking.depositAmount - currentPaidAmount);
 
   if (amountToPay <= 0) {
-    throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0 VNĐ.');
+    throw new AppError(400, paymentType === 'Full100'
+      ? 'Đơn đã thanh toán đủ.'
+      : 'Đơn đã đạt mức cọc yêu cầu hiện tại.');
   }
 
   const now = new Date();
@@ -264,12 +261,19 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
 
   // 2. Validate Amount
   const vnpAmount = Number(queryParams['vnp_Amount']);
-  const expectedAmount =
-    booking.paymentType === 'Full100'
-      ? booking.depositPaid && booking.remainingAmount
-        ? booking.remainingAmount
-        : booking.totalAmount
-      : booking.depositAmount;
+  const existingSuccessfulPayment = await Payment.findOne({ txnRef: String(txnRef), status: 'SUCCESS' });
+  if (existingSuccessfulPayment) {
+    return { RspCode: '02', Message: 'Order already confirmed' };
+  }
+
+  const currentPaidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
+  const expectedAmount = booking.paymentType === 'Full100'
+    ? Math.max(0, booking.totalAmount - currentPaidAmount)
+    : Math.max(0, booking.depositAmount - currentPaidAmount);
+
+  if (expectedAmount <= 0) {
+    return { RspCode: '02', Message: 'Order already confirmed' };
+  }
 
   if (isNaN(vnpAmount) || Math.round(expectedAmount * 100) !== vnpAmount) {
     return { RspCode: '04', Message: 'Invalid amount' };
@@ -296,10 +300,14 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
   if (booking.status === 'Cancelled') {
     if (responseCode === '00' && transactionStatus === '00') {
       await Booking.findByIdAndUpdate(booking._id, {
-        vnpayTransactionNo: String(vnpTransactionNo),
-        vnpayBankCode: String(vnpBankCode),
-        vnpayPayDate,
-        paidAmount: expectedAmount,
+        $set: {
+          vnpayTransactionNo: String(vnpTransactionNo),
+          vnpayBankCode: String(vnpBankCode),
+          vnpayPayDate,
+          paidAmount: currentPaidAmount + expectedAmount,
+          refundAmount: (booking.refundAmount || 0) + expectedAmount,
+          refundStatus: 'Pending',
+        },
       });
 
       // Record transaction row in Payment collection
@@ -332,28 +340,36 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
     return { RspCode: '00', Message: 'Confirm Success' };
   }
 
-  // 4. Idempotency Check: Already confirmed
-  if (booking.isPaid || booking.depositPaid || booking.status === 'Confirmed' || booking.status === 'Ongoing' || booking.status === 'Completed') {
+  // Completed bookings cannot receive another online payment.
+  if (booking.status === 'Completed') {
     return { RspCode: '02', Message: 'Order already confirmed' };
   }
 
   // 5. Check if transaction was successful on gateway
   if (responseCode === '00' && transactionStatus === '00') {
     const isFullPay = booking.paymentType === 'Full100';
+    const paidAmount = currentPaidAmount + expectedAmount;
     const updatePayload: Record<string, unknown> = {
       vnpayTransactionNo: String(vnpTransactionNo),
       vnpayBankCode: String(vnpBankCode),
       vnpayPayDate,
-      paidAmount: expectedAmount,
-      depositPaid: true,
-      isPaid: isFullPay,
-      status: 'Confirmed',
-      remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - expectedAmount),
+      paidAmount,
+      depositPaid: paidAmount >= booking.depositAmount,
+      isPaid: paidAmount >= booking.totalAmount,
+      status: booking.status === 'Pending' ? 'Confirmed' : booking.status,
+      remainingAmount: Math.max(0, booking.totalAmount - paidAmount),
     };
 
-    // Atomic compare-and-swap: transition if status is 'Pending' or 'Confirmed'
+    // Atomic compare-and-swap prevents duplicate IPNs from incrementing paidAmount twice.
     const updatedBooking = await Booking.findOneAndUpdate(
-      { _id: booking._id, status: { $in: ['Pending', 'Confirmed'] } },
+      {
+        _id: booking._id,
+        status: booking.status,
+        $or: [
+          { paidAmount: currentPaidAmount },
+          ...(booking.paidAmount == null ? [{ paidAmount: { $exists: false } }] : []),
+        ],
+      },
       { $set: updatePayload },
       { new: true }
     );
@@ -401,7 +417,7 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
     // Notify user
     await Notification.create({
       userId: booking.userId,
-      title: isFullPay ? 'Thanh toán 100% thành công qua VNPay' : 'Xác nhận cọc 30% thành công qua VNPay',
+      title: isFullPay ? 'Thanh toán 100% thành công qua VNPay' : 'Thanh toán cọc thành công qua VNPay',
       body: `Đơn thuê ${booking.bookingCode} đã nhận thanh toán số tiền ${expectedAmount.toLocaleString('vi-VN')} đ. Xe đã được khóa giữ cho bạn!`,
       type: 'BOOKING',
       relatedId: booking._id.toString(),
@@ -577,15 +593,19 @@ export const confirmVietQrPayment = async (options: {
   }
 
   const isFullPay = paymentType === 'Full100';
-  const paidAmount = isFullPay ? booking.totalAmount : booking.depositAmount;
+  const currentPaidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
+  const amountToPay = isFullPay
+    ? Math.max(0, booking.totalAmount - currentPaidAmount)
+    : Math.max(0, booking.depositAmount - currentPaidAmount);
+  const paidAmount = currentPaidAmount + amountToPay;
   const txnRef = `${booking.bookingCode}__VIETQR_${Date.now()}`;
 
   const updatePayload: Record<string, unknown> = {
     status: 'Confirmed',
-    depositPaid: true,
+    depositPaid: paidAmount >= booking.depositAmount,
     depositPaidAt: new Date(),
     paidAmount,
-    remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - paidAmount),
+    remainingAmount: Math.max(0, booking.totalAmount - paidAmount),
     paymentMethod: 'Banking',
     paymentType: isFullPay ? 'Full100' : 'Deposit30',
     vnpayTxnRef: txnRef,

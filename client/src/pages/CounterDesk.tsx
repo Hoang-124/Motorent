@@ -1125,6 +1125,15 @@ export const CounterDesk: React.FC = () => {
   const handleCheckinSubmit = async () => {
     if (!selectedBooking) return;
 
+    const earliestCheckinAt = new Date(selectedBooking.pickupDateTime).getTime() - 15 * 60 * 1000;
+    if (Date.now() < earliestCheckinAt) {
+      setStatusMessage({
+        type: 'error',
+        text: `Chỉ được Check-in từ 15 phút trước giờ nhận đã đặt (${new Date(earliestCheckinAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', dateStyle: 'short', timeStyle: 'short' })}).`,
+      });
+      return;
+    }
+
     if (checkinPhotos.filter(Boolean).length < 4) {
       setStatusMessage({
         type: 'error',

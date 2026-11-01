@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs';
 import { Booking, IBooking } from '../../models/Booking';
 import { Payment, IPayment } from '../../models/Payment';
 import { Branch } from '../../models/Branch';
+import { effectivePaymentDate, paymentLedgerDateFilter } from '../../core/paymentLedger';
 
 export interface ReconcileIssue {
   bookingId?: string;
@@ -27,6 +28,13 @@ export interface ReconcileResult {
     totalDiscrepancies: number;
     totalBookingsPaidAmountVND: number;
     totalPaymentsSuccessAmountVND: number;
+    totalRevenueRecorded: number;
+    totalRefundsRecorded: number;
+    netCashflow: number;
+    matchedCount: number;
+    discrepancyCount: number;
+    pendingRefundsAmountVND: number;
+    failedRefundsAmountVND: number;
   };
   issues: ReconcileIssue[];
   discrepancies: ReconcileIssue[];
@@ -38,18 +46,15 @@ export interface ReconcileResult {
  */
 export const reconcilePayments = async (from?: Date, to?: Date): Promise<ReconcileResult> => {
   const bookingFilter: Record<string, unknown> = {};
-  const paymentFilter: Record<string, unknown> = {};
+  const paymentFilter = paymentLedgerDateFilter(from, to);
 
   if (from || to) {
     bookingFilter.createdAt = {};
-    paymentFilter.createdAt = {};
     if (from) {
       (bookingFilter.createdAt as Record<string, unknown>).$gte = from;
-      (paymentFilter.createdAt as Record<string, unknown>).$gte = from;
     }
     if (to) {
       (bookingFilter.createdAt as Record<string, unknown>).$lte = to;
-      (paymentFilter.createdAt as Record<string, unknown>).$lte = to;
     }
   }
 
@@ -89,10 +94,19 @@ export const reconcilePayments = async (from?: Date, to?: Date): Promise<Reconci
 
   let totalBookingsPaidAmountVND = 0;
   let totalPaymentsSuccessAmountVND = 0;
+  let totalRefundsRecorded = 0;
+  let pendingRefundsAmountVND = 0;
+  let failedRefundsAmountVND = 0;
 
   for (const p of payments) {
-    if (p.status === 'SUCCESS' && p.type !== 'REFUND') {
+    if (p.status === 'SUCCESS' && p.type === 'REFUND') {
+      totalRefundsRecorded += Math.round(p.amount);
+    } else if (p.status === 'SUCCESS') {
       totalPaymentsSuccessAmountVND += Math.round(p.amount);
+    } else if (p.type === 'REFUND' && p.status === 'PENDING') {
+      pendingRefundsAmountVND += Math.round(p.amount);
+    } else if (p.type === 'REFUND' && p.status === 'FAILED') {
+      failedRefundsAmountVND += Math.round(p.amount);
     }
   }
 
@@ -156,6 +170,16 @@ export const reconcilePayments = async (from?: Date, to?: Date): Promise<Reconci
       totalDiscrepancies: issues.length,
       totalBookingsPaidAmountVND,
       totalPaymentsSuccessAmountVND,
+      totalRevenueRecorded: totalPaymentsSuccessAmountVND,
+      totalRefundsRecorded,
+      netCashflow: totalPaymentsSuccessAmountVND - totalRefundsRecorded,
+      matchedCount: Math.max(
+        0,
+        bookings.length - new Set(issues.filter((issue) => issue.bookingId).map((issue) => issue.bookingId)).size
+      ),
+      discrepancyCount: issues.length,
+      pendingRefundsAmountVND,
+      failedRefundsAmountVND,
     },
   };
 };
@@ -186,20 +210,22 @@ export const streamTaxReportExcel = async (
   }
 
   const branches = await Branch.find({ isActive: true });
-  const branchMap = new Map<string, string>();
-  branches.forEach((b) => branchMap.set(b._id.toString(), `${b.name} (${b.code})`));
-
-  // Find completed bookings in the period
   const completedBookings = await Booking.find({
     status: 'Completed',
     actualReturnDateTime: { $gte: startDate, $lte: endDate },
   });
 
+  const payments = await Payment.find(paymentLedgerDateFilter(startDate, endDate))
+    .populate('bookingId', 'bookingCode pickupBranchId')
+    .sort({ createdAt: 1 });
+
   // Calculate integer metrics per branch
   interface BranchMetric {
     name: string;
     completedTrips: number;
-    grossRevenue: number;
+    cashIn: number;
+    refunds: number;
+    netCollected: number;
     vatAmount: number;
     netRevenue: number;
   }
@@ -210,7 +236,9 @@ export const streamTaxReportExcel = async (
     metricsByBranch.set(b._id.toString(), {
       name: `${b.name} (${b.code})`,
       completedTrips: 0,
-      grossRevenue: 0,
+      cashIn: 0,
+      refunds: 0,
+      netCollected: 0,
       vatAmount: 0,
       netRevenue: 0,
     });
@@ -221,21 +249,41 @@ export const streamTaxReportExcel = async (
     const metric = metricsByBranch.get(bId) || {
       name: 'Chi nhánh khác',
       completedTrips: 0,
-      grossRevenue: 0,
+      cashIn: 0,
+      refunds: 0,
+      netCollected: 0,
+      vatAmount: 0,
+      netRevenue: 0,
+    };
+    metric.completedTrips += 1;
+    metricsByBranch.set(bId, metric);
+  }
+
+  for (const payment of payments) {
+    const booking = payment.bookingId as any;
+    const pickupBranch = booking?.pickupBranchId?._id || booking?.pickupBranchId;
+    const branchId = pickupBranch ? String(pickupBranch) : '';
+    const metric = metricsByBranch.get(branchId) || {
+      name: 'Chi nhánh khác',
+      completedTrips: 0,
+      cashIn: 0,
+      refunds: 0,
+      netCollected: 0,
       vatAmount: 0,
       netRevenue: 0,
     };
 
-    const gross = Math.round(booking.paidAmount || booking.totalAmount || 0);
-    const net = Math.round(gross / (1 + vatRate));
-    const vat = gross - net;
+    if (payment.status === 'SUCCESS') {
+      if (payment.type === 'REFUND') metric.refunds += Math.round(payment.amount || 0);
+      else metric.cashIn += Math.round(payment.amount || 0);
+    }
+    metricsByBranch.set(branchId, metric);
+  }
 
-    metric.completedTrips += 1;
-    metric.grossRevenue += gross;
-    metric.netRevenue += net;
-    metric.vatAmount += vat;
-
-    metricsByBranch.set(bId, metric);
+  for (const metric of metricsByBranch.values()) {
+    metric.netCollected = metric.cashIn - metric.refunds;
+    metric.netRevenue = Math.round(metric.netCollected / (1 + vatRate));
+    metric.vatAmount = metric.netCollected - metric.netRevenue;
   }
 
   // Set response headers for streaming XLSX file
@@ -254,34 +302,47 @@ export const streamTaxReportExcel = async (
   const worksheet = workbook.addWorksheet('Báo Cáo Thuế');
 
   worksheet.columns = [
-    { header: 'STT', key: 'stt', width: 8 },
-    { header: 'Chi Nhánh Hoạt Động', key: 'branch', width: 45 },
-    { header: 'Số Lượt Thuê Hoàn Tất', key: 'trips', width: 22 },
-    { header: 'Doanh Thu Trước Thuế (VNĐ)', key: 'net', width: 28 },
-    { header: `Thuế GTGT (${Math.round(vatRate * 100)}%) (VNĐ)`, key: 'vat', width: 24 },
-    { header: 'Tổng Doanh Thu Đã Thu (VNĐ)', key: 'gross', width: 28 },
+    { header: 'STT', key: 'stt', width: 8, style: { font: { name: 'Arial' } } },
+    { header: 'Chi Nhánh Hoạt Động', key: 'branch', width: 45, style: { font: { name: 'Arial' } } },
+    { header: 'Số Lượt Thuê Hoàn Tất', key: 'trips', width: 22, style: { font: { name: 'Arial' } } },
+    { header: 'Tiền Vào Thành Công (VNĐ)', key: 'cashIn', width: 28, style: { font: { name: 'Arial' }, numFmt: '#,##0' } },
+    { header: 'Hoàn Tiền Ra (VNĐ)', key: 'refunds', width: 24, style: { font: { name: 'Arial' }, numFmt: '#,##0' } },
+    { header: 'Thuần Sau Hoàn Tiền (VNĐ)', key: 'collected', width: 29, style: { font: { name: 'Arial' }, numFmt: '#,##0' } },
+    { header: 'Doanh Thu Trước Thuế (VNĐ)', key: 'net', width: 28, style: { font: { name: 'Arial' }, numFmt: '#,##0' } },
+    { header: `Thuế GTGT (${Math.round(vatRate * 100)}%) (VNĐ)`, key: 'vat', width: 24, style: { font: { name: 'Arial' }, numFmt: '#,##0' } },
   ];
+
+  const summaryRow = worksheet.getRow(1);
+  summaryRow.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' } };
+  summaryRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
+  summaryRow.commit();
 
   let stt = 1;
   let totalTrips = 0;
   let totalNet = 0;
   let totalVat = 0;
-  let totalGross = 0;
+  let totalCashIn = 0;
+  let totalRefunds = 0;
+  let totalCollected = 0;
 
   for (const item of metricsByBranch.values()) {
     worksheet.addRow({
       stt: stt++,
       branch: item.name,
       trips: item.completedTrips,
+      cashIn: item.cashIn,
+      refunds: item.refunds,
+      collected: item.netCollected,
       net: item.netRevenue,
       vat: item.vatAmount,
-      gross: item.grossRevenue,
     }).commit();
 
     totalTrips += item.completedTrips;
     totalNet += item.netRevenue;
     totalVat += item.vatAmount;
-    totalGross += item.grossRevenue;
+    totalCashIn += item.cashIn;
+    totalRefunds += item.refunds;
+    totalCollected += item.netCollected;
   }
 
   // Add summary total row
@@ -289,11 +350,47 @@ export const streamTaxReportExcel = async (
     stt: 'TỔNG CỘNG',
     branch: 'Toàn bộ hệ thống MOTORENT',
     trips: totalTrips,
+    cashIn: totalCashIn,
+    refunds: totalRefunds,
+    collected: totalCollected,
     net: totalNet,
     vat: totalVat,
-    gross: totalGross,
   }).commit();
 
   await worksheet.commit();
+
+  const transactionsSheet = workbook.addWorksheet('Sổ giao dịch');
+  transactionsSheet.columns = [
+    { header: 'Thời gian', key: 'createdAt', width: 22, style: { font: { name: 'Arial' }, numFmt: 'dd/mm/yyyy hh:mm' } },
+    { header: 'Mã giao dịch', key: 'txnRef', width: 36, style: { font: { name: 'Arial' } } },
+    { header: 'Mã đơn', key: 'bookingCode', width: 22, style: { font: { name: 'Arial' } } },
+    { header: 'Chi nhánh', key: 'branch', width: 45, style: { font: { name: 'Arial' } } },
+    { header: 'Loại giao dịch', key: 'type', width: 22, style: { font: { name: 'Arial' } } },
+    { header: 'Trạng thái', key: 'status', width: 16, style: { font: { name: 'Arial' } } },
+    { header: 'Tiền vào (VNĐ)', key: 'cashIn', width: 20, style: { font: { name: 'Arial' }, numFmt: '#,##0' } },
+    { header: 'Tiền ra (VNĐ)', key: 'cashOut', width: 20, style: { font: { name: 'Arial' }, numFmt: '#,##0' } },
+  ];
+  const transactionHeader = transactionsSheet.getRow(1);
+  transactionHeader.font = { name: 'Arial', bold: true, color: { argb: 'FFFFFFFF' } };
+  transactionHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF374151' } };
+  transactionHeader.commit();
+  const branchNameById = new Map(branches.map((branch) => [branch._id.toString(), `${branch.name} (${branch.code})`]));
+  for (const payment of payments) {
+    const booking = payment.bookingId as any;
+    const pickupBranch = booking?.pickupBranchId?._id || booking?.pickupBranchId;
+    const branchId = pickupBranch ? String(pickupBranch) : '';
+    const isSuccessful = payment.status === 'SUCCESS';
+    transactionsSheet.addRow({
+      createdAt: effectivePaymentDate(payment),
+      txnRef: payment.txnRef,
+      bookingCode: booking?.bookingCode || 'Không rõ đơn',
+      branch: branchNameById.get(branchId) || 'Chi nhánh khác',
+      type: payment.type === 'REFUND' ? 'Hoàn tiền' : payment.type === 'COUNTER' ? 'Thu tại quầy' : payment.type === 'DEPOSIT' ? 'Cọc' : 'Thanh toán đủ',
+      status: payment.status,
+      cashIn: isSuccessful && payment.type !== 'REFUND' ? payment.amount : 0,
+      cashOut: isSuccessful && payment.type === 'REFUND' ? payment.amount : 0,
+    }).commit();
+  }
+  await transactionsSheet.commit();
   await workbook.commit();
 };

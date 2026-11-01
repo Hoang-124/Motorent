@@ -98,8 +98,8 @@ describe('UC-56: Vehicle Handover (Check-in 5-Point Verification)', () => {
       vehicleId: vehicle._id,
       pickupBranchId: branchDAD._id,
       returnBranchId: branchDAD._id,
-      pickupDateTime: new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0),
-      returnDateTime: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 18, 0, 0),
+      pickupDateTime: new Date(now.getTime() - 60 * 1000),
+      returnDateTime: new Date(now.getTime() + 48 * 60 * 60 * 1000),
       totalAmount: 450000,
       depositAmount: 135000,
       remainingAmount: 315000,
@@ -169,6 +169,38 @@ describe('UC-56: Vehicle Handover (Check-in 5-Point Verification)', () => {
     expect(res.body.message).toContain('Không thể thực hiện Check-in');
   });
 
+  it('TC-56-03A: Should reject check-in more than 15 minutes before the booked pickup time', async () => {
+    const pickupDateTime = new Date(Date.now() + 60 * 60 * 1000);
+    const earlyBooking = await Booking.create({
+      bookingCode: `MV-56EARLY${Date.now().toString().slice(-4)}`,
+      userId: customerId,
+      vehicleId,
+      pickupBranchId: branchDADId,
+      returnBranchId: branchDADId,
+      pickupDateTime,
+      returnDateTime: new Date(pickupDateTime.getTime() + 48 * 60 * 60 * 1000),
+      totalAmount: 300000,
+      depositAmount: 90000,
+      remainingAmount: 210000,
+      paidAmount: 90000,
+      depositPaid: true,
+      status: 'Confirmed',
+    });
+
+    const res = await request(app)
+      .put(`/api/bookings/${earlyBooking._id}/checkin`)
+      .set('Authorization', `Bearer ${staffTokenDAD}`)
+      .send({
+        startOdometer: 3500,
+        startFuelLevel: '100%',
+        checkinImages: validFourPhotos,
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('15');
+    expect((await Booking.findById(earlyBooking._id))?.status).toBe('Confirmed');
+  });
+
   it('TC-56-04: Should reject staff from different branch (cross-branch checkin) with 403', async () => {
     const res = await request(app)
       .put(`/api/bookings/${confirmedBookingId}/checkin`)
@@ -190,7 +222,7 @@ describe('UC-56: Vehicle Handover (Check-in 5-Point Verification)', () => {
       vehicleId,
       pickupBranchId: branchDADId,
       returnBranchId: branchDADId,
-      pickupDateTime: new Date(now.getTime() + 3600000),
+      pickupDateTime: new Date(now.getTime() - 60 * 1000),
       returnDateTime: new Date(now.getTime() + 86400000),
       totalAmount: 300000,
       depositAmount: 90000,
@@ -307,7 +339,7 @@ describe('UC-56: Vehicle Handover (Check-in 5-Point Verification)', () => {
       vehicleId: secondVehicle!._id,
       pickupBranchId: branchDADId,
       returnBranchId: branchDADId,
-      pickupDateTime: new Date(now.getTime() + 7200000),
+      pickupDateTime: new Date(now.getTime() - 60 * 1000),
       returnDateTime: new Date(now.getTime() + 172800000),
       totalAmount: 500000,
       depositAmount: 150000,

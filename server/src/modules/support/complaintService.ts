@@ -7,9 +7,10 @@ import {
   ComplaintStatus,
 } from '../../models/Complaint';
 import { Booking } from '../../models/Booking';
-import { User, IUser } from '../../models/User';
+import { IUser } from '../../models/User';
 import { Notification } from '../../models/Notification';
 import { AppError } from '../../core/errorHandler';
+import { notifyBranchOperations } from '../../core/notificationDispatch';
 import {
   canTransition,
   getAllowedTransitions,
@@ -420,32 +421,14 @@ const notifyNewComplaint = async (
       data: { complaintId: String(complaint._id), code: complaint.code },
     });
 
-    const recipientFilter: Record<string, unknown> = complaint.branchId
-      ? {
-          isActive: true,
-          $or: [
-            { roles: 'SystemAdmin' },
-            { roles: { $in: ['BranchManager', 'Staff'] }, branchId: complaint.branchId },
-          ],
-        }
-      : {
-          isActive: true,
-          roles: { $in: ['SystemAdmin', 'BranchManager', 'Staff'] },
-        };
-
-    const staffRecipients = await User.find(recipientFilter).select('_id').lean();
-    await Promise.all(
-      staffRecipients.map((recipient) =>
-        Notification.create({
-          userId: recipient._id,
-          title: `Khiếu nại mới ${complaint.code} cần xử lý`,
-          body: `Khách hàng vừa gửi khiếu nại [${complaint.category}] cho đơn ${bookingLabel}: "${complaint.title || complaint.description.slice(0, 60)}"`,
-          type: 'SYSTEM',
-          relatedId: String(complaint._id),
-          data: { complaintId: String(complaint._id), code: complaint.code },
-        })
-      )
-    );
+    await notifyBranchOperations({
+      branchIds: [complaint.branchId || booking.pickupBranchId],
+      title: `Khiếu nại mới ${complaint.code} cần xử lý`,
+      body: `Khách hàng vừa gửi khiếu nại [${complaint.category}] cho đơn ${bookingLabel}: "${complaint.title || complaint.description.slice(0, 60)}"`,
+      type: 'SYSTEM',
+      relatedId: String(complaint._id),
+      data: { complaintId: String(complaint._id), code: complaint.code },
+    });
   } catch {
     // Non-blocking notification dispatch
   }
