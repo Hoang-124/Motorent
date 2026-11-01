@@ -14,7 +14,7 @@ export const ManagerComplaintsPage: React.FC = () => {
               <span>TRUNG TÂM PHÊ CHUẨN • COMPLAINT RESOLUTION</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-[#F5F5F5] mt-1">
-              Kết luận &amp; Đóng khiếu nại (UC-85)
+              Kết luận &amp; Đóng khiếu nại
             </h1>
             <p className="text-xs text-[#A0A0A0] mt-1">
               Phê duyệt kết luận giải quyết cuối cùng và đóng hồ sơ khiếu nại vĩnh viễn (chống race condition).

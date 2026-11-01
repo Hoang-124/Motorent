@@ -527,8 +527,8 @@ export const AdminBannersPage: React.FC = () => {
           <div className="flex items-center space-x-2 text-xs uppercase tracking-wider text-[#FFC799] font-medium mb-1.5">
             <SlidersHorizontal className="w-4 h-4" />
             <span>CMS Quản trị Hệ Thống</span>
-            <span className="text-white/30">•</span>
-            <span>UC-116, UC-117 &amp; UC-118</span>
+
+
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center space-x-3">
             <span>Quản Lý Banner Trang Chủ</span>
@@ -955,7 +955,7 @@ export const AdminBannersPage: React.FC = () => {
                   <Edit3 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Chỉnh Sửa Banner (UC-117)</h3>
+                  <h3 className="text-lg font-bold text-white">Chỉnh Sửa Banner</h3>
                   <p className="text-xs text-[#A0A0A0]">
                     Mã banner: <span className="font-mono text-[#FFC799]">{editingBanner._id || editingBanner.id}</span>
                   </p>
@@ -1387,7 +1387,7 @@ export const AdminBannersPage: React.FC = () => {
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-lg font-bold text-white">Xác nhận xóa banner (UC-118)</h3>
+                <h3 className="text-lg font-bold text-white">Xác nhận xóa banner</h3>
                 <p className="text-xs text-[#A0A0A0]">
                   Thao tác này sẽ gỡ bỏ banner khỏi giao diện trang chủ theo chính sách xóa mềm (soft delete).
                 </p>

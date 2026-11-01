@@ -655,7 +655,7 @@ export const AdminCenter: React.FC = () => {
               }`}
             >
               <UserPlus className="w-3.5 h-3.5" />
-              <span>Nhân sự (UC-81-83)</span>
+              <span>Nhân sự</span>
             </button>
 
             <button
@@ -668,7 +668,7 @@ export const AdminCenter: React.FC = () => {
               }`}
             >
               <Calendar className="w-3.5 h-3.5" />
-              <span>Phân ca & Chấm công (UC-84)</span>
+              <span>Phân ca & Chấm công</span>
             </button>
 
             <button
@@ -681,7 +681,7 @@ export const AdminCenter: React.FC = () => {
               }`}
             >
               <Tag className="w-3.5 h-3.5" />
-              <span>Khuyến mãi (UC-110-112)</span>
+              <span>Khuyến mãi</span>
             </button>
 
             <button
@@ -694,7 +694,7 @@ export const AdminCenter: React.FC = () => {
               }`}
             >
               <Settings className="w-3.5 h-3.5" />
-              <span>Chính sách & Cấu hình (UC-113-115)</span>
+              <span>Chính sách & Cấu hình</span>
             </button>
 
             <button
@@ -707,7 +707,7 @@ export const AdminCenter: React.FC = () => {
               }`}
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Đối soát & Thuế (UC-120-121)</span>
+              <span>Đối soát & Thuế</span>
             </button>
 
             <button

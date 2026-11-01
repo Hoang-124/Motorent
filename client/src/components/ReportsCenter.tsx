@@ -343,7 +343,7 @@ export const ReportsCenter: React.FC = () => {
               disabled={exporting}
               onClick={() => handleExport('excel')}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50 cursor-pointer"
-              title="Xuất bảng tính Excel (UC-89)"
+              title="Xuất bảng tính Excel"
             >
               <FileSpreadsheet size={14} />
               <span className="hidden sm:inline">Xuất Excel</span>
@@ -354,7 +354,7 @@ export const ReportsCenter: React.FC = () => {
               disabled={exporting}
               onClick={() => handleExport('pdf')}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors disabled:opacity-50 cursor-pointer"
-              title="Xuất file in PDF có logo Motorent (UC-89)"
+              title="Xuất file in PDF có logo Motorent"
             >
               <FileText size={14} />
               <span className="hidden sm:inline">Xuất PDF</span>
@@ -375,7 +375,7 @@ export const ReportsCenter: React.FC = () => {
           }`}
         >
           <Clock size={15} />
-          <span>Doanh thu ngày (UC-86)</span>
+          <span>Doanh thu ngày</span>
         </button>
 
         <button
@@ -388,7 +388,7 @@ export const ReportsCenter: React.FC = () => {
           }`}
         >
           <Calendar size={15} />
-          <span>Doanh thu tháng (UC-87-88)</span>
+          <span>Doanh thu tháng</span>
         </button>
 
         <button
@@ -401,7 +401,7 @@ export const ReportsCenter: React.FC = () => {
           }`}
         >
           <Bike size={15} />
-          <span>Hiệu suất đội xe (UC-90-92)</span>
+          <span>Hiệu suất đội xe</span>
         </button>
 
         {isAdmin && (
@@ -415,7 +415,7 @@ export const ReportsCenter: React.FC = () => {
             }`}
           >
             <Building2 size={15} />
-            <span>Doanh thu chuỗi & So sánh (UC-103-104)</span>
+            <span>Doanh thu chuỗi & So sánh</span>
           </button>
         )}
 
@@ -429,7 +429,7 @@ export const ReportsCenter: React.FC = () => {
           }`}
         >
           <Layers size={15} />
-          <span>KPI Executive Dashboard (UC-105)</span>
+          <span>KPI Executive Dashboard</span>
         </button>
 
         <button
@@ -442,7 +442,7 @@ export const ReportsCenter: React.FC = () => {
           }`}
         >
           <Sparkles size={15} />
-          <span>Dự báo nhu cầu xe (UC-106)</span>
+          <span>Dự báo nhu cầu xe</span>
         </button>
       </div>
 
@@ -1086,7 +1086,7 @@ export const ReportsCenter: React.FC = () => {
               {/* Side-by-side Branch Comparison Table (UC-104) */}
               <div className="bg-[#161616] border border-white/10 rounded-2xl overflow-hidden">
                 <div className="p-4 border-b border-white/10">
-                  <h3 className="text-xs sm:text-sm font-bold text-white">So sánh hiệu suất các chi nhánh (UC-104)</h3>
+                  <h3 className="text-xs sm:text-sm font-bold text-white">So sánh hiệu suất các chi nhánh</h3>
                 </div>
                 <div className="overflow-x-auto scrollbar-thin">
                   <table className="w-full text-left text-xs min-w-[700px]">

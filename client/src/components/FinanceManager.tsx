@@ -144,7 +144,7 @@ export const FinanceManager: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-1.5 text-[11px] uppercase tracking-wider text-[#FFC799] font-semibold mb-1">
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Báo cáo Kế toán &amp; Thuế GTGT • UC-121</span>
+              <span>Báo cáo Kế toán &amp; Thuế GTGT</span>
             </div>
             <h2 className="text-lg font-bold text-[#F5F5F5]">
               Kết xuất Sổ cái Doanh thu &amp; Khấu trừ Thuế VAT (.xlsx)
@@ -243,7 +243,7 @@ export const FinanceManager: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-1.5 text-[11px] uppercase tracking-wider text-[#99FFE4] font-semibold mb-1">
               <Scale className="w-3.5 h-3.5" />
-              <span>Đối soát Giao dịch Thanh toán • UC-120</span>
+              <span>Đối soát Giao dịch Thanh toán</span>
             </div>
             <h2 className="text-lg font-bold text-[#F5F5F5]">
               Đối soát Sổ phụ Cổng VNPay, VietQR &amp; Thu hộ Tại quầy

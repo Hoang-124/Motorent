@@ -576,7 +576,7 @@ export const Navbar: React.FC = () => {
               <Link
                 to="/wishlist"
                 className="relative w-9 h-9 rounded-full border border-white/12 bg-[#161616] flex items-center justify-center text-[#F5F5F5] hover:border-[#FFC799]/60 hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
-                title="Danh sách xe yêu thích (UC-25, UC-26)"
+                title="Danh sách xe yêu thích"
                 aria-label="Xe yêu thích"
               >
                 <Heart className="w-4 h-4 text-[#FFC799]" />
@@ -600,8 +600,8 @@ export const Navbar: React.FC = () => {
                 }`}
                 title={
                   isStaffOrAdmin
-                    ? 'Hộp thư Chat Khách hàng tại Chi nhánh (UC-66)'
-                    : 'Trò chuyện trực tuyến với Chi nhánh (UC-44)'
+                    ? 'Hộp thư Chat Khách hàng tại Chi nhánh'
+                    : 'Trò chuyện trực tuyến với Chi nhánh'
                 }
               >
                 <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${chatIsOpen ? 'text-[#101010]' : 'text-[#FFC799]'}`} />
@@ -828,7 +828,7 @@ export const Navbar: React.FC = () => {
                             className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
                           >
                             <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Quản lý Banner (UC-116)</span>
+                            <span>Quản lý Banner</span>
                           </Link>
                         )}
                         {user.roles === 'SystemAdmin' && (
@@ -838,7 +838,7 @@ export const Navbar: React.FC = () => {
                             className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-white hover:bg-white/5"
                           >
                             <FileText className="w-3.5 h-3.5 text-[#FFC799]" />
-                            <span>Quản lý Trang tĩnh (UC-119)</span>
+                            <span>Quản lý Trang tĩnh</span>
                           </Link>
                         )}
                         {['SystemAdmin', 'BranchManager'].includes(user.roles) && (
@@ -882,7 +882,7 @@ export const Navbar: React.FC = () => {
                         >
                           <div className="flex items-center space-x-2.5">
                             <MessageSquare className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span>Tổng đài Live Chat (UC-66)</span>
+                            <span>Tổng đài Live Chat</span>
                           </div>
                           {chatUnread > 0 && (
                             <span className="px-1.5 py-0.5 rounded bg-[#FF8080] text-[#101010] font-mono text-[10px] font-bold">
@@ -896,7 +896,7 @@ export const Navbar: React.FC = () => {
                           className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
                         >
                           <AlertCircle className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>{user?.roles === 'Staff' ? 'Xử lý Khiếu nại (UC-65)' : 'Kết luận Khiếu nại (UC-85)'}</span>
+                          <span>{user?.roles === 'Staff' ? 'Xử lý Khiếu nại' : 'Kết luận Khiếu nại'}</span>
                         </Link>
                         <Link
                           to="/audit"
@@ -904,7 +904,7 @@ export const Navbar: React.FC = () => {
                           className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
                         >
                           <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Nhật ký Bảo mật Audit (UC-102)</span>
+                          <span>Nhật ký Bảo mật Audit</span>
                         </Link>
                         <Link
                           to="/admin/rbac"
@@ -912,7 +912,7 @@ export const Navbar: React.FC = () => {
                           className="flex items-center space-x-2.5 px-3 py-2 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/[0.05] transition-colors"
                         >
                           <Lock className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                          <span>Ma trận Phân quyền (UC-99)</span>
+                          <span>Ma trận Phân quyền</span>
                         </Link>
 
                         <div className="border-t border-white/10 pt-1.5 space-y-1">

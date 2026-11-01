@@ -130,7 +130,7 @@ export const RbacMatrixPage: React.FC = () => {
           <div>
             <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-[#FFC799]/10 border border-[#FFC799]/25 text-[#FFC799] text-xs font-semibold mb-3">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>UC-99 Role-Based Access Control Architecture</span>
+              <span>Role-Based Access Control Architecture</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-[#F5F5F5] tracking-tight">
               Ma trận Phân quyền Hệ thống (RBAC Matrix)

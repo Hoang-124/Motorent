@@ -1157,7 +1157,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>03. Tổng đài Live Chat (UC-66)</span>
+                <span>03. Tổng đài Live Chat</span>
               </button>
 
               <button
@@ -1170,7 +1170,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <Database className="w-4 h-4" />
-                <span>04. Nhật ký Audit (UC-102)</span>
+                <span>04. Nhật ký Audit</span>
               </button>
 
               <button
@@ -1186,7 +1186,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <Wrench className="w-4 h-4" />
-                <span>05. Đội xe & Trạng thái (UC-61-63)</span>
+                <span>05. Đội xe & Trạng thái</span>
                 {branchVehicles.length > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-white font-bold text-[10px]">
                     {branchVehicles.length}
@@ -1204,7 +1204,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <AlertCircle className="w-4 h-4" />
-                <span>06. Khiếu nại {isManager ? '(UC-85)' : '(UC-65)'}</span>
+                <span>06. Khiếu nại</span>
                 {isManager && pendingComplaintCount > 0 && (
                   <span className="px-1.5 py-0.5 rounded-full bg-[#FF8080] text-[#101010] font-black text-[10px]">
                     {pendingComplaintCount}
@@ -1222,7 +1222,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <ImageIcon className="w-4 h-4" />
-                <span>07. Banner CMS (UC-118)</span>
+                <span>07. Banner CMS</span>
               </button>
 
               <button
@@ -1235,7 +1235,7 @@ export const CounterDesk: React.FC = () => {
                 }`}
               >
                 <Calendar className="w-4 h-4" />
-                <span>08. Lịch phân ca & Chấm công (UC-84)</span>
+                <span>08. Lịch phân ca & Chấm công</span>
               </button>
 
               {isManager && (
@@ -1250,7 +1250,7 @@ export const CounterDesk: React.FC = () => {
                     }`}
                   >
                     <Users className="w-4 h-4" />
-                    <span>09. Quản lý nhân viên (UC-81-83)</span>
+                    <span>09. Quản lý nhân viên</span>
                   </button>
 
                   <button
@@ -1597,7 +1597,7 @@ export const CounterDesk: React.FC = () => {
                               className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-[#101010] shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                              <span>{approving ? 'Đang duyệt...' : 'Duyệt đơn (UC-73)'}</span>
+                              <span>{approving ? 'Đang duyệt...' : 'Duyệt đơn'}</span>
                             </button>
                           )}
 
@@ -1613,7 +1613,7 @@ export const CounterDesk: React.FC = () => {
                                 className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#FF8080]/30 hover:border-[#FF8080] text-[#FF8080] hover:bg-[#FF8080]/10 transition-colors cursor-pointer"
                               >
                                 <XCircle className="w-3.5 h-3.5 mr-1" />
-                                <span>Từ chối đơn (UC-74)</span>
+                                <span>Từ chối đơn</span>
                               </button>
                             )}
 
@@ -1667,7 +1667,7 @@ export const CounterDesk: React.FC = () => {
                               className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#FF8080]/15 hover:bg-[#FF8080]/25 text-[#FF8080] border border-[#FF8080]/30 transition-colors flex items-center space-x-1.5 cursor-pointer"
                             >
                               <XCircle className="w-3.5 h-3.5" />
-                              <span>Từ chối hoàn (UC-76)</span>
+                              <span>Từ chối hoàn</span>
                             </button>
                             <button
                               type="button"
@@ -1675,7 +1675,7 @@ export const CounterDesk: React.FC = () => {
                               className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#FFC799] text-[#101010] hover:bg-[#FFD6B3] transition-colors flex items-center space-x-1.5 shadow-md cursor-pointer"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Duyệt hoàn tiền (UC-75)</span>
+                              <span>Duyệt hoàn tiền</span>
                             </button>
                           </div>
                         ) : (
@@ -1774,7 +1774,7 @@ export const CounterDesk: React.FC = () => {
                                 className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-md"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>{approving ? 'Đang duyệt...' : 'Quản lý duyệt đơn (UC-73)'}</span>
+                                <span>{approving ? 'Đang duyệt...' : 'Quản lý duyệt đơn'}</span>
                               </button>
                             )}
                           </div>
@@ -1947,7 +1947,7 @@ export const CounterDesk: React.FC = () => {
                       <div>
                         <label className="block text-xs font-semibold text-[#A0A0A0] mb-2 flex items-center">
                           <FileCheck className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                          Biên bản bàn giao 5 điểm an toàn trước khi rời trạm (UC-56)
+                          Biên bản bàn giao 5 điểm an toàn trước khi rời trạm
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                           {[
@@ -2515,7 +2515,7 @@ export const CounterDesk: React.FC = () => {
                             className="px-2.5 py-1 rounded-lg bg-[#FF8080]/10 hover:bg-[#FF8080]/20 border border-[#FF8080]/30 text-[11px] font-bold text-[#FF8080] transition-all flex items-center gap-1.5 cursor-pointer"
                           >
                             <AlertCircle className="w-3.5 h-3.5" />
-                            <span>Lập biên bản sự cố / Hư hại (UC-58)</span>
+                            <span>Lập biên bản sự cố / Hư hại</span>
                           </button>
                         </div>
 
@@ -2600,7 +2600,7 @@ export const CounterDesk: React.FC = () => {
                             <div className="flex items-center justify-between border-b border-white/5 pb-2">
                               <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
                                 <Receipt className="w-3.5 h-3.5 text-[#FFC799]" />
-                                Bảng kê tất toán & Phạt vi phạm (UC-59)
+                                Bảng kê tất toán & Phạt vi phạm
                               </span>
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -2959,7 +2959,7 @@ export const CounterDesk: React.FC = () => {
                   }`}
                 >
                   <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>01. Cần kết luận (Manager UC-85)</span>
+                  <span>01. Cần kết luận</span>
                   {pendingComplaintCount > 0 && (
                     <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black">
                       {pendingComplaintCount}
@@ -2977,7 +2977,7 @@ export const CounterDesk: React.FC = () => {
                   }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
-                  <span>02. Hàng đợi tiếp nhận &amp; xử lý (Staff UC-65)</span>
+                  <span>02. Hàng đợi tiếp nhận &amp; xử lý</span>
                 </button>
               </div>
             )}
@@ -3220,7 +3220,7 @@ export const CounterDesk: React.FC = () => {
                           {/* Action Toolbar */}
                           <div className="p-4 pt-0 border-t border-white/5 mt-2 space-y-2">
                             <p className="text-[10px] font-bold text-[#6E6E6E] uppercase tracking-wider">
-                              Thao tác đổi trạng thái (UC-61-63)
+                              Thao tác đổi trạng thái
                             </p>
                             <div className="grid grid-cols-2 gap-2">
                               <button
@@ -3506,7 +3506,7 @@ export const CounterDesk: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-white">
-                      Ghi nhận thu tiền tại quầy (UC-31)
+                      Ghi nhận thu tiền tại quầy
                     </h3>
                     <p className="text-[11px] text-[#A0A0A0]">
                       Đơn đặt xe #{selectedBooking.bookingCode}
@@ -3702,7 +3702,7 @@ export const CounterDesk: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-white">
-                      Lập biên bản sự cố / Hư hại xe (UC-58)
+                      Lập biên bản sự cố / Hư hại xe
                     </h3>
                     <p className="text-[11px] text-[#A0A0A0]">
                       Đơn đặt xe #{selectedBooking.bookingCode}
@@ -3829,7 +3829,7 @@ export const CounterDesk: React.FC = () => {
                     <XCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Từ chối đơn đặt xe (UC-74)</h3>
+                    <h3 className="text-base font-bold text-white">Từ chối đơn đặt xe</h3>
                     <p className="text-xs text-[#A0A0A0]">Mã đơn: {selectedBooking.bookingCode}</p>
                   </div>
                 </div>

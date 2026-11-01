@@ -244,7 +244,7 @@ export const StaffManager: React.FC = () => {
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
             <Users className="text-[#FFC799]" size={26} />
-            Quản lý Nhân sự & Đội ngũ quầy (UC-81 - UC-83)
+            Quản lý Nhân sự & Đội ngũ quầy
           </h2>
           <p className="text-sm text-[#A0A0A0] mt-1">
             Thêm mới, cập nhật hồ sơ và quản lý trạng thái tài khoản nhân viên các trạm.
@@ -493,7 +493,7 @@ export const StaffManager: React.FC = () => {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <Users className="text-[#FFC799]" size={20} />
-                {editingStaff ? 'Cập nhật thông tin nhân viên (UC-82)' : 'Thêm tài khoản nhân viên mới (UC-81)'}
+                {editingStaff ? 'Cập nhật thông tin nhân viên' : 'Thêm tài khoản nhân viên mới'}
               </h3>
               <button
                 type="button"

@@ -1581,7 +1581,7 @@ export const ProfilePage: React.FC = () => {
                                 disabled={downloadingInvoiceId === b._id}
                                 onClick={() => handleDownloadInvoice(b._id, b.bookingCode)}
                                 className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#99FFE4]/40 text-[#A0A0A0] hover:text-[#99FFE4] text-xs font-medium transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                                title="Tải hóa đơn điện tử & Biên lai thanh toán PDF (UC-38)"
+                                title="Tải hóa đơn điện tử & Biên lai thanh toán PDF"
                               >
                                 {downloadingInvoiceId === b._id ? (
                                   <>

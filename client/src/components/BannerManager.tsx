@@ -263,7 +263,7 @@ export const BannerManager: React.FC = () => {
             </div>
             <div>
               <h2 className="text-xl font-bold text-white tracking-tight">
-                Quản lý Banner Quảng cáo (CMS UC-116 & UC-118)
+                Quản lý Banner Quảng cáo
               </h2>
               <p className="text-xs text-[#A0A0A0]">
                 Cấu hình chuỗi banner xoay vòng trên trang chủ, áp dụng quy chuẩn xóa mềm (soft delete) và chuẩn hóa thứ tự tự động.
