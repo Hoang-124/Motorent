@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from '../context/I18nContext';
 import {
   Calendar,
   Clock,
@@ -102,6 +103,42 @@ export const getVietnameseDayLabel = (dateStr: string): { dayName: string; badge
   return { dayName };
 };
 
+
+const MONTHS_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+export const getLocalizedDayLabel = (dateStr: string, isEnglish: boolean): { dayName: string; badge?: string } => {
+  const target = parseLocalDateStr(dateStr);
+  const today = new Date();
+  const todayStr = formatLocalDateStr(today);
+
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = formatLocalDateStr(tomorrow);
+
+  const dayOfWeek = target.getDay();
+  const namesVi = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  const namesEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayName = (isEnglish ? namesEn : namesVi)[dayOfWeek] || '';
+
+  if (dateStr === todayStr) {
+    return { dayName, badge: isEnglish ? 'Today' : 'Hôm nay' };
+  }
+  if (dateStr === tomorrowStr) {
+    return { dayName, badge: isEnglish ? 'Tomorrow' : 'Ngày mai' };
+  }
+  return { dayName };
+};
+
+export const getLocalizedTimePeriodLabel = (timeStr: string, isEnglish: boolean): string => {
+  const hour = parseInt(timeStr.split(':')[0] || '8', 10);
+  if (hour < 12) return isEnglish ? 'Morning' : 'Buổi sáng';
+  if (hour < 18) return isEnglish ? 'Afternoon' : 'Buổi chiều';
+  return isEnglish ? 'Evening' : 'Buổi tối';
+};
+
 export const getTimePeriodLabel = (timeStr: string): string => {
   const hour = parseInt(timeStr.split(':')[0] || '8', 10);
   if (hour < 12) return 'Buổi sáng';
@@ -162,6 +199,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   onDateChange,
   onTimeChange,
 }) => {
+  const { isEnglish } = useTranslation();
   const [openPanel, setOpenPanel] = useState<'date' | 'time' | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -203,8 +241,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       ? addDaysToDateStr(referenceDate, 1)
       : baseMinDate;
 
-  const { dayName, badge } = getVietnameseDayLabel(dateValue);
-  const timePeriod = getTimePeriodLabel(timeValue);
+  const { dayName, badge } = getLocalizedDayLabel(dateValue, isEnglish);
+  const timePeriod = getLocalizedTimePeriodLabel(timeValue, isEnglish);
 
   // Build calendar cells
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1);
@@ -400,21 +438,21 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                       : 'bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5]'
                   }`}
                 >
-                  Hôm nay
+                  {isEnglish ? 'Today' : 'Hôm nay'}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickDateOffset(todayStr, 1)}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5] transition-all cursor-pointer"
                 >
-                  Ngày mai
+                  {isEnglish ? 'Tomorrow' : 'Ngày mai'}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickDateOffset(todayStr, 2)}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5] transition-all cursor-pointer"
                 >
-                  +2 ngày
+                  {isEnglish ? '+2 days' : '+2 ngày'}
                 </button>
               </>
             ) : (
@@ -429,7 +467,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                         : 'bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5]'
                     }`}
                   >
-                    Trong ngày
+                    {isEnglish ? 'Same day' : 'Trong ngày'}
                   </button>
                 )}
                 <button
@@ -437,7 +475,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   onClick={() => handleQuickDateOffset(referenceDate || todayStr, 1)}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5] transition-all cursor-pointer"
                 >
-                  +1 ngày
+                  {isEnglish ? '+1 day' : '+1 ngày'}
                 </button>
                 <button
                   type="button"
@@ -451,7 +489,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   onClick={() => handleQuickDateOffset(referenceDate || todayStr, 3)}
                   className="px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap bg-[#1E1E1E] text-[#A0A0A0] hover:text-[#F5F5F5] transition-all cursor-pointer"
                 >
-                  +3 ngày
+                  {isEnglish ? '+3 days' : '+3 ngày'}
                 </button>
               </>
             )}
@@ -467,7 +505,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-xs font-bold uppercase tracking-wider text-[#F5F5F5]">
-              Tháng {viewMonth + 1}, {viewYear}
+              {isEnglish ? `${MONTHS_EN[viewMonth]} ${viewYear}` : `Tháng ${viewMonth + 1}, ${viewYear}`}
             </span>
             <button
               type="button"
@@ -480,7 +518,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
 
           {/* Weekday Headers */}
           <div className="grid grid-cols-7 gap-1 text-center mb-1.5">
-            {WEEKDAYS_SHORT.map((w) => (
+            {(isEnglish ? ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']).map((w) => (
               <span key={w} className="text-[10px] font-mono font-bold text-[#6E6E6E] py-1">
                 {w}
               </span>
@@ -532,14 +570,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           {/* Footer info */}
           <div className="mt-3 pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px] text-[#A0A0A0]">
             <span>
-              Đang chọn: <strong className="text-[#FFC799] font-mono">{formatDisplayDateVN(dateValue)}</strong>
+              {isEnglish ? 'Selected:' : 'Đang chọn:'} <strong className="text-[#FFC799] font-mono">{formatDisplayDateVN(dateValue)}</strong>
             </span>
             <button
               type="button"
               onClick={() => setOpenPanel('time')}
               className="text-[#FFC799] font-bold hover:underline cursor-pointer"
             >
-              Chọn giờ →
+              {isEnglish ? 'Select time →' : 'Chọn giờ →'}
             </button>
           </div>
         </div>
@@ -554,7 +592,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
             <div className="flex items-center space-x-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
               <span className="text-xs font-bold text-[#F5F5F5]">
-                Chọn khung giờ {mode === 'pickup' ? 'nhận xe' : 'trả xe'} ({formatDisplayDateVN(dateValue)})
+                {isEnglish ? `Select ${mode === 'pickup' ? 'pickup' : 'return'} time (${formatDisplayDateVN(dateValue)})` : `Chọn khung giờ ${mode === 'pickup' ? 'nhận xe' : 'trả xe'} (${formatDisplayDateVN(dateValue)})`}
               </span>
             </div>
             <span className="text-[11px] font-mono font-bold text-[#FFC799] bg-[#FFC799]/12 px-2 py-0.5 rounded-md">
@@ -567,7 +605,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
             <div className="mb-3 px-2.5 py-2 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/25 flex items-center space-x-2 text-[11px] text-[#FFC799]">
               <Info className="w-3.5 h-3.5 shrink-0" />
               <span>
-                Nhận xe lúc <strong className="font-mono">{referenceTime}</strong> • Giờ trả cùng ngày cách tối thiểu 2 tiếng.
+                {isEnglish ? <>Pickup at <strong className="font-mono">{referenceTime}</strong> • Same-day return minimum 2 hours.</> : <>Nhận xe lúc <strong className="font-mono">{referenceTime}</strong> • Giờ trả cùng ngày cách tối thiểu 2 tiếng.</>}
               </span>
             </div>
           )}
@@ -575,14 +613,14 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           {mode === 'pickup' && dateValue === todayStr && minAllowedMinutes > timeToMinutes('06:30') && (
             <div className="mb-3 px-2.5 py-2 rounded-xl bg-[#99FFE4]/10 border border-[#99FFE4]/25 flex items-center space-x-2 text-[11px] text-[#99FFE4]">
               <Info className="w-3.5 h-3.5 shrink-0" />
-              <span>Chỉ hiển thị các khung giờ nhận xe khả dụng từ hiện tại trở đi.</span>
+              <span>{isEnglish ? 'Showing only available pickup time slots from now on.' : 'Chỉ hiển thị các khung giờ nhận xe khả dụng từ hiện tại trở đi.'}</span>
             </div>
           )}
 
           {totalValidSlots === 0 ? (
             <div className="py-6 text-center space-y-2">
               <p className="text-xs text-[#A0A0A0]">
-                Đã hết khung giờ khả dụng trong ngày <strong className="text-[#F5F5F5]">{formatDisplayDateVN(dateValue)}</strong>.
+                {isEnglish ? <>No more available time slots on <strong className="text-[#F5F5F5]">{formatDisplayDateVN(dateValue)}</strong>.</> : <>Đã hết khung giờ khả dụng trong ngày <strong className="text-[#F5F5F5]">{formatDisplayDateVN(dateValue)}</strong>.</>}
               </p>
               <button
                 type="button"
@@ -594,7 +632,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 }}
                 className="px-3 py-1.5 rounded-lg bg-[#FFC799] text-[#101010] text-xs font-bold cursor-pointer"
               >
-                Chuyển sang ngày mai ({formatDisplayDateVN(addDaysToDateStr(dateValue, 1))})
+                {isEnglish ? `Switch to tomorrow (${formatDisplayDateVN(addDaysToDateStr(dateValue, 1))})` : `Chuyển sang ngày mai (${formatDisplayDateVN(addDaysToDateStr(dateValue, 1))})`}
               </button>
             </div>
           ) : (
@@ -605,7 +643,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-[#A0A0A0] mb-1.5">
                     <Sunrise className="w-3.5 h-3.5 text-[#FFC799]" />
                     <span>
-                      Buổi sáng ({validMorningSlots[0]} – {validMorningSlots[validMorningSlots.length - 1]})
+                      {isEnglish ? `Morning (${validMorningSlots[0]} – ${validMorningSlots[validMorningSlots.length - 1]})` : `Buổi sáng (${validMorningSlots[0]} – ${validMorningSlots[validMorningSlots.length - 1]})`}
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
@@ -639,7 +677,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-[#A0A0A0] mb-1.5">
                     <Sun className="w-3.5 h-3.5 text-[#FFC799]" />
                     <span>
-                      Buổi chiều ({validAfternoonSlots[0]} – {validAfternoonSlots[validAfternoonSlots.length - 1]})
+                      {isEnglish ? `Afternoon (${validAfternoonSlots[0]} – ${validAfternoonSlots[validAfternoonSlots.length - 1]})` : `Buổi chiều (${validAfternoonSlots[0]} – ${validAfternoonSlots[validAfternoonSlots.length - 1]})`}
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">
@@ -673,7 +711,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   <div className="flex items-center space-x-1.5 text-[11px] font-semibold text-[#A0A0A0] mb-1.5">
                     <Moon className="w-3.5 h-3.5 text-[#FFC799]" />
                     <span>
-                      Buổi tối ({validEveningSlots[0]} – {validEveningSlots[validEveningSlots.length - 1]})
+                      {isEnglish ? `Evening (${validEveningSlots[0]} – ${validEveningSlots[validEveningSlots.length - 1]})` : `Buổi tối (${validEveningSlots[0]} – ${validEveningSlots[validEveningSlots.length - 1]})`}
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5">

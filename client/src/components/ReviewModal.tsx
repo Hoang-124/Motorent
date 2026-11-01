@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Review } from '../types';
+import { useTranslation } from '../context/I18nContext';
 
 interface ReviewModalProps {
   isOpen: boolean;
@@ -36,6 +37,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   onSuccess,
 }) => {
   const isEditMode = Boolean(existingReview);
+  const { isEnglish } = useTranslation();
 
   const [rating, setRating] = useState<number>(existingReview?.rating || 5);
   const [hoverRating, setHoverRating] = useState<number>(0);
@@ -193,13 +195,21 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
     }
   };
 
-  const starLabels: Record<number, string> = {
-    1: 'Rất không hài lòng',
-    2: 'Chưa hài lòng',
-    3: 'Tạm ổn',
-    4: 'Hài lòng',
-    5: 'Rất tuyệt vời',
-  };
+  const starLabels: Record<number, string> = isEnglish
+    ? {
+        1: 'Very Dissatisfied',
+        2: 'Dissatisfied',
+        3: 'Average',
+        4: 'Satisfied',
+        5: 'Exceptional',
+      }
+    : {
+        1: 'Rất không hài lòng',
+        2: 'Chưa hài lòng',
+        3: 'Tạm ổn',
+        4: 'Hài lòng',
+        5: 'Rất tuyệt vời',
+      };
 
   const activeStarIndex = hoverRating || rating;
 
@@ -214,7 +224,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-[#F5F5F5]">
-                {isEditMode ? 'Chỉnh sửa đánh giá' : 'Đánh giá chuyến đi'}
+                {isEditMode ? (isEnglish ? 'Edit Review' : 'Chỉnh sửa đánh giá') : (isEnglish ? 'Rate Your Ride' : 'Đánh giá chuyến đi')}
               </h2>
               {vehicleName && (
                 <p className="text-xs text-[#A0A0A0] mt-0.5">{vehicleName}</p>
@@ -242,7 +252,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           {/* Star Rating Selector (Bắt buộc) */}
           <div className="space-y-2 text-center bg-[#101010] p-4 rounded-xl border border-white/[0.06]">
             <label className="block text-xs font-semibold text-[#A0A0A0] uppercase tracking-wider">
-              Mức độ hài lòng của bạn <span className="text-[#FFC799]">*</span>
+              {isEnglish ? "Your Satisfaction Level" : "Mức độ hài lòng của bạn"} <span className="text-[#FFC799]">*</span>
             </label>
 
             <div className="flex items-center justify-center space-x-2 py-1">
@@ -270,7 +280,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             </div>
 
             <p className="text-xs font-medium text-[#FFC799]">
-              {starLabels[activeStarIndex] || 'Chọn số sao đánh giá'}
+              {starLabels[activeStarIndex] || (isEnglish ? 'Select star rating' : 'Chọn số sao đánh giá')}
             </p>
           </div>
 
@@ -278,7 +288,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
               <label htmlFor="review-comment" className="font-medium text-[#A0A0A0]">
-                Nhận xét chi tiết (Tùy chọn)
+                {isEnglish ? 'Detailed Review (Optional)' : 'Nhận xét chi tiết (Tùy chọn)'}
               </label>
               <span
                 className={`font-mono text-[11px] ${
@@ -294,7 +304,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               maxLength={1000}
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Chia sẻ trải nghiệm của bạn về độ mượt của xe, mức tiêu hao nhiên liệu, thái độ nhân viên giao xe..."
+              placeholder={isEnglish ? "Share your experience regarding engine smoothness, fuel economy, handover staff hospitality..." : "Chia sẻ trải nghiệm của bạn về độ mượt của xe, mức tiêu hao nhiên liệu, thái độ nhân viên giao xe..."}
               className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-3 text-sm text-[#F5F5F5] placeholder-[#6E6E6E] focus:outline-none focus:border-[#FFC799] transition-colors resize-none"
             />
           </div>
@@ -304,10 +314,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             <div className="flex items-center justify-between text-xs">
               <label className="font-medium text-[#A0A0A0] flex items-center space-x-1.5">
                 <Camera className="w-3.5 h-3.5 stroke-[2] text-[#FFC799]" />
-                <span>Ảnh thực tế chuyến đi</span>
+                <span>{isEnglish ? 'Trip Photos' : 'Ảnh thực tế chuyến đi'}</span>
               </label>
               <span className="font-mono text-[11px] text-[#6E6E6E]">
-                {totalPhotosCount} / 5 ảnh (Tối đa 5MB/ảnh)
+                {totalPhotosCount} / 5 {isEnglish ? 'photos (Max 5MB/photo)' : 'ảnh (Tối đa 5MB/ảnh)'}
               </span>
             </div>
 
@@ -328,12 +338,12 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                     type="button"
                     onClick={() => handleRemoveExistingPhoto(url)}
                     className="absolute top-1 right-1 p-1 bg-black/80 hover:bg-red-500 text-white rounded-md transition-colors cursor-pointer"
-                    title="Xóa ảnh này"
+                    title={isEnglish ? "Remove photo" : "Xóa ảnh này"}
                   >
                     <Trash2 className="w-3 h-3 stroke-[2]" />
                   </button>
                   <span className="absolute bottom-1 left-1 text-[9px] bg-black/60 px-1 rounded text-white/80">
-                    Cũ
+                    {isEnglish ? "Current" : "Cũ"}
                   </span>
                 </div>
               ))}
@@ -353,12 +363,12 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                     type="button"
                     onClick={() => handleRemoveNewPhoto(idx)}
                     className="absolute top-1 right-1 p-1 bg-black/80 hover:bg-red-500 text-white rounded-md transition-colors cursor-pointer"
-                    title="Xóa ảnh này"
+                    title={isEnglish ? "Remove photo" : "Xóa ảnh này"}
                   >
                     <X className="w-3 h-3 stroke-[2]" />
                   </button>
                   <span className="absolute bottom-1 left-1 text-[9px] bg-[#FFC799]/80 text-[#101010] font-bold px-1 rounded">
-                    Mới
+                    {isEnglish ? "New" : "Mới"}
                   </span>
                 </div>
               ))}
@@ -371,7 +381,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                   className="aspect-square rounded-xl border-2 border-dashed border-white/15 hover:border-[#FFC799] bg-[#101010]/60 hover:bg-[#101010] transition-colors flex flex-col items-center justify-center p-2 text-center text-[#A0A0A0] hover:text-[#FFC799] cursor-pointer group"
                 >
                   <Upload className="w-5 h-5 stroke-[2] mb-1 group-hover:scale-110 transition-transform" />
-                  <span className="text-[10px] font-medium leading-tight">Thêm ảnh</span>
+                  <span className="text-[10px] font-medium leading-tight">{isEnglish ? 'Add photo' : 'Thêm ảnh'}</span>
                 </button>
               )}
             </div>
@@ -394,7 +404,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               disabled={submitting}
               className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors cursor-pointer"
             >
-              Hủy bỏ
+              {isEnglish ? 'Cancel' : 'Hủy bỏ'}
             </button>
             <button
               type="submit"
@@ -404,12 +414,12 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
               {submitting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Đang gửi...</span>
+                  <span>{isEnglish ? 'Submitting...' : 'Đang gửi...'}</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.2]" />
-                  <span>{isEditMode ? 'Lưu thay đổi' : 'Gửi đánh giá'}</span>
+                  <span>{isEditMode ? (isEnglish ? 'Save Changes' : 'Lưu thay đổi') : (isEnglish ? 'Submit Review' : 'Gửi đánh giá')}</span>
                 </>
               )}
             </button>

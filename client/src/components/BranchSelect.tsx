@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from '../context/I18nContext';
 import {
   MapPin,
   ChevronDown,
@@ -29,6 +30,7 @@ export const BranchSelect: React.FC<BranchSelectProps> = ({
   compact = false,
   helperText,
 }) => {
+  const { isEnglish } = useTranslation();
   const [open, setOpen] = useState<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -91,7 +93,7 @@ export const BranchSelect: React.FC<BranchSelectProps> = ({
           <div className="min-w-0">
             <div className="flex items-center space-x-2">
               <span className="text-xs sm:text-[13px] font-bold text-[#F5F5F5] truncate">
-                {selectedBranch ? selectedBranch.name : 'Đang tải chi nhánh...'}
+                {selectedBranch ? selectedBranch.name : (isEnglish ? 'Loading branches...' : 'Đang tải chi nhánh...')}
               </span>
             </div>
             {selectedBranch && (
@@ -126,11 +128,11 @@ export const BranchSelect: React.FC<BranchSelectProps> = ({
         <div className="absolute left-0 right-0 z-50 mt-1.5 p-2.5 rounded-2xl bg-[#161616] border border-[#FFC799]/35 shadow-[0_24px_48px_rgba(0,0,0,0.94)] animate-in fade-in zoom-in-95 duration-150 space-y-2">
           <div className="flex items-center justify-between px-2 py-1 border-b border-white/10">
             <span className="text-[10px] font-mono uppercase tracking-wider text-[#A0A0A0]">
-              Hệ thống trạm giao nhận Đà Nẵng ({branches.length})
+              {isEnglish ? `Da Nang Station Network (${branches.length})` : `Hệ thống trạm giao nhận Đà Nẵng (${branches.length})`}
             </span>
             <span className="inline-flex items-center space-x-1 text-[10px] font-semibold text-[#99FFE4]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4]" />
-              <span>Hỗ trợ trả liên trạm 0đ</span>
+              <span>{isEnglish ? 'Free Inter-Station Dropoff 0₫' : 'Hỗ trợ trả liên trạm 0đ'}</span>
             </span>
           </div>
 

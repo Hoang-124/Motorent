@@ -21,6 +21,7 @@ import {
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useTranslation } from '../context/I18nContext';
 import type { WishlistItem, WishlistResponse } from '../types';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 
@@ -28,6 +29,7 @@ export const WishlistPage: React.FC = () => {
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const { toggleWishlist, isToggling, toast, clearToast } = useWishlist();
+  const { isEnglish } = useTranslation();
 
   const [wishlistData, setWishlistData] = useState<WishlistResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -123,7 +125,7 @@ export const WishlistPage: React.FC = () => {
 
             {wishlistData && (
               <span className="text-xs font-bold text-[#F5F5F5] bg-[#161616] border border-white/10 px-3 py-1.5 rounded-xl font-mono-tabular">
-                {wishlistData.pagination.total} xe đã lưu
+                {wishlistData.pagination.total} {isEnglish ? "saved bikes" : "xe đã lưu"}
               </span>
             )}
           </div>
@@ -133,7 +135,7 @@ export const WishlistPage: React.FC = () => {
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center space-y-3">
             <Loader2 className="w-8 h-8 text-[#FFC799] animate-spin" />
-            <p className="text-xs text-[#A0A0A0]">Đang tải danh sách xe yêu thích...</p>
+            <p className="text-xs text-[#A0A0A0]">{isEnglish ? "Loading saved vehicles..." : "Đang tải danh sách xe yêu thích..."}</p>
           </div>
         ) : !wishlistData || wishlistData.items.length === 0 ? (
           /* Empty State */
@@ -142,16 +144,16 @@ export const WishlistPage: React.FC = () => {
               <HeartOff className="w-8 h-8 stroke-[1.5]" />
             </div>
             <div className="space-y-1.5">
-              <h3 className="text-lg font-bold text-[#F5F5F5]">Danh sách yêu thích trống</h3>
+              <h3 className="text-lg font-bold text-[#F5F5F5]">{isEnglish ? "Your Wishlist is Empty" : "Danh sách yêu thích trống"}</h3>
               <p className="text-xs text-[#A0A0A0] leading-relaxed">
-                Bạn chưa lưu xe nào vào danh sách yêu thích. Khám phá ngay các dòng xe tay ga, xe số và xe côn tay tại MOTORENT!
+                {isEnglish ? "You haven't saved any bikes yet. Explore automatic scooters, electric bikes, and manual clutches at MOTORENT!" : "Bạn chưa lưu xe nào vào danh sách yêu thích. Khám phá ngay các dòng xe tay ga, xe số và xe côn tay tại MOTORENT!"}
               </p>
             </div>
             <Link
               to="/bikes"
               className="inline-flex items-center space-x-2 px-6 py-3 rounded-2xl bg-[#FFC799] hover:bg-[#ffb67a] text-[#101010] text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer mt-2"
             >
-              <span>Khám phá đội xe ngay</span>
+              <span>{isEnglish ? "Explore Fleet Now" : "Khám phá đội xe ngay"}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.2]" />
             </Link>
           </div>
@@ -173,9 +175,9 @@ export const WishlistPage: React.FC = () => {
                     >
                       <div className="space-y-2">
                         <span className="text-[10px] font-semibold text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-0.5 rounded-full inline-block">
-                          Xe không còn tồn tại
+                          {isEnglish ? "Vehicle Unlisted" : "Xe không còn tồn tại"}
                         </span>
-                        <p className="text-xs text-[#A0A0A0]">Phương tiện này đã được xóa khỏi hệ thống.</p>
+                        <p className="text-xs text-[#A0A0A0]">{isEnglish ? "This vehicle was permanently removed from fleet." : "Phương tiện này đã được xóa khỏi hệ thống."}</p>
                       </div>
                       <button
                         type="button"
@@ -183,7 +185,7 @@ export const WishlistPage: React.FC = () => {
                         className="w-full py-2 rounded-xl bg-white/5 hover:bg-red-500/15 text-xs text-red-400 border border-white/5 flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        <span>Xóa khỏi danh sách</span>
+                        <span>{isEnglish ? "Remove from list" : "Xóa khỏi danh sách"}</span>
                       </button>
                     </div>
                   );
@@ -217,7 +219,7 @@ export const WishlistPage: React.FC = () => {
                           className="w-full h-full object-contain p-3"
                         />
                       ) : (
-                        <div className="text-xs text-[#6E6E6E]">Không có ảnh</div>
+                        <div className="text-xs text-[#6E6E6E]">{isEnglish ? "No photo" : "Không có ảnh"}</div>
                       )}
 
                       {/* Status Badge */}

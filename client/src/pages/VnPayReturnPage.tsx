@@ -13,6 +13,23 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { useTranslation } from '../context/I18nContext';
+
+const VNPAY_ERROR_MESSAGES_EN: Record<string, string> = {
+  '00': 'Transaction successful',
+  '07': 'Deducted successfully. Transaction suspected as irregular.',
+  '09': 'Card/Account has not registered for Internet Banking.',
+  '10': 'Authentication failed more than 3 times.',
+  '11': 'Payment session expired. Please retry.',
+  '12': 'Card or account is locked.',
+  '13': 'Incorrect OTP code entered. Please retry.',
+  '24': 'Transaction cancelled on VNPay gateway.',
+  '51': 'Insufficient balance to complete payment.',
+  '65': 'Transaction limit exceeded for the day.',
+  '75': 'Bank payment system is under maintenance.',
+  '79': 'Payment password attempts exceeded.',
+  '99': 'Unspecified gateway error.',
+};
 
 const VNPAY_ERROR_MESSAGES: Record<string, string> = {
   '00': 'Giao dịch thành công',
@@ -33,6 +50,7 @@ const VNPAY_ERROR_MESSAGES: Record<string, string> = {
 export const VnPayReturnPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { isEnglish } = useTranslation();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [verifySuccess, setVerifySuccess] = useState<boolean>(false);
@@ -108,28 +126,23 @@ export const VnPayReturnPage: React.FC = () => {
           if (isFull) setIsFullPayment(true);
           setStatusMessage(
             isFull
-              ? 'Giao dịch thanh toán 100% toàn bộ tiền thuê qua cổng VNPay đã được xác thực thành công!'
-              : 'Giao dịch đặt cọc 30% qua cổng VNPay đã được xác thực thành công.'
+              ? (isEnglish ? '100% full rental payment via VNPay gateway has been verified successfully!' : 'Giao dịch thanh toán 100% toàn bộ tiền thuê qua cổng VNPay đã được xác thực thành công!')
+              : (isEnglish ? '30% deposit payment via VNPay gateway has been verified successfully.' : 'Giao dịch đặt cọc 30% qua cổng VNPay đã được xác thực thành công.')
           );
         } else {
           setVerifySuccess(false);
-          const errorMsg =
-            VNPAY_ERROR_MESSAGES[respCode] || 'Xác thực chữ ký số giao dịch VNPay không hợp lệ.';
+          const errorMsg = isEnglish
+            ? (VNPAY_ERROR_MESSAGES_EN[respCode] || 'VNPay digital signature verification failed.')
+            : (VNPAY_ERROR_MESSAGES[respCode] || 'Xác thực chữ ký số giao dịch VNPay không hợp lệ.');
           setStatusMessage(errorMsg);
         }
-      } catch (err: unknown) {
-        // Fallback: If gateway responded 00, treat as successful
-        if (respCode === '00') {
-          setVerifySuccess(true);
-          setStatusMessage(
-            rawOrderInfo.includes('100%')
-              ? 'Giao dịch thanh toán 100% toàn bộ đã hoàn tất thành công trên cổng VNPay.'
-              : 'Giao dịch cọc 30% đã hoàn tất thành công trên cổng VNPay.'
-          );
-        } else {
-          setVerifySuccess(false);
-          setStatusMessage(VNPAY_ERROR_MESSAGES[respCode] || 'Thanh toán không thành công.');
-        }
+      } catch {
+        setVerifySuccess(false);
+        setStatusMessage(
+          isEnglish
+            ? 'Unable to verify digital signature from server. Please check your actual order status in My Bookings.'
+            : 'Không thể xác thực chữ ký giao dịch từ máy chủ. Vui lòng kiểm tra trạng thái đơn thực tế trong mục Chuyến xe của tôi.'
+        );
       } finally {
         setLoading(false);
       }
@@ -144,7 +157,7 @@ export const VnPayReturnPage: React.FC = () => {
         <div className="flex flex-col items-center space-y-4">
           <RefreshCw className="w-10 h-10 text-[#FFC799] animate-spin" />
           <p className="text-sm font-bold text-[#A0A0A0]">
-            Đang đối soát chữ ký số bảo mật từ VNPay...
+            {isEnglish ? 'Reconciling secure digital signature from VNPay...' : 'Đang đối soát chữ ký số bảo mật từ VNPay...'}
           </p>
         </div>
       </div>
@@ -179,9 +192,9 @@ export const VnPayReturnPage: React.FC = () => {
           <h1 className="text-2xl font-black text-white">
             {verifySuccess
               ? isFullPayment
-                ? 'Thanh toán 100% Toàn bộ Thành công'
-                : 'Thanh toán Đặt cọc 30% Thành công'
-              : 'Thanh toán Không thành công'}
+                ? (isEnglish ? '100% Full Payment Successful' : 'Thanh toán 100% Toàn bộ Thành công')
+                : (isEnglish ? '30% Deposit Payment Successful' : 'Thanh toán Đặt cọc 30% Thành công')
+              : (isEnglish ? 'Payment Unsuccessful' : 'Thanh toán Không thành công')}
           </h1>
           <p className="text-xs text-[#A0A0A0] mt-2 max-w-md mx-auto leading-relaxed">
             {statusMessage}
@@ -192,49 +205,49 @@ export const VnPayReturnPage: React.FC = () => {
         <div className="p-6 md:p-8 space-y-5">
           <div className="bg-[#101010] border border-white/10 rounded-2xl p-5 space-y-3.5">
             <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
-              <span className="text-[#A0A0A0]">Mã hợp đồng thuê xe:</span>
+              <span className="text-[#A0A0A0]">{isEnglish ? 'Contract Booking Code:' : 'Mã hợp đồng thuê xe:'}</span>
               <span className="font-mono font-bold text-[#FFC799] text-sm">
-                {bookingCode || 'MV-MOTORENT'}
+                {bookingCode || '—'}
               </span>
             </div>
 
             {pickupBranchName && (
               <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
-                <span className="text-[#A0A0A0]">Chi nhánh nhận xe:</span>
+                <span className="text-[#A0A0A0]">{isEnglish ? 'Pickup Station:' : 'Chi nhánh nhận xe:'}</span>
                 <span className="font-bold text-[#FFC799]">{pickupBranchName}</span>
               </div>
             )}
 
             {returnBranchName && (
               <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
-                <span className="text-[#A0A0A0]">Chi nhánh trả xe:</span>
+                <span className="text-[#A0A0A0]">{isEnglish ? 'Return Station:' : 'Chi nhánh trả xe:'}</span>
                 <span className="font-semibold text-white">{returnBranchName}</span>
               </div>
             )}
 
             <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
               <span className="text-[#A0A0A0]">
-                Số tiền giao dịch ({isFullPayment ? 'Thanh toán 100%' : 'Cọc 30%'}):
+                {isEnglish ? 'Transaction Amount' : 'Số tiền giao dịch'} ({isFullPayment ? (isEnglish ? '100% Full Payment' : 'Thanh toán 100%') : (isEnglish ? '30% Deposit' : 'Cọc 30%')}):
               </span>
               <span className="font-black text-white text-base">
-                {amount.toLocaleString('vi-VN')} đ
+                {amount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
               </span>
             </div>
 
             {transactionNo && (
               <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
-                <span className="text-[#A0A0A0]">Mã giao dịch VNPay:</span>
+                <span className="text-[#A0A0A0]">{isEnglish ? "VNPay Transaction No." : "Mã giao dịch VNPay"}:</span>
                 <span className="font-mono font-semibold text-white">{transactionNo}</span>
               </div>
             )}
 
             <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
-              <span className="text-[#A0A0A0]">Ngân hàng thanh toán:</span>
+              <span className="text-[#A0A0A0]">{isEnglish ? 'Payment Bank:' : 'Ngân hàng thanh toán:'}</span>
               <span className="font-semibold text-white">{bankCode}</span>
             </div>
 
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[#A0A0A0]">Thời gian thanh toán:</span>
+              <span className="text-[#A0A0A0]">{isEnglish ? 'Payment Timestamp:' : 'Thời gian thanh toán:'}</span>
               <span className="font-semibold text-[#A0A0A0]">{payDate}</span>
             </div>
           </div>
@@ -245,26 +258,49 @@ export const VnPayReturnPage: React.FC = () => {
             <p className="leading-relaxed">
               {verifySuccess ? (
                 isFullPayment ? (
+                  isEnglish ? (
+                    <>
+                      <strong className="text-white">Your bike has been locked and 100% paid.</strong> Please present booking code{' '}
+                      <span className="text-[#FFC799] font-bold">{bookingCode}</span> along with your National ID/Driver License at the counter of{' '}
+                      <strong className="text-white">{pickupBranchName || 'selected station'}</strong> to pick up your bike with zero remaining balance.
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-white">Xe của bạn đã được khóa giữ và thanh toán 100%.</strong> Vui
+                      lòng xuất trình mã hợp đồng{' '}
+                      <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
+                      quầy <strong className="text-white">{pickupBranchName || 'chi nhánh đã chọn'}</strong> để nhận xe nhanh chóng mà không cần thanh toán thêm tiền thuê xe.
+                    </>
+                  )
+                ) : (
+                  isEnglish ? (
+                    <>
+                      <strong className="text-white">Your bike has been securely reserved.</strong> Please present booking code{' '}
+                      <span className="text-[#FFC799] font-bold">{bookingCode}</span> along with your National ID/Driver License at{' '}
+                      <strong className="text-white">{pickupBranchName || 'selected station'}</strong> upon arrival to verify and settle the remaining 70%.
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-white">Xe của bạn đã được khóa giữ an toàn.</strong> Vui
+                      lòng xuất trình mã hợp đồng{' '}
+                      <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
+                      quầy <strong className="text-white">{pickupBranchName || 'chi nhánh đã chọn'}</strong> khi đến giờ nhận xe để đối soát và thanh toán 70% còn lại.
+                    </>
+                  )
+                )
+              ) : (
+                isEnglish ? (
                   <>
-                    <strong className="text-white">Xe của bạn đã được khóa giữ và thanh toán 100%.</strong> Vui
-                    lòng xuất trình mã hợp đồng{' '}
-                    <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
-                    quầy <strong className="text-white">{pickupBranchName || 'chi nhánh đã chọn'}</strong> để nhận xe nhanh chóng mà không cần thanh toán thêm tiền thuê xe.
+                    No funds were deducted. The temporary reservation{' '}
+                    <span className="text-[#FF8080] font-mono font-bold">{bookingCode}</span> has been automatically cancelled to release the license plate. You can rebook below.
                   </>
                 ) : (
                   <>
-                    <strong className="text-white">Xe của bạn đã được khóa giữ an toàn.</strong> Vui
-                    lòng xuất trình mã hợp đồng{' '}
-                    <span className="text-[#FFC799] font-bold">{bookingCode}</span> cùng CCCD/GPLX tại
-                    quầy <strong className="text-white">{pickupBranchName || 'chi nhánh đã chọn'}</strong> khi đến giờ nhận xe để đối soát và thanh toán 70% còn lại.
+                    Giao dịch chưa bị trừ tiền và đơn giữ chỗ tạm thời{' '}
+                    <span className="text-[#FF8080] font-mono font-bold">{bookingCode}</span> đã được
+                    hủy tự động để mở khóa biển số xe. Bạn có thể bấm nút bên dưới để đặt và thanh toán lại.
                   </>
                 )
-              ) : (
-                <>
-                  Giao dịch chưa bị trừ tiền và đơn giữ chỗ tạm thời{' '}
-                  <span className="text-[#FF8080] font-mono font-bold">{bookingCode}</span> đã được
-                  hủy tự động để mở khóa biển số xe. Bạn có thể bấm nút bên dưới để đặt và thanh toán lại.
-                </>
               )}
             </p>
           </div>
@@ -278,14 +314,14 @@ export const VnPayReturnPage: React.FC = () => {
                   className="flex-1 py-3 px-5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs text-center transition-all flex items-center justify-center space-x-2 shadow-lg shadow-black/50"
                 >
                   <FileText className="w-4 h-4" />
-                  <span>Quản lý đơn thuê xe</span>
+                  <span>{isEnglish ? 'Manage Bookings' : 'Quản lý đơn thuê xe'}</span>
                 </Link>
                 <Link
                   to="/"
                   className="py-3 px-5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs text-center border border-white/10 transition-all flex items-center justify-center space-x-2"
                 >
                   <Home className="w-4 h-4" />
-                  <span>Trang chủ</span>
+                  <span>{isEnglish ? 'Home Page' : 'Trang chủ'}</span>
                 </Link>
               </>
             ) : (
@@ -296,14 +332,14 @@ export const VnPayReturnPage: React.FC = () => {
                   className="flex-1 py-3 px-5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs text-center transition-all flex items-center justify-center space-x-2 cursor-pointer"
                 >
                   <RefreshCw className="w-4 h-4" />
-                  <span>Đặt lại &amp; Thử thanh toán lại</span>
+                  <span>{isEnglish ? 'Rebook & Retry Payment' : 'Đặt lại & Thử thanh toán lại'}</span>
                 </button>
                 <Link
                   to="/"
                   className="py-3 px-5 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs text-center border border-white/10 transition-all flex items-center justify-center space-x-2"
                 >
                   <Home className="w-4 h-4" />
-                  <span>Trang chủ</span>
+                  <span>{isEnglish ? 'Home Page' : 'Trang chủ'}</span>
                 </Link>
               </>
             )}

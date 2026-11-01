@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
 import { AlertCircle, X, Heart } from 'lucide-react';
 import { useWishlist } from '../context/WishlistContext';
+import { useTranslation } from '../context/I18nContext';
 
 export const WishlistToast: React.FC = () => {
   const { toast, clearToast } = useWishlist();
+  const { isEnglish } = useTranslation();
 
   useEffect(() => {
     if (!toast) return;
@@ -50,7 +52,7 @@ export const WishlistToast: React.FC = () => {
           type="button"
           onClick={clearToast}
           className="p-1 text-[#A0A0A0] hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-pointer shrink-0"
-          aria-label="Đóng"
+          aria-label={isEnglish ? "Close" : "Đóng"}
         >
           <X className="w-3.5 h-3.5" />
         </button>

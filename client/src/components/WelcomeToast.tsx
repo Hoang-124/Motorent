@@ -1,9 +1,11 @@
 import React, { useEffect } from 'react';
 import { CheckCircle2, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/I18nContext';
 
 export const WelcomeToast: React.FC = () => {
   const { welcomeNotice, clearWelcomeNotice } = useAuth();
+  const { isEnglish } = useTranslation();
 
   useEffect(() => {
     if (!welcomeNotice) return;
@@ -31,11 +33,13 @@ export const WelcomeToast: React.FC = () => {
         {/* Clean, compact text */}
         <div className="text-xs text-[#A0A0A0] min-w-0 pr-1 leading-tight">
           <div className="font-bold text-white truncate">
-            {isNew ? 'Chào mừng bạn đến với Motorent!' : 'Chào mừng bạn quay trở lại!'}
+            {isNew
+              ? (isEnglish ? 'Welcome to Motorent!' : 'Chào mừng bạn đến với Motorent!')
+              : (isEnglish ? 'Welcome back!' : 'Chào mừng bạn quay trở lại!')}
           </div>
           {welcomeNotice.name && (
             <div className="text-[11px] text-[#A0A0A0] truncate mt-0.5">
-              Xin chào <span className="font-semibold text-[#FFC799]">{welcomeNotice.name}</span>
+              {isEnglish ? 'Hello' : 'Xin chào'} <span className="font-semibold text-[#FFC799]">{welcomeNotice.name}</span>
             </div>
           )}
         </div>
@@ -45,7 +49,7 @@ export const WelcomeToast: React.FC = () => {
           type="button"
           onClick={clearWelcomeNotice}
           className="p-1 text-[#A0A0A0] hover:text-white hover:bg-white/10 rounded-md transition-colors cursor-pointer shrink-0"
-          aria-label="Đóng"
+          aria-label={isEnglish ? 'Close' : 'Đóng'}
         >
           <X className="w-3.5 h-3.5" />
         </button>

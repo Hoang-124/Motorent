@@ -131,50 +131,71 @@ const ROLE_METADATA: Record<string, { name: string; description: string; badgeCo
  * RBAC Matrix Endpoint (UC-99)
  * Returns the single source of truth for Role-Based Access Control
  */
+const getRbacMatrixHandler = (req: AuthenticatedRequest, res: Response): void => {
+  const userRole = req.user?.roles;
+  const userPermissions = Object.entries(PERMISSION_MATRIX)
+    .filter(([_, allowedRoles]) => userRole && (allowedRoles as readonly string[]).includes(userRole))
+    .map(([perm]) => perm);
+
+  // Group permissions by module
+  const modulesMap: Record<string, Array<{ permission: Permission; label: string; description: string; allowedRoles: readonly string[] }>> = {};
+  for (const [permKey, allowedRoles] of Object.entries(PERMISSION_MATRIX)) {
+    const p = permKey as Permission;
+    const meta = PERMISSION_METADATA[p] || {
+      label: p,
+      module: 'Chức năng chung',
+      description: 'Quyền thực thi hệ thống',
+    };
+    if (!modulesMap[meta.module]) {
+      modulesMap[meta.module] = [];
+    }
+    modulesMap[meta.module].push({
+      permission: p,
+      label: meta.label,
+      description: meta.description,
+      allowedRoles,
+    });
+  }
+
+  res.json({
+    success: true,
+    message: 'Ma trận phân quyền hệ thống MOTORENT (RBAC Single Source of Truth)',
+    data: {
+      role: userRole,
+      permissions: userPermissions,
+      matrix: PERMISSION_MATRIX,
+      roles: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
+      roleDescriptions: ROLE_METADATA,
+      metadata: PERMISSION_METADATA,
+      modules: modulesMap,
+    },
+  });
+};
+
+/**
+ * RBAC Matrix Endpoint (UC-99)
+ * Primary Route: GET /api/system/permissions
+ * Alias Routes: GET /api/rbac-matrix & GET /api/system/rbac-matrix
+ */
 router.get(
   '/system/permissions',
   authenticateJWT,
   authorize('SystemAdmin', 'BranchManager', 'Staff'),
-  (req: AuthenticatedRequest, res: Response): void => {
-    const userRole = req.user?.roles;
-    const userPermissions = Object.entries(PERMISSION_MATRIX)
-      .filter(([_, allowedRoles]) => userRole && (allowedRoles as readonly string[]).includes(userRole))
-      .map(([perm]) => perm);
+  getRbacMatrixHandler
+);
 
-    // Group permissions by module
-    const modulesMap: Record<string, Array<{ permission: Permission; label: string; description: string; allowedRoles: readonly string[] }>> = {};
-    for (const [permKey, allowedRoles] of Object.entries(PERMISSION_MATRIX)) {
-      const p = permKey as Permission;
-      const meta = PERMISSION_METADATA[p] || {
-        label: p,
-        module: 'Chức năng chung',
-        description: 'Quyền thực thi hệ thống',
-      };
-      if (!modulesMap[meta.module]) {
-        modulesMap[meta.module] = [];
-      }
-      modulesMap[meta.module].push({
-        permission: p,
-        label: meta.label,
-        description: meta.description,
-        allowedRoles,
-      });
-    }
+router.get(
+  '/rbac-matrix',
+  authenticateJWT,
+  authorize('SystemAdmin', 'BranchManager', 'Staff'),
+  getRbacMatrixHandler
+);
 
-    res.json({
-      success: true,
-      message: 'Ma trận phân quyền hệ thống MOTORENT (RBAC Single Source of Truth)',
-      data: {
-        role: userRole,
-        permissions: userPermissions,
-        matrix: PERMISSION_MATRIX,
-        roles: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
-        roleDescriptions: ROLE_METADATA,
-        metadata: PERMISSION_METADATA,
-        modules: modulesMap,
-      },
-    });
-  }
+router.get(
+  '/system/rbac-matrix',
+  authenticateJWT,
+  authorize('SystemAdmin', 'BranchManager', 'Staff'),
+  getRbacMatrixHandler
 );
 
 /**

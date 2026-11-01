@@ -10,10 +10,12 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import axios from 'axios';
+import { useTranslation } from '../context/I18nContext';
 
 export const ResetPasswordPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { isEnglish } = useTranslation();
   const token = searchParams.get('token');
 
   const [newPassword, setNewPassword] = useState('');
@@ -85,10 +87,10 @@ export const ResetPasswordPage: React.FC = () => {
             </span>
           </Link>
           <h2 className="text-2xl font-extrabold text-white tracking-tight">
-            Thiết lập mật khẩu mới
+            {isEnglish ? "Set New Password" : "Thiết lập mật khẩu mới"}
           </h2>
           <p className="text-xs text-[#A0A0A0] mt-1">
-            Nhập mật khẩu mới an toàn cho tài khoản của bạn
+            {isEnglish ? "Enter a secure new password for your account" : "Nhập mật khẩu mới an toàn cho tài khoản của bạn"}
           </p>
         </div>
 
@@ -106,10 +108,10 @@ export const ResetPasswordPage: React.FC = () => {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-bold text-white">
-                Đặt lại mật khẩu thành công!
+                {isEnglish ? "Password Reset Successfully!" : "Đặt lại mật khẩu thành công!"}
               </h3>
               <p className="text-xs text-[#A0A0A0] leading-relaxed max-w-sm mx-auto">
-                Mật khẩu của bạn đã được cập nhật an toàn. Hệ thống đang chuyển hướng bạn về trang chính...
+                {isEnglish ? "Your password has been securely updated. Redirecting to home page..." : "Mật khẩu của bạn đã được cập nhật an toàn. Hệ thống đang chuyển hướng bạn về trang chính..."}
               </p>
               <div className="pt-2">
                 <button
@@ -117,7 +119,7 @@ export const ResetPasswordPage: React.FC = () => {
                   onClick={() => navigate('/')}
                   className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
                 >
-                  <span>Chuyển về trang chính</span>
+                  <span>{isEnglish ? "Return to Home" : "Chuyển về trang chính"}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -127,12 +129,12 @@ export const ResetPasswordPage: React.FC = () => {
               <div>
                 <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
                   <Lock className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
-                  Mật khẩu mới
+                  {isEnglish ? "New Password" : "Mật khẩu mới"}
                 </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Ít nhất 6 ký tự..."
+                    placeholder={isEnglish ? "At least 6 characters..." : "Ít nhất 6 ký tự..."}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
@@ -151,11 +153,11 @@ export const ResetPasswordPage: React.FC = () => {
               <div>
                 <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
                   <Lock className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
-                  Xác nhận mật khẩu mới
+                  {isEnglish ? "Confirm New Password" : "Xác nhận mật khẩu mới"}
                 </label>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="Nhập lại mật khẩu mới..."
+                  placeholder={isEnglish ? "Re-enter new password..." : "Nhập lại mật khẩu mới..."}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -169,10 +171,10 @@ export const ResetPasswordPage: React.FC = () => {
                 className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
               >
                 {loading ? (
-                  <span>Đang cập nhật...</span>
+                  <span>{isEnglish ? "Updating..." : "Đang cập nhật..."}</span>
                 ) : (
                   <>
-                    <span>Cập nhật mật khẩu mới</span>
+                    <span>{isEnglish ? "Update New Password" : "Cập nhật mật khẩu mới"}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

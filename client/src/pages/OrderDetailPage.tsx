@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/I18nContext';
 import { useBookingStatus } from '../hooks/useBookingStatus';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import type { Booking, Vehicle, Branch } from '../types';
@@ -76,6 +77,7 @@ export const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isEnglish } = useTranslation();
 
   const [booking, setBooking] = useState<EnrichedBooking | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -103,11 +105,11 @@ export const OrderDetailPage: React.FC = () => {
       if (res.data?.success && res.data.data) {
         setBooking(res.data.data);
       } else {
-        setError('Không tìm thấy thông tin đơn đặt xe này.');
+        setError(isEnglish ? 'Booking order information not found.' : 'Không tìm thấy thông tin đơn đặt xe này.');
       }
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setError(errorObj.response?.data?.message || 'Không thể tải thông tin đơn đặt xe.');
+      setError(errorObj.response?.data?.message || (isEnglish ? 'Unable to load booking details.' : 'Không thể tải thông tin đơn đặt xe.'));
     } finally {
       setLoading(false);
     }
@@ -133,7 +135,7 @@ export const OrderDetailPage: React.FC = () => {
   const handleCancelBooking = async () => {
     if (!booking?._id) return;
     if (!cancelReason.trim()) {
-      setCancelError('Vui lòng nhập lý do hủy đơn.');
+      setCancelError(isEnglish ? 'Please enter a cancellation reason.' : 'Vui lòng nhập lý do hủy đơn.');
       return;
     }
 
@@ -148,11 +150,11 @@ export const OrderDetailPage: React.FC = () => {
         setIsCancelModalOpen(false);
         await fetchBookingDetails();
       } else {
-        setCancelError(res.data?.message || 'Hủy đơn không thành công.');
+        setCancelError(res.data?.message || (isEnglish ? 'Cancellation was not successful.' : 'Hủy đơn không thành công.'));
       }
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setCancelError(errorObj.response?.data?.message || 'Lỗi xử lý hủy đơn đặt xe.');
+      setCancelError(errorObj.response?.data?.message || (isEnglish ? 'Error processing booking cancellation.' : 'Lỗi xử lý hủy đơn đặt xe.'));
     } finally {
       setIsCancelling(false);
     }
@@ -171,11 +173,11 @@ export const OrderDetailPage: React.FC = () => {
       if (res.data?.success && res.data?.data?.paymentUrl) {
         window.location.href = res.data.data.paymentUrl;
       } else {
-        setPaymentError(res.data?.message || 'Không thể tạo cổng thanh toán VNPay.');
+        setPaymentError(res.data?.message || (isEnglish ? 'Unable to initiate VNPay gateway.' : 'Không thể tạo cổng thanh toán VNPay.'));
       }
     } catch (err: unknown) {
       const errorObj = err as { response?: { data?: { message?: string } } };
-      setPaymentError(errorObj.response?.data?.message || 'Lỗi kết nối cổng thanh toán VNPay.');
+      setPaymentError(errorObj.response?.data?.message || (isEnglish ? 'Connection error with VNPay gateway.' : 'Lỗi kết nối cổng thanh toán VNPay.'));
     } finally {
       setIsPaymentProcessing(false);
     }
@@ -186,7 +188,7 @@ export const OrderDetailPage: React.FC = () => {
       <div className="min-h-screen bg-[#101010] text-[#F5F5F5] flex items-center justify-center p-6">
         <div className="flex flex-col items-center space-y-4">
           <div className="w-10 h-10 border-2 border-[#FFC799] border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-[#A0A0A0]">Đang tải chi tiết đơn đặt xe...</p>
+          <p className="text-sm text-[#A0A0A0]">{isEnglish ? 'Loading booking details...' : 'Đang tải chi tiết đơn đặt xe...'}</p>
         </div>
       </div>
     );
@@ -197,15 +199,15 @@ export const OrderDetailPage: React.FC = () => {
       <div className="min-h-screen bg-[#101010] text-[#F5F5F5] flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-[#161616] border border-white/10 rounded-2xl p-8 text-center space-y-4">
           <AlertCircle className="w-12 h-12 text-[#FF8080] mx-auto" />
-          <h2 className="text-xl font-bold text-[#F5F5F5]">Không thể tải đơn hàng</h2>
-          <p className="text-sm text-[#A0A0A0]">{error || 'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập.'}</p>
+          <h2 className="text-xl font-bold text-[#F5F5F5]">{isEnglish ? 'Unable to load booking order' : 'Không thể tải đơn hàng'}</h2>
+          <p className="text-sm text-[#A0A0A0]">{error || (isEnglish ? 'Order does not exist or you do not have permission.' : 'Đơn hàng không tồn tại hoặc bạn không có quyền truy cập.')}</p>
           <div className="pt-2">
             <button
               onClick={() => navigate('/profile?tab=bookings')}
               className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>Quay lại danh sách đơn</span>
+              <span>{isEnglish ? 'Back to my bookings' : 'Quay lại danh sách đơn'}</span>
             </button>
           </div>
         </div>
@@ -218,9 +220,9 @@ export const OrderDetailPage: React.FC = () => {
   const returnBranch = typeof booking.returnBranchId === 'object' && booking.returnBranchId !== null ? (booking.returnBranchId as Branch) : null;
 
   const vehicleImage = vehicle?.images && vehicle.images.length > 0 ? getOptimizedVehicleImageUrl(vehicle.images[0]) : '';
-  const vehicleName = vehicle?.vehicleModel || 'Xe máy Motorent';
+  const vehicleName = vehicle?.vehicleModel || (isEnglish ? 'Motorent Motorbike' : 'Xe máy Motorent');
   const vehicleBrand = vehicle?.brand || '';
-  const licensePlate = vehicle?.licensePlate || 'Chờ gán biển số';
+  const licensePlate = vehicle?.licensePlate || (isEnglish ? 'Awaiting Plate' : 'Chờ gán biển số');
 
   const timeline = booking.timeline || [];
   const pricing = booking.pricing || {
@@ -257,7 +259,7 @@ export const OrderDetailPage: React.FC = () => {
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
             <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
-            Chờ thanh toán cọc 30%
+            {isEnglish ? 'Pending 30% Deposit' : 'Chờ thanh toán cọc 30%'}
           </span>
         );
       case 'Approved':
@@ -265,28 +267,28 @@ export const OrderDetailPage: React.FC = () => {
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-            Đã xác nhận &amp; Khóa biển số
+            {isEnglish ? 'Confirmed & Plate Locked' : 'Đã xác nhận & Khóa biển số'}
           </span>
         );
       case 'Ongoing':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-sky-500/15 text-sky-400 border border-sky-500/30">
             <span className="w-1.5 h-1.5 rounded-full bg-sky-400 mr-2 animate-ping" />
-            Đang lưu hành nhận xe
+            {isEnglish ? 'Ongoing Rental' : 'Đang lưu hành nhận xe'}
           </span>
         );
       case 'Completed':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-            Đã hoàn thành chuyến đi
+            {isEnglish ? 'Trip Completed' : 'Đã hoàn thành chuyến đi'}
           </span>
         );
       case 'Cancelled':
       case 'Rejected':
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30">
-            Đã hủy đơn thuê
+            {isEnglish ? 'Order Cancelled' : 'Đã hủy đơn thuê'}
           </span>
         );
       default:
@@ -310,26 +312,26 @@ export const OrderDetailPage: React.FC = () => {
             <Link
               to="/profile?tab=bookings"
               className="p-2.5 rounded-xl bg-[#161616] border border-white/10 hover:border-white/20 text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors"
-              title="Quay lại danh sách đơn"
+              title={isEnglish ? "Back to bookings" : "Quay lại danh sách đơn"}
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
 
             <div>
               <div className="flex items-center space-x-3">
-                <span className="text-xs uppercase tracking-wider text-[#6E6E6E] font-medium">Hợp đồng điện tử</span>
+                <span className="text-xs uppercase tracking-wider text-[#6E6E6E] font-medium">{isEnglish ? 'Digital Contract' : 'Hợp đồng điện tử'}</span>
                 <span className="font-mono-tabular font-bold text-lg text-[#FFC799]">{booking.bookingCode}</span>
                 <button
                   type="button"
                   onClick={() => handleCopyCode(booking.bookingCode)}
                   className="p-1 rounded text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors"
-                  title="Sao chép mã đơn"
+                  title={isEnglish ? 'Copy booking code' : 'Sao chép mã đơn'}
                 >
                   {copiedCode ? <Check className="w-3.5 h-3.5 text-[#FFC799]" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
               </div>
               <div className="text-xs text-[#A0A0A0] mt-0.5">
-                Khởi tạo lúc: {booking.createdAt ? new Date(booking.createdAt).toLocaleString('vi-VN') : 'Mới tạo'}
+                {isEnglish ? 'Created at: ' : 'Khởi tạo lúc: '}{booking.createdAt ? new Date(booking.createdAt).toLocaleString(isEnglish ? 'en-US' : 'vi-VN') : (isEnglish ? 'Just now' : 'Mới tạo')}
               </div>
             </div>
           </div>
@@ -344,7 +346,7 @@ export const OrderDetailPage: React.FC = () => {
               }`}
             >
               <Radio className={`w-3 h-3 ${isLive ? 'animate-pulse text-emerald-400' : 'text-[#6E6E6E]'}`} />
-              <span>{isLive ? 'Đồng bộ trực tiếp 24/7' : 'Đang kết nối lại'}</span>
+              <span>{isLive ? (isEnglish ? 'Live Synced 24/7' : 'Đồng bộ trực tiếp 24/7') : (isEnglish ? 'Reconnecting' : 'Đang kết nối lại')}</span>
             </div>
 
             {/* Status Badge */}
@@ -357,8 +359,8 @@ export const OrderDetailPage: React.FC = () => {
             ===================================================================== */}
         <div className="bg-[#161616] border border-white/10 rounded-2xl p-6 sm:p-8 overflow-hidden">
           <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-base font-bold text-[#F5F5F5] tracking-tight">Tiến trình bàn giao &amp; Thu hồi xe</h2>
-            <span className="text-xs text-[#6E6E6E]">Quy chuẩn vận hành Motorent</span>
+            <h2 className="text-base font-bold text-[#F5F5F5] tracking-tight">{isEnglish ? 'Handover & Return Lifecycle' : 'Tiến trình bàn giao & Thu hồi xe'}</h2>
+            <span className="text-xs text-[#6E6E6E]">{isEnglish ? 'Motorent Operational Standards' : 'Quy chuẩn vận hành Motorent'}</span>
           </div>
 
           <div className="relative">
@@ -444,13 +446,13 @@ export const OrderDetailPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-5 border-b border-white/[0.08]">
                 <div>
                   <span className="text-[11px] uppercase tracking-wider text-[#FFC799] font-semibold block">
-                    {vehicleBrand || 'Hãng xe cao cấp'}
+                    {vehicleBrand || (isEnglish ? 'Premium Brand' : 'Hãng xe cao cấp')}
                   </span>
                   <h3 className="text-xl font-bold text-[#F5F5F5]">{vehicleName}</h3>
                 </div>
 
                 <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-lg bg-[#101010] border border-white/15">
-                  <span className="text-[11px] text-[#6E6E6E]">Biển số:</span>
+                  <span className="text-[11px] text-[#6E6E6E]">{isEnglish ? 'Plate:' : 'Biển số:'}</span>
                   <span className="font-mono-tabular font-bold text-xs text-[#FFC799] tracking-wider">
                     {licensePlate}
                   </span>
@@ -473,27 +475,29 @@ export const OrderDetailPage: React.FC = () => {
                   <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
                     <span className="text-[#A0A0A0] flex items-center gap-1.5">
                       <Fuel className="w-3.5 h-3.5 text-[#FFC799]" />
-                      Nhiên liệu tiêu chuẩn
+                      {isEnglish ? 'Fuel Type' : 'Loại nhiên liệu'}
                     </span>
-                    <span className="font-medium text-[#F5F5F5]">Xăng A95 / Đầy bình</span>
+                    <span className="font-medium text-[#F5F5F5]">
+                      {vehicle?.fuelType === 'Electric' ? (isEnglish ? 'Standard Electric' : 'Điện sạc tiêu chuẩn') : (isEnglish ? 'Standard Gasoline' : 'Xăng tiêu chuẩn')}
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
                     <span className="text-[#A0A0A0] flex items-center gap-1.5">
                       <Gauge className="w-3.5 h-3.5 text-[#FFC799]" />
-                      Chỉ số ODO nhận xe
+                      {isEnglish ? 'Pickup Odometer' : 'Chỉ số ODO nhận xe'}
                     </span>
                     <span className="font-mono-tabular text-[#F5F5F5]">
-                      {booking.startOdometer ? `${booking.startOdometer} km` : 'Ghi nhận tại bàn giao'}
+                      {booking.startOdometer ? `${booking.startOdometer} km` : (isEnglish ? 'Recorded at handover' : 'Ghi nhận tại bàn giao')}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
                     <span className="text-[#A0A0A0] flex items-center gap-1.5">
                       <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799]" />
-                      Bảo hiểm &amp; Hỗ trợ cứu hộ
+                      {isEnglish ? 'Insurance & Roadside Assist' : 'Bảo hiểm & Hỗ trợ cứu hộ'}
                     </span>
-                    <span className="font-medium text-emerald-400">Đã kích hoạt 24/7</span>
+                    <span className="font-medium text-emerald-400">{isEnglish ? 'Active 24/7' : 'Đã kích hoạt 24/7'}</span>
                   </div>
                 </div>
               </div>
@@ -501,7 +505,7 @@ export const OrderDetailPage: React.FC = () => {
               {/* Schedule & Stations Strip */}
               <div className="pt-4 border-t border-white/[0.08] space-y-4">
                 <h4 className="text-xs uppercase tracking-wider text-[#6E6E6E] font-semibold">
-                  Lịch trình nhận &amp; Trả xe
+                  {isEnglish ? 'Pickup & Return Schedule' : 'Lịch trình nhận & Trả xe'}
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -509,7 +513,7 @@ export const OrderDetailPage: React.FC = () => {
                   <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-2">
                     <div className="flex items-center space-x-2 text-xs font-semibold text-[#FFC799]">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>Thời gian nhận xe</span>
+                      <span>{isEnglish ? 'Pickup Time' : 'Thời gian nhận xe'}</span>
                     </div>
                     <div className="font-mono-tabular text-sm font-bold text-[#F5F5F5]">
                       {new Date(booking.pickupDateTime).toLocaleString('vi-VN', {
@@ -523,8 +527,8 @@ export const OrderDetailPage: React.FC = () => {
                     <div className="text-xs text-[#A0A0A0] flex items-start space-x-1.5 pt-1">
                       <MapPin className="w-3.5 h-3.5 text-[#6E6E6E] shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-medium text-[#F5F5F5]">{pickupBranch?.name || 'Trạm trung tâm'}</div>
-                        <div className="text-[11px] text-[#6E6E6E]">{pickupBranch?.address || 'Chi nhánh Motorent'}</div>
+                        <div className="font-medium text-[#F5F5F5]">{pickupBranch?.name || (isEnglish ? 'Central Station' : 'Trạm trung tâm')}</div>
+                        <div className="text-[11px] text-[#6E6E6E]">{pickupBranch?.address || (isEnglish ? 'Motorent Station' : 'Chi nhánh Motorent')}</div>
                       </div>
                     </div>
                   </div>
@@ -533,7 +537,7 @@ export const OrderDetailPage: React.FC = () => {
                   <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-2">
                     <div className="flex items-center space-x-2 text-xs font-semibold text-[#A0A0A0]">
                       <Clock className="w-3.5 h-3.5" />
-                      <span>Thời gian trả hẹn ước</span>
+                      <span>{isEnglish ? 'Scheduled Return' : 'Thời gian trả hẹn ước'}</span>
                     </div>
                     <div className="font-mono-tabular text-sm font-bold text-[#F5F5F5]">
                       {new Date(booking.returnDateTime).toLocaleString('vi-VN', {
@@ -547,17 +551,17 @@ export const OrderDetailPage: React.FC = () => {
                     <div className="text-xs text-[#A0A0A0] flex items-start space-x-1.5 pt-1">
                       <MapPin className="w-3.5 h-3.5 text-[#6E6E6E] shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-medium text-[#F5F5F5]">{returnBranch?.name || 'Trạm hoàn trả'}</div>
-                        <div className="text-[11px] text-[#6E6E6E]">{returnBranch?.address || 'Chi nhánh Motorent'}</div>
+                        <div className="font-medium text-[#F5F5F5]">{returnBranch?.name || (isEnglish ? 'Return Station' : 'Trạm hoàn trả')}</div>
+                        <div className="text-[11px] text-[#6E6E6E]">{returnBranch?.address || (isEnglish ? 'Motorent Station' : 'Chi nhánh Motorent')}</div>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 <div className="text-[11px] text-[#A0A0A0] bg-[#101010]/60 p-3 rounded-lg border border-white/[0.06] flex items-center justify-between">
-                  <span>Thời lượng hợp đồng:</span>
+                  <span>{isEnglish ? 'Contract Duration:' : 'Thời lượng hợp đồng:'}</span>
                   <span className="font-mono-tabular font-bold text-[#FFC799]">
-                    {pricing.durationDays} ngày ({pricing.durationHours} giờ)
+                    {pricing.durationDays} {isEnglish ? 'days' : 'ngày'} ({pricing.durationHours} {isEnglish ? 'hours' : 'giờ'})
                   </span>
                 </div>
               </div>
@@ -566,38 +570,65 @@ export const OrderDetailPage: React.FC = () => {
             {/* Renter Identity Card */}
             <div className="bg-[#161616] border border-white/10 rounded-2xl p-6 space-y-4">
               <h4 className="text-xs uppercase tracking-wider text-[#6E6E6E] font-semibold">
-                Thông tin người thuê nhận xe
+                {isEnglish ? 'Rider Information' : 'Thông tin người thuê nhận xe'}
               </h4>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                 <div>
-                  <span className="text-[#6E6E6E] block mb-1">Họ tên khách hàng</span>
+                  <span className="text-[#6E6E6E] block mb-1">{isEnglish ? 'Full Name' : 'Họ tên khách hàng'}</span>
                   <span className="font-semibold text-[#F5F5F5]">
-                    {user?.firstName ? `${user.lastName || ''} ${user.firstName}`.trim() : user?.username || 'Khách hàng'}
+                    {user?.firstName ? `${user.lastName || ''} ${user.firstName}`.trim() : user?.username || (isEnglish ? 'Rider' : 'Khách hàng')}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[#6E6E6E] block mb-1">Số điện thoại liên lạc</span>
+                  <span className="text-[#6E6E6E] block mb-1">{isEnglish ? 'Phone Number' : 'Số điện thoại liên lạc'}</span>
                   <span className="font-mono-tabular text-[#F5F5F5]">
-                    {user?.phoneNumber || 'Chưa cung cấp'}
+                    {user?.phoneNumber || (isEnglish ? 'Not provided' : 'Chưa cung cấp')}
                   </span>
                 </div>
 
                 <div>
-                  <span className="text-[#6E6E6E] block mb-1">Trạng thái eKYC CCCD/GPLX</span>
-                  <span className="font-medium text-emerald-400 flex items-center gap-1">
+                  <span className="text-[#6E6E6E] block mb-1">{isEnglish ? 'eKYC Verification' : 'Trạng thái eKYC CCCD/GPLX'}</span>
+                  <span
+                    className={`font-medium flex items-center gap-1 ${
+                      user?.identityStatus === 'Verified'
+                        ? 'text-emerald-400'
+                        : user?.identityStatus === 'Pending'
+                        ? 'text-amber-400'
+                        : 'text-[#A0A0A0]'
+                    }`}
+                  >
                     <ShieldCheck className="w-3.5 h-3.5" />
-                    Đã kiểm duyệt nhận xe
+                    {isEnglish
+                      ? (user?.identityStatus === 'Verified'
+                          ? 'eKYC Verified'
+                          : user?.identityStatus === 'Pending'
+                          ? 'Pending eKYC Review'
+                          : user?.identityStatus === 'Rejected'
+                          ? 'Documents Required'
+                          : 'Unverified')
+                      : (user?.identityStatus === 'Verified'
+                          ? 'Đã xác thực eKYC'
+                          : user?.identityStatus === 'Pending'
+                          ? 'Đang chờ duyệt eKYC'
+                          : user?.identityStatus === 'Rejected'
+                          ? 'Cần bổ sung giấy tờ'
+                          : 'Chưa xác thực eKYC')}
                   </span>
                 </div>
               </div>
 
               <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-[#A0A0A0]">
-                <span>Cần xuất trình bản gốc CCCD/GPLX tại quầy khi nhận bàn giao xe.</span>
-                <span className="text-[#FFC799] font-medium flex items-center gap-1">
-                  <Phone className="w-3 h-3" /> Hotline: 1900 8888
-                </span>
+                <span>{isEnglish ? 'Present original National ID/Driver License at station upon pickup.' : 'Cần xuất trình bản gốc CCCD/GPLX tại quầy khi nhận bàn giao xe.'}</span>
+                {pickupBranch?.phone && (
+                  <a
+                    href={`tel:${pickupBranch.phone.replace(/[^0-9+]/g, '')}`}
+                    className="text-[#FFC799] font-medium flex items-center gap-1 hover:underline"
+                  >
+                    <Phone className="w-3 h-3" /> {isEnglish ? 'Station Hotline:' : 'Hotline trạm:'} {pickupBranch.phone}
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -608,61 +639,61 @@ export const OrderDetailPage: React.FC = () => {
             {/* Pricing Details Card */}
             <div className="bg-[#161616] border border-white/10 rounded-2xl p-6 sm:p-7 space-y-6">
               <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
-                <h3 className="text-base font-bold text-[#F5F5F5]">Bảng tính tài chính</h3>
-                <span className="text-xs text-[#6E6E6E] font-mono-tabular">VNĐ</span>
+                <h3 className="text-base font-bold text-[#F5F5F5]">{isEnglish ? 'Financial Breakdown' : 'Bảng tính tài chính'}</h3>
+                <span className="text-xs text-[#6E6E6E] font-mono-tabular">{isEnglish ? 'VND' : 'VNĐ'}</span>
               </div>
 
               <div className="space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[#A0A0A0]">Đơn giá niêm yết theo ngày</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Listed Daily Rate' : 'Đơn giá niêm yết theo ngày'}</span>
                   <span className="font-mono-tabular text-[#F5F5F5]">
-                    {pricing.dailyPrice.toLocaleString('vi-VN')} đ / ngày
+                    {pricing.dailyPrice.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫ / day' : 'đ / ngày'}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[#A0A0A0]">Thời gian tính phí</span>
-                  <span className="font-mono-tabular text-[#F5F5F5]">{pricing.durationDays} ngày</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Billed Duration' : 'Thời gian tính phí'}</span>
+                  <span className="font-mono-tabular text-[#F5F5F5]">{pricing.durationDays} {isEnglish ? 'days' : 'ngày'}</span>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[#A0A0A0]">Giá gốc dự tính</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Estimated Base Rental' : 'Giá gốc dự tính'}</span>
                   <span className="font-mono-tabular text-[#F5F5F5]">
-                    {pricing.basePrice.toLocaleString('vi-VN')} đ
+                    {pricing.basePrice.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </span>
                 </div>
 
                 {pricing.discountAmount > 0 && (
                   <div className="flex items-center justify-between text-emerald-400">
-                    <span>Khuyến mãi / Giảm giá voucher</span>
+                    <span>{isEnglish ? 'Promotions / Voucher Discounts' : 'Khuyến mãi / Giảm giá voucher'}</span>
                     <span className="font-mono-tabular font-medium">
-                      -{pricing.discountAmount.toLocaleString('vi-VN')} đ
+                      -{pricing.discountAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                   </div>
                 )}
 
                 {pricing.lateFee > 0 && (
                   <div className="flex items-center justify-between text-[#FF8080]">
-                    <span>Phụ phí trễ giờ hoàn trả</span>
+                    <span>{isEnglish ? 'Late Return Fee' : 'Phụ phí trễ giờ hoàn trả'}</span>
                     <span className="font-mono-tabular font-medium">
-                      +{pricing.lateFee.toLocaleString('vi-VN')} đ
+                      +{pricing.lateFee.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                   </div>
                 )}
 
                 {pricing.damageFee > 0 && (
                   <div className="flex items-center justify-between text-[#FF8080]">
-                    <span>Phụ phí hư tổn / bồi hoàn</span>
+                    <span>{isEnglish ? 'Damage / Compensation Fee' : 'Phụ phí hư tổn / bồi hoàn'}</span>
                     <span className="font-mono-tabular font-medium">
-                      +{pricing.damageFee.toLocaleString('vi-VN')} đ
+                      +{pricing.damageFee.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                   </div>
                 )}
 
                 <div className="pt-3 border-t border-white/[0.08] flex items-center justify-between text-sm">
-                  <span className="font-bold text-[#F5F5F5]">Tổng cộng hợp đồng</span>
+                  <span className="font-bold text-[#F5F5F5]">{isEnglish ? 'Total Contract Value' : 'Tổng cộng hợp đồng'}</span>
                   <span className="font-mono-tabular font-bold text-lg text-[#FFC799]">
-                    {pricing.totalAmount.toLocaleString('vi-VN')} đ
+                    {pricing.totalAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </span>
                 </div>
               </div>
@@ -670,42 +701,42 @@ export const OrderDetailPage: React.FC = () => {
               {/* Payment Status Segment */}
               <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[#A0A0A0]">Tiền cọc giữ xe (30%):</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Reservation Deposit (30%):' : 'Tiền cọc giữ xe (30%):'}</span>
                   <div className="text-right">
                     <span className="font-mono-tabular font-bold text-[#F5F5F5]">
-                      {pricing.depositAmount.toLocaleString('vi-VN')} đ
+                      {pricing.depositAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                     <span
                       className={`block text-[10px] ${
                         pricing.depositPaid || pricing.isPaid ? 'text-emerald-400 font-semibold' : 'text-[#FFC799]'
                       }`}
                     >
-                      {pricing.depositPaid || pricing.isPaid ? 'Đã hoàn tất thanh toán cọc' : 'Chưa thanh toán cọc'}
+                      {pricing.depositPaid || pricing.isPaid ? (isEnglish ? 'Deposit Paid' : 'Đã hoàn tất thanh toán cọc') : (isEnglish ? 'Deposit Unpaid' : 'Chưa thanh toán cọc')}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-white/[0.06]">
-                  <span className="text-[#A0A0A0]">Số tiền còn lại (70%):</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Remaining Balance (70%):' : 'Số tiền còn lại (70%):'}</span>
                   <div className="text-right">
                     <span className="font-mono-tabular font-bold text-[#F5F5F5]">
-                      {pricing.remainingAmount.toLocaleString('vi-VN')} đ
+                      {pricing.remainingAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                     <span
                       className={`block text-[10px] ${
                         pricing.isPaid ? 'text-emerald-400 font-semibold' : 'text-[#6E6E6E]'
                       }`}
                     >
-                      {pricing.isPaid ? 'Đã thanh toán đủ 100%' : 'Thanh toán tại quầy khi nhận xe'}
+                      {pricing.isPaid ? (isEnglish ? '100% Fully Paid' : 'Đã thanh toán đủ 100%') : (isEnglish ? 'Pay at counter upon pickup' : 'Thanh toán tại quầy khi nhận xe')}
                     </span>
                   </div>
                 </div>
 
                 {pricing.refundAmount !== undefined && pricing.refundAmount > 0 && (
                   <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] text-emerald-400">
-                    <span>Số tiền hoàn lại (BR-06):</span>
+                    <span>{isEnglish ? 'Refund Amount:' : 'Số tiền hoàn lại:'}</span>
                     <span className="font-mono-tabular font-bold">
-                      {pricing.refundAmount.toLocaleString('vi-VN')} đ ({pricing.refundStatus || 'Chờ duyệt'})
+                      {pricing.refundAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'} ({pricing.refundStatus || (isEnglish ? 'Pending' : 'Chờ duyệt')})
                     </span>
                   </div>
                 )}
@@ -713,7 +744,7 @@ export const OrderDetailPage: React.FC = () => {
 
               {/* Actions Area */}
               <div className="space-y-3 pt-2">
-                <h4 className="text-xs uppercase tracking-wider text-[#6E6E6E] font-semibold">Thao tác khả dụng</h4>
+                <h4 className="text-xs uppercase tracking-wider text-[#6E6E6E] font-semibold">{isEnglish ? 'Available Actions' : 'Thao tác khả dụng'}</h4>
 
                 {paymentError && (
                   <div className="p-3 rounded-xl bg-[#FF8080]/15 border border-[#FF8080]/30 text-xs text-[#FF8080] flex items-center gap-2">
@@ -731,7 +762,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-3 px-4 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-bold transition-all flex items-center justify-center space-x-2 shadow-lg shadow-black/40 cursor-pointer disabled:opacity-50"
                   >
                     <CreditCard className="w-4 h-4" />
-                    <span>Thanh toán cọc 30% qua VNPay ({pricing.depositAmount.toLocaleString('vi-VN')} đ)</span>
+                    <span>{isEnglish ? `Pay 30% Deposit via VNPay (${pricing.depositAmount.toLocaleString('en-US')} ₫)` : `Thanh toán cọc 30% qua VNPay (${pricing.depositAmount.toLocaleString('vi-VN')} đ)`}</span>
                   </button>
                 )}
 
@@ -744,7 +775,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-3 px-4 rounded-xl bg-[#161616] border border-[#FFC799]/40 hover:bg-[#FFC799]/15 text-[#FFC799] text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
                   >
                     <CreditCard className="w-4 h-4" />
-                    <span>Thanh toán đủ 100% qua VNPay ({pricing.remainingAmount.toLocaleString('vi-VN')} đ)</span>
+                    <span>{isEnglish ? `Pay 100% via VNPay (${pricing.remainingAmount.toLocaleString('en-US')} ₫)` : `Thanh toán đủ 100% qua VNPay (${pricing.remainingAmount.toLocaleString('vi-VN')} đ)`}</span>
                   </button>
                 )}
 
@@ -755,7 +786,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-2.5 px-4 rounded-xl bg-[#101010] border border-white/15 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-medium transition-all flex items-center justify-center space-x-2"
                   >
                     <Clock className="w-4 h-4 text-[#FFC799]" />
-                    <span>Yêu cầu gia hạn thêm thời gian thuê</span>
+                    <span>{isEnglish ? 'Request Rental Extension' : 'Yêu cầu gia hạn thêm thời gian thuê'}</span>
                   </Link>
                 )}
 
@@ -767,7 +798,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-2.5 px-4 rounded-xl bg-transparent border border-white/10 hover:border-[#FF8080]/40 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-all flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
-                    <span>Hủy đơn đặt xe này (Theo chính sách BR-06)</span>
+                    <span>{isEnglish ? 'Cancel this booking' : 'Hủy đơn đặt xe này'}</span>
                   </button>
                 )}
 
@@ -778,7 +809,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-3 px-4 rounded-xl bg-[#101010] border border-white/15 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-semibold transition-all flex items-center justify-center space-x-2"
                   >
                     <RotateCcw className="w-4 h-4 text-[#FFC799]" />
-                    <span>Đặt lại chiếc xe này</span>
+                    <span>{isEnglish ? 'Rebook this vehicle' : 'Đặt lại chiếc xe này'}</span>
                   </Link>
                 )}
               </div>
@@ -788,13 +819,13 @@ export const OrderDetailPage: React.FC = () => {
             <div className="p-4 rounded-xl bg-[#161616]/60 border border-white/[0.06] text-[11px] text-[#6E6E6E] space-y-1.5">
               <div className="flex items-center space-x-1.5 text-[#A0A0A0] font-medium">
                 <FileText className="w-3.5 h-3.5 text-[#FFC799]" />
-                <span>Chính sách bảo vệ quyền lợi người thuê</span>
+                <span>{isEnglish ? 'Rider Protection Policy' : 'Chính sách bảo vệ quyền lợi người thuê'}</span>
               </div>
               <p>
-                - Hủy trước 24 giờ kể từ thời điểm nhận xe: Hoàn lại 100% số tiền đã thanh toán cọc.
+                {isEnglish ? '• Cancel 24+ hours before pickup: 100% refund of paid deposit.' : '- Hủy trước 24 giờ kể từ thời điểm nhận xe: Hoàn lại 100% số tiền đã thanh toán cọc.'}
               </p>
               <p>
-                - Hủy trong vòng 24 giờ trước nhận xe: Giữ lại tiền cọc 30% làm phí lưu kho bãi và bồi hoàn chi nhánh.
+                {isEnglish ? '• Cancel within 24 hours of pickup: 30% deposit retained for vehicle holding reservation.' : '- Hủy trong vòng 24 giờ trước nhận xe: Giữ lại tiền cọc 30% làm phí lưu kho bãi và bồi hoàn chi nhánh.'}
               </p>
             </div>
           </div>
@@ -812,8 +843,8 @@ export const OrderDetailPage: React.FC = () => {
                     <AlertTriangle className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-[#F5F5F5]">Xác nhận hủy đơn thuê</h3>
-                    <p className="text-xs text-[#A0A0A0]">Mã đơn: {booking.bookingCode}</p>
+                    <h3 className="text-base font-bold text-[#F5F5F5]">{isEnglish ? 'Confirm Booking Cancellation' : 'Xác nhận hủy đơn thuê'}</h3>
+                    <p className="text-xs text-[#A0A0A0]">{isEnglish ? 'Booking Code: ' : 'Mã đơn: '}{booking.bookingCode}</p>
                   </div>
                 </div>
                 <button
@@ -825,20 +856,20 @@ export const OrderDetailPage: React.FC = () => {
               </div>
 
               <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0] space-y-1">
-                <p className="font-semibold text-[#F5F5F5]">Chính sách hủy đơn (Rule BR-06):</p>
-                <p>• Hệ thống sẽ tự động đối soát mốc thời gian nhận xe để tính toán số tiền hoàn cọc chính xác.</p>
-                <p>• Biển số xe sẽ được mở khóa lại ngay lập tức cho các khách hàng khác thuê.</p>
+                <p className="font-semibold text-[#F5F5F5]">{isEnglish ? 'Cancellation Policy:' : 'Chính sách hủy đơn:'}</p>
+                <p>{isEnglish ? '• The system automatically verifies pickup timing to compute exact refund eligibility.' : '• Hệ thống sẽ tự động đối soát mốc thời gian nhận xe để tính toán số tiền hoàn cọc chính xác.'}</p>
+                <p>{isEnglish ? '• The license plate is unlocked immediately for other riders.' : '• Biển số xe sẽ được mở khóa lại ngay lập tức cho các khách hàng khác thuê.'}</p>
               </div>
 
               <div>
                 <label className="text-xs font-medium text-[#A0A0A0] block mb-1.5">
-                  Lý do bạn muốn hủy đơn thuê xe: <span className="text-[#FF8080]">*</span>
+                  {isEnglish ? 'Reason for cancellation: ' : 'Lý do bạn muốn hủy đơn thuê xe: '}<span className="text-[#FF8080]">*</span>
                 </label>
                 <textarea
                   rows={3}
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="Ví dụ: Thay đổi lịch trình chuyến bay, công việc cá nhân..."
+                  placeholder={isEnglish ? "e.g. Flight schedule change, personal matters..." : "Ví dụ: Thay đổi lịch trình chuyến bay, công việc cá nhân..."}
                   className="w-full bg-[#101010] border border-white/15 rounded-xl p-3 text-xs text-[#F5F5F5] placeholder-[#6E6E6E] focus:outline-none focus:border-[#FFC799]"
                 />
               </div>
@@ -856,7 +887,7 @@ export const OrderDetailPage: React.FC = () => {
                   disabled={isCancelling}
                   className="px-4 py-2 rounded-xl bg-[#101010] border border-white/15 hover:border-white/30 text-xs font-semibold text-[#A0A0A0] transition-colors cursor-pointer"
                 >
-                  Đóng lại
+                  {isEnglish ? 'Close' : 'Đóng lại'}
                 </button>
                 <button
                   type="button"
@@ -864,7 +895,7 @@ export const OrderDetailPage: React.FC = () => {
                   disabled={isCancelling}
                   className="px-4 py-2 rounded-xl bg-[#FF8080] hover:bg-[#FF8080]/80 text-[#101010] text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
                 >
-                  {isCancelling ? 'Đang xử lý...' : 'Xác nhận hủy đơn'}
+                  {isCancelling ? (isEnglish ? 'Processing...' : 'Đang xử lý...') : (isEnglish ? 'Confirm Cancellation' : 'Xác nhận hủy đơn')}
                 </button>
               </div>
             </div>

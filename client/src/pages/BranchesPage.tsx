@@ -22,11 +22,13 @@ import type { Branch, Vehicle } from '../types';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
+import { useTranslation } from '../context/I18nContext';
 import { BranchInteractiveMap } from '../components/BranchInteractiveMap';
 
 export const BranchesPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { isEnglish } = useTranslation();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -36,6 +38,7 @@ export const BranchesPage: React.FC = () => {
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState<boolean>(false);
   const [nearestBranchId, setNearestBranchId] = useState<string | null>(null);
+  const [gpsError, setGpsError] = useState<string>('');
 
   const isSystemAdmin = isAuthenticated && user?.roles === 'SystemAdmin';
 
@@ -70,8 +73,9 @@ export const BranchesPage: React.FC = () => {
 
   // Handle GPS Search (UC-27)
   const handleFindNearest = () => {
+    setGpsError('');
     if (!navigator.geolocation) {
-      alert('Trình duyệt của bạn không hỗ trợ định vị vị trí GPS.');
+      setGpsError(isEnglish ? 'Your browser does not support GPS geolocation.' : 'Trình duyệt của bạn không hỗ trợ định vị vị trí GPS.');
       return;
     }
 
@@ -83,16 +87,14 @@ export const BranchesPage: React.FC = () => {
           lng: pos.coords.longitude,
         };
         setUserCoords(coords);
+        setGpsError('');
         fetchData(coords);
         setIsLocating(false);
       },
-      (err) => {
-        console.warn('GPS error', err);
+      () => {
         setIsLocating(false);
-        // Fallback: Da Nang Center (16.054, 108.202)
-        const fallback = { lat: 16.0544, lng: 108.2022 };
-        setUserCoords(fallback);
-        fetchData(fallback);
+        setUserCoords(null);
+        setGpsError(isEnglish ? 'Unable to access your GPS location. Please allow location permissions in your browser to sort by nearest station.' : 'Không thể truy cập vị trí GPS thực tế. Vui lòng cấp quyền định vị trên trình duyệt để sắp xếp trạm gần nhất.');
       },
       { timeout: 8000 }
     );
@@ -121,10 +123,10 @@ export const BranchesPage: React.FC = () => {
               </div>
               <div>
                 <span className="text-xs font-bold text-[#FFC799] block">
-                  Chế độ Quản Trị Viên (SystemAdmin Mode)
+                  {isEnglish ? "System Administrator Mode" : "Chế độ Quản Trị Viên (SystemAdmin Mode)"}
                 </span>
                 <span className="text-[11px] text-[#A0A0A0]">
-                  Bạn có quyền thêm mới, chỉnh sửa, gán Quản lý và tạm ngưng chi nhánh trong mạng lưới.
+                  {isEnglish ? "You have full privileges to add, edit, assign managers, and pause stations across the network." : "Bạn có quyền thêm mới, chỉnh sửa, gán Quản lý và tạm ngưng chi nhánh trong mạng lưới."}
                 </span>
               </div>
             </div>
@@ -133,7 +135,7 @@ export const BranchesPage: React.FC = () => {
               to="/admin"
               className="px-4 py-2 rounded-xl bg-[#FFC799] text-[#101010] text-xs font-semibold hover:bg-[#ffe2cc] transition-all flex items-center space-x-1.5 shrink-0 shadow-md"
             >
-              <span>Vào Trung Tâm Điều Hành Admin</span>
+              <span>{isEnglish ? "Open Admin Operations Center" : "Vào Trung Tâm Điều Hành Admin"}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -143,11 +145,11 @@ export const BranchesPage: React.FC = () => {
             1. EDITORIAL MASTHEAD & LIVE NETWORK SUMMARY
             ===================================================================== */}
         <div className="pb-8 mb-10 border-b border-white/[0.08] animate-fade-up">
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-            <div className="max-w-2xl">
+          <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+            <div className="max-w-2xl min-w-0">
               <div className="inline-flex items-center space-x-2 text-[11px] uppercase tracking-[0.16em] text-[#FFC799] font-semibold mb-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4]" />
-                <span>Hệ Thống Trạm Giao Nhận Đô Thị • Đà Nẵng</span>
+                <span>{isEnglish ? "Urban Handover Station Network • Da Nang" : "Hệ Thống Trạm Giao Nhận Đô Thị • Đà Nẵng"}</span>
               </div>
               <h1 className="text-3xl sm:text-5xl font-bold text-[#F5F5F5] tracking-tight leading-[1.12]">
                 Nhận xe tại cửa ngõ,{' '}
@@ -165,28 +167,28 @@ export const BranchesPage: React.FC = () => {
             <div className="grid grid-cols-3 gap-2.5 sm:gap-3 shrink-0">
               <div className="px-4 py-3 rounded-xl bg-[#161616] border border-white/10">
                 <span className="text-[10px] uppercase tracking-wider text-[#6E6E6E] block">
-                  Quy mô trạm
+                  {isEnglish ? "Network Size" : "Quy mô trạm"}
                 </span>
                 <span className="text-base sm:text-lg font-bold text-[#F5F5F5] font-mono-tabular mt-0.5 block">
-                  0{branches.length || 2} trạm lớn
+                  {branches.length} {isEnglish ? "active stations" : "trạm hoạt động"}
                 </span>
               </div>
 
               <div className="px-4 py-3 rounded-xl bg-[#161616] border border-white/10">
                 <span className="text-[10px] uppercase tracking-wider text-[#6E6E6E] block">
-                  Xe sẵn sàng
+                  {isEnglish ? "Available Bikes" : "Xe sẵn sàng"}
                 </span>
                 <span className="text-base sm:text-lg font-bold text-[#FFC799] font-mono-tabular mt-0.5 block">
-                  {totalAvailable} chiếc
+                  {totalAvailable} {isEnglish ? "bikes" : "chiếc"}
                 </span>
               </div>
 
               <div className="px-4 py-3 rounded-xl bg-[#161616] border border-white/10">
                 <span className="text-[10px] uppercase tracking-wider text-[#6E6E6E] block">
-                  Phí đổi trạm
+                  {isEnglish ? "Relocation Fee" : "Phí đổi trạm"}
                 </span>
                 <span className="text-base sm:text-lg font-bold text-[#F5F5F5] font-mono-tabular mt-0.5 block">
-                  0đ (Miễn phí)
+                  {isEnglish ? "0₫ (Complimentary)" : "0đ (Miễn phí)"}
                 </span>
               </div>
             </div>
@@ -197,19 +199,19 @@ export const BranchesPage: React.FC = () => {
             <div className="flex items-center space-x-2.5">
               <CheckCircle2 className="w-4 h-4 text-[#FFC799] shrink-0" />
               <span>
-                <strong className="text-[#F5F5F5] font-medium">Thủ tục 03 phút:</strong> Đối soát eKYC nhanh gọn, trả lại ngay CCCD gốc
+                <strong className="text-[#F5F5F5] font-medium">{isEnglish ? "3-Minute Check-in:" : "Thủ tục 03 phút:"}</strong> {isEnglish ? "Rapid digital eKYC verification, original ID returned instantly" : "Đối soát eKYC nhanh gọn, trả lại ngay CCCD gốc"}
               </span>
             </div>
             <div className="flex items-center space-x-2.5">
               <ShieldCheck className="w-4 h-4 text-[#FFC799] shrink-0" />
               <span>
-                <strong className="text-[#F5F5F5] font-medium">Gửi hành lý miễn phí:</strong> Nhận giữ hộ vali cồng kềnh tại quầy khi bạn đi dạo phố
+                <strong className="text-[#F5F5F5] font-medium">{isEnglish ? "Free Luggage Storage:" : "Gửi hành lý miễn phí:"}</strong> {isEnglish ? "Complimentary luggage storage at counter while you explore the city" : "Nhận giữ hộ vali cồng kềnh tại quầy khi bạn đi dạo phố"}
               </span>
             </div>
             <div className="flex items-center space-x-2.5">
               <Sparkles className="w-4 h-4 text-[#FFC799] shrink-0" />
               <span>
-                <strong className="text-[#F5F5F5] font-medium">Trang bị đầy đủ:</strong> Kèm 02 mũ 3/4 khử trùng tia UV, áo mưa &amp; giá đỡ điện thoại
+                <strong className="text-[#F5F5F5] font-medium">{isEnglish ? "Fully Equipped:" : "Trang bị đầy đủ:"}</strong> {isEnglish ? "Includes 02 UV-sanitized 3/4 helmets, raincoats & phone mounts" : "Kèm 02 mũ 3/4 khử trùng tia UV, áo mưa & giá đỡ điện thoại"}
               </span>
             </div>
           </div>
@@ -228,7 +230,7 @@ export const BranchesPage: React.FC = () => {
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
-              <span>Danh sách trạm</span>
+              <span>{isEnglish ? "Station Cards" : "Danh sách trạm"}</span>
             </button>
 
             <button
@@ -241,7 +243,7 @@ export const BranchesPage: React.FC = () => {
               }`}
             >
               <MapIcon className="w-3.5 h-3.5" />
-              <span>Bản đồ tương tác GPS</span>
+              <span>{isEnglish ? "Interactive GPS Map" : "Bản đồ tương tác GPS"}</span>
             </button>
           </div>
 
@@ -250,7 +252,7 @@ export const BranchesPage: React.FC = () => {
             {userCoords && (
               <span className="text-[11px] text-[#99FFE4] font-mono flex items-center space-x-1.5">
                 <LocateFixed className="w-3.5 h-3.5" />
-                <span>Đã định vị vị trí của bạn</span>
+                <span>{isEnglish ? "Your GPS Location Located" : "Đã định vị vị trí của bạn"}</span>
               </span>
             )}
 
@@ -261,10 +263,23 @@ export const BranchesPage: React.FC = () => {
               className="px-4 py-2 rounded-xl bg-[#222222] hover:bg-[#2A2A2A] border border-white/15 hover:border-[#FFC799] text-xs font-semibold text-[#FFC799] flex items-center space-x-2 transition-all shadow-sm active:scale-95 disabled:opacity-50"
             >
               <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-              <span>{isLocating ? 'Đang dò GPS...' : 'Tìm trạm gần tôi nhất'}</span>
+              <span>{isLocating ? (isEnglish ? 'Locating GPS...' : 'Đang dò GPS...') : (isEnglish ? 'Find Nearest Station' : 'Tìm trạm gần tôi nhất')}</span>
             </button>
           </div>
         </div>
+
+        {gpsError && (
+          <div className="mb-6 p-3.5 rounded-xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-[#FF8080] text-xs flex items-center justify-between gap-3">
+            <span>{gpsError}</span>
+            <button
+              type="button"
+              onClick={() => setGpsError('')}
+              className="text-[11px] underline hover:text-white cursor-pointer shrink-0"
+            >
+              {isEnglish ? "Dismiss" : "Đóng"}
+            </button>
+          </div>
+        )}
 
         {/* MAP VIEW (UC-02) */}
         {viewMode === 'map' && (
@@ -325,18 +340,18 @@ export const BranchesPage: React.FC = () => {
                         <div className="flex items-center justify-between gap-2 pb-4 border-b border-white/[0.08]">
                           <div className="flex items-center space-x-2.5 min-w-0">
                             <span className="px-2.5 py-1 rounded-lg bg-[#101010] border border-white/10 font-mono-tabular text-xs font-bold text-[#FFC799] shrink-0">
-                              TRẠM 0{idx + 1} • {branch.code}
+                              {isEnglish ? "STATION 0" : "TRẠM 0"}{idx + 1} • {branch.code}
                             </span>
                             {isNearest && (
                               <span className="px-2 py-0.5 rounded-full bg-[#99FFE4]/20 border border-[#99FFE4]/30 text-[10px] font-bold text-[#99FFE4] shrink-0">
-                                Gần bạn nhất ({branch.distanceKm ?? '0.5'} km)
+                                {isEnglish ? 'Nearest to you' : 'Gần bạn nhất'}{branch.distanceKm !== undefined ? ` (${branch.distanceKm} km)` : ''}
                               </span>
                             )}
                           </div>
 
                           <span className="inline-flex items-center px-3 py-1 rounded-full bg-[#101010] border border-white/10 text-[11px] font-semibold text-[#F5F5F5] shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4] mr-1.5" />
-                            {availableBikes.length} / {branchBikes.length} xe sẵn sàng
+                            {availableBikes.length} / {branchBikes.length} {isEnglish ? "available" : "xe sẵn sàng"}
                           </span>
                         </div>
 
@@ -356,20 +371,20 @@ export const BranchesPage: React.FC = () => {
                           <div className="bg-[#101010]/80 border border-white/[0.07] rounded-xl p-3.5 flex flex-col justify-between">
                             <span className="text-[10px] uppercase tracking-wider text-[#6E6E6E] flex items-center">
                               <Clock className="w-3 h-3 text-[#FFC799] mr-1.5 shrink-0" />
-                              <span>Khung giờ hoạt động</span>
+                              <span>{isEnglish ? "Operating Hours" : "Khung giờ hoạt động"}</span>
                             </span>
                             <p className="font-mono-tabular font-bold text-xs sm:text-sm text-[#F5F5F5] mt-1.5">
                               {branch.hours_open || '06:00'} – {branch.hours_close || '23:00'}
                             </p>
                             <span className="text-[11px] text-[#A0A0A0] block mt-0.5 truncate">
-                              Mở cửa cả Lễ &amp; Chủ Nhật
+                              {isEnglish ? "Open on Holidays & Sundays" : "Mở cửa cả Lễ & Chủ Nhật"}
                             </span>
                           </div>
 
                           <div className="bg-[#101010]/80 border border-white/[0.07] rounded-xl p-3.5 flex flex-col justify-between">
                             <span className="text-[10px] uppercase tracking-wider text-[#6E6E6E] flex items-center">
                               <PhoneCall className="w-3 h-3 text-[#FFC799] mr-1.5 shrink-0" />
-                              <span>Tổng đài trực tại trạm</span>
+                              <span>{isEnglish ? "Station Hotline" : "Tổng đài trực tại trạm"}</span>
                             </span>
                             <a
                               href={`tel:${branch.phone}`}
@@ -378,7 +393,7 @@ export const BranchesPage: React.FC = () => {
                               {branch.phone}
                             </a>
                             <span className="text-[11px] text-[#A0A0A0] block mt-0.5 truncate">
-                              {isAirport ? 'Đón khách tại cổng ga T1 & T2' : 'Giao xe nhanh dọc biển Mỹ Khê'}
+                              {isAirport ? (isEnglish ? 'Greeting at Arrival T1 & T2' : 'Đón khách tại cổng ga T1 & T2') : (isEnglish ? 'Fast delivery along My Khe Beach' : 'Giao xe nhanh dọc biển Mỹ Khê')}
                             </span>
                           </div>
                         </div>
@@ -387,13 +402,13 @@ export const BranchesPage: React.FC = () => {
                         <div className="pt-1">
                           <div className="flex items-center justify-between mb-2.5">
                             <span className="text-[11px] uppercase tracking-[0.12em] text-[#A0A0A0] font-semibold">
-                              Xe đang có tại trạm ({branchBikes.length})
+                              {isEnglish ? "Fleet at this Station" : "Xe đang có tại trạm"} ({branchBikes.length})
                             </span>
                             <Link
                               to={`/bikes?pickup=${branch._id}`}
                               className="text-[11px] text-[#FFC799] hover:underline flex items-center space-x-1"
                             >
-                              <span>Xem tất cả</span>
+                              <span>{isEnglish ? "View all" : "Xem tất cả"}</span>
                               <ArrowUpRight className="w-3 h-3" />
                             </Link>
                           </div>
@@ -419,14 +434,14 @@ export const BranchesPage: React.FC = () => {
                                       {bike.vehicleModel}
                                     </span>
                                     <span className="text-[10px] font-mono-tabular text-[#FFC799] block font-medium">
-                                      {bike.dailyPrice?.toLocaleString('vi-VN')}đ/ngày
+                                      {bike.dailyPrice?.toLocaleString('vi-VN')}{isEnglish ? "₫/day" : "đ/ngày"}
                                     </span>
                                   </div>
                                 </Link>
                               ))
                             ) : (
                               <div className="col-span-3 py-6 text-center text-xs text-[#6E6E6E] bg-[#101010] rounded-xl border border-white/[0.06]">
-                                Đội xe tại trạm đang được luân chuyển phục vụ khách
+                                {isEnglish ? "Fleet at this station is currently out on rentals" : "Đội xe tại trạm đang được luân chuyển phục vụ khách"}
                               </div>
                             )}
                           </div>
@@ -436,15 +451,15 @@ export const BranchesPage: React.FC = () => {
                         <div className="grid grid-cols-3 gap-2.5 pt-1">
                           <div className="px-2.5 py-2 rounded-xl bg-[#101010] border border-white/[0.06] text-[11px] text-[#A0A0A0] flex items-center justify-center space-x-1.5 text-center">
                             <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span className="truncate">Nước suối miễn phí</span>
+                            <span className="truncate">{isEnglish ? "Complimentary bottled water" : "Nước suối miễn phí"}</span>
                           </div>
                           <div className="px-2.5 py-2 rounded-xl bg-[#101010] border border-white/[0.06] text-[11px] text-[#A0A0A0] flex items-center justify-center space-x-1.5 text-center">
                             <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span className="truncate">Gửi vali miễn phí</span>
+                            <span className="truncate">{isEnglish ? "Free luggage storage" : "Gửi vali miễn phí"}</span>
                           </div>
                           <div className="px-2.5 py-2 rounded-xl bg-[#101010] border border-white/[0.06] text-[11px] text-[#A0A0A0] flex items-center justify-center space-x-1.5 text-center">
                             <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                            <span className="truncate">Giao xe eKYC 3 phút</span>
+                            <span className="truncate">{isEnglish ? "3-min eKYC handover" : "Giao xe eKYC 3 phút"}</span>
                           </div>
                         </div>
                       </div>
@@ -458,13 +473,13 @@ export const BranchesPage: React.FC = () => {
                           className="px-4 py-3 rounded-xl border border-white/10 bg-[#101010] text-[#F5F5F5] hover:border-[#FFC799] text-xs font-medium inline-flex items-center justify-center space-x-1.5 transition-colors shrink-0"
                         >
                           <Navigation className="w-3.5 h-3.5 text-[#FFC799]" />
-                          <span>Chỉ đường Maps</span>
+                          <span>{isEnglish ? "Directions" : "Chỉ đường Maps"}</span>
                         </a>
 
                         <a
                           href={`tel:${branch.phone}`}
                           className="p-3 rounded-xl border border-white/10 bg-[#101010] text-[#A0A0A0] hover:text-[#F5F5F5] hover:border-white/25 transition-colors shrink-0"
-                          title="Gọi trực tiếp cho trạm"
+                          title={isEnglish ? "Call station directly" : "Gọi trực tiếp cho trạm"}
                         >
                           <Phone className="w-4 h-4" />
                         </a>
@@ -473,7 +488,7 @@ export const BranchesPage: React.FC = () => {
                           to={`/bikes?pickup=${branch._id}`}
                           className="flex-1 py-3 px-4 rounded-xl text-xs font-semibold text-[#101010] bg-[#F5F5F5] hover:bg-[#FFC799] transition-all text-center flex items-center justify-center space-x-1.5 active:scale-95"
                         >
-                          <span>Chọn xe tại trạm này ({branchBikes.length} xe)</span>
+                          <span>{isEnglish ? `Select bike here (${branchBikes.length} bikes)` : `Chọn xe tại trạm này (${branchBikes.length} xe)`}</span>
                           <ArrowRight className="w-3.5 h-3.5 stroke-[2.2]" />
                         </Link>
                       </div>
@@ -492,7 +507,7 @@ export const BranchesPage: React.FC = () => {
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center space-x-2 text-xs uppercase tracking-[0.16em] text-[#FFC799] font-semibold">
               <ArrowRightLeft className="w-3.5 h-3.5" />
-              <span>Đặc Quyền Liên Trạm Motorent (Phụ Phí 0đ)</span>
+              <span>{isEnglish ? "Exclusive Inter-Station Privilege (0₫ Fee)" : "Đặc Quyền Liên Trạm Motorent (Phụ Phí 0đ)"}</span>
             </div>
 
             <h2 className="text-2xl sm:text-3xl font-bold text-[#F5F5F5] tracking-tight">
@@ -511,16 +526,16 @@ export const BranchesPage: React.FC = () => {
           {/* Visual Route Steps & Action */}
           <div className="flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-4 shrink-0">
             <div className="flex items-center space-x-2.5 bg-[#101010] border border-white/10 rounded-xl px-4 py-3 text-xs">
-              <span className="font-semibold text-[#F5F5F5]">Trạm Sân Bay</span>
-              <span className="text-[#FFC799] font-mono-tabular">── 12 phút qua Cầu Rồng ──►</span>
-              <span className="font-semibold text-[#F5F5F5]">Trạm Mỹ Khê</span>
+              <span className="font-semibold text-[#F5F5F5]">{isEnglish ? "Airport Station" : "Trạm Sân Bay"}</span>
+              <span className="text-[#FFC799] font-mono-tabular">{isEnglish ? "── 12 mins via Dragon Bridge ──►" : "── 12 phút qua Cầu Rồng ──►"}</span>
+              <span className="font-semibold text-[#F5F5F5]">{isEnglish ? "My Khe Beach Station" : "Trạm Mỹ Khê"}</span>
             </div>
 
             <Link
               to="/bikes"
               className="inline-flex items-center justify-center space-x-2 px-6 py-3.5 rounded-xl text-xs font-semibold text-[#101010] bg-[#F5F5F5] hover:bg-[#FFC799] transition-all active:scale-95"
             >
-              <span>Đặt xe liên trạm ngay</span>
+              <span>{isEnglish ? "Book Inter-Station Ride" : "Đặt xe liên trạm ngay"}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.2]" />
             </Link>
           </div>

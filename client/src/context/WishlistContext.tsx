@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
+import { useTranslation } from './I18nContext';
 
 interface WishlistContextType {
   wishlistIds: Set<string>;
@@ -19,6 +20,7 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 
 export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
+  const { isEnglish } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -108,10 +110,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       if (willLike) {
         await api.post(`/wishlist/${vehicleId}`);
-        showToast('success', 'Đã thêm vào danh sách xe yêu thích.');
+        showToast('success', isEnglish ? 'Added to saved bikes.' : 'Đã thêm vào danh sách xe yêu thích.');
       } else {
         await api.delete(`/wishlist/${vehicleId}`);
-        showToast('success', 'Đã xóa khỏi danh sách xe yêu thích.');
+        showToast('success', isEnglish ? 'Removed from saved bikes.' : 'Đã xóa khỏi danh sách xe yêu thích.');
       }
       return true;
     } catch (error: any) {
@@ -128,7 +130,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       const message =
         error.response?.data?.message ||
-        'Không thể cập nhật danh sách yêu thích. Vui lòng thử lại sau.';
+        (isEnglish ? 'Unable to update saved bikes. Please try again later.' : 'Không thể cập nhật danh sách yêu thích. Vui lòng thử lại sau.');
       showToast('error', message);
       return false;
     } finally {

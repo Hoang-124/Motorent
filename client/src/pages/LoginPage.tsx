@@ -13,6 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/I18nContext';
 import { api } from '../services/api';
 
 // Type definitions for Google Identity Services
@@ -55,6 +56,7 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
+  const { isEnglish } = useTranslation();
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -146,7 +148,7 @@ export const LoginPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim() || !password) {
-      setErrorMsg('Vui lòng nhập đầy đủ tên đăng nhập/email và mật khẩu.');
+      setErrorMsg(isEnglish ? 'Please enter both username/email and password.' : 'Vui lòng nhập đầy đủ tên đăng nhập/email và mật khẩu.');
       return;
     }
 
@@ -177,7 +179,7 @@ export const LoginPage: React.FC = () => {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         setErrorMsg(err.response.data.message);
       } else {
-        setErrorMsg('Tên đăng nhập hoặc mật khẩu không chính xác.');
+        setErrorMsg(isEnglish ? 'Incorrect username or password.' : 'Tên đăng nhập hoặc mật khẩu không chính xác.');
       }
     } finally {
       setLoading(false);
@@ -202,10 +204,10 @@ export const LoginPage: React.FC = () => {
             </span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
-            Đăng nhập tài khoản
+            {isEnglish ? "Sign In to Your Account" : "Đăng nhập tài khoản"}
           </h2>
           <p className="text-xs text-[#A0A0A0] mt-1">
-            Quản lý lịch trình thuê xe, điểm thưởng và hợp đồng số hóa
+            {isEnglish ? "Manage your rental schedules, rewards points, and digital contracts" : "Quản lý lịch trình thuê xe, điểm thưởng và hợp đồng số hóa"}
           </p>
         </div>
 
@@ -241,14 +243,14 @@ export const LoginPage: React.FC = () => {
             <div>
               <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5 flex items-center">
                 <UserIcon className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
-                Tên đăng nhập hoặc Email
+                {isEnglish ? "Username or Email" : "Tên đăng nhập hoặc Email"}
               </label>
               <input
                 type="text"
                 required
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="VD: admin hoặc yourname@outlook.com.vn"
+                placeholder={isEnglish ? "e.g. admin or yourname@outlook.com.vn" : "VD: admin hoặc yourname@outlook.com.vn"}
                 className={`w-full px-3.5 py-2.5 bg-[#101010] border rounded-xl text-xs font-semibold text-white placeholder:text-[#6E6E6E] outline-none transition-all ${
                   isGmail
                     ? 'border-[#FFC799]/70 focus:border-[#FFC799] bg-[#FFC799]/[0.04]'
@@ -261,9 +263,11 @@ export const LoginPage: React.FC = () => {
                 <div className="mt-2.5 p-3.5 bg-[#FFC799]/10 border border-[#FFC799]/30 rounded-xl text-xs text-[#F5F5F5] flex items-start space-x-2.5 animate-in fade-in duration-200">
                   <Sparkles className="w-4 h-4 text-[#FFC799] shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="font-bold text-[#FFC799]">Phát hiện tài khoản Gmail</p>
+                    <p className="font-bold text-[#FFC799]">{isEnglish ? "Gmail Account Detected" : "Phát hiện tài khoản Gmail"}</p>
                     <p className="text-[11px] text-[#F5F5F5] mt-1 leading-relaxed">
-                      Tài khoản Gmail được hỗ trợ đăng nhập 1 chạm an toàn. Vui lòng bấm vào nút <strong className="text-white underline underline-offset-2">"Đăng nhập bằng Google"</strong> ở bên dưới.
+                      {isEnglish
+                        ? <>Gmail accounts support 1-tap sign-in. Please click the <strong className="text-white underline underline-offset-2">"Sign in with Google"</strong> button below.</>
+                        : <>Tài khoản Gmail được hỗ trợ đăng nhập 1 chạm an toàn. Vui lòng bấm vào nút <strong className="text-white underline underline-offset-2">"Đăng nhập bằng Google"</strong> ở bên dưới.</>}
                     </p>
                   </div>
                 </div>
@@ -274,13 +278,13 @@ export const LoginPage: React.FC = () => {
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-bold text-[#A0A0A0] flex items-center">
                   <Lock className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
-                  Mật khẩu
+                  {isEnglish ? "Password" : "Mật khẩu"}
                 </label>
                 <Link
                   to="/forgot-password"
                   className="text-[11px] font-semibold text-[#FFC799] hover:text-[#FFC799] hover:underline"
                 >
-                  Quên mật khẩu?
+                  {isEnglish ? "Forgot password?" : "Quên mật khẩu?"}
                 </Link>
               </div>
               <div className="relative">
@@ -308,10 +312,10 @@ export const LoginPage: React.FC = () => {
               className="w-full py-3 px-4 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] active:scale-[0.99] text-white rounded-xl text-xs font-black shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
             >
               {loading ? (
-                <span>Đang xử lý đăng nhập...</span>
+                <span>{isEnglish ? "Signing in..." : "Đang xử lý đăng nhập..."}</span>
               ) : (
                 <>
-                  <span>Đăng nhập hệ thống</span>
+                  <span>{isEnglish ? "Sign In" : "Đăng nhập hệ thống"}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -324,7 +328,7 @@ export const LoginPage: React.FC = () => {
               <div className="w-full border-t border-white/10" />
             </div>
             <div className="relative flex justify-center text-[11px]">
-              <span className="px-3 bg-[#161616] text-[#A0A0A0] font-medium">hoặc đăng nhập nhanh với</span>
+              <span className="px-3 bg-[#161616] text-[#A0A0A0] font-medium">{isEnglish ? "or continue with" : "hoặc đăng nhập nhanh với"}</span>
             </div>
           </div>
 
@@ -335,15 +339,15 @@ export const LoginPage: React.FC = () => {
 
           {!gisReady && (
             <p className="text-[11px] text-[#A0A0A0] text-center">
-              Đang tải xác thực Google an toàn...
+              {isEnglish ? "Loading secure Google authentication..." : "Đang tải xác thực Google an toàn..."}
             </p>
           )}
 
           {/* Footer link to register */}
           <div className="pt-2 text-center text-xs text-[#A0A0A0]">
-            <span>Chưa có tài khoản? </span>
+            <span>{isEnglish ? "Don't have an account? " : "Chưa có tài khoản? "}</span>
             <Link to="/register" className="font-bold text-[#FFC799] hover:text-[#FFC799] hover:underline">
-              Đăng ký ngay
+              {isEnglish ? "Register now" : "Đăng ký ngay"}
             </Link>
           </div>
         </div>
@@ -352,7 +356,7 @@ export const LoginPage: React.FC = () => {
         <div className="p-3.5 bg-white/[0.03] rounded-2xl border border-white/5 text-center">
           <p className="text-[11px] text-[#A0A0A0] flex items-center justify-center space-x-1 font-medium">
             <Mail className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-            Hỗ trợ đăng nhập với Google, Outlook, Yahoo và email doanh nghiệp
+            {isEnglish ? "Secure sign-in supported via Google, Outlook, Yahoo, and business domains" : "Hỗ trợ đăng nhập với Google, Outlook, Yahoo và email doanh nghiệp"}
           </p>
         </div>
       </div>

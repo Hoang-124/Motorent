@@ -10,9 +10,11 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import axios from 'axios';
+import { useTranslation } from '../context/I18nContext';
 
 export const ForgotPasswordPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isEnglish } = useTranslation();
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,10 +89,10 @@ export const ForgotPasswordPage: React.FC = () => {
             </span>
           </Link>
           <h2 className="text-2xl font-extrabold text-white tracking-tight">
-            Quên mật khẩu?
+            {isEnglish ? "Forgot Password?" : "Quên mật khẩu?"}
           </h2>
           <p className="text-xs text-[#A0A0A0] mt-1">
-            Nhập địa chỉ email liên kết với tài khoản Motorent của bạn
+            {isEnglish ? "Enter the email address associated with your Motorent account" : "Nhập địa chỉ email liên kết với tài khoản Motorent của bạn"}
           </p>
         </div>
 
@@ -106,7 +108,7 @@ export const ForgotPasswordPage: React.FC = () => {
                       to="/register"
                       className="inline-flex items-center space-x-1.5 text-[#FFC799] hover:text-[#FFC799] font-bold underline underline-offset-2 transition-colors"
                     >
-                      <span>Bấm vào đây để đăng ký tài khoản mới</span>
+                      <span>{isEnglish ? "Click here to register a new account" : "Bấm vào đây để đăng ký tài khoản mới"}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>
@@ -141,10 +143,12 @@ export const ForgotPasswordPage: React.FC = () => {
 
               <div>
                 <h4 className="text-sm font-bold text-[#FFC799]">
-                  Phát hiện tài khoản Google
+                  {isEnglish ? "Google Account Detected" : "Phát hiện tài khoản Google"}
                 </h4>
                 <p className="text-xs text-[#F5F5F5] mt-1 leading-relaxed">
-                  Địa chỉ email <strong className="font-bold text-white">{email}</strong> sử dụng phương thức đăng nhập qua Google. Bạn không cần đặt lại mật khẩu, vui lòng đăng nhập trực tiếp bằng Google.
+                  {isEnglish
+                    ? <>Email <strong className="font-bold text-white">{email}</strong> uses Google Sign-In. You do not need to reset your password, please sign in with Google directly.</>
+                    : <>Địa chỉ email <strong className="font-bold text-white">{email}</strong> sử dụng phương thức đăng nhập qua Google. Bạn không cần đặt lại mật khẩu, vui lòng đăng nhập trực tiếp bằng Google.</>}
                 </p>
               </div>
 
@@ -152,7 +156,7 @@ export const ForgotPasswordPage: React.FC = () => {
                 to="/login"
                 className="w-full py-3 bg-[#101010] hover:bg-white/5 border border-[#FFC799]/30 rounded-xl text-xs font-semibold text-[#F5F5F5] transition-all flex items-center justify-center space-x-2"
               >
-                <span>Chuyển sang Đăng nhập bằng Google</span>
+                <span>{isEnglish ? "Switch to Google Sign-In" : "Chuyển sang Đăng nhập bằng Google"}</span>
                 <ArrowRight className="w-4 h-4 text-[#FFC799]" />
               </Link>
             </div>
@@ -165,10 +169,12 @@ export const ForgotPasswordPage: React.FC = () => {
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h4 className="text-sm font-bold text-[#FFC799]">
-                Đã gửi liên kết đặt lại mật khẩu!
+                {isEnglish ? "Password reset link sent!" : "Đã gửi liên kết đặt lại mật khẩu!"}
               </h4>
               <p className="text-xs text-[#A0A0A0] leading-relaxed">
-                Vui lòng kiểm tra hộp thư của <strong className="text-[#FFC799]">{email}</strong>. Liên kết có hiệu lực trong 60 phút.
+                {isEnglish
+                    ? <>Please check your inbox at <strong className="text-[#FFC799]">{email}</strong>. The link is valid for 60 minutes.</>
+                    : <>Vui lòng kiểm tra hộp thư của <strong className="text-[#FFC799]">{email}</strong>. Liên kết có hiệu lực trong 60 phút.</>}
               </p>
 
               <div className="pt-2">
@@ -177,7 +183,7 @@ export const ForgotPasswordPage: React.FC = () => {
                   className="inline-flex items-center space-x-1 text-xs font-semibold text-[#FFC799] hover:text-[#FFC799]"
                 >
                   <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                  <span>Quay lại trang Đăng nhập</span>
+                  <span>{isEnglish ? "Back to Sign In" : "Quay lại trang Đăng nhập"}</span>
                 </Link>
               </div>
             </div>
@@ -189,18 +195,18 @@ export const ForgotPasswordPage: React.FC = () => {
               <div>
                 <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
                   <Mail className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
-                  Địa chỉ Email tài khoản
+                  {isEnglish ? "Account Email Address" : "Địa chỉ Email tài khoản"}
                 </label>
                 <input
                   type="email"
-                  placeholder="VD: user@outlook.com.vn, user@yahoo.com..."
+                  placeholder={isEnglish ? "e.g. user@outlook.com.vn, user@gmail.com..." : "VD: user@outlook.com.vn, user@yahoo.com..."}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-medium text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799] transition-colors"
                 />
                 <p className="text-[11px] text-[#6E6E6E] mt-1">
-                  Hệ thống hỗ trợ Outlook, Yahoo, email doanh nghiệp hoặc tài khoản cá nhân.
+                  {isEnglish ? "Supports Outlook, Yahoo, business domains, and personal emails." : "Hệ thống hỗ trợ Outlook, Yahoo, email doanh nghiệp hoặc tài khoản cá nhân."}
                 </p>
               </div>
 
@@ -210,10 +216,10 @@ export const ForgotPasswordPage: React.FC = () => {
                 className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
               >
                 {loading ? (
-                  <span>Đang kiểm tra tài khoản...</span>
+                  <span>{isEnglish ? "Checking account..." : "Đang kiểm tra tài khoản..."}</span>
                 ) : (
                   <>
-                    <span>Gửi liên kết khôi phục</span>
+                    <span>{isEnglish ? "Send Recovery Link" : "Gửi liên kết khôi phục"}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
@@ -227,7 +233,7 @@ export const ForgotPasswordPage: React.FC = () => {
               className="inline-flex items-center space-x-1.5 font-medium text-[#A0A0A0] hover:text-white transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Quay lại trang Đăng nhập</span>
+              <span>{isEnglish ? "Back to Sign In" : "Quay lại trang Đăng nhập"}</span>
             </Link>
           </div>
         </div>

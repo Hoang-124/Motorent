@@ -2,6 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { I18nProvider } from './context/I18nContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
 import { WelcomeToast } from './components/WelcomeToast';
 import { WishlistToast } from './components/WishlistToast';
@@ -32,6 +35,7 @@ import { ManagerComplaintsPage } from './pages/ManagerComplaintsPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 import { ManagementNav } from './components/ManagementNav';
+import { ReportsCenter } from './components/ReportsCenter';
 
 const VehicleDetailPage = lazy(() =>
   import('./pages/VehicleDetailPage').then((module) => ({ default: module.VehicleDetailPage }))
@@ -65,16 +69,30 @@ function RoleBasedHome() {
     user &&
     ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles)
   ) {
-    return <Navigate to="/counter" replace />;
+    return (
+      <Navigate
+        to={
+          user.roles === 'SystemAdmin'
+            ? '/admin'
+            : user.roles === 'BranchManager'
+            ? '/manager/dashboard'
+            : '/counter'
+        }
+        replace
+      />
+    );
   }
   return <HomePage />;
 }
 
 export function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <WishlistProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+      <I18nProvider>
+        <AuthProvider>
+        <BrowserRouter>
+          <WishlistProvider>
           <ScrollToTop />
           <div className="min-h-screen flex flex-col bg-[#101010] font-sans text-[#F5F5F5] antialiased selection:bg-[#FFC799] selection:text-[#101010]">
             <Navbar />
@@ -179,6 +197,32 @@ export function App() {
                       </RequireRole>
                     }
                   />
+                  <Route
+                    path="/reports"
+                    element={
+                      <RequireRole roles={['BranchManager', 'SystemAdmin']}>
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                          <ManagementNav />
+                          <div className="mt-6">
+                            <ReportsCenter />
+                          </div>
+                        </div>
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/admin/reports"
+                    element={
+                      <RequireRole roles={['BranchManager', 'SystemAdmin']}>
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                          <ManagementNav />
+                          <div className="mt-6">
+                            <ReportsCenter />
+                          </div>
+                        </div>
+                      </RequireRole>
+                    }
+                  />
 
                   {/* Operational Counter, Audit & RBAC */}
                   <Route
@@ -192,7 +236,7 @@ export function App() {
                   <Route
                     path="/audit"
                     element={
-                      <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
+                      <RequireRole roles={['SystemAdmin']}>
                         <AuditLogPage />
                       </RequireRole>
                     }
@@ -293,6 +337,9 @@ export function App() {
         </WishlistProvider>
       </BrowserRouter>
     </AuthProvider>
+      </I18nProvider>
+    </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -17,11 +17,13 @@ import {
 } from 'lucide-react';
 import { pageService } from '../services/pageService';
 import type { StaticPage } from '../types';
+import { useTranslation } from '../context/I18nContext';
 
 export const StaticPageView: React.FC = () => {
   const { slug: paramSlug } = useParams<{ slug?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
+  const { isEnglish } = useTranslation();
 
   // Determine active slug: either /pages/:slug or direct aliases /faq, /terms, /privacy
   let activeSlug = paramSlug;
@@ -53,12 +55,12 @@ export const StaticPageView: React.FC = () => {
         if (!isMounted) return;
         setPage(data);
         // Rule: Set document title theo title
-        document.title = `${data.title} | MOTORENT Đà Nẵng`;
+        document.title = `${data.title} | MOTORENT ${isEnglish ? 'Da Nang' : 'Đà Nẵng'}`;
       })
       .catch(() => {
         if (!isMounted) return;
         setNotFound(true);
-        document.title = '404 - Không Tìm Thấy Trang | MOTORENT';
+        document.title = isEnglish ? '404 - Page Not Found | MOTORENT' : '404 - {isEnglish ? "Page Not Found" : "Không Tìm Thấy Trang"} | MOTORENT';
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -101,13 +103,13 @@ export const StaticPageView: React.FC = () => {
 
           <div className="space-y-2">
             <p className="font-mono text-xs text-[#FFC799] uppercase tracking-widest">
-              LỖI TRUY CẬP 404
+              {isEnglish ? "ACCESS ERROR 404" : "LỖI TRUY CẬP 404"}
             </p>
             <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#F5F5F5]">
-              Không Tìm Thấy Trang
+              {isEnglish ? "Page Not Found" : "Không Tìm Thấy Trang"}
             </h1>
             <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed">
-              Trang bạn đang tìm kiếm không tồn tại, đã bị gỡ bỏ hoặc đang ở chế độ bản nháp chưa công bố.
+              {isEnglish ? "The page you are looking for does not exist, has been removed or is currently an unpublished draft." : "Trang bạn đang tìm kiếm không tồn tại, đã bị gỡ bỏ hoặc đang ở chế độ bản nháp chưa công bố."}
             </p>
           </div>
 
@@ -117,14 +119,14 @@ export const StaticPageView: React.FC = () => {
               className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-semibold transition-colors"
             >
               <Home className="w-3.5 h-3.5" />
-              <span>Về Trang Chủ</span>
+              <span>{isEnglish ? "Home" : "Về Trang Chủ"}</span>
             </Link>
             <Link
               to="/bikes"
               className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 px-5 py-2.5 rounded-xl bg-[#1E1E1E] hover:bg-white/[0.08] text-[#F5F5F5] border border-white/10 text-xs font-semibold transition-colors"
             >
               <Compass className="w-3.5 h-3.5 text-[#FFC799]" />
-              <span>Khám Phá Đội Xe</span>
+              <span>{isEnglish ? "Explore Fleet" : "Khám Phá Đội Xe"}</span>
             </Link>
           </div>
         </div>
@@ -142,7 +144,7 @@ export const StaticPageView: React.FC = () => {
             className="inline-flex items-center space-x-2 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại</span>
+            <span>{isEnglish ? "Back" : "Quay lại"}</span>
           </button>
 
           {/* Quick tab switch between 3 primary system documents */}
@@ -165,7 +167,7 @@ export const StaticPageView: React.FC = () => {
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              Điều khoản
+              {isEnglish ? "Terms" : "Điều khoản"}
             </Link>
             <Link
               to="/privacy"
@@ -175,7 +177,7 @@ export const StaticPageView: React.FC = () => {
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              Bảo mật
+              {isEnglish ? "Privacy" : "Bảo mật"}
             </Link>
           </div>
         </div>
@@ -187,7 +189,7 @@ export const StaticPageView: React.FC = () => {
             {page.type === 'Terms' && <FileCheck2 className="w-3.5 h-3.5" />}
             {page.type === 'Privacy' && <Shield className="w-3.5 h-3.5" />}
             {page.type === 'Other' && <FileText className="w-3.5 h-3.5" />}
-            <span>TRANG THÔNG TIN MOTORENT ĐÀ NẴNG</span>
+            <span>{isEnglish ? "MOTORENT DA NANG INFORMATION HUB" : "TRANG THÔNG TIN MOTORENT ĐÀ NẴNG"}</span>
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight text-[#F5F5F5] leading-snug">
@@ -198,8 +200,8 @@ export const StaticPageView: React.FC = () => {
             <div className="flex items-center space-x-1.5">
               <Calendar className="w-3.5 h-3.5 text-[#FFC799]" />
               <span>
-                Cập nhật:{' '}
-                {new Date(page.updatedAt).toLocaleDateString('vi-VN', {
+                {isEnglish ? 'Updated: ' : 'Cập nhật: '}
+                {new Date(page.updatedAt).toLocaleDateString(isEnglish ? 'en-US' : 'vi-VN', {
                   day: '2-digit',
                   month: '2-digit',
                   year: 'numeric',
@@ -209,7 +211,7 @@ export const StaticPageView: React.FC = () => {
             <span>•</span>
             <div className="flex items-center space-x-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
-              <span>Chính sách áp dụng toàn hệ thống</span>
+              <span>{isEnglish ? "System-wide applicable policy" : "Chính sách áp dụng toàn hệ thống"}</span>
             </div>
           </div>
         </div>
@@ -226,10 +228,10 @@ export const StaticPageView: React.FC = () => {
         <div className="p-6 rounded-2xl bg-gradient-to-r from-[#1B1B1B] to-[#161616] border border-white/[0.08] flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="space-y-1 text-center sm:text-left">
             <h4 className="text-sm font-semibold text-[#F5F5F5]">
-              Cần hỗ trợ trực tiếp từ điều phối viên?
+              {isEnglish ? "Need direct assistance from our dispatchers?" : "Cần hỗ trợ trực tiếp từ điều phối viên?"}
             </h4>
             <p className="text-xs text-[#A0A0A0]">
-              Hotline hỗ trợ kỹ thuật và giao xe tận nơi hoạt động 24/7 tại Đà Nẵng.
+              {isEnglish ? "24/7 technical assistance and roadside delivery hotline across Da Nang." : "Hotline hỗ trợ kỹ thuật và giao xe tận nơi hoạt động 24/7 tại Đà Nẵng."}
             </p>
           </div>
 
@@ -245,7 +247,7 @@ export const StaticPageView: React.FC = () => {
               to="/bikes"
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold transition-colors"
             >
-              <span>Đặt xe ngay</span>
+              <span>{isEnglish ? "Book Now" : "Đặt xe ngay"}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>

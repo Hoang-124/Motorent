@@ -13,6 +13,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import type { Branch } from '../types';
+import { useTranslation } from '../context/I18nContext';
 
 interface BranchInteractiveMapProps {
   branches: Branch[];
@@ -31,6 +32,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
   onFindNearest,
   isLocating = false,
 }) => {
+  const { isEnglish } = useTranslation();
   const [activeBranchId, setActiveBranchId] = useState<string>(
     selectedBranchId || (branches[0]?._id ?? '')
   );
@@ -80,11 +82,11 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
           <div className="px-2.5 py-1 rounded-md bg-[#1F1F1F] border border-white/10 flex items-center space-x-1.5 text-xs text-[#FFC799]">
             <MapPin className="w-3.5 h-3.5" />
             <span className="font-semibold tracking-wider uppercase text-[10px]">
-              Bản đồ định vị GPS • Đà Nẵng
+              {isEnglish ? "GPS Station Map • Da Nang" : "Bản đồ định vị GPS • Đà Nẵng"}
             </span>
           </div>
           <span className="text-xs text-[#A0A0A0] hidden sm:inline">
-            ({branches.length} trạm phủ sóng toàn thành phố)
+            ({branches.length} {isEnglish ? "stations across city" : "trạm phủ sóng toàn thành phố"})
           </span>
         </div>
 
@@ -97,7 +99,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
               className="px-3 py-1.5 rounded-lg bg-[#FFC799] text-[#101010] text-xs font-semibold hover:bg-[#ffe2cc] transition-colors flex items-center space-x-1.5 shadow-md active:scale-95 disabled:opacity-50"
             >
               <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
-              <span>{isLocating ? 'Đang định vị...' : 'Tìm trạm gần tôi nhất'}</span>
+              <span>{isLocating ? (isEnglish ? 'Locating...' : 'Đang định vị...') : (isEnglish ? 'Find nearest station' : 'Tìm trạm gần tôi nhất')}</span>
             </button>
           )}
 
@@ -106,7 +108,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
               type="button"
               onClick={() => setZoomLevel((z) => Math.min(1.5, z + 0.15))}
               className="p-1.5 text-[#A0A0A0] hover:text-[#F5F5F5] rounded transition-colors"
-              title="Phóng to"
+              title={isEnglish ? "Zoom In" : "Phóng to"}
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -114,7 +116,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
               type="button"
               onClick={() => setZoomLevel((z) => Math.max(0.85, z - 0.15))}
               className="p-1.5 text-[#A0A0A0] hover:text-[#F5F5F5] rounded transition-colors"
-              title="Thu nhỏ"
+              title={isEnglish ? "Zoom Out" : "Thu nhỏ"}
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
@@ -122,7 +124,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
               type="button"
               onClick={() => setZoomLevel(1)}
               className="p-1.5 text-[#A0A0A0] hover:text-[#F5F5F5] rounded transition-colors"
-              title="Đặt lại"
+              title={isEnglish ? "Reset" : "Đặt lại"}
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
@@ -178,7 +180,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
             strokeWidth="1.2"
           />
           <text x="680" y="145" fill="rgba(153, 255, 228, 0.4)" fontSize="11" fontWeight="600" letterSpacing="1">
-            BÁN ĐẢO SƠN TRÀ
+            {isEnglish ? "SON TRA PENINSULA" : "BÁN ĐẢO SƠN TRÀ"}
           </text>
 
           {/* Han River (Sông Hàn) */}
@@ -197,29 +199,29 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
             strokeOpacity="0.4"
           />
           <text x="475" y="270" fill="rgba(56, 189, 248, 0.5)" fontSize="9" fontWeight="600" letterSpacing="0.8" transform="rotate(78 475 270)">
-            SÔNG HÀN
+            {isEnglish ? "HAN RIVER" : "SÔNG HÀN"}
           </text>
 
           {/* Dragon Bridge & Han River Bridges */}
           <line x1="440" y1="315" x2="490" y2="310" stroke="#FFC799" strokeWidth="3" strokeOpacity="0.6" />
           <text x="500" y="314" fill="#FFC799" fontSize="9" fontWeight="bold">
-            Cầu Rồng
+            {isEnglish ? "Dragon Bridge" : "Cầu Rồng"}
           </text>
 
           <line x1="445" y1="230" x2="485" y2="230" stroke="rgba(255,255,255,0.3)" strokeWidth="2" />
           <text x="495" y="233" fill="rgba(255,255,255,0.4)" fontSize="8">
-            Cầu Sông Hàn
+            {isEnglish ? "Han River Bridge" : "Cầu Sông Hàn"}
           </text>
 
           {/* East Sea Annotation */}
           <text x="760" y="380" fill="rgba(153, 255, 228, 0.25)" fontSize="14" fontWeight="bold" letterSpacing="3">
-            BIỂN ĐÔNG • MỸ KHÊ
+            {isEnglish ? "MY KHE BEACH" : "BIỂN ĐÔNG • MỸ KHÊ"}
           </text>
 
           {/* Da Nang International Airport Area */}
           <rect x="300" y="300" width="100" height="90" rx="8" fill="rgba(255, 199, 153, 0.05)" stroke="rgba(255, 199, 153, 0.15)" strokeDasharray="3 3" />
           <text x="312" y="335" fill="rgba(255, 199, 153, 0.5)" fontSize="9" fontWeight="bold">
-            SÂN BAY ĐÀ NẴNG
+            {isEnglish ? "DA NANG AIRPORT" : "SÂN BAY ĐÀ NẴNG"}
           </text>
 
           {/* Connecting Transit Route between Stations */}
@@ -240,7 +242,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
               <circle r="18" fill="rgba(59, 130, 246, 0.2)" className="animate-ping" />
               <circle r="8" fill="#3B82F6" stroke="#FFFFFF" strokeWidth="2" />
               <text y="-14" textAnchor="middle" fill="#60A5FA" fontSize="10" fontWeight="bold">
-                Vị trí của bạn
+                {isEnglish ? "Your location" : "Vị trí của bạn"}
               </text>
             </g>
           )}
@@ -342,7 +344,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
                     fontSize="8"
                     fontWeight="bold"
                   >
-                    {isInactive ? 'Tạm ngưng' : `${branch.availableVehiclesCount ?? 0} xe sẵn`}
+                    {isInactive ? (isEnglish ? 'Paused' : 'Tạm ngưng') : `${branch.availableVehiclesCount ?? 0} ${isEnglish ? 'bikes' : 'xe sẵn'}`}
                   </text>
                 </g>
               </g>
@@ -367,12 +369,12 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
                   </h4>
                   {!activeBranch.isActive && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-semibold border border-red-500/30">
-                      Tạm ngưng
+                      {isEnglish ? "Paused" : "Tạm ngưng"}
                     </span>
                   )}
                   {activeBranch.distanceKm !== undefined && (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#99FFE4]/20 text-[#99FFE4] font-semibold border border-[#99FFE4]/30">
-                      Cách bạn ~{activeBranch.distanceKm} km
+                      {isEnglish ? "Near you ~" : "Cách bạn ~"}{activeBranch.distanceKm} km
                     </span>
                   )}
                 </div>
@@ -394,7 +396,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
                   </span>
                   <span className="flex items-center space-x-1 text-[#99FFE4] font-semibold">
                     <CheckCircle2 className="w-3 h-3" />
-                    <span>{activeBranch.availableVehiclesCount ?? 0} xe khả dụng tại trạm</span>
+                    <span>{activeBranch.availableVehiclesCount ?? 0} {isEnglish ? "available bikes at station" : "xe khả dụng tại trạm"}</span>
                   </span>
                 </div>
               </div>
@@ -417,7 +419,7 @@ export const BranchInteractiveMap: React.FC<BranchInteractiveMapProps> = ({
                 href={`/bikes?pickup=${activeBranch._id}`}
                 className="px-4 py-2 rounded-lg bg-[#FFC799] hover:bg-[#ffe2cc] text-[#101010] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors shadow"
               >
-                <span>Xem xe tại trạm này</span>
+                <span>{isEnglish ? "Browse bikes at station" : "Xem xe tại trạm này"}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </a>
             </div>

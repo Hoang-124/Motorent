@@ -21,34 +21,15 @@ import {
 } from 'lucide-react';
 import { VehicleCard } from '../components/VehicleCard';
 import { BookingModal } from '../components/BookingModal';
-import type { Vehicle, Branch, Category } from '../types';
+import type { Vehicle, Branch, Category, Discount } from '../types';
 import { api } from '../services/api';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
-
-const PROMO_VOUCHERS = [
-  {
-    code: 'CHAOBANMOI',
-    discountText: 'Giảm 20.000đ',
-    title: 'Ưu đãi Khách hàng mới đi phố',
-    condition: 'Áp dụng mọi dòng xe • Không giới hạn số ngày thuê',
-  },
-  {
-    code: 'MOTORENT30',
-    discountText: 'Giảm 30.000đ',
-    title: 'Ưu đãi Đặt lịch Sớm Trực tuyến',
-    condition: 'Áp dụng đặt trực tuyến • Cọc 30% giữ biển số tức thì',
-  },
-  {
-    code: 'LIENTRAM0D',
-    discountText: 'Phụ phí 0đ',
-    title: 'Miễn phí 100% Trả xe Liên trạm',
-    condition: 'Nhận xe tại Sân bay — Trả xe tại Biển Mỹ Khê (hoặc ngược lại)',
-  },
-];
+import { useTranslation } from '../context/I18nContext';
 
 export const FleetPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { isEnglish } = useTranslation();
   const pickupParam = searchParams.get('pickup') || '';
   const returnParam = searchParams.get('return') || '';
   const pickupDateParam = searchParams.get('pickupDate') || '';
@@ -83,9 +64,9 @@ export const FleetPage: React.FC = () => {
   const priceRangeError =
     (minPrice && (!Number.isFinite(Number(minPrice)) || Number(minPrice) < 0)) ||
     (maxPrice && (!Number.isFinite(Number(maxPrice)) || Number(maxPrice) < 0))
-      ? 'Giá thuê phải là số lớn hơn hoặc bằng 0.'
+      ? (isEnglish ? 'Rental rate must be greater than or equal to 0.' : 'Giá thuê phải là số lớn hơn hoặc bằng 0.')
       : minPrice && maxPrice && Number(minPrice) > Number(maxPrice)
-      ? 'Giá tối đa phải lớn hơn hoặc bằng giá tối thiểu.'
+      ? (isEnglish ? 'Max rate must be greater than or equal to min rate.' : 'Giá tối đa phải lớn hơn hoặc bằng giá tối thiểu.')
       : '';
 
   const updateFilter = (key: string, value: string) => {
@@ -110,9 +91,10 @@ export const FleetPage: React.FC = () => {
     }, { replace: true });
   };
 
-  // Promo & Voucher State
+  // Promo & Voucher State (100% Real Active Discounts from MongoDB)
+  const [promoDiscounts, setPromoDiscounts] = useState<Discount[]>([]);
   const [showPromoBanner, setShowPromoBanner] = useState<boolean>(promoParam || Boolean(voucherParam));
-  const [selectedVoucher, setSelectedVoucher] = useState<string>(voucherParam || 'CHAOBANMOI');
+  const [selectedVoucher, setSelectedVoucher] = useState<string>(voucherParam || '');
   const [copiedVoucher, setCopiedVoucher] = useState<string>('');
 
   useEffect(() => {
@@ -132,18 +114,22 @@ export const FleetPage: React.FC = () => {
     let active = true;
     const fetchData = async () => {
       try {
-        const [branchesRes, vehiclesRes, categoriesRes] = await Promise.all([
+        const [branchesRes, vehiclesRes, categoriesRes, discountsRes] = await Promise.all([
           api.get('/branches'),
           api.get('/vehicles'),
           api.get('/categories'),
+          api.get('/discounts?activeOnly=true').catch(() => null),
         ]);
 
         if (!active) return;
         if (branchesRes.data?.data) setBranches(branchesRes.data.data);
         if (vehiclesRes.data?.data) setCatalogVehicles(vehiclesRes.data.data);
         if (categoriesRes.data?.data) setCategories(categoriesRes.data.data);
+        if (Array.isArray(discountsRes?.data?.data)) {
+          setPromoDiscounts(discountsRes.data.data);
+        }
       } catch {
-        if (active) setMetadataError('Không tải được danh mục hoặc chi nhánh. Vui lòng tải lại trang.');
+        if (active) setMetadataError(isEnglish ? 'Failed to load categories or stations. Please refresh page.' : 'Không tải được danh mục hoặc chi nhánh. Vui lòng tải lại trang.');
       }
     };
     fetchData();
@@ -185,7 +171,7 @@ export const FleetPage: React.FC = () => {
         if (!active) return;
         setVehicles([]);
         setPagination({ page: 1, limit: 12, total: 0, pages: 0 });
-        setErrorMessage('Không tải được danh sách xe. Vui lòng kiểm tra kết nối và tải lại trang.');
+        setErrorMessage(isEnglish ? 'Failed to load vehicles. Please check your connection and refresh page.' : 'Không tải được danh sách xe. Vui lòng kiểm tra kết nối và tải lại trang.');
       } finally {
         if (active) setLoading(false);
       }
@@ -258,16 +244,18 @@ export const FleetPage: React.FC = () => {
             <div className="max-w-2xl">
               <div className="inline-flex items-center space-x-2 text-[11px] uppercase tracking-[0.16em] text-[#FFC799] font-semibold mb-2.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4]" />
-                <span>Danh Mục Xe Đô Thị &amp; Bảng Giá Niêm Yết</span>
+                <span>{isEnglish ? "Urban Fleet Catalog & Listed Rates" : "Danh Mục Xe Đô Thị & Bảng Giá Niêm Yết"}</span>
               </div>
               <h1 className="text-3xl sm:text-5xl font-bold text-[#F5F5F5] tracking-tight leading-[1.12]">
-                Chọn chiếc xe phù hợp,{' '}
+                {isEnglish ? 'Select the right ride, ' : 'Chọn chiếc xe phù hợp, '}
                 <span className="font-serif-display italic font-normal text-[#FFC799]">
-                  dạo phố Đà Nẵng thật êm.
+                  {isEnglish ? 'cruise Da Nang smoothly.' : 'dạo phố Đà Nẵng thật êm.'}
                 </span>
               </h1>
               <p className="text-xs sm:text-sm text-[#A0A0A0] mt-3 leading-relaxed">
-                Toàn bộ xe tay ga, xe máy điện và xe số đều là xe đời mới 2023–2024, chụp ảnh thực tế theo từng biển số tại trạm. Giá niêm yết trọn gói kèm 02 mũ bảo hiểm 3/4 khử khuẩn UV và 02 áo mưa.
+                {isEnglish
+                  ? 'All scooters, electric bikes, and manual motorcycles are latest 2023–2024 models, photographed authentic to each license plate at the station. All-inclusive rates include 02 UV-sanitized 3/4 helmets and 02 raincoats.'
+                  : 'Toàn bộ xe tay ga, xe máy điện và xe số đều là xe đời mới 2023–2024, chụp ảnh thực tế theo từng biển số tại trạm. Giá niêm yết trọn gói kèm 02 mũ bảo hiểm 3/4 khử khuẩn UV và 02 áo mưa.'}
               </p>
             </div>
 
@@ -276,26 +264,30 @@ export const FleetPage: React.FC = () => {
               <div className="px-4 py-2.5 rounded-xl bg-[#161616] border border-white/10 flex items-center space-x-3">
                 <div>
                   <span className="text-[10px] uppercase tracking-wider text-[#6E6E6E] block">
-                    Sẵn sàng tại trạm
+                    {isEnglish ? "Available at station" : "Sẵn sàng tại trạm"}
                   </span>
                   <span className="text-sm font-bold text-[#F5F5F5] font-mono-tabular">
-                    {availableCount} / {catalogVehicles.length} phương tiện
+                    {availableCount} / {catalogVehicles.length} {isEnglish ? "vehicles" : "phương tiện"}
                   </span>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowPromoBanner((prev) => !prev)}
-                className={`inline-flex items-center space-x-2 px-4 py-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
-                  showPromoBanner
-                    ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                    : 'bg-[#161616] hover:border-[#FFC799] border-white/12 text-[#F5F5F5]'
-                }`}
-              >
-                <Tag className="w-3.5 h-3.5" />
-                <span>{showPromoBanner ? 'Ẩn mã ưu đãi' : 'Lấy mã giảm giá (30.000đ)'}</span>
-              </button>
+              {promoDiscounts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowPromoBanner((prev) => !prev)}
+                  className={`inline-flex items-center space-x-2 px-4 py-3 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                    showPromoBanner
+                      ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                      : 'bg-[#161616] hover:border-[#FFC799] border-white/12 text-[#F5F5F5]'
+                  }`}
+                >
+                  <Tag className="w-3.5 h-3.5" />
+                  <span>
+                    {showPromoBanner ? (isEnglish ? 'Hide promo vouchers' : 'Ẩn mã ưu đãi') : (isEnglish ? `Active promotions (${promoDiscounts.length})` : `Ưu đãi hiện hành (${promoDiscounts.length})`)}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -304,19 +296,19 @@ export const FleetPage: React.FC = () => {
             <div className="flex items-center space-x-2.5">
               <CheckCircle2 className="w-4 h-4 text-[#FFC799] shrink-0" />
               <span>
-                <strong className="text-[#F5F5F5] font-medium">Giữ đúng biển số:</strong> Chọn xe nào trên web, nhận đúng chiếc đó tại trạm
+                <strong className="text-[#F5F5F5] font-medium">{isEnglish ? 'Exact Plate Reserved:' : 'Giữ đúng biển số:'}</strong> {isEnglish ? 'Pick on web, receive that exact bike at station' : 'Chọn xe nào trên web, nhận đúng chiếc đó tại trạm'}
               </span>
             </div>
             <div className="flex items-center space-x-2.5">
               <ShieldCheck className="w-4 h-4 text-[#FFC799] shrink-0" />
               <span>
-                <strong className="text-[#F5F5F5] font-medium">Không giữ CCCD gốc:</strong> Đối soát eKYC 30 giây, giữ trọn giấy tờ tùy thân
+                <strong className="text-[#F5F5F5] font-medium">{isEnglish ? 'No Original ID Retained:' : 'Không giữ CCCD gốc:'}</strong> {isEnglish ? '30-second eKYC match, keep all identity docs' : 'Đối soát eKYC 30 giây, giữ trọn giấy tờ tùy thân'}
               </span>
             </div>
             <div className="flex items-center space-x-2.5">
               <Sparkles className="w-4 h-4 text-[#FFC799] shrink-0" />
               <span>
-                <strong className="text-[#F5F5F5] font-medium">Trả xe liên trạm 0đ:</strong> Nhận tại Sân bay, trả tại Biển Mỹ Khê miễn phí
+                <strong className="text-[#F5F5F5] font-medium">{isEnglish ? 'Free Inter-Station Dropoff:' : 'Trả xe liên trạm 0đ:'}</strong> {isEnglish ? 'Pick up at Airport, return at My Khe Beach 0₫' : 'Nhận tại Sân bay, trả tại Biển Mỹ Khê miễn phí'}
               </span>
             </div>
           </div>
@@ -330,10 +322,10 @@ export const FleetPage: React.FC = () => {
             <div className="flex items-start justify-between gap-4 mb-4 pb-3.5 border-b border-white/[0.08]">
               <div>
                 <span className="text-[10px] uppercase tracking-[0.16em] text-[#FFC799] font-semibold block">
-                  Phiếu Ưu Đãi Đặt Trực Tuyến
+                  {isEnglish ? "Online Booking Promotional Vouchers" : "Phiếu Ưu Đãi Đặt Trực Tuyến"}
                 </span>
                 <h2 className="text-base sm:text-lg font-bold text-[#F5F5F5] tracking-tight mt-0.5">
-                  Bấm chọn mã ưu đãi — Tự động áp dụng khi bạn bấm chọn xe bên dưới
+                  {isEnglish ? "Click to select promo voucher — Automatically applies when booking a bike below" : "Bấm chọn mã ưu đãi — Tự động áp dụng khi bạn bấm chọn xe bên dưới"}
                 </h2>
               </div>
               <button
@@ -347,72 +339,95 @@ export const FleetPage: React.FC = () => {
                   }
                 }}
                 className="p-1.5 rounded-lg text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors cursor-pointer"
-                aria-label="Đóng khung ưu đãi"
+                aria-label={isEnglish ? "Close promo panel" : "Đóng khung ưu đãi"}
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-              {PROMO_VOUCHERS.map((v) => {
-                const isSelected = selectedVoucher === v.code;
-                const isCopied = copiedVoucher === v.code;
-                return (
-                  <div
-                    key={v.code}
-                    onClick={() => handleCopyVoucher(v.code)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
-                      isSelected
-                        ? 'bg-[#101010] border-[#FFC799]'
-                        : 'bg-[#101010]/60 border-white/10 hover:border-white/25'
-                    }`}
-                  >
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center space-x-2.5">
-                        <span className="px-2.5 py-0.5 rounded bg-[#FFC799] text-[#101010] font-mono-tabular text-xs font-bold tracking-wider">
-                          {v.code}
-                        </span>
-                        <span className="font-serif-display italic text-base text-[#FFC799] font-semibold">
-                          {v.discountText}
-                        </span>
-                      </div>
-                      <p className="text-xs font-semibold text-[#F5F5F5] truncate">{v.title}</p>
-                      <p className="text-[11px] text-[#6E6E6E]">{v.condition}</p>
-                    </div>
+            {promoDiscounts.length === 0 ? (
+              <div className="p-4 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0] text-center">
+                {isEnglish ? "No promotional vouchers are currently active." : "Hiện chưa có mã ưu đãi nào đang hoạt động trên hệ thống."}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {promoDiscounts.map((v) => {
+                  const isSelected = selectedVoucher === v.code;
+                  const isCopied = copiedVoucher === v.code;
+                  const discountText = isEnglish
+                    ? (v.maxDiscountAmount
+                        ? `${v.discountPercent}% OFF (up to ${v.maxDiscountAmount.toLocaleString('en-US')}₫)`
+                        : `${v.discountPercent}% OFF`)
+                    : (v.maxDiscountAmount
+                        ? `Giảm ${v.discountPercent}% (tối đa ${v.maxDiscountAmount.toLocaleString('vi-VN')}đ)`
+                        : `Giảm ${v.discountPercent}%`);
+                  const conditionText = isEnglish
+                    ? (v.minBookingAmount
+                        ? `From ${v.minBookingAmount.toLocaleString('en-US')}₫ • ${Math.max(0, v.usageLimit - v.usedCount)} uses left`
+                        : `${Math.max(0, v.usageLimit - v.usedCount)} uses left`)
+                    : (v.minBookingAmount
+                        ? `Đơn từ ${v.minBookingAmount.toLocaleString('vi-VN')}đ • Còn ${Math.max(0, v.usageLimit - v.usedCount)} lượt`
+                        : `Còn ${Math.max(0, v.usageLimit - v.usedCount)} lượt áp dụng`);
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCopyVoucher(v.code);
-                      }}
-                      className={`px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0 flex items-center space-x-1.5 transition-all cursor-pointer ${
+                  return (
+                    <div
+                      key={v._id || v.code}
+                      onClick={() => handleCopyVoucher(v.code)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
                         isSelected
-                          ? 'bg-[#F5F5F5] text-[#101010]'
-                          : 'bg-white/5 text-[#F5F5F5] hover:bg-white/10 border border-white/10'
+                          ? 'bg-[#101010] border-[#FFC799]'
+                          : 'bg-[#101010]/60 border-white/10 hover:border-white/25'
                       }`}
                     >
-                      {isCopied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Đã chọn</span>
-                        </>
-                      ) : isSelected ? (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Đang áp dụng</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Áp dụng</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center space-x-2.5">
+                          <span className="px-2.5 py-0.5 rounded bg-[#FFC799] text-[#101010] font-mono-tabular text-xs font-bold tracking-wider">
+                            {v.code}
+                          </span>
+                          <span className="font-serif-display italic text-sm text-[#FFC799] font-semibold">
+                            {discountText}
+                          </span>
+                        </div>
+                        <p className="text-xs font-semibold text-[#F5F5F5] truncate">
+                          {v.description || (isEnglish ? `${v.discountPercent}% OFF Promotion` : `Ưu đãi giảm ${v.discountPercent}%`)}
+                        </p>
+                        <p className="text-[11px] text-[#6E6E6E]">{conditionText}</p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyVoucher(v.code);
+                        }}
+                        className={`px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0 flex items-center space-x-1.5 transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-[#F5F5F5] text-[#101010]'
+                            : 'bg-white/5 text-[#F5F5F5] hover:bg-white/10 border border-white/10'
+                        }`}
+                      >
+                        {isCopied ? (
+                          <>
+                            <Check className="w-3.5 h-3.5" />
+                            <span>{isEnglish ? "Selected" : "Đã chọn"}</span>
+                          </>
+                        ) : isSelected ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>{isEnglish ? "Applied" : "Đang áp dụng"}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            <span>{isEnglish ? "Apply" : "Áp dụng"}</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -424,11 +439,11 @@ export const FleetPage: React.FC = () => {
                 <span className="flex items-center space-x-1.5">
                   <Calendar className="w-4 h-4 text-[#FFC799]" />
                   <span>
-                    Lịch trình đã chọn:{' '}
+                    {isEnglish ? 'Selected Schedule: ' : 'Lịch trình đã chọn: '}
                     <strong className="text-[#F5F5F5] font-mono-tabular">
-                      {pickupDateParam || 'Hôm nay'}
+                      {pickupDateParam || (isEnglish ? 'Today' : 'Hôm nay')}
                     </strong>{' '}
-                    đến{' '}
+                    {isEnglish ? 'to ' : 'đến '}
                     <strong className="text-[#F5F5F5] font-mono-tabular">
                       {returnDateParam || '...'}
                     </strong>
@@ -439,16 +454,16 @@ export const FleetPage: React.FC = () => {
                 <span className="flex items-center space-x-1.5">
                   <MapPin className="w-4 h-4 text-[#FFC799]" />
                   <span>
-                    Trạm trả xe:{' '}
+                    {isEnglish ? 'Return Station: ' : 'Trạm trả xe: '}
                     <strong className="text-[#F5F5F5]">
-                      {branches.find((b) => b._id === returnParam)?.name || 'Đã chọn'}
+                      {branches.find((b) => b._id === returnParam)?.name || (isEnglish ? 'Selected' : 'Đã chọn')}
                     </strong>
                   </span>
                 </span>
               )}
             </div>
             <span className="text-[11px] text-[#FFC799] font-medium">
-              Tự động chuyển sang phiếu Đặt giữ xe
+              {isEnglish ? "Auto-attached to bike reservation voucher" : "Tự động chuyển sang phiếu Đặt giữ xe"}
             </span>
           </div>
         )}
@@ -466,7 +481,7 @@ export const FleetPage: React.FC = () => {
               <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Tìm theo mẫu xe hoặc biển số (VD: Vision, Air Blade, Feliz, Winner, 43A...)"
+                placeholder={isEnglish ? "Search by model or plate (e.g. Vision, Air Blade, Feliz, 43A...)" : "Tìm theo mẫu xe hoặc biển số (VD: Vision, Air Blade, Feliz, Winner, 43A...)"}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setIsSearchFocused(true)}
@@ -477,7 +492,7 @@ export const FleetPage: React.FC = () => {
                     if (firstSuggestion) { event.preventDefault(); firstSuggestion.focus(); }
                   }
                 }}
-                aria-label="Tìm xe theo mẫu xe, hãng hoặc biển số"
+                aria-label={isEnglish ? "Search bikes by model, brand or plate" : "Tìm xe theo mẫu xe, hãng hoặc biển số"}
                 role="combobox"
                 aria-autocomplete="list"
                 aria-expanded={isSearchFocused && Boolean(searchQuery.trim())}
@@ -490,26 +505,26 @@ export const FleetPage: React.FC = () => {
                   type="button"
                   onClick={() => setSearchQuery('')}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-[#F5F5F5] cursor-pointer"
-                  aria-label="Xóa tìm kiếm"
+                  aria-label={isEnglish ? "Clear search" : "Xóa tìm kiếm"}
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               )}
               {isSearchFocused && searchQuery.trim() && (
-                <div id="fleet-search-suggestions" role="listbox" aria-label="Gợi ý xe phù hợp" className="absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-y-auto rounded-xl border border-white/15 bg-[#1A1A1A] p-2 shadow-2xl">
-                  {loading ? <p className="p-3 text-xs text-[#A0A0A0]">Đang tìm xe...</p> : errorMessage || priceRangeError ? (
-                    <p className="p-3 text-xs text-red-300">Không tải được gợi ý. Kiểm tra bộ lọc hoặc kết nối.</p>
+                <div id="fleet-search-suggestions" role="listbox" aria-label={isEnglish ? "Matching vehicle suggestions" : "Gợi ý xe phù hợp"} className="absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-y-auto rounded-xl border border-white/15 bg-[#1A1A1A] p-2 shadow-2xl">
+                  {loading ? <p className="p-3 text-xs text-[#A0A0A0]">{isEnglish ? "Searching fleet..." : "Đang tìm xe..."}</p> : errorMessage || priceRangeError ? (
+                    <p className="p-3 text-xs text-red-300">{isEnglish ? "Unable to load suggestions. Check filters or connection." : "Không tải được gợi ý. Kiểm tra bộ lọc hoặc kết nối."}</p>
                   ) : filteredVehicles.length ? (
                     <>
-                      <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-[#A0A0A0]">Gợi ý xe phù hợp</p>
+                      <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-[#A0A0A0]">{isEnglish ? "Matching Suggestions" : "Gợi ý xe phù hợp"}</p>
                       {filteredVehicles.slice(0, 6).map((vehicle) => (
                         <button key={vehicle._id} type="button" role="option" aria-selected="false" onClick={() => handleNavigateToDetail(vehicle)} className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5 focus:bg-white/5 focus:outline-none">
                           <span className="min-w-0"><span className="block truncate text-xs font-semibold">{vehicle.vehicleModel}</span><span className="mt-1 block text-[11px] text-[#A0A0A0]">{vehicle.brand} · {vehicle.licensePlate}</span></span>
-                          <span className="shrink-0 text-xs text-[#FFC799]">{vehicle.dailyPrice.toLocaleString('vi-VN')} đ/ngày</span>
+                          <span className="shrink-0 text-xs text-[#FFC799]">{vehicle.dailyPrice.toLocaleString('vi-VN')} {isEnglish ? "₫/day" : "đ/ngày"}</span>
                         </button>
                       ))}
                     </>
-                  ) : <p className="p-3 text-xs text-[#A0A0A0]">Không có xe khớp từ khóa này.</p>}
+                  ) : <p className="p-3 text-xs text-[#A0A0A0]">{isEnglish ? "No bikes match this search." : "Không có xe khớp từ khóa này."}</p>}
                 </div>
               )}
             </div>
@@ -531,37 +546,37 @@ export const FleetPage: React.FC = () => {
                     onlyAvailable ? 'bg-[#FFC799]' : 'bg-[#99FFE4]'
                   }`}
                 />
-                <span>Chỉ xe sẵn sàng</span>
+                <span>{isEnglish ? "Available only" : "Chỉ xe sẵn sàng"}</span>
               </button>
 
               <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-[#101010] px-3 py-2 text-xs">
                 <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-[#FFC799]" />
-                <select aria-label="Sắp xếp xe" value={priceSort} onChange={(event) => setPriceSort(event.target.value)} className="min-w-0 bg-[#101010] py-0.5 text-[#F5F5F5] outline-none">
-                  <option value="default">Sắp xếp mặc định</option>
-                  <option value="asc">Giá: thấp đến cao</option>
-                  <option value="desc">Giá: cao đến thấp</option>
-                  <option value="rating_desc">Đánh giá: cao đến thấp</option>
-                  <option value="rating_asc">Đánh giá: thấp đến cao</option>
+                <select aria-label={isEnglish ? "Sort vehicles" : "Sắp xếp xe"} value={priceSort} onChange={(event) => setPriceSort(event.target.value)} className="min-w-0 bg-[#101010] py-0.5 text-[#F5F5F5] outline-none">
+                  <option value="default">{isEnglish ? "Default sorting" : "Sắp xếp mặc định"}</option>
+                  <option value="asc">{isEnglish ? "Price: Low to High" : "Giá: thấp đến cao"}</option>
+                  <option value="desc">{isEnglish ? "Price: High to Low" : "Giá: cao đến thấp"}</option>
+                  <option value="rating_desc">{isEnglish ? "Rating: High to Low" : "Đánh giá: cao đến thấp"}</option>
+                  <option value="rating_asc">{isEnglish ? "Rating: Low to High" : "Đánh giá: thấp đến cao"}</option>
                 </select>
               </label>
-              <div role="group" aria-label="Chế độ hiển thị danh sách xe" className="inline-flex rounded-xl border border-white/10 bg-[#101010] p-1">
-                <button type="button" aria-label="Hiển thị dạng lưới" aria-pressed={viewMode === 'grid'} onClick={() => updateFilter('view', 'grid')} className={`rounded-lg p-2 ${viewMode === 'grid' ? 'bg-[#F5F5F5] text-[#101010]' : 'text-[#A0A0A0]'}`}><LayoutGrid className="h-4 w-4" /></button>
-                <button type="button" aria-label="Hiển thị dạng danh sách" aria-pressed={viewMode === 'list'} onClick={() => updateFilter('view', 'list')} className={`rounded-lg p-2 ${viewMode === 'list' ? 'bg-[#F5F5F5] text-[#101010]' : 'text-[#A0A0A0]'}`}><List className="h-4 w-4" /></button>
+              <div role="group" aria-label={isEnglish ? "Fleet view mode" : "Chế độ hiển thị danh sách xe"} className="inline-flex rounded-xl border border-white/10 bg-[#101010] p-1">
+                <button type="button" aria-label={isEnglish ? "Grid view" : "Hiển thị dạng lưới"} aria-pressed={viewMode === 'grid'} onClick={() => updateFilter('view', 'grid')} className={`rounded-lg p-2 ${viewMode === 'grid' ? 'bg-[#F5F5F5] text-[#101010]' : 'text-[#A0A0A0]'}`}><LayoutGrid className="h-4 w-4" /></button>
+                <button type="button" aria-label={isEnglish ? "List view" : "Hiển thị dạng danh sách"} aria-pressed={viewMode === 'list'} onClick={() => updateFilter('view', 'list')} className={`rounded-lg p-2 ${viewMode === 'list' ? 'bg-[#F5F5F5] text-[#101010]' : 'text-[#A0A0A0]'}`}><List className="h-4 w-4" /></button>
               </div>
             </div>
           </div>
 
           <div className="grid gap-3 border-t border-white/[0.08] pt-4 sm:grid-cols-3">
-            <label className="text-[11px] text-[#A0A0A0]">Hãng xe
-              <select aria-label="Hãng xe" value={selectedBrand} onChange={(event) => updateFilter('brand', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]">
-                <option value="">Tất cả hãng</option>{brands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
+            <label className="text-[11px] text-[#A0A0A0]">{isEnglish ? "Brand" : "Hãng xe"}
+              <select aria-label={isEnglish ? "Brand" : "Hãng xe"} value={selectedBrand} onChange={(event) => updateFilter('brand', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]">
+                <option value="">{isEnglish ? "All Brands" : "Tất cả hãng"}</option>{brands.map((brand) => <option key={brand} value={brand}>{brand}</option>)}
               </select>
             </label>
-            <label className="text-[11px] text-[#A0A0A0]">Giá ngày từ (đ)
-              <input aria-label="Giá ngày tối thiểu" type="number" min="0" step="1000" placeholder="Không giới hạn" value={minPrice} onChange={(event) => updateFilter('minPrice', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]" />
+            <label className="text-[11px] text-[#A0A0A0]">{isEnglish ? "Min rate (₫/day)" : "Giá ngày từ (đ)"}
+              <input aria-label={isEnglish ? "Min rate per day" : "Giá ngày tối thiểu"} type="number" min="0" step="1000" placeholder={isEnglish ? "No min" : "Không giới hạn"} value={minPrice} onChange={(event) => updateFilter('minPrice', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]" />
             </label>
-            <label className="text-[11px] text-[#A0A0A0]">Đến (đ)
-              <input aria-label="Giá ngày tối đa" type="number" min="0" step="1000" placeholder="Không giới hạn" value={maxPrice} onChange={(event) => updateFilter('maxPrice', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]" />
+            <label className="text-[11px] text-[#A0A0A0]">{isEnglish ? "Max rate (₫/day)" : "Đến (đ)"}
+              <input aria-label={isEnglish ? "Max rate per day" : "Giá ngày tối đa"} type="number" min="0" step="1000" placeholder={isEnglish ? "No max" : "Không giới hạn"} value={maxPrice} onChange={(event) => updateFilter('maxPrice', event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#101010] px-3 py-2.5 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]" />
             </label>
           </div>
           {priceRangeError && <p role="alert" className="text-xs text-red-300">{priceRangeError}</p>}
@@ -572,7 +587,7 @@ export const FleetPage: React.FC = () => {
             <div className="pt-3.5 border-t border-white/[0.08]">
               <div className="flex items-center gap-1.5 overflow-x-auto flex-nowrap pb-0.5">
                 <span className="text-[11px] uppercase tracking-[0.1em] text-[#6E6E6E] mr-1 shrink-0 whitespace-nowrap">
-                  Dòng xe:
+                  {isEnglish ? "Category:" : "Dòng xe:"}
                 </span>
 
                 {/* "All Vehicles" Pill with Thumbnail */}
@@ -590,7 +605,7 @@ export const FleetPage: React.FC = () => {
                       {allThumb ? (
                         <img
                           src={allThumb}
-                          alt="Tất cả xe"
+                          alt={isEnglish ? "All Vehicles" : "Tất cả xe"}
                           loading="lazy"
                           crossOrigin="anonymous"
                           className="w-full h-full object-contain scale-110 mix-blend-multiply"
@@ -599,7 +614,7 @@ export const FleetPage: React.FC = () => {
                         <span className="text-[8px] font-bold text-slate-700">ALL</span>
                       )}
                     </span>
-                    <span className="truncate">Tất cả xe</span>
+                    <span className="truncate">{isEnglish ? "All Vehicles" : "Tất cả xe"}</span>
                   </span>
                   <span
                     className={`text-[10px] font-mono-tabular px-1.5 py-0.5 rounded-md font-semibold shrink-0 ${
@@ -677,7 +692,7 @@ export const FleetPage: React.FC = () => {
           <div className="flex flex-wrap items-center gap-2 pt-3.5 border-t border-white/[0.08]">
             <span className="text-[11px] uppercase tracking-[0.12em] text-[#6E6E6E] flex items-center mr-1">
               <MapPin className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-              Trạm nhận xe:
+              {isEnglish ? "Pickup Station:" : "Trạm nhận xe:"}
             </span>
 
             <button
@@ -689,7 +704,7 @@ export const FleetPage: React.FC = () => {
                   : 'bg-[#101010] text-[#A0A0A0] border border-white/10 hover:text-[#F5F5F5]'
               }`}
             >
-              Tất cả trạm Đà Nẵng
+              {isEnglish ? "All Da Nang Stations" : "Tất cả trạm Đà Nẵng"}
             </button>
 
             {branches.map((b) => {
@@ -719,11 +734,11 @@ export const FleetPage: React.FC = () => {
           <div className="flex items-center space-x-2">
             <SlidersHorizontal className="w-3.5 h-3.5 text-[#FFC799]" />
             <span>
-              Đang hiển thị{' '}
+              {isEnglish ? 'Showing ' : 'Đang hiển thị '}
               <strong className="text-[#F5F5F5] font-mono-tabular">
                 {filteredVehicles.length}
               </strong>{' '}
-              / {pagination.total} phương tiện phù hợp
+              / {pagination.total} {isEnglish ? "matching vehicles" : "phương tiện phù hợp"}
             </span>
             {(searchQuery || selectedBranch || selectedCategory !== 'all' || selectedBrand || minPrice || maxPrice || onlyAvailable || priceSort !== 'default') && (
               <button
@@ -731,14 +746,14 @@ export const FleetPage: React.FC = () => {
                 onClick={resetFilters}
                 className="text-[#FFC799] hover:underline font-medium ml-2 cursor-pointer"
               >
-                Xóa bộ lọc
+                {isEnglish ? "Clear filters" : "Xóa bộ lọc"}
               </button>
             )}
           </div>
 
           <span className="text-[#FFC799] font-medium flex items-center">
             <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-            Đặt cọc 30% giữ đích danh biển số xe
+            {isEnglish ? "30% deposit locks exact bike plate" : "Đặt cọc 30% giữ đích danh biển số xe"}
           </span>
         </div>
 
@@ -748,7 +763,7 @@ export const FleetPage: React.FC = () => {
         {errorMessage ? (
           <div role="alert" className="rounded-2xl border border-red-400/20 bg-[#161616] px-6 py-12 text-center">
             <p className="text-sm text-red-300">{errorMessage}</p>
-            <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-xl bg-[#F5F5F5] px-4 py-2 text-xs font-semibold text-[#101010]">Tải lại trang</button>
+            <button type="button" onClick={() => window.location.reload()} className="mt-4 rounded-xl bg-[#F5F5F5] px-4 py-2 text-xs font-semibold text-[#101010]">{isEnglish ? "Reload page" : "Tải lại trang"}</button>
           </div>
         ) : loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -789,16 +804,16 @@ export const FleetPage: React.FC = () => {
           <div className="py-16 text-center bg-[#161616] rounded-2xl border border-white/10 p-8">
             <AlertCircle className="w-9 h-9 text-[#FFC799] mx-auto mb-3" />
             <p className="text-base font-bold text-[#F5F5F5]">
-              Không tìm thấy phương tiện nào khớp bộ lọc hiện tại
+              {isEnglish ? "No vehicles match the current filter criteria" : "Không tìm thấy phương tiện nào khớp bộ lọc hiện tại"}
             </p>
             <p className="text-xs text-[#A0A0A0] mt-1">
-              Bạn hãy thử chuyển sang trạm khác hoặc xem lại toàn bộ danh mục xe.
+              {isEnglish ? "Try switching to another pickup station or exploring the full fleet catalog." : "Bạn hãy thử chuyển sang trạm khác hoặc xem lại toàn bộ danh mục xe."}
             </p>
             <button
               onClick={resetFilters}
               className="mt-4 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] rounded-xl text-xs font-semibold text-[#101010] transition-colors cursor-pointer"
             >
-              Xem lại toàn bộ đội xe ({catalogVehicles.length})
+              {isEnglish ? `View Entire Fleet (${catalogVehicles.length})` : `Xem lại toàn bộ đội xe (${catalogVehicles.length})`}
             </button>
           </div>
         ) : (
@@ -816,10 +831,10 @@ export const FleetPage: React.FC = () => {
         )}
 
         {!loading && !errorMessage && pagination.pages > 1 && (
-          <nav aria-label="Phân trang danh sách xe" className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs">
-            <button type="button" disabled={page <= 1} onClick={() => { updateFilter('page', String(page - 1)); document.getElementById('fleet-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="inline-flex items-center gap-1 rounded-xl border border-white/15 px-4 py-2.5 disabled:opacity-40"><ChevronLeft className="h-4 w-4" />Trang trước</button>
-            <span className="text-[#A0A0A0]">Trang <strong className="text-[#F5F5F5]">{page}</strong> / {pagination.pages} · {pagination.total} xe</span>
-            <button type="button" disabled={page >= pagination.pages} onClick={() => { updateFilter('page', String(page + 1)); document.getElementById('fleet-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="inline-flex items-center gap-1 rounded-xl border border-white/15 px-4 py-2.5 disabled:opacity-40">Trang sau<ChevronRight className="h-4 w-4" /></button>
+          <nav aria-label={isEnglish ? "Fleet pagination" : "Phân trang danh sách xe"} className="mt-8 flex flex-wrap items-center justify-center gap-4 text-xs">
+            <button type="button" disabled={page <= 1} onClick={() => { updateFilter('page', String(page - 1)); document.getElementById('fleet-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="inline-flex items-center gap-1 rounded-xl border border-white/15 px-4 py-2.5 disabled:opacity-40"><ChevronLeft className="h-4 w-4" />{isEnglish ? "Previous" : "Trang trước"}</button>
+            <span className="text-[#A0A0A0]">{isEnglish ? "Page " : "Trang "}<strong className="text-[#F5F5F5]">{page}</strong> / {pagination.pages} · {pagination.total} {isEnglish ? "bikes" : "xe"}</span>
+            <button type="button" disabled={page >= pagination.pages} onClick={() => { updateFilter('page', String(page + 1)); document.getElementById('fleet-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="inline-flex items-center gap-1 rounded-xl border border-white/15 px-4 py-2.5 disabled:opacity-40">{isEnglish ? "Next" : "Trang sau"}<ChevronRight className="h-4 w-4" /></button>
           </nav>
         )}
 
@@ -846,22 +861,22 @@ export const FleetPage: React.FC = () => {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-bold text-[#F5F5F5]">
-                Đặt giữ xe thành công!
+                {isEnglish ? "Reservation Successful!" : "Đặt giữ xe thành công!"}
               </h3>
               <p className="text-xs text-[#A0A0A0] leading-relaxed">
-                Mã hợp đồng đặt xe của bạn là:
+                {isEnglish ? "Your booking contract code is:" : "Mã hợp đồng đặt xe của bạn là:"}
               </p>
               <div className="p-3 bg-[#101010] border border-[#FFC799]/40 rounded-xl font-mono-tabular text-lg font-bold text-[#FFC799] tracking-wider">
                 {successBookingCode}
               </div>
               <p className="text-[11px] text-[#A0A0A0]">
-                Vui lòng lưu lại mã để xuất trình tại quầy chi nhánh khi nhận xe.
+                {isEnglish ? "Please save this code to present at station counter when picking up your bike." : "Vui lòng lưu lại mã để xuất trình tại quầy chi nhánh khi nhận xe."}
               </p>
               <button
                 onClick={() => setSuccessBookingCode(null)}
                 className="w-full py-3 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-bold text-xs transition-colors cursor-pointer"
               >
-                Đã hiểu &amp; Tiếp tục
+                {isEnglish ? "Understood & Continue" : "Đã hiểu & Tiếp tục"}
               </button>
             </div>
           </div>

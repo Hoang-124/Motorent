@@ -541,6 +541,17 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
       const res = await request(app).get('/api/system/permissions');
       expect(res.status).toBe(401);
     });
+
+    it('Staff can inspect RBAC matrix at alias GET /api/rbac-matrix', async () => {
+      const res = await request(app)
+        .get('/api/rbac-matrix')
+        .set('Authorization', `Bearer ${staffDadToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.role).toBe('Staff');
+      expect(res.body.data.permissions).toContain('BOOKING_CHECKIN');
+    });
   });
 
   describe('Phase 4: Audit Log Viewer (UC-102)', () => {

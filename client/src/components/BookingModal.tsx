@@ -23,6 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Vehicle, Branch } from '../types';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/I18nContext';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { DateTimePicker, normalizeReturnSchedule } from './DateTimePicker';
 import { BranchSelect } from './BranchSelect';
@@ -46,6 +47,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
+  const { isEnglish } = useTranslation();
 
   const [pickupBranchId, setPickupBranchId] = useState<string>('');
   const [returnBranchId, setReturnBranchId] = useState<string>('');
@@ -84,10 +86,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [modalAngle, setModalAngle] = useState<number>(1);
   const [modalImgError, setModalImgError] = useState<boolean>(false);
 
-  const ANGLE_LABELS = [
-    { id: 1, label: 'Ngang xe', title: 'Góc ngang thân xe' },
-    { id: 0, label: '3/4 Trước', title: 'Góc 3/4 mặt trước' },
-    { id: 2, label: 'Góc sau', title: 'Góc đuôi xe & khoang lái' },
+  const getAngleLabels = (isEnglish: boolean) => [
+    { id: 1, label: isEnglish ? 'Side' : 'Ngang xe', title: isEnglish ? 'Vehicle Side Profile' : 'Góc ngang thân xe' },
+    { id: 0, label: isEnglish ? '3/4 Front' : '3/4 Trước', title: isEnglish ? '3/4 Front Angle' : 'Góc 3/4 mặt trước' },
+    { id: 2, label: isEnglish ? 'Rear' : 'Góc sau', title: isEnglish ? 'Rear & Cockpit View' : 'Góc đuôi xe & khoang lái' },
   ];
 
   useEffect(() => {
@@ -175,17 +177,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           code: res.data.data.appliedDiscount.code,
           discountAmount: res.data.data.appliedDiscount.discountAmount,
         });
-        setVoucherFeedback(`Đã áp dụng mã ${res.data.data.appliedDiscount.code}: Giảm ${res.data.data.appliedDiscount.discountAmount.toLocaleString('vi-VN')} đ`);
+        setVoucherFeedback(isEnglish ? `Applied code ${res.data.data.appliedDiscount.code}: Saved ${res.data.data.appliedDiscount.discountAmount.toLocaleString('vi-VN')} ₫` : `Đã áp dụng mã ${res.data.data.appliedDiscount.code}: Giảm ${res.data.data.appliedDiscount.discountAmount.toLocaleString('vi-VN')} đ`);
       } else {
         setAppliedVoucher(null);
-        setVoucherFeedback('Mã giảm giá không tồn tại hoặc không đủ điều kiện.');
+        setVoucherFeedback(isEnglish ? 'Promo code does not exist or does not meet conditions.' : 'Mã giảm giá không tồn tại hoặc không đủ điều kiện.');
       }
     } catch (err: unknown) {
       setAppliedVoucher(null);
       if (axios.isAxiosError(err)) {
-        setVoucherFeedback(err.response?.data?.message || 'Mã giảm giá không hợp lệ.');
+        setVoucherFeedback(err.response?.data?.message || (isEnglish ? 'Invalid promo code.' : 'Mã giảm giá không hợp lệ.'));
       } else {
-        setVoucherFeedback('Không thể kiểm tra mã giảm giá.');
+        setVoucherFeedback(isEnglish ? 'Unable to verify promo code.' : 'Không thể kiểm tra mã giảm giá.');
       }
     } finally {
       setEstimateLoading(false);
@@ -204,22 +206,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     e.preventDefault();
 
     if (!isAuthenticated || !user) {
-      setErrorMsg('Vui lòng đăng nhập tài khoản để tiến hành đặt xe.');
+      setErrorMsg(isEnglish ? 'Please sign in to your account to reserve bike.' : 'Vui lòng đăng nhập tài khoản để tiến hành đặt xe.');
       return;
     }
 
     if (startDateTime >= endDateTime) {
-      setErrorMsg('Thời gian trả xe phải sau thời gian nhận xe.');
+      setErrorMsg(isEnglish ? 'Return time must be after pickup time.' : 'Thời gian trả xe phải sau thời gian nhận xe.');
       return;
     }
 
     if (startDateTime < new Date()) {
-      setErrorMsg('Thời gian nhận xe không được nằm trong quá khứ.');
+      setErrorMsg(isEnglish ? 'Pickup time cannot be in the past.' : 'Thời gian nhận xe không được nằm trong quá khứ.');
       return;
     }
 
     if (isConflicting) {
-      setErrorMsg('Xe đã có người đặt trong khoảng thời gian này. Vui lòng chọn khung giờ khác.');
+      setErrorMsg(isEnglish ? 'Vehicle is already reserved for this timeframe. Please choose another slot.' : 'Xe đã có người đặt trong khoảng thời gian này. Vui lòng chọn khung giờ khác.');
       return;
     }
 
@@ -256,22 +258,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         }
         onSuccess(newBooking.bookingCode);
       } else {
-        setErrorMsg(res.data?.message || 'Không thể tạo đơn đặt xe.');
+        setErrorMsg(res.data?.message || (isEnglish ? 'Unable to create booking.' : 'Không thể tạo đơn đặt xe.'));
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const serverMsg = err.response?.data?.message;
         if (err.response?.status === 409) {
-          setErrorMsg(serverMsg || 'Xe đã có người đặt trong khung thời gian này. Vui lòng chọn khung giờ hoặc xe khác.');
+          setErrorMsg(serverMsg || (isEnglish ? 'This vehicle is reserved for this timeframe. Please choose another slot or bike.' : 'Xe đã có người đặt trong khung thời gian này. Vui lòng chọn khung giờ hoặc xe khác.'));
         } else if (err.response?.status === 401) {
-          setErrorMsg('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+          setErrorMsg(isEnglish ? 'Session expired. Please sign in again.' : 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         } else if (err.response?.status === 403) {
-          setErrorMsg(serverMsg || 'Tài khoản chưa đủ điều kiện thuê xe. Vui lòng hoàn tất eKYC.');
+          setErrorMsg(serverMsg || (isEnglish ? 'Account not eligible yet. Please complete eKYC.' : 'Tài khoản chưa đủ điều kiện thuê xe. Vui lòng hoàn tất eKYC.'));
         } else {
-          setErrorMsg(serverMsg || 'Không thể tạo đơn đặt xe. Vui lòng thử lại.');
+          setErrorMsg(serverMsg || (isEnglish ? 'Unable to create booking. Please try again.' : 'Không thể tạo đơn đặt xe. Vui lòng thử lại.'));
         }
       } else {
-        setErrorMsg('Lỗi kết nối máy chủ. Vui lòng kiểm tra lại đường truyền.');
+        setErrorMsg(isEnglish ? 'Server connection error. Please check your network.' : 'Lỗi kết nối máy chủ. Vui lòng kiểm tra lại đường truyền.');
       }
     } finally {
       setLoading(false);
@@ -291,13 +293,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           </button>
           <div className="flex items-center space-x-2 text-[#FFC799] text-xs font-bold uppercase tracking-wider mb-1">
             <Sparkles className="w-4 h-4" />
-            <span>Xác nhận thông tin thuê xe tự lái</span>
+            <span>{isEnglish ? 'Confirm Self-Drive Rental Details' : 'Xác nhận thông tin thuê xe tự lái'}</span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-white">
             {vehicle.vehicleModel}
           </h2>
           <p className="text-xs text-[#A0A0A0] mt-1">
-            Biển số: {vehicle.licensePlate} • Đời {vehicle.yearManufactured || 2024} {vehicle.color ? `• Màu: ${vehicle.color}` : ''} • Tiết kiệm nhiên liệu
+            {isEnglish ? 'Plate:' : 'Biển số:'} {vehicle.licensePlate} • {isEnglish ? 'Model ' : 'Đời '}{vehicle.yearManufactured || 2024} {vehicle.color ? `• ${isEnglish ? 'Color:' : 'Màu:'} ${vehicle.color}` : ''} • {isEnglish ? 'Fuel Efficient' : 'Tiết kiệm nhiên liệu'}
           </p>
         </div>
 
@@ -306,7 +308,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="p-4 bg-[#FFC799]/12 border-b border-[#FFC799]/30 flex items-center justify-between">
             <div className="flex items-center space-x-2 text-[#FFC799] text-xs">
               <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#FFC799]" />
-              <span>Bạn cần đăng nhập tài khoản khách hàng để đặt xe giữ chỗ.</span>
+              <span>{isEnglish ? 'You must be signed in to reserve a vehicle.' : 'Bạn cần đăng nhập tài khoản khách hàng để đặt xe giữ chỗ.'}</span>
             </div>
             <button
               type="button"
@@ -314,7 +316,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               className="px-3 py-1.5 bg-[#FFC799] hover:bg-[#FFC799] text-[#101010] text-xs font-bold rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
             >
               <LogIn className="w-3.5 h-3.5" />
-              <span>Đăng nhập ngay</span>
+              <span>{isEnglish ? 'Sign In Now' : 'Đăng nhập ngay'}</span>
             </button>
           </div>
         )}
@@ -325,7 +327,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             {/* Angle Indicator Badge */}
             <div className="absolute top-3 left-3 z-10 flex items-center space-x-1.5 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/10 text-[11px] font-semibold text-[#F5F5F5]">
               <Camera className="w-3.5 h-3.5 text-[#FFC799]" />
-              <span>{ANGLE_LABELS[modalAngle]?.title} (Góc {modalAngle + 1}/3)</span>
+              <span>{getAngleLabels(isEnglish)[modalAngle]?.title} ({isEnglish ? 'Angle' : 'Góc'} {modalAngle + 1}/3)</span>
             </div>
 
             {/* Left/Right Buttons */}
@@ -336,7 +338,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 setModalImgError(false);
               }}
               className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-[#101010]/80 hover:bg-[#FFC799] hover:text-[#101010] text-white border border-white/15 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
-              aria-label="Góc trước"
+              aria-label={isEnglish ? "Previous angle" : "Góc trước"}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -347,7 +349,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 setModalImgError(false);
               }}
               className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full bg-[#101010]/80 hover:bg-[#FFC799] hover:text-[#101010] text-white border border-white/15 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
-              aria-label="Góc sau"
+              aria-label={isEnglish ? "Next angle" : "Góc sau"}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -357,7 +359,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               {vehicle.images && vehicle.images[modalAngle] && !modalImgError ? (
                 <img
                   src={getOptimizedVehicleImageUrl(vehicle.images[modalAngle])}
-                  alt={`${vehicle.vehicleModel} - ${ANGLE_LABELS.find(a => a.id === modalAngle)?.title}`}
+                  alt={`${vehicle.vehicleModel} - ${getAngleLabels(isEnglish).find(a => a.id === modalAngle)?.title}`}
                   onError={() => setModalImgError(true)}
                   loading="lazy"
                   decoding="async"
@@ -385,7 +387,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     <path d="M24 20 C28 16 35 16 40 20 Z" className="fill-[#FFC799]/20 stroke-[#FFC799]" />
                   </svg>
                   <span className="text-[11px] text-slate-600 mt-1 font-semibold">
-                    Ảnh mô phỏng góc chụp chuẩn kiểm định Motorent
+                    {isEnglish ? "Inspection standard studio perspective preview" : "Ảnh mô phỏng góc chụp chuẩn kiểm định Motorent"}
                   </span>
                 </div>
               )}
@@ -393,7 +395,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
             {/* 3 Interactive Thumbnail Switchers */}
             <div className="w-full grid grid-cols-3 gap-2 pt-2 border-t border-white/5">
-              {ANGLE_LABELS.map((ang) => (
+              {getAngleLabels(isEnglish).map((ang) => (
                 <button
                   key={ang.id}
                   type="button"
@@ -442,29 +444,29 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           {isConflicting && (
             <div className="p-3 bg-rose-500/15 border border-rose-500/30 text-rose-300 rounded-xl text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
-              <span>Phương tiện này đã có khách đặt trong khung thời gian bạn chọn. Vui lòng đổi giờ hoặc chọn xe khác.</span>
+              <span>{isEnglish ? "This vehicle is already reserved during your selected time window. Please adjust dates or choose another bike." : "Phương tiện này đã có khách đặt trong khung thời gian bạn chọn. Vui lòng đổi giờ hoặc chọn xe khác."}</span>
             </div>
           )}
 
           {/* Pricing transparency card */}
           <div className="bg-[#101010] border border-white/10 rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-white/10 text-xs">
-              <span className="text-[#A0A0A0] font-medium">Đơn giá ngày:</span>
+              <span className="text-[#A0A0A0] font-medium">{isEnglish ? "Daily Rate:" : "Đơn giá ngày:"}</span>
               <span className="font-bold text-white">
-                {vehicle.dailyPrice.toLocaleString('vi-VN')} đ/ngày
+                {vehicle.dailyPrice.toLocaleString('vi-VN')} {isEnglish ? "₫/day" : "đ/ngày"}
               </span>
             </div>
             <div className="flex items-center justify-between py-1 border-b border-white/10 text-xs">
-              <span className="text-[#A0A0A0] font-medium">Thời gian thuê ({durationDays} ngày):</span>
+              <span className="text-[#A0A0A0] font-medium">{isEnglish ? `Duration (${durationDays} days):` : `Thời gian thuê (${durationDays} ngày):`}</span>
               <span className="font-bold text-white">
-                {basePrice.toLocaleString('vi-VN')} đ
+                {basePrice.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
               </span>
             </div>
 
             {appliedVoucher && (
               <div className="flex items-center justify-between py-1 border-b border-white/10 text-xs text-[#FFC799] font-bold">
-                <span>Ưu đãi áp dụng ({appliedVoucher.code}):</span>
-                <span>-{appliedVoucher.discountAmount.toLocaleString('vi-VN')} đ</span>
+                <span>{isEnglish ? `Applied Voucher (${appliedVoucher.code}):` : `Ưu đãi áp dụng (${appliedVoucher.code}):`}</span>
+                <span>-{appliedVoucher.discountAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}</span>
               </div>
             )}
 
@@ -475,7 +477,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <Tag className="w-3.5 h-3.5 text-[#FFC799] absolute left-3 top-2.5 pointer-events-none" />
                   <input
                     type="text"
-                    placeholder="Nhập mã ưu đãi (VD: CHAOBANMOI)..."
+                    placeholder={isEnglish ? "Enter promo code (e.g. CHAOBANMOI)..." : "Nhập mã ưu đãi (VD: CHAOBANMOI)..."}
                     value={discountCode}
                     onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
                     className="w-full bg-[#161616] border border-white/10 rounded-xl pl-9 pr-3 py-2 text-xs font-semibold text-white uppercase outline-none focus:border-[#FFC799]"
@@ -487,7 +489,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   disabled={estimateLoading}
                   className="px-3.5 py-2 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold rounded-xl transition-all disabled:opacity-50 cursor-pointer"
                 >
-                  Áp dụng
+                  {isEnglish ? 'Apply' : 'Áp dụng'}
                 </button>
               </div>
               {voucherFeedback && (
@@ -500,21 +502,21 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <div className="pt-2 grid grid-cols-2 gap-3 text-center">
               <div className="p-2.5 bg-[#161616] rounded-xl border border-[#FFC799]/30 shadow-sm">
                 <span className="block text-[11px] font-bold text-[#F5F5F5] uppercase">
-                  Cọc giữ xe online (30%)
+                  {isEnglish ? "Online Deposit (30%)" : "Cọc giữ xe online (30%)"}
                 </span>
                 <span className="text-base font-black text-[#FFC799]">
-                  {depositAmount.toLocaleString('vi-VN')} đ
+                  {depositAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                 </span>
-                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Hoàn 100% nếu báo trước 24h</span>
+                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">{isEnglish ? "100% refund if cancelled 24h prior" : "Hoàn 100% nếu báo trước 24h"}</span>
               </div>
               <div className="p-2.5 bg-[#161616] rounded-xl border border-white/10 shadow-sm">
                 <span className="block text-[11px] font-bold text-[#A0A0A0] uppercase">
-                  Thanh toán tại quầy (70%)
+                  {isEnglish ? "Pay at Station (70%)" : "Thanh toán tại quầy (70%)"}
                 </span>
                 <span className="text-base font-black text-white">
-                  {remainingAmount.toLocaleString('vi-VN')} đ
+                  {remainingAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                 </span>
-                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Khi nhận xe và đối soát</span>
+                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">{isEnglish ? "Upon pickup & inspection" : "Khi nhận xe và đối soát"}</span>
               </div>
             </div>
           </div>
@@ -527,7 +529,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 label={
                   <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
                     <MapPin className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                    Chi nhánh nhận xe
+                    {isEnglish ? 'Pickup Station' : 'Chi nhánh nhận xe'}
                   </label>
                 }
                 branches={branches}
@@ -542,7 +544,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 label={
                   <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
                     <MapPin className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                    Chi nhánh trả xe
+                    {isEnglish ? 'Return Station' : 'Chi nhánh trả xe'}
                   </label>
                 }
                 branches={branches}
@@ -558,7 +560,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 label={
                   <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
                     <Calendar className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                    Ngày &amp; giờ nhận xe
+                    {isEnglish ? 'Pickup Date & Time' : 'Ngày & giờ nhận xe'}
                   </label>
                 }
                 dateValue={pickupDate}
@@ -596,7 +598,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 label={
                   <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
                     <Clock className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                    Ngày &amp; giờ trả xe
+                    {isEnglish ? 'Return Date & Time' : 'Ngày & giờ trả xe'}
                   </label>
                 }
                 dateValue={returnDate}
@@ -624,11 +626,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <div>
               <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
                 <UserIcon className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                Họ và tên người thuê (theo hồ sơ)
+                {isEnglish ? "Rider Full Name (from profile)" : "Họ và tên người thuê (theo hồ sơ)"}
               </label>
               <input
                 type="text"
-                value={customerName || (isAuthenticated ? 'Đang cập nhật hồ sơ' : 'Chưa đăng nhập')}
+                value={customerName || (isAuthenticated ? (isEnglish ? 'Updating profile' : 'Đang cập nhật hồ sơ') : (isEnglish ? 'Not logged in' : 'Chưa đăng nhập'))}
                 readOnly
                 className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-[#A0A0A0] outline-none cursor-not-allowed"
               />
@@ -637,11 +639,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <div>
               <label className="block text-xs font-bold text-[#A0A0A0] mb-1 flex items-center">
                 <Phone className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                Số điện thoại liên hệ (theo hồ sơ)
+                {isEnglish ? "Contact Phone (from profile)" : "Số điện thoại liên hệ (theo hồ sơ)"}
               </label>
               <input
                 type="tel"
-                value={customerPhone || (isAuthenticated ? 'Chưa cập nhật SĐT' : 'Chưa đăng nhập')}
+                value={customerPhone || (isAuthenticated ? (isEnglish ? 'No phone specified' : 'Chưa cập nhật SĐT') : (isEnglish ? 'Not logged in' : 'Chưa đăng nhập'))}
                 readOnly
                 className="w-full bg-white/[0.04] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-[#A0A0A0] outline-none cursor-not-allowed"
               />
@@ -653,9 +655,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
             <label className="block text-xs font-bold text-[#A0A0A0] mb-2 flex items-center justify-between">
               <span className="flex items-center">
                 <CreditCard className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                Lựa chọn phương thức thanh toán
+                {isEnglish ? 'Select Payment Method' : 'Lựa chọn phương thức thanh toán'}
               </span>
-              <span className="text-[10px] text-[#A0A0A0]">Hỗ trợ VNPay Sandbox, Thẻ ATM/Visa/QR</span>
+              <span className="text-[10px] text-[#A0A0A0]">{isEnglish ? "Supports VNPay Gateway, ATM / Visa / QR" : "Hỗ trợ VNPay Sandbox, Thẻ ATM/Visa/QR"}</span>
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               {/* Option 1: Deposit 30% */}
@@ -674,16 +676,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] uppercase font-bold text-[#FFC799] bg-[#FFC799]/10 px-1.5 py-0.5 rounded">
-                      Cọc 30%
+                      {isEnglish ? "Deposit 30%" : "Cọc 30%"}
                     </span>
                     <QrCode className="w-4 h-4 text-[#FFC799]" />
                   </div>
                   <p className="font-bold text-white text-xs mt-1">
-                    {depositAmount.toLocaleString('vi-VN')} đ
+                    {depositAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </p>
                 </div>
                 <p className="text-[10px] text-[#A0A0A0] mt-1.5 leading-tight">
-                  Còn lại 70% ({(totalAmount - depositAmount).toLocaleString('vi-VN')} đ) trả khi nhận xe
+                  {isEnglish ? `Remaining 70% (${(totalAmount - depositAmount).toLocaleString('vi-VN')}₫) paid upon handover` : `Còn lại 70% (${(totalAmount - depositAmount).toLocaleString('vi-VN')} đ) trả khi nhận xe`}
                 </p>
               </button>
 
@@ -703,16 +705,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] uppercase font-bold text-[#99FFE4] bg-[#99FFE4]/10 px-1.5 py-0.5 rounded">
-                      100% Toàn bộ
+                      {isEnglish ? "100% Full Payment" : "100% Toàn bộ"}
                     </span>
                     <CreditCard className="w-4 h-4 text-[#99FFE4]" />
                   </div>
                   <p className="font-bold text-white text-xs mt-1">
-                    {totalAmount.toLocaleString('vi-VN')} đ
+                    {totalAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </p>
                 </div>
                 <p className="text-[10px] text-[#99FFE4]/90 mt-1.5 leading-tight font-medium">
-                  Tất toán ngay, nhận xe không cần thanh toán thêm tại quầy
+                  {isEnglish ? "Settle in full now, zero payment required at station counter" : "Tất toán ngay, nhận xe không cần thanh toán thêm tại quầy"}
                 </p>
               </button>
 
@@ -729,16 +731,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] uppercase font-bold text-[#A0A0A0] bg-white/5 px-1.5 py-0.5 rounded">
-                      Tại quầy
+                      {isEnglish ? "At Station Counter" : "Tại quầy"}
                     </span>
                     <CreditCard className="w-4 h-4 text-[#A0A0A0]" />
                   </div>
                   <p className="font-bold text-white text-xs mt-1">
-                    Thanh toán trạm
+                    {isEnglish ? "Pay at Station" : "Thanh toán trạm"}
                   </p>
                 </div>
                 <p className="text-[10px] text-[#A0A0A0] mt-1.5 leading-tight">
-                  Đối soát giấy tờ và thanh toán trực tiếp khi nhận xe
+                  {isEnglish ? "Verify documents and pay directly upon bike handover" : "Đối soát giấy tờ và thanh toán trực tiếp khi nhận xe"}
                 </p>
               </button>
             </div>
@@ -748,7 +750,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 text-xs text-[#A0A0A0] flex items-start space-x-2">
             <ShieldCheck className="w-4 h-4 text-[#FFC799] mt-0.5 flex-shrink-0" />
             <p className="leading-relaxed">
-              <strong className="text-white">Cam kết an toàn:</strong> Cổng thanh toán VNPay Sandbox bảo mật SSL/TLS. Miễn phí hủy đặt xe theo chính sách BR-06 trước 24 giờ.
+              <strong className="text-white">{isEnglish ? "Safety Guarantee:" : "Cam kết an toàn:"}</strong> {isEnglish ? "VNPay secure payment gateway SSL/TLS encrypted. Free cancellation up to 24 hours prior." : "Cổng thanh toán VNPay Sandbox bảo mật SSL/TLS. Miễn phí hủy đặt xe trước 24 giờ."}
             </p>
           </div>
 
@@ -759,7 +761,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               onClick={onClose}
               className="px-5 py-2.5 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white hover:bg-white/5 transition-colors"
             >
-              Hủy bỏ
+              {isEnglish ? "Cancel" : "Hủy bỏ"}
             </button>
             {isAuthenticated ? (
               <button
@@ -772,16 +774,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 }`}
               >
                 {loading ? (
-                  <span>Đang xử lý đặt xe...</span>
+                  <span>{isEnglish ? "Processing reservation..." : "Đang xử lý đặt xe..."}</span>
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
                     <span>
                       {paymentMethod === 'Banking'
                         ? onlinePaymentType === 'Full100'
-                          ? `Thanh toán 100% VNPay (${totalAmount.toLocaleString('vi-VN')} đ)`
-                          : `Thanh toán cọc 30% VNPay (${depositAmount.toLocaleString('vi-VN')} đ)`
-                        : 'Xác nhận đặt giữ xe'}
+                          ? isEnglish ? `Pay 100% VNPay (${totalAmount.toLocaleString('vi-VN')} ₫)` : `Thanh toán 100% VNPay (${totalAmount.toLocaleString('vi-VN')} đ)`
+                          : isEnglish ? `Pay 30% Deposit VNPay (${depositAmount.toLocaleString('vi-VN')} ₫)` : `Thanh toán cọc 30% VNPay (${depositAmount.toLocaleString('vi-VN')} đ)`
+                        : isEnglish ? 'Confirm Reservation' : 'Xác nhận đặt giữ xe'}
                     </span>
                   </>
                 )}
@@ -793,7 +795,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 className="px-6 py-3 rounded-xl text-xs font-black bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-[#101010] shadow-lg shadow-black/50 transition-all flex items-center space-x-2 active:scale-95 cursor-pointer"
               >
                 <LogIn className="w-4 h-4" />
-                <span>Đăng nhập để đặt xe</span>
+                <span>{isEnglish ? "Log in to reserve bike" : "Đăng nhập để đặt xe"}</span>
               </button>
             )}
           </div>

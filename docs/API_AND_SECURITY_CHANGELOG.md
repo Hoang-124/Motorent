@@ -39,7 +39,7 @@ Tuân thủ nghiêm ngặt chỉ thị kiến trúc tại `docs/FIX_AND_BUILD_PR
 
 ### 3.1 Phân hệ Hệ thống & Phân quyền (System & RBAC)
 - `GET /api/health`: Kiểm tra sức khỏe hệ thống (Public). Có tùy chọn `?detailed=true` cho Admin kiểm tra telemetry 18 collections.
-- `GET /api/system/permissions`: Tra cứu ma trận phân quyền hệ thống (SystemAdmin, BranchManager, Staff). Trả về ma trận và danh sách permissions cụ thể của tài khoản đăng nhập.
+- `GET /api/system/permissions` (Alias: `GET /api/rbac-matrix`): Tra cứu ma trận phân quyền hệ thống (SystemAdmin, BranchManager, Staff). Trả về ma trận và danh sách permissions cụ thể của tài khoản đăng nhập.
 
 ### 3.2 Phân hệ Nhật ký An ninh (Audit Log - UC-102)
 - `GET /api/audit`: (SystemAdmin only). Lọc nhật ký bảo mật theo `page, limit, userId, action, entity, from, to, q`.

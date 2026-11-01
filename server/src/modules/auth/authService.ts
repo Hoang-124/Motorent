@@ -909,12 +909,17 @@ export const getEkycDocumentFile = async (
   // Check private uploads directory first
   let targetPath = path.join(privateEkycDir, safeFilename);
   if (!fs.existsSync(targetPath)) {
+    const cwdPath = path.join(process.cwd(), 'private_uploads', 'ekyc', safeFilename);
+    if (fs.existsSync(cwdPath)) {
+      targetPath = cwdPath;
+    } else {
     // Fallback to legacy uploads directory if uploaded previously
     const fallbackPath = path.join(uploadDir, safeFilename);
     if (fs.existsSync(fallbackPath)) {
       targetPath = fallbackPath;
     } else {
       throw new AppError(404, 'Tập tin giấy tờ không tồn tại trên hệ thống lưu trữ.');
+    }
     }
   }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
   User as UserIcon,
@@ -35,21 +35,23 @@ import {
   Edit2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/I18nContext';
 import { api } from '../services/api';
 import { getSocket } from '../services/socket';
 import axios from 'axios';
 import { calculatePasswordStrength } from '../utils/validation';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { compressEkycImage } from '../utils/watermark';
-import type { Booking, Vehicle, Branch, Review } from '../types';
+import type { Booking, Vehicle, Branch, Review, Complaint } from '../types';
 import { ReviewModal } from '../components/ReviewModal';
-import { LoyaltyCenter } from '../components/LoyaltyCenter';
+import { SecureEkycImage } from '../components/SecureEkycImage';
 
-export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password' | 'loyalty';
+export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password';
 
 export const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
+  const { isEnglish, t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const initialTab = (searchParams.get('tab') as ProfileTab) || 'bookings';
@@ -71,10 +73,18 @@ export const ProfilePage: React.FC = () => {
   });
   const [bookingCounts, setBookingCounts] = useState({
     all: 0,
+    trips: 0,
     active: 0,
     completed: 0,
     cancelled: 0,
   });
+  const [countsLoaded, setCountsLoaded] = useState(false);
+  const bookingPageRef = useRef(bookingPage);
+  const bookingFilterRef = useRef(bookingFilter);
+  const bookingSearchRef = useRef(bookingSearch);
+  bookingPageRef.current = bookingPage;
+  bookingFilterRef.current = bookingFilter;
+  bookingSearchRef.current = bookingSearch;
   const [selectedBookingForCancel, setSelectedBookingForCancel] = useState<Booking | null>(null);
   const [cancelReasonInput, setCancelReasonInput] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -126,8 +136,9 @@ export const ProfilePage: React.FC = () => {
   const [extendEstimating, setExtendEstimating] = useState(false);
   const [extendError, setExtendError] = useState<string>('');
 
-  // Reviews state (UC-39-41)
+  // Reviews state (UC-39-41) & Complaints state (UC-42-43)
   const [myReviews, setMyReviews] = useState<Review[]>([]);
+  const [myComplaints, setMyComplaints] = useState<Complaint[]>([]);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
   const [selectedReviewForEdit, setSelectedReviewForEdit] = useState<Review | null>(null);
 
@@ -156,10 +167,13 @@ export const ProfilePage: React.FC = () => {
   const [idCardFrontPreview, setIdCardFrontPreview] = useState<string | null>(null);
   const [idCardBackFile, setIdCardBackFile] = useState<File | null>(null);
   const [idCardBackPreview, setIdCardBackPreview] = useState<string | null>(null);
+  const [drivingLicenseFile, setDrivingLicenseFile] = useState<File | null>(null);
+  const [drivingLicensePreview, setDrivingLicensePreview] = useState<string | null>(null);
   const [selfieFile, setSelfieFile] = useState<File | null>(null);
   const [selfiePreview, setSelfiePreview] = useState<string | null>(null);
-  const [isWatermarking, setIsWatermarking] = useState<'idCardFront' | 'idCardBack' | 'selfiePhoto' | null>(null);
+  const [isWatermarking, setIsWatermarking] = useState<'idCardFront' | 'idCardBack' | 'drivingLicense' | 'selfiePhoto' | null>(null);
   const [ekycConsent, setEkycConsent] = useState(false);
+  const [zoomEkycDoc, setZoomEkycDoc] = useState<{ title: string; src: string } | null>(null);
 
   // Status indicators
   const [loading, setLoading] = useState(false);
@@ -195,7 +209,19 @@ export const ProfilePage: React.FC = () => {
           setBookingPagination(res.data.pagination);
         }
         if (res.data.counts) {
-          setBookingCounts(res.data.counts);
+          const nextCounts = {
+            all: res.data.counts.all ?? 0,
+            trips:
+              typeof res.data.counts.trips === 'number'
+                ? res.data.counts.trips
+                : (res.data.counts.active ?? 0) + (res.data.counts.completed ?? 0),
+            active: res.data.counts.active ?? 0,
+            completed: res.data.counts.completed ?? 0,
+            cancelled: res.data.counts.cancelled ?? 0,
+          };
+          setBookingCounts(nextCounts);
+          setCountsLoaded(true);
+          window.dispatchEvent(new CustomEvent('motorent:bookings-updated', { detail: nextCounts }));
         }
       }
     } catch (err) {
@@ -234,9 +260,21 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  const fetchMyComplaints = async () => {
+    try {
+      const res = await api.get('/me/complaints', { params: { limit: 50 } });
+      if (res.data?.data && Array.isArray(res.data.data)) {
+        setMyComplaints(res.data.data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải khiếu nại của tôi:', err);
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchMyReviews();
+    fetchMyComplaints();
     api
       .get('/auth/me')
       .then((res) => {
@@ -276,6 +314,7 @@ export const ProfilePage: React.FC = () => {
           return b;
         })
       );
+      fetchBookings(bookingPageRef.current, bookingFilterRef.current, bookingSearchRef.current);
     };
 
     socket.on('connect', handleConnect);
@@ -313,7 +352,7 @@ export const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     const tabParam = searchParams.get('tab') as ProfileTab;
-    if (tabParam && ['bookings', 'info', 'avatar', 'ekyc', 'password', 'loyalty'].includes(tabParam)) {
+    if (tabParam && ['bookings', 'info', 'avatar', 'ekyc', 'password'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -353,13 +392,13 @@ export const ProfilePage: React.FC = () => {
         setSelectedBookingForCancel(null);
         setCancelReasonInput('');
         await fetchBookings();
-        setSuccessMsg('Đã hủy đơn đặt xe thành công.');
+        setSuccessMsg(isEnglish ? 'Booking order cancelled successfully.' : 'Đã hủy đơn đặt xe thành công.');
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         setErrorMsg(err.response.data.message);
       } else {
-        setErrorMsg('Không thể hủy đơn đặt xe này.');
+        setErrorMsg(isEnglish ? 'Unable to cancel this booking.' : 'Không thể hủy đơn đặt xe này.');
       }
     } finally {
       setCancelLoading(false);
@@ -370,7 +409,7 @@ export const ProfilePage: React.FC = () => {
   const handleRequestRefund = async () => {
     if (!selectedBookingForRefund) return;
     if (!bankNameInput.trim() || !bankAccountNumberInput.trim() || !bankAccountNameInput.trim()) {
-      setErrorMsg('Vui lòng điền đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản nhận tiền.');
+      setErrorMsg(isEnglish ? 'Please enter bank name, account number, and recipient account holder name.' : 'Vui lòng điền đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản nhận tiền.');
       return;
     }
     setRefundLoading(true);
@@ -386,14 +425,16 @@ export const ProfilePage: React.FC = () => {
         setSelectedBookingForRefund(null);
         await fetchBookings();
         setSuccessMsg(
-          `Đã tiếp nhận yêu cầu hoàn tiền cho đơn ${selectedBookingForRefund.bookingCode}. Quản lý sẽ phê duyệt trong 24 giờ!`
+          isEnglish
+            ? `Refund request received for booking ${selectedBookingForRefund.bookingCode}. Manager will review within 24 hours!`
+            : `Đã tiếp nhận yêu cầu hoàn tiền cho đơn ${selectedBookingForRefund.bookingCode}. Quản lý sẽ phê duyệt trong 24 giờ!`
         );
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         setErrorMsg(err.response.data.message);
       } else {
-        setErrorMsg('Không thể gửi thông tin hoàn tiền. Vui lòng thử lại.');
+        setErrorMsg(isEnglish ? 'Unable to submit refund info. Please try again.' : 'Không thể gửi thông tin hoàn tiền. Vui lòng thử lại.');
       }
     } finally {
       setRefundLoading(false);
@@ -452,9 +493,9 @@ export const ProfilePage: React.FC = () => {
           prev.map((b) => (b._id === updated._id ? { ...b, ...updated } : b))
         );
         const addedText = updated.extensionSummary?.addedAmount
-          ? ` Phí phát sinh: ${Number(updated.extensionSummary.addedAmount).toLocaleString('vi-VN')} đ.`
+          ? (isEnglish ? ` Extra fee: ${Number(updated.extensionSummary.addedAmount).toLocaleString('en-US')}₫.` : ` Phí phát sinh: ${Number(updated.extensionSummary.addedAmount).toLocaleString('vi-VN')} đ.`)
           : '';
-        setSuccessMsg(`Gia hạn chuyến xe thành công!${addedText}`);
+        setSuccessMsg(isEnglish ? `Trip extended successfully!${addedText}` : `Gia hạn chuyến xe thành công!${addedText}`);
         setSelectedBookingForExtend(null);
       } else {
         setExtendError(res.data?.message || 'Gia hạn thất bại.');
@@ -476,7 +517,6 @@ export const ProfilePage: React.FC = () => {
     setQrVerifying(true);
     setErrorMsg('');
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1100));
       const res = await api.post('/payments/vietqr/confirm', {
         bookingId: selectedBookingForQrPay._id,
         paymentType: qrPaymentType,
@@ -485,7 +525,9 @@ export const ProfilePage: React.FC = () => {
         setQrVerifiedSuccess(true);
         await fetchBookings();
         setSuccessMsg(
-          `Đã xác nhận thanh toán QR cho mã đơn ${selectedBookingForQrPay.bookingCode}. Biển số xe đã được khóa giữ cho bạn!`
+          isEnglish
+            ? `QR payment confirmed for booking ${selectedBookingForQrPay.bookingCode}. Your vehicle plate is locked!`
+            : `Đã xác nhận thanh toán QR cho mã đơn ${selectedBookingForQrPay.bookingCode}. Biển số xe đã được khóa giữ cho bạn!`
         );
         setTimeout(() => {
           setSelectedBookingForQrPay(null);
@@ -496,7 +538,7 @@ export const ProfilePage: React.FC = () => {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
         setErrorMsg(err.response.data.message);
       } else {
-        setErrorMsg('Không thể xác nhận thanh toán QR lúc này. Vui lòng thử lại.');
+        setErrorMsg(isEnglish ? 'Unable to confirm QR payment now. Please try again.' : 'Không thể xác nhận thanh toán QR lúc này. Vui lòng thử lại.');
       }
     } finally {
       setQrVerifying(false);
@@ -600,10 +642,10 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  // eKYC upload handler
+  // eKYC upload handler (preserves clean, unmasked document clarity for customer & staff)
   const handleDocFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    type: 'idCardFront' | 'idCardBack' | 'selfiePhoto'
+    type: 'idCardFront' | 'idCardBack' | 'drivingLicense' | 'selfiePhoto'
   ) => {
     if (e.target.files && e.target.files[0]) {
       const rawFile = e.target.files[0];
@@ -617,7 +659,7 @@ export const ProfilePage: React.FC = () => {
       setErrorMsg('');
 
       try {
-        const optimizedFile = await compressEkycImage(rawFile, 1280);
+        const optimizedFile = await compressEkycImage(rawFile, 1440);
         const objUrl = URL.createObjectURL(optimizedFile);
         if (type === 'idCardFront') {
           setIdCardFrontFile(optimizedFile);
@@ -625,6 +667,9 @@ export const ProfilePage: React.FC = () => {
         } else if (type === 'idCardBack') {
           setIdCardBackFile(optimizedFile);
           setIdCardBackPreview(objUrl);
+        } else if (type === 'drivingLicense') {
+          setDrivingLicenseFile(optimizedFile);
+          setDrivingLicensePreview(objUrl);
         } else {
           setSelfieFile(optimizedFile);
           setSelfiePreview(objUrl);
@@ -637,6 +682,9 @@ export const ProfilePage: React.FC = () => {
         } else if (type === 'idCardBack') {
           setIdCardBackFile(rawFile);
           setIdCardBackPreview(fallbackUrl);
+        } else if (type === 'drivingLicense') {
+          setDrivingLicenseFile(rawFile);
+          setDrivingLicensePreview(fallbackUrl);
         } else {
           setSelfieFile(rawFile);
           setSelfiePreview(fallbackUrl);
@@ -649,8 +697,8 @@ export const ProfilePage: React.FC = () => {
 
   const handleUploadEkyc = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!idCardFrontFile && !idCardBackFile && !selfieFile) {
-      setErrorMsg('Vui lòng chọn ảnh CCCD (mặt trước / mặt sau) và ảnh chân dung để gửi thẩm định.');
+    if (!idCardFrontFile && !idCardBackFile && !drivingLicenseFile && !selfieFile) {
+      setErrorMsg('Vui lòng chọn ít nhất một ảnh giấy tờ (CCCD / GPLX / ảnh chân dung) để gửi thẩm định.');
       return;
     }
 
@@ -666,6 +714,7 @@ export const ProfilePage: React.FC = () => {
     const formData = new FormData();
     if (idCardFrontFile) formData.append('idCardFront', idCardFrontFile);
     if (idCardBackFile) formData.append('idCardBack', idCardBackFile);
+    if (drivingLicenseFile) formData.append('drivingLicense', drivingLicenseFile);
     if (selfieFile) formData.append('selfiePhoto', selfieFile);
     formData.append('consentAgreed', 'true');
     formData.append('watermarked', 'false');
@@ -679,9 +728,10 @@ export const ProfilePage: React.FC = () => {
 
       if (res.data && res.data.success) {
         updateUser(res.data.data.user);
-        setSuccessMsg('Đã gửi hồ sơ thẩm định eKYC thành công.');
+        setSuccessMsg('Đã gửi hồ sơ thẩm định eKYC thành công. Giấy tờ được mã hóa AES-256-GCM an toàn.');
         setIdCardFrontFile(null);
         setIdCardBackFile(null);
+        setDrivingLicenseFile(null);
         setSelfieFile(null);
       } else {
         setErrorMsg(res.data?.message || 'Không thể gửi hồ sơ eKYC.');
@@ -753,12 +803,12 @@ export const ProfilePage: React.FC = () => {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#101010]">
         <div className="text-center space-y-3">
-          <p className="text-sm text-[#A0A0A0]">Vui lòng đăng nhập để quản lý lịch trình và hồ sơ cá nhân.</p>
+          <p className="text-sm text-[#A0A0A0]">{isEnglish ? 'Please sign in to manage your bookings and profile.' : 'Vui lòng đăng nhập để quản lý lịch trình và hồ sơ cá nhân.'}</p>
           <button
             onClick={() => navigate('/login')}
             className="px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl font-semibold text-xs transition-colors"
           >
-            Đến trang Đăng nhập
+            {isEnglish ? 'Go to Sign In' : 'Đến trang Đăng nhập'}
           </button>
         </div>
       </div>
@@ -770,33 +820,37 @@ export const ProfilePage: React.FC = () => {
 
   const formatDocUrl = (url?: string) => {
     if (!url) return null;
-    const resolved = getUserAvatarUrl(url);
-    if (!resolved) return null;
-    const token = localStorage.getItem('motorent_token') || localStorage.getItem('token');
-    if (token && resolved.includes('/api/auth/ekyc/document')) {
-      const sep = resolved.includes('?') ? '&' : '?';
-      return `${resolved}${sep}token=${encodeURIComponent(token)}&v=${user.identityStatus}_${user.ekycWatermarked ? '1' : '0'}`;
+    if (url.includes('/auth/ekyc/document/')) {
+      return url.startsWith('/api') ? url.slice(4) : url;
     }
-    return resolved;
+    return getUserAvatarUrl(url);
   };
 
+  const activeBookingsCount = countsLoaded
+    ? bookingCounts.active
+    : bookings.filter((b) => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length;
+  const completedBookingsCount = countsLoaded
+    ? bookingCounts.completed
+    : bookings.filter((b) => b.status === 'Completed').length;
+  const cancelledBookingsCount = countsLoaded
+    ? bookingCounts.cancelled
+    : bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length;
+  const allOrdersCount = countsLoaded ? bookingCounts.all : bookings.length;
+
   const TABS: { id: ProfileTab; num: string; label: string; count?: number; statusTag?: string }[] = [
-    { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: bookingCounts.all || bookings.length },
-    { id: 'info', num: '02', label: 'Thông tin cá nhân' },
+    { id: 'bookings', num: '01', label: isEnglish ? 'My Bookings' : 'Chuyến xe của tôi', count: allOrdersCount },
+    { id: 'info', num: '02', label: isEnglish ? 'Personal Info' : 'Thông tin cá nhân' },
     {
       id: 'ekyc',
       num: '03',
-      label: 'Định danh eKYC',
-      statusTag: user.identityStatus === 'Verified' ? 'Đã duyệt' : user.identityStatus === 'Pending' ? 'Chờ duyệt' : 'Cần làm',
+      label: isEnglish ? 'eKYC Identity' : 'Định danh eKYC',
+      statusTag: isEnglish
+        ? (user.identityStatus === 'Verified' ? 'Verified' : user.identityStatus === 'Pending' ? 'Pending' : 'Required')
+        : (user.identityStatus === 'Verified' ? 'Đã duyệt' : user.identityStatus === 'Pending' ? 'Chờ duyệt' : 'Cần làm'),
     },
-    { id: 'avatar', num: '04', label: 'Ảnh đại diện' },
-    { id: 'password', num: '05', label: 'Đổi mật khẩu' },
-    { id: 'loyalty', num: '06', label: 'Điểm & ưu đãi' },
+    { id: 'avatar', num: '04', label: isEnglish ? 'Avatar' : 'Ảnh đại diện' },
+    { id: 'password', num: '05', label: isEnglish ? 'Change Password' : 'Đổi mật khẩu' },
   ];
-
-  const activeBookingsCount =
-    bookingCounts.active ||
-    bookings.filter((b) => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status)).length;
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 sm:py-12 bg-editorial-grain">
@@ -828,7 +882,7 @@ export const ProfilePage: React.FC = () => {
                 type="button"
                 onClick={() => handleTabChange('avatar')}
                 className="absolute -bottom-1.5 -right-1.5 w-6 h-6 rounded-lg bg-[#161616] border border-white/20 hover:border-[#FFC799] text-[#F5F5F5] flex items-center justify-center transition-colors cursor-pointer"
-                title="Đổi ảnh đại diện"
+                title={isEnglish ? "Change avatar" : "Đổi ảnh đại diện"}
               >
                 <Camera className="w-3 h-3 text-[#FFC799]" />
               </button>
@@ -843,12 +897,12 @@ export const ProfilePage: React.FC = () => {
                 {user.identityStatus === 'Verified' ? (
                   <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-[#FFC799]/15 border border-[#FFC799]/30 text-[11px] font-medium text-[#FFC799]">
                     <CheckCircle2 className="w-3 h-3" />
-                    <span>Đã xác thực eKYC</span>
+                    <span>{isEnglish ? "eKYC Verified" : "Đã xác thực eKYC"}</span>
                   </span>
                 ) : user.identityStatus === 'Pending' ? (
                   <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-[#FFC799]/12 border border-[#FFC799]/30 text-[11px] font-medium text-[#FFC799]">
                     <Clock className="w-3 h-3" />
-                    <span>Chờ duyệt eKYC</span>
+                    <span>{isEnglish ? "eKYC Pending" : "Chờ duyệt eKYC"}</span>
                   </span>
                 ) : (
                   <button
@@ -857,7 +911,7 @@ export const ProfilePage: React.FC = () => {
                     className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-[#FFC799]/15 border border-[#FFC799]/30 text-[11px] font-medium text-[#FFC799] hover:bg-[#FFC799]/25 transition-colors cursor-pointer"
                   >
                     <ShieldCheck className="w-3 h-3" />
-                    <span>Bổ sung eKYC</span>
+                    <span>{isEnglish ? "Complete eKYC" : "Bổ sung eKYC"}</span>
                   </button>
                 )}
               </div>
@@ -872,9 +926,9 @@ export const ProfilePage: React.FC = () => {
                 )}
                 <span className="text-white/20">•</span>
                 <span>
-                  Điểm thành viên:{' '}
+                  {isEnglish ? 'Rewards Points: ' : 'Điểm thành viên: '}
                   <strong className="font-mono-tabular text-[#FFC799]">
-                    {user.loyaltyPoints || 0} điểm
+                    {user.loyaltyPoints || 0} {isEnglish ? 'pts' : 'điểm'}
                   </strong>
                 </span>
               </div>
@@ -882,18 +936,24 @@ export const ProfilePage: React.FC = () => {
           </div>
 
           {/* Right Quick Actions */}
-          <div className="flex items-center gap-3 self-start md:self-auto">
+          <div className="flex flex-wrap items-center gap-3 self-start md:self-auto">
             <Link
-              to="/profile?tab=loyalty"
-              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl border border-[#FFC799]/35 hover:border-[#FFC799] text-[#FFC799] text-xs font-semibold transition-all active:scale-95"
+              to="/complaints"
+              className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#161616] hover:bg-white/10 border border-white/12 hover:border-[#FFC799]/50 text-[#F5F5F5] text-xs font-semibold transition-all active:scale-95"
             >
-              <span>Điểm &amp; ưu đãi</span>
+              <AlertCircle className="w-3.5 h-3.5 text-[#FFC799]" />
+              <span>{isEnglish ? "My Complaints" : "Khiếu nại của tôi"}</span>
+              {myComplaints.length > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-[#FFC799]/20 text-[#FFC799] font-mono text-[10px] font-bold">
+                  {myComplaints.length}
+                </span>
+              )}
             </Link>
             <Link
               to="/bikes"
               className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all active:scale-95"
             >
-              <span>Đặt chuyến xe mới</span>
+              <span>{isEnglish ? "Book New Ride" : "Đặt chuyến xe mới"}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -903,7 +963,7 @@ export const ProfilePage: React.FC = () => {
             2. HORIZONTAL ARCHITECTURAL TAB BAR
             ===================================================================== */}
         <div className="border-b border-white/[0.08] mb-8 overflow-x-auto scrollbar-none">
-          <nav className="flex items-center space-x-1 min-w-max py-2" aria-label="Quản lý tài khoản">
+          <nav className="flex items-center space-x-1 min-w-max py-2" aria-label={isEnglish ? "Account management tabs" : "Quản lý tài khoản"}>
             {TABS.map((t) => {
               const active = activeTab === t.id;
               return (
@@ -970,8 +1030,6 @@ export const ProfilePage: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'loyalty' && <LoyaltyCenter />}
-
         {/* =====================================================================
             TAB 01: CHUYẾN XE CỦA TÔI (FULL-WIDTH RENTAL CONTRACT TICKETS)
             ===================================================================== */}
@@ -981,19 +1039,17 @@ export const ProfilePage: React.FC = () => {
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 {[
-                  { key: 'all' as const, label: 'Tất cả đơn', count: bookingCounts.all || bookings.length },
-                  { key: 'active' as const, label: 'Đang giữ xe / Đang thuê', count: activeBookingsCount },
+                  { key: 'all' as const, label: isEnglish ? 'All Bookings' : 'Tất cả đơn', count: allOrdersCount },
+                  { key: 'active' as const, label: isEnglish ? 'Reserved / Active' : 'Đang giữ xe / Đang thuê', count: activeBookingsCount },
                   {
                     key: 'completed' as const,
-                    label: 'Đã hoàn thành',
-                    count: bookingCounts.completed || bookings.filter((b) => b.status === 'Completed').length,
+                    label: isEnglish ? 'Completed' : 'Đã hoàn thành',
+                    count: completedBookingsCount,
                   },
                   {
                     key: 'cancelled' as const,
-                    label: 'Đã hủy',
-                    count:
-                      bookingCounts.cancelled ||
-                      bookings.filter((b) => ['Cancelled', 'Rejected'].includes(b.status)).length,
+                    label: isEnglish ? 'Cancelled' : 'Đã hủy',
+                    count: cancelledBookingsCount,
                   },
                 ].map((f) => {
                   const active = bookingFilter === f.key;
@@ -1029,7 +1085,7 @@ export const ProfilePage: React.FC = () => {
                     type="text"
                     value={bookingSearch}
                     onChange={(e) => setBookingSearch(e.target.value)}
-                    placeholder="Tìm mã hợp đồng..."
+                    placeholder={isEnglish ? "Search booking code..." : "Tìm mã hợp đồng..."}
                     className="w-full bg-[#161616] border border-white/[0.08] focus:border-[#FFC799] rounded-xl pl-9 pr-7 py-2 text-xs text-[#F5F5F5] placeholder-[#6E6E6E] outline-none font-mono-tabular transition-colors"
                   />
                   {bookingSearch && (
@@ -1048,7 +1104,7 @@ export const ProfilePage: React.FC = () => {
 
                 <div
                   className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[11px] font-mono-tabular select-none shrink-0"
-                  title={isSocketLive ? 'Máy chủ đang đồng bộ thời gian thực qua WebSocket' : 'Đang ở chế độ tải thủ công'}
+                  title={isSocketLive ? (isEnglish ? 'Server synced via WebSocket' : 'Máy chủ đang đồng bộ thời gian thực qua WebSocket') : (isEnglish ? 'Manual refresh mode' : 'Đang ở chế độ tải thủ công')}
                 >
                   <span
                     className={`w-2 h-2 rounded-full transition-colors ${
@@ -1064,10 +1120,10 @@ export const ProfilePage: React.FC = () => {
                   type="button"
                   onClick={() => fetchBookings()}
                   className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-[#161616] border border-white/[0.08] hover:border-white/20 text-xs text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors shrink-0 cursor-pointer"
-                  title="Tải lại danh sách"
+                  title={isEnglish ? "Refresh list" : "Tải lại danh sách"}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${bookingsLoading ? 'animate-spin text-[#FFC799]' : ''}`} />
-                  <span className="hidden sm:inline">Làm mới</span>
+                  <span className="hidden sm:inline">{isEnglish ? "Refresh" : "Làm mới"}</span>
                 </button>
               </div>
             </div>
@@ -1076,17 +1132,17 @@ export const ProfilePage: React.FC = () => {
             {bookingsLoading ? (
               <div className="py-16 text-center space-y-3 bg-[#161616] rounded-2xl border border-white/[0.08]">
                 <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin mx-auto" />
-                <p className="text-xs text-[#A0A0A0]">Đang đồng bộ danh sách hợp đồng thuê xe...</p>
+                <p className="text-xs text-[#A0A0A0]">{isEnglish ? "Syncing rental contracts..." : "Đang đồng bộ danh sách hợp đồng thuê xe..."}</p>
               </div>
             ) : (() => {
               if (bookings.length === 0) {
                 return (
                   <div className="p-12 rounded-2xl bg-[#161616] border border-white/[0.08] text-center space-y-4">
-                    <h3 className="text-base font-bold text-[#F5F5F5]">Chưa có chuyến xe nào trong mục này</h3>
+                    <h3 className="text-base font-bold text-[#F5F5F5]">{isEnglish ? "No bookings found in this category" : "Chưa có chuyến xe nào trong mục này"}</h3>
                     <p className="text-xs text-[#A0A0A0] max-w-md mx-auto leading-relaxed">
                       {bookingSearch
-                        ? `Không tìm thấy chuyến xe nào khớp với từ khóa "${bookingSearch}".`
-                        : 'Chọn chiếc xe tay ga, xe điện hoặc xe số phù hợp để nhận xe nhanh trong 03 phút tại Sân bay Đà Nẵng hoặc Bãi biển Mỹ Khê.'}
+                        ? (isEnglish ? `No bookings match keyword "${bookingSearch}".` : `Không tìm thấy chuyến xe nào khớp với từ khóa "${bookingSearch}".`)
+                        : (isEnglish ? 'Select a scooter, electric bike, or manual motorbike for 3-minute pickup at Da Nang Airport or My Khe Beach.' : 'Chọn chiếc xe tay ga, xe điện hoặc xe số phù hợp để nhận xe nhanh trong 03 phút tại Sân bay Đà Nẵng hoặc Bãi biển Mỹ Khê.')}
                     </p>
                     {bookingSearch ? (
                       <button
@@ -1097,14 +1153,14 @@ export const ProfilePage: React.FC = () => {
                         }}
                         className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all cursor-pointer"
                       >
-                        <span>Xóa bộ lọc tìm kiếm</span>
+                        <span>{isEnglish ? "Clear search filter" : "Xóa bộ lọc tìm kiếm"}</span>
                       </button>
                     ) : (
                       <Link
                         to="/bikes"
                         className="inline-flex items-center space-x-2 px-5 py-2.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-xl text-xs font-semibold transition-all"
                       >
-                        <span>Xem đội xe &amp; Bảng giá</span>
+                        <span>{isEnglish ? "Explore Fleet & Rates" : "Xem đội xe & Bảng giá"}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </Link>
                     )}
@@ -1147,7 +1203,7 @@ export const ProfilePage: React.FC = () => {
                           <div className="px-5 py-3.5 bg-[#101010]/60 border-b border-white/[0.07] flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center space-x-3">
                               <span className="text-[11px] uppercase tracking-wider text-[#6E6E6E] font-semibold">
-                                Mã hợp đồng
+                                {isEnglish ? 'Booking Code' : 'Mã hợp đồng'}
                               </span>
                               <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-md bg-[#161616] border border-white/12">
                                 <span className="font-mono-tabular font-bold text-xs text-[#FFC799]">
@@ -1157,7 +1213,7 @@ export const ProfilePage: React.FC = () => {
                                   type="button"
                                   onClick={() => handleCopyCode(b.bookingCode)}
                                   className="text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors cursor-pointer"
-                                  title="Sao chép mã đơn"
+                                  title={isEnglish ? "Copy booking code" : "Sao chép mã đơn"}
                                 >
                                   {copiedCode === b.bookingCode ? (
                                     <Check className="w-3.5 h-3.5 text-[#FFC799]" />
@@ -1168,7 +1224,7 @@ export const ProfilePage: React.FC = () => {
                               </div>
                               {b.createdAt && (
                                 <span className="text-xs text-[#6E6E6E] hidden sm:inline">
-                                  Đặt ngày {new Date(b.createdAt).toLocaleDateString('vi-VN')}
+                                  {isEnglish ? 'Booked on ' : 'Đặt ngày '}{new Date(b.createdAt).toLocaleDateString(isEnglish ? 'en-US' : 'vi-VN')}
                                 </span>
                               )}
                               {pb?.name && (
@@ -1184,36 +1240,36 @@ export const ProfilePage: React.FC = () => {
                               {b.status === 'Pending' && (
                                 <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30">
                                   <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
-                                  Chờ xác nhận cọc 30%
+                                  {isEnglish ? 'Awaiting 30% Deposit' : 'Chờ xác nhận cọc 30%'}
                                 </span>
                               )}
                               {(b.status === 'Approved' || b.status === 'Confirmed') && (
                                 <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
                                   <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                                  Đã xác nhận cọc &amp; Khóa biển số
+                                  {isEnglish ? 'Deposit Confirmed & Plate Locked' : 'Đã xác nhận cọc & Khóa biển số'}
                                 </span>
                               )}
                               {b.status === 'Ongoing' && (
                                 <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
                                   <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799] mr-2" />
-                                  Đang bàn giao lưu hành
+                                  {isEnglish ? 'Active Rental' : 'Đang bàn giao lưu hành'}
                                 </span>
                               )}
                               {b.status === 'Completed' && (
                                 <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
                                   <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                                  Đã hoàn thành chuyến đi
+                                  {isEnglish ? 'Trip Completed' : 'Đã hoàn thành chuyến đi'}
                                 </span>
                               )}
                               {(b.status === 'Cancelled' || b.status === 'Rejected') && (
                                 <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FF8080]/12 text-[#FF8080] border border-[#FF8080]/30">
-                                  Đã hủy đơn
+                                  {isEnglish ? 'Cancelled' : 'Đã hủy đơn'}
                                 </span>
                               )}
                               {Boolean(b.extensionCount && b.extensionCount > 0) && (
                                 <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30 font-mono-tabular">
                                   <Clock className="w-3 h-3" />
-                                  <span>Đã gia hạn {b.extensionCount} lần</span>
+                                  <span>{isEnglish ? `Extended ${b.extensionCount} time(s)` : `Đã gia hạn ${b.extensionCount} lần`}</span>
                                 </span>
                               )}
                             </div>
@@ -1244,7 +1300,7 @@ export const ProfilePage: React.FC = () => {
                                 </h3>
                                 <div className="pt-0.5">
                                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-[#101010] border border-white/12 text-xs font-mono-tabular font-semibold text-[#FFC799] whitespace-nowrap">
-                                    Biển số: {licensePlate}
+                                    {isEnglish ? 'Plate: ' : 'Biển số: '}{licensePlate}
                                   </span>
                                 </div>
                               </div>
@@ -1256,7 +1312,7 @@ export const ProfilePage: React.FC = () => {
                                 <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
                                 <div className="space-y-0.5">
                                   <div className="text-[#A0A0A0]">
-                                    Nhận xe:{' '}
+                                    {isEnglish ? 'Pickup: ' : 'Nhận xe: '}
                                     <strong className="text-[#F5F5F5] font-mono-tabular">
                                       {new Date(b.pickupDateTime).toLocaleString('vi-VN', {
                                         hour: '2-digit',
@@ -1283,7 +1339,7 @@ export const ProfilePage: React.FC = () => {
                                 <div className="space-y-0.5">
                                   <div className="flex items-center flex-wrap gap-1.5 text-[#A0A0A0]">
                                     <span>
-                                      Trả xe:{' '}
+                                      {isEnglish ? 'Return: ' : 'Trả xe: '}
                                       <strong className="text-[#F5F5F5] font-mono-tabular">
                                         {new Date(b.returnDateTime).toLocaleString('vi-VN', {
                                           hour: '2-digit',
@@ -1296,7 +1352,7 @@ export const ProfilePage: React.FC = () => {
                                     </span>
                                     {pb?._id && rb?._id && pb._id !== rb._id && (
                                       <span className="px-1.5 py-0.2 rounded bg-[#FFC799]/15 border border-[#FFC799]/30 text-[10px] font-semibold text-[#FFC799]">
-                                        Trả khác trạm
+                                        {isEnglish ? 'Cross-Station' : 'Trả khác trạm'}
                                       </span>
                                     )}
                                   </div>
@@ -1315,7 +1371,7 @@ export const ProfilePage: React.FC = () => {
                             {/* Col 10-12: Financial Breakdown */}
                             <div className="lg:col-span-3 flex flex-row lg:flex-col items-center lg:items-end justify-between gap-2 text-xs">
                               <div className="lg:text-right">
-                                <span className="text-[11px] text-[#6E6E6E] block">Tổng chi phí thuê</span>
+                                <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? 'Total Rental Cost' : 'Tổng chi phí thuê'}</span>
                                 <span className="text-lg font-bold text-[#F5F5F5] font-mono-tabular">
                                   {b.totalAmount.toLocaleString('vi-VN')} đ
                                 </span>
@@ -1323,23 +1379,23 @@ export const ProfilePage: React.FC = () => {
 
                               <div className="text-right space-y-0.5 text-[11px]">
                                 {b.isPaid ? (
-                                  <p className="text-[#FFC799] font-semibold">Đã thanh toán đủ 100%</p>
+                                  <p className="text-[#FFC799] font-semibold">{isEnglish ? '100% Fully Paid' : 'Đã thanh toán đủ 100%'}</p>
                                 ) : b.depositPaid || b.status === 'Approved' || b.status === 'Confirmed' ? (
                                   <>
                                     <p className="text-[#FFC799] font-semibold font-mono-tabular">
-                                      Đã cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
+                                      {isEnglish ? '30% Deposit Paid: ' : 'Đã cọc 30%: '}{b.depositAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                                     </p>
                                     <p className="text-[#A0A0A0] font-mono-tabular">
-                                      Còn lại khi nhận xe: {b.remainingAmount.toLocaleString('vi-VN')} đ
+                                      {isEnglish ? 'Due at pickup: ' : 'Còn lại khi nhận xe: '}{b.remainingAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                                     </p>
                                   </>
                                 ) : (
                                   <>
                                     <p className="text-[#FFC799] font-semibold font-mono-tabular">
-                                      Cần cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
+                                      {isEnglish ? '30% Deposit Due: ' : 'Cần cọc 30%: '}{b.depositAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                                     </p>
                                     <p className="text-[#6E6E6E] font-mono-tabular">
-                                      Còn lại 70%: {b.remainingAmount.toLocaleString('vi-VN')} đ
+                                      {isEnglish ? 'Remaining 70%: ' : 'Còn lại 70%: '}{b.remainingAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                                     </p>
                                   </>
                                 )}
@@ -1354,17 +1410,17 @@ export const ProfilePage: React.FC = () => {
                               <div className="flex items-center justify-between">
                                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#FFC799] flex items-center gap-1.5">
                                   <Camera className="w-3.5 h-3.5" />
-                                  Biên bản hình ảnh 4 góc xe (Trước khi giao &amp; Sau khi nhận)
+                                  {isEnglish ? '4-Angle Vehicle Condition Report (Handover & Return)' : 'Biên bản hình ảnh 4 góc xe (Trước khi giao & Sau khi nhận)'}
                                 </span>
                                 <span className="text-[11px] text-[#8A857D]">
-                                  Đối chiếu minh bạch tình trạng ngoại thất
+                                  {isEnglish ? 'Transparent exterior condition inspection' : 'Đối chiếu minh bạch tình trạng ngoại thất'}
                                 </span>
                               </div>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 {b.checkinImages && b.checkinImages.length > 0 && (
                                   <div className="p-2.5 rounded-xl bg-[#161616] border border-white/10">
                                     <p className="text-[11px] font-bold text-[#F5F5F5] mb-2 flex items-center justify-between">
-                                      <span>4 góc xe trước khi bàn giao (Check-in)</span>
+                                      <span>{isEnglish ? '4 Angles Before Handover (Check-in)' : '4 góc xe trước khi bàn giao (Check-in)'}</span>
                                       <span className="text-[10px] text-[#99FFE4] font-mono">
                                         ODO: {(b.startOdometer ?? 0).toLocaleString('vi-VN')} km
                                       </span>
@@ -1396,7 +1452,7 @@ export const ProfilePage: React.FC = () => {
                                 {b.checkoutImages && b.checkoutImages.length > 0 && (
                                   <div className="p-2.5 rounded-xl bg-[#161616] border border-[#99FFE4]/25">
                                     <p className="text-[11px] font-bold text-[#F5F5F5] mb-2 flex items-center justify-between">
-                                      <span>4 góc xe sau khi thu hồi (Check-out)</span>
+                                      <span>{isEnglish ? '4 Angles After Return (Check-out)' : '4 góc xe sau khi thu hồi (Check-out)'}</span>
                                       <span className="text-[10px] text-[#99FFE4] font-mono">
                                         ODO: {(b.endOdometer ?? 0).toLocaleString('vi-VN')} km
                                       </span>
@@ -1433,7 +1489,7 @@ export const ProfilePage: React.FC = () => {
                             <div className="text-xs text-[#A0A0A0] flex flex-wrap items-center gap-2">
                               {b.status === 'Cancelled' ? (
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-[#FF8080] font-medium">Đơn đã hủy</span>
+                                  <span className="text-[#FF8080] font-medium">{isEnglish ? 'Booking Cancelled' : 'Đơn đã hủy'}</span>
                                   {b.cancelReason && (
                                     <span className="text-[#A0A0A0]">
                                       • Lý do: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
@@ -1441,30 +1497,34 @@ export const ProfilePage: React.FC = () => {
                                   )}
                                   {(b.refundAmount ?? 0) > 0 && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-[#FFC799]/15 border border-[#FFC799]/25 text-[#FFC799] font-semibold font-mono-tabular">
-                                      Hoàn tiền BR-06: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
+                                      Hoàn tiền: {(b.refundAmount ?? 0).toLocaleString('vi-VN')} đ ({b.refundStatus === 'Approved' ? 'Đã hoàn' : 'Chờ xử lý'})
                                     </span>
                                   )}
                                   {(b.refundForfeitAmount ?? 0) > 0 && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold font-mono-tabular">
-                                      Khấu trừ &lt; 24h: {(b.refundForfeitAmount ?? 0).toLocaleString('vi-VN')} đ
+                                      {isEnglish ? 'Forfeit < 24h: ' : 'Khấu trừ < 24h: '}{(b.refundForfeitAmount ?? 0).toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                                     </span>
                                   )}
                                 </div>
                               ) : b.cancelReason ? (
                                 <span className="text-[#A0A0A0]">
-                                  Ghi chú hủy đơn: <span className="text-[#F5F5F5]">{b.cancelReason}</span>
+                                  {isEnglish ? 'Cancellation Note: ' : 'Ghi chú hủy đơn: '}<span className="text-[#F5F5F5]">{b.cancelReason}</span>
                                 </span>
                               ) : needsDepositPayment ? (
                                 <span className="text-[#FFC799]">
-                                  Vui lòng hoàn tất quét mã QR thanh toán cọc 30% để hệ thống khóa biển số xe tại{' '}
-                                  <strong>{pb?.name || 'quầy chi nhánh'}</strong>.
+                                  {isEnglish ? (
+                                    <>Please complete 30% VietQR deposit payment so the system locks your bike plate at <strong>{pb?.name || 'station counter'}</strong>.</>
+                                  ) : (
+                                    <>Vui lòng hoàn tất quét mã QR thanh toán cọc 30% để hệ thống khóa biển số xe tại <strong>{pb?.name || 'quầy chi nhánh'}</strong>.</>
+                                  )}
                                 </span>
                               ) : (
                                 <span>
-                                  Xuất trình mã hợp đồng{' '}
-                                  <strong className="text-[#FFC799] font-mono-tabular">{b.bookingCode}</strong> tại quầy{' '}
-                                  <strong className="text-[#F5F5F5]">{pb?.name || 'Chi nhánh nhận xe'}</strong>
-                                  {pb?.address ? <span className="text-[#8A857D]"> ({pb.address})</span> : null} để nhận xe trong 03 phút.
+                                  {isEnglish ? (
+                                    <>Present agreement code <strong className="text-[#FFC799] font-mono-tabular">{b.bookingCode}</strong> at counter <strong className="text-[#F5F5F5]">{pb?.name || 'Pickup Station'}</strong>{pb?.address ? <span className="text-[#8A857D]"> ({pb.address})</span> : null} to pick up your bike in 3 minutes.</>
+                                  ) : (
+                                    <>Xuất trình mã hợp đồng <strong className="text-[#FFC799] font-mono-tabular">{b.bookingCode}</strong> tại quầy <strong className="text-[#F5F5F5]">{pb?.name || 'Chi nhánh nhận xe'}</strong>{pb?.address ? <span className="text-[#8A857D]"> ({pb.address})</span> : null} để nhận xe trong 03 phút.</>
+                                  )}
                                 </span>
                               )}
                             </div>
@@ -1528,7 +1588,7 @@ export const ProfilePage: React.FC = () => {
                                   className="px-3.5 py-1.5 rounded-lg bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
                                 >
                                   <QrCode className="w-3.5 h-3.5" />
-                                  <span>Thanh toán cọc QR ngay</span>
+                                  <span>{isEnglish ? 'Pay QR Deposit Now' : 'Thanh toán cọc QR ngay'}</span>
                                 </button>
                               )}
 
@@ -1538,7 +1598,7 @@ export const ProfilePage: React.FC = () => {
                                   onClick={() => setSelectedBookingForCancel(b)}
                                   className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#FF8080]/30 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-colors cursor-pointer"
                                 >
-                                  Hủy đơn
+                                  {isEnglish ? 'Cancel' : 'Hủy đơn'}
                                 </button>
                               )}
 
@@ -1554,7 +1614,7 @@ export const ProfilePage: React.FC = () => {
                                   }}
                                   className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center space-x-1.5"
                                 >
-                                  <span>{b.refundBankInfo?.bankAccountNumber ? 'Cập nhật STK hoàn cọc' : 'Gửi STK nhận hoàn cọc'}</span>
+                                  <span>{b.refundBankInfo?.bankAccountNumber ? (isEnglish ? 'Update Refund Bank Account' : 'Cập nhật STK hoàn cọc') : (isEnglish ? 'Submit Refund Bank Info' : 'Gửi STK nhận hoàn cọc')}</span>
                                 </button>
                               )}
 
@@ -1565,7 +1625,7 @@ export const ProfilePage: React.FC = () => {
                                   className="px-3.5 py-1.5 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/30 text-[#FFC799] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
                                 >
                                   <Clock className="w-3.5 h-3.5" />
-                                  <span>Gia hạn thuê xe</span>
+                                  <span>{isEnglish ? 'Extend Rental' : 'Gia hạn thuê xe'}</span>
                                 </button>
                               )}
 
@@ -1574,7 +1634,7 @@ export const ProfilePage: React.FC = () => {
                                 className="px-3.5 py-1.5 rounded-lg border border-[#FFC799]/30 hover:border-[#FFC799] bg-[#FFC799]/10 hover:bg-[#FFC799]/20 text-[#FFC799] text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors"
                               >
                                 <Eye className="w-3.5 h-3.5" />
-                                <span>Chi tiết đơn</span>
+                                <span>{isEnglish ? 'Order Details' : 'Chi tiết đơn'}</span>
                               </Link>
 
                               {/* UC-38: Tải hóa đơn điện tử PDF */}
@@ -1583,17 +1643,17 @@ export const ProfilePage: React.FC = () => {
                                 disabled={downloadingInvoiceId === b._id}
                                 onClick={() => handleDownloadInvoice(b._id, b.bookingCode)}
                                 className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#99FFE4]/40 text-[#A0A0A0] hover:text-[#99FFE4] text-xs font-medium transition-colors inline-flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
-                                title="Tải hóa đơn điện tử & Biên lai thanh toán PDF (UC-38)"
+                                title={isEnglish ? "Download e-Invoice & Payment Receipt PDF" : "Tải hóa đơn điện tử & Biên lai thanh toán PDF"}
                               >
                                 {downloadingInvoiceId === b._id ? (
                                   <>
                                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                    <span>Đang xuất PDF...</span>
+                                    <span>{isEnglish ? 'Exporting PDF...' : 'Đang xuất PDF...'}</span>
                                   </>
                                 ) : (
                                   <>
                                     <FileText className="w-3.5 h-3.5" />
-                                    <span>Hóa đơn PDF</span>
+                                    <span>{isEnglish ? 'PDF Invoice' : 'Hóa đơn PDF'}</span>
                                   </>
                                 )}
                               </button>
@@ -1606,18 +1666,46 @@ export const ProfilePage: React.FC = () => {
                                     className="px-3.5 py-1.5 rounded-lg bg-[#161616] border border-white/12 hover:border-[#FFC799] text-[#F5F5F5] text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
                                   >
                                     <RotateCcw className="w-3 h-3 text-[#FFC799]" />
-                                    <span>Thuê lại xe này</span>
+                                    <span>{isEnglish ? 'Rebook This Bike' : 'Thuê lại xe này'}</span>
                                   </Link>
                                 )}
 
-                              <Link
-                                to={`/complaints/new?bookingId=${b._id}`}
-                                className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 text-[#A0A0A0] hover:text-amber-400 text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
-                                title="Gửi khiếu nại về chuyến xe này"
-                              >
-                                <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
-                                <span>Khiếu nại</span>
-                              </Link>
+                              {(() => {
+                                const bookingComplaints = myComplaints.filter(
+                                  (c) => c.booking?._id === b._id
+                                );
+                                const latestComplaint = bookingComplaints[0];
+                                const statusLabelMap: Record<Complaint['status'], string> = {
+                                  Open: 'Đã tiếp nhận',
+                                  InProgress: 'Đang xử lý',
+                                  Resolved: 'Đã giải quyết',
+                                  Closed: 'Đã đóng',
+                                };
+                                return (
+                                  <>
+                                    {latestComplaint && (
+                                      <Link
+                                        to={`/complaints?id=${latestComplaint._id}`}
+                                        className="px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-xs font-semibold transition-colors inline-flex items-center space-x-1.5"
+                                        title={isEnglish ? 'Track complaint progress for this rental' : 'Xem tiến độ xử lý khiếu nại của chuyến xe này'}
+                                      >
+                                        <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
+                                        <span>
+                                          Đã khiếu nại: {latestComplaint.code} ({statusLabelMap[latestComplaint.status] || latestComplaint.status})
+                                        </span>
+                                      </Link>
+                                    )}
+                                    <Link
+                                      to={`/complaints/new?bookingId=${b._id}`}
+                                      className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-amber-500/40 text-[#A0A0A0] hover:text-amber-400 text-xs font-medium transition-colors inline-flex items-center space-x-1.5"
+                                      title={isEnglish ? 'Submit complaint for this rental' : 'Gửi khiếu nại về chuyến xe này'}
+                                    >
+                                      <AlertCircle className="w-3.5 h-3.5 stroke-[2]" />
+                                      <span>{latestComplaint ? (isEnglish ? 'Submit Another Complaint' : 'Gửi thêm khiếu nại') : (isEnglish ? 'Complaint' : 'Khiếu nại')}</span>
+                                    </Link>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -1629,9 +1717,11 @@ export const ProfilePage: React.FC = () => {
                   {bookingPagination.totalPages > 1 && (
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-white/[0.08]">
                       <div className="text-xs text-[#A0A0A0]">
-                        Hiển thị trang <strong className="text-[#F5F5F5] font-mono-tabular">{bookingPagination.page}</strong> /{' '}
-                        <span className="font-mono-tabular">{bookingPagination.totalPages}</span>{' '}
-                        (Tổng cộng <strong className="text-[#FFC799] font-mono-tabular">{bookingPagination.total}</strong> chuyến xe)
+                        {isEnglish ? (
+                          <>Showing page <strong className="text-[#F5F5F5] font-mono-tabular">{bookingPagination.page}</strong> / <span className="font-mono-tabular">{bookingPagination.totalPages}</span> (Total <strong className="text-[#FFC799] font-mono-tabular">{bookingPagination.total}</strong> bookings)</>
+                        ) : (
+                          <>Hiển thị trang <strong className="text-[#F5F5F5] font-mono-tabular">{bookingPagination.page}</strong> / <span className="font-mono-tabular">{bookingPagination.totalPages}</span> (Tổng cộng <strong className="text-[#FFC799] font-mono-tabular">{bookingPagination.total}</strong> chuyến xe)</>
+                        )}
                       </div>
 
                       <div className="flex items-center space-x-1.5">
@@ -1640,7 +1730,7 @@ export const ProfilePage: React.FC = () => {
                           disabled={!bookingPagination.hasPrev || bookingsLoading}
                           onClick={() => handleBookingPageChange(bookingPage - 1)}
                           className="p-2 rounded-xl bg-[#161616] border border-white/10 hover:border-[#FFC799] text-[#A0A0A0] hover:text-[#F5F5F5] disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                          title="Trang trước"
+                          title={isEnglish ? "Previous page" : "Trang trước"}
                         >
                           <ChevronLeft className="w-4 h-4" />
                         </button>
@@ -1688,9 +1778,9 @@ export const ProfilePage: React.FC = () => {
         {activeTab === 'info' && (
           <div className="bg-[#161616] rounded-2xl border border-white/10 p-6 sm:p-8 max-w-3xl">
             <div className="pb-5 border-b border-white/[0.08] mb-6">
-              <h2 className="text-lg font-bold text-[#F5F5F5]">Thông tin cá nhân &amp; Liên hệ nhận xe</h2>
+              <h2 className="text-lg font-bold text-[#F5F5F5]">{isEnglish ? 'Personal Information & Contact Details' : 'Thông tin cá nhân & Liên hệ nhận xe'}</h2>
               <p className="text-xs text-[#A0A0A0] mt-1">
-                Thông tin dùng để ghi nhận trên hợp đồng thuê xe điện tử và nhận thông báo bàn giao xe.
+                {isEnglish ? 'Information recorded on the digital rental contract and for handover notifications.' : 'Thông tin dùng để ghi nhận trên hợp đồng thuê xe điện tử và nhận thông báo bàn giao xe.'}
               </p>
             </div>
 
@@ -1698,7 +1788,7 @@ export const ProfilePage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-[#A0A0A0] mb-1.5">
-                    Tên đăng nhập (Cố định)
+                    {isEnglish ? 'Username (Fixed)' : 'Tên đăng nhập (Cố định)'}
                   </label>
                   <input
                     type="text"
@@ -1710,7 +1800,7 @@ export const ProfilePage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-[#A0A0A0] mb-1.5">
-                    Email nhận hợp đồng điện tử
+                    {isEnglish ? 'Email for Digital Contract' : 'Email nhận hợp đồng điện tử'}
                   </label>
                   <input
                     type="email"
@@ -1722,7 +1812,7 @@ export const ProfilePage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                    Họ và tên đệm *
+                    {isEnglish ? 'Last & Middle Name *' : 'Họ và tên đệm *'}
                   </label>
                   <input
                     type="text"
@@ -1735,7 +1825,7 @@ export const ProfilePage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                    Tên *
+                    {isEnglish ? 'First Name *' : 'Tên *'}
                   </label>
                   <input
                     type="text"
@@ -1748,7 +1838,7 @@ export const ProfilePage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                    Số điện thoại liên hệ *
+                    {isEnglish ? 'Contact Phone *' : 'Số điện thoại liên hệ *'}
                   </label>
                   <input
                     type="tel"
@@ -1761,7 +1851,7 @@ export const ProfilePage: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                    Số CCCD (12 số) / Hộ chiếu
+                    {isEnglish ? 'National ID (12 digits) / Passport' : 'Số CCCD (12 số) / Hộ chiếu'}
                   </label>
                   <input
                     type="text"
@@ -1775,7 +1865,7 @@ export const ProfilePage: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">Giới tính</label>
+                    <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">{isEnglish ? 'Gender' : 'Giới tính'}</label>
                     <div className="relative">
                       <select
                         value={gender}
@@ -1787,16 +1877,16 @@ export const ProfilePage: React.FC = () => {
                         }}
                         className="w-full bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl px-3 py-2.5 text-xs text-[#F5F5F5] outline-none appearance-none cursor-pointer"
                       >
-                        <option value="Male" className="bg-[#161616]">Nam</option>
-                        <option value="Female" className="bg-[#161616]">Nữ</option>
-                        <option value="Other" className="bg-[#161616]">Khác</option>
+                        <option value="Male" className="bg-[#161616]">{isEnglish ? 'Male' : 'Nam'}</option>
+                        <option value="Female" className="bg-[#161616]">{isEnglish ? 'Female' : 'Nữ'}</option>
+                        <option value="Other" className="bg-[#161616]">{isEnglish ? 'Other' : 'Khác'}</option>
                       </select>
                       <ChevronDown className="w-3.5 h-3.5 text-[#A0A0A0] absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">Ngày sinh</label>
+                    <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">{isEnglish ? 'Date of Birth' : 'Ngày sinh'}</label>
                     <input
                       type="date"
                       value={dob}
@@ -1816,12 +1906,12 @@ export const ProfilePage: React.FC = () => {
                   {loading ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang lưu...</span>
+                      <span>{isEnglish ? 'Saving...' : 'Đang lưu...'}</span>
                     </>
                   ) : (
                     <>
                       <Save className="w-3.5 h-3.5" />
-                      <span>Lưu thông tin hồ sơ</span>
+                      <span>{isEnglish ? 'Save Profile Details' : 'Lưu thông tin hồ sơ'}</span>
                     </>
                   )}
                 </button>
@@ -1838,123 +1928,148 @@ export const ProfilePage: React.FC = () => {
             <div className="pb-5 border-b border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-[#F5F5F5]">
-                  Định danh điện tử eKYC — Nhận xe không giữ CCCD gốc
+                  {isEnglish ? 'Digital eKYC Identity — Keep Original ID Safe' : 'Định danh điện tử eKYC — Nhận xe không giữ CCCD gốc'}
                 </h2>
                 <p className="text-xs text-[#A0A0A0] mt-1">
-                  Tải lên 2 mặt CCCD và ảnh chân dung để đối soát trước, giúp nhận bàn giao xe tại trạm chỉ trong 03 phút.
+                  {isEnglish ? 'Original unblurred documents visible only to account holder. Master files are secured via AES-256-GCM encryption.' : 'Chính chủ xem rõ nét toàn bộ giấy tờ cá nhân không bị che mờ. Tệp gốc được khóa mã hóa AES-256-GCM chống xâm nhập trái phép.'}
                 </p>
               </div>
 
               <div>
                 {user.identityStatus === 'Verified' ? (
-                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30">
                     <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                    Đã duyệt hợp lệ
+                    {isEnglish ? 'Approved' : 'Đã duyệt hợp lệ'}
                   </span>
                 ) : user.identityStatus === 'Pending' ? (
                   <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30">
                     <Clock className="w-4 h-4 mr-1.5" />
-                    Đang chờ nhân viên đối soát
+                    {isEnglish ? 'Pending Staff Review' : 'Đang chờ nhân viên đối soát'}
+                  </span>
+                ) : user.identityStatus === 'Rejected' ? (
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30">
+                    <AlertCircle className="w-4 h-4 mr-1.5" />
+                    {isEnglish ? 'Action Required' : 'Cần bổ sung lại'}
                   </span>
                 ) : (
                   <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/5 text-[#A0A0A0] border border-white/10">
-                    Chưa xác thực
+                    {isEnglish ? 'Unverified' : 'Chưa xác thực'}
                   </span>
                 )}
               </div>
             </div>
 
+            {user.identityStatus === 'Rejected' && user.ekycRejectionReason && (
+              <div className="p-4 rounded-xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-xs text-[#FF8080] flex items-start space-x-2.5">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">{isEnglish ? 'Review feedback:' : 'Phản hồi từ bộ phận thẩm định:'}</span>
+                  <span className="text-[#F5F5F5]">{user.ekycRejectionReason}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="p-4 rounded-xl bg-[#101010] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-2.5">
+                <ShieldCheck className="w-4 h-4 text-[#99FFE4] shrink-0" />
+                <div>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Owner Citizen ID / Passport: ' : 'Số CCCD / Hộ chiếu chính chủ: '}</span>
+                  <strong className="font-mono text-[#F5F5F5] tracking-wider">
+                    {user.idCardNumber || (isEnglish ? 'Not declared (Update in Personal Info tab)' : 'Chưa khai báo (Cập nhật tại tab Thông tin cá nhân)')}
+                  </strong>
+                </div>
+              </div>
+              <span className="inline-flex items-center space-x-1 text-[11px] font-mono text-[#99FFE4] bg-[#99FFE4]/10 border border-[#99FFE4]/25 px-2.5 py-1 rounded-lg">
+                <Lock className="w-3 h-3" />
+                <span>{isEnglish ? 'AES-256-GCM Encrypted' : 'Bảo mật mã hóa AES-256-GCM'}</span>
+              </span>
+            </div>
+
             <form onSubmit={handleUploadEkyc} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 1. CCCD Front */}
-                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
-                  <span className="text-xs font-semibold text-[#F5F5F5]">1. Mặt trước CCCD *</span>
-                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
-                    {isWatermarking === 'idCardFront' ? (
-                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
-                    ) : idCardFrontPreview || formatDocUrl(user.idCardFrontUrl) ? (
-                      <img
-                        src={idCardFrontPreview || formatDocUrl(user.idCardFrontUrl)!}
-                        alt="CCCD Front"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-center space-y-1 p-3">
-                        <FileCheck2 className="w-7 h-7 text-[#6E6E6E] mx-auto" />
-                        <span className="text-[11px] text-[#6E6E6E] block">Chưa có ảnh mặt trước</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    type: 'idCardFront' as const,
+                    label: isEnglish ? '1. ID Card Front *' : '1. Mặt trước CCCD *',
+                    preview: idCardFrontPreview,
+                    savedUrl: formatDocUrl(user.idCardFrontUrl),
+                    file: idCardFrontFile,
+                    emptyText: isEnglish ? 'No front photo uploaded' : 'Chưa có ảnh mặt trước',
+                  },
+                  {
+                    type: 'idCardBack' as const,
+                    label: isEnglish ? '2. ID Card Back *' : '2. Mặt sau CCCD *',
+                    preview: idCardBackPreview,
+                    savedUrl: formatDocUrl(user.idCardBackUrl),
+                    file: idCardBackFile,
+                    emptyText: isEnglish ? 'No back photo uploaded' : 'Chưa có ảnh mặt sau',
+                  },
+                  {
+                    type: 'drivingLicense' as const,
+                    label: isEnglish ? '3. Driver License (A1/A2)' : '3. Giấy phép lái xe (A1/A2)',
+                    preview: drivingLicensePreview,
+                    savedUrl: formatDocUrl(user.drivingLicenseUrl),
+                    file: drivingLicenseFile,
+                    emptyText: isEnglish ? 'Optional license upload' : 'Tùy chọn tải bằng lái xe',
+                  },
+                  {
+                    type: 'selfiePhoto' as const,
+                    label: isEnglish ? '4. Portrait Photo *' : '4. Ảnh chân dung đối chiếu *',
+                    preview: selfiePreview,
+                    savedUrl: formatDocUrl(user.selfieUrl),
+                    file: selfieFile,
+                    emptyText: isEnglish ? 'Clear front-facing portrait' : 'Chụp chính diện rõ mặt',
+                  },
+                ].map((slot) => {
+                  const activeSrc = slot.preview || slot.savedUrl;
+                  return (
+                    <div
+                      key={slot.type}
+                      className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-[#F5F5F5]">{slot.label}</span>
+                        {activeSrc && (
+                          <button
+                            type="button"
+                            onClick={() => setZoomEkycDoc({ title: slot.label, src: activeSrc })}
+                            className="p-1 rounded-md bg-white/5 hover:bg-[#FFC799]/20 text-[#FFC799] transition-colors cursor-pointer"
+                            title="Phóng to xem rõ nét"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
-                    <span>{idCardFrontFile ? 'Đổi ảnh mặt trước' : 'Chọn ảnh mặt trước'}</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleDocFileChange(e, 'idCardFront')}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                {/* 2. CCCD Back */}
-                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
-                  <span className="text-xs font-semibold text-[#F5F5F5]">2. Mặt sau CCCD *</span>
-                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
-                    {isWatermarking === 'idCardBack' ? (
-                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
-                    ) : idCardBackPreview || formatDocUrl(user.idCardBackUrl) ? (
-                      <img
-                        src={idCardBackPreview || formatDocUrl(user.idCardBackUrl)!}
-                        alt="CCCD Back"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-center space-y-1 p-3">
-                        <FileCheck2 className="w-7 h-7 text-[#6E6E6E] mx-auto" />
-                        <span className="text-[11px] text-[#6E6E6E] block">Chưa có ảnh mặt sau</span>
+                      <div
+                        onClick={() => activeSrc && setZoomEkycDoc({ title: slot.label, src: activeSrc })}
+                        className={`w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center ${
+                          activeSrc ? 'cursor-zoom-in' : ''
+                        }`}
+                      >
+                        {isWatermarking === slot.type ? (
+                          <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
+                        ) : (
+                          <SecureEkycImage
+                            src={activeSrc}
+                            alt={slot.label}
+                            versionKey={`${user.identityStatus}_${user.updatedAt || ''}`}
+                            emptyText={slot.emptyText}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
-                    <span>{idCardBackFile ? 'Đổi ảnh mặt sau' : 'Chọn ảnh mặt sau'}</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleDocFileChange(e, 'idCardBack')}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-
-                {/* 3. Selfie */}
-                <div className="p-4 bg-[#101010] rounded-xl border border-white/10 flex flex-col justify-between space-y-3">
-                  <span className="text-xs font-semibold text-[#F5F5F5]">3. Ảnh chân dung đối chiếu *</span>
-                  <div className="w-full h-40 rounded-lg bg-[#161616] border border-white/[0.08] overflow-hidden flex items-center justify-center">
-                    {isWatermarking === 'selfiePhoto' ? (
-                      <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin" />
-                    ) : selfiePreview || formatDocUrl(user.selfieUrl) ? (
-                      <img
-                        src={selfiePreview || formatDocUrl(user.selfieUrl)!}
-                        alt="Selfie"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-center space-y-1 p-3">
-                        <Camera className="w-7 h-7 text-[#6E6E6E] mx-auto" />
-                        <span className="text-[11px] text-[#6E6E6E] block">Chụp chính diện rõ khuôn mặt</span>
-                      </div>
-                    )}
-                  </div>
-                  <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
-                    <span>{selfieFile ? 'Đổi ảnh chân dung' : 'Chọn ảnh chân dung'}</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(e) => handleDocFileChange(e, 'selfiePhoto')}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
+                      <label className="w-full py-2 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-lg text-xs font-medium text-[#F5F5F5] text-center cursor-pointer transition-colors block">
+                        <span>{slot.file ? (isEnglish ? 'Change selected file' : 'Đổi tệp ảnh đã chọn') : activeSrc ? (isEnglish ? 'Upload updated photo' : 'Tải ảnh cập nhật mới') : (isEnglish ? 'Choose photo' : 'Chọn tệp ảnh')}</span>
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          onChange={(e) => handleDocFileChange(e, slot.type)}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
 
               <div className="p-4 bg-[#101010] rounded-xl border border-white/10">
@@ -1966,7 +2081,7 @@ export const ProfilePage: React.FC = () => {
                     className="mt-0.5 h-4 w-4 rounded border-white/20 accent-[#FFC799] cursor-pointer shrink-0"
                   />
                   <span className="text-xs text-[#A0A0A0] leading-relaxed">
-                    Tôi đồng ý cung cấp hình ảnh CCCD và chân dung để Motorent đối soát xác thực hợp đồng thuê xe theo Nghị định 13/2023/NĐ-CP. Hệ thống tự động đóng dấu bảo mật lên ảnh CCCD sau khi duyệt.
+                    {isEnglish ? 'I agree to provide identity document images for MotoRent to verify digital rental contracts in accordance with Decree 13/2023/ND-CP. All data is encrypted with AES-256-GCM on server, securely transmitted without leaking credentials, and only accessible by the account owner and authorized staff.' : 'Tôi đồng ý cung cấp hình ảnh giấy tờ định danh để Motorent đối soát hợp đồng thuê xe theo Nghị định 13/2023/NĐ-CP. Toàn bộ dữ liệu được mã hóa chuẩn AES-256-GCM tại máy chủ, truyền tải riêng tư không lộ khóa xác thực và chỉ hiển thị cho chính chủ cùng nhân sự có thẩm quyền.'}
                   </span>
                 </label>
               </div>
@@ -1977,14 +2092,17 @@ export const ProfilePage: React.FC = () => {
                   disabled={
                     loading ||
                     user.identityStatus === 'Pending' ||
-                    user.identityStatus === 'Verified' ||
-                    (!idCardFrontFile && !idCardBackFile && !selfieFile) ||
+                    (!idCardFrontFile && !idCardBackFile && !drivingLicenseFile && !selfieFile) ||
                     !ekycConsent
                   }
                   className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <UploadCloud className="w-4 h-4" />
-                  <span>Gửi hồ sơ thẩm định eKYC</span>
+                  <span>
+                    {user.identityStatus === 'Verified'
+                      ? (isEnglish ? 'Resubmit Updated Documents' : 'Gửi cập nhật lại hồ sơ giấy tờ')
+                      : (isEnglish ? 'Submit eKYC Verification Profile' : 'Gửi hồ sơ thẩm định eKYC')}
+                  </span>
                 </button>
               </div>
             </form>
@@ -1997,9 +2115,9 @@ export const ProfilePage: React.FC = () => {
         {activeTab === 'avatar' && (
           <div className="bg-[#161616] rounded-2xl border border-white/10 p-6 sm:p-8 max-w-2xl">
             <div className="pb-5 border-b border-white/[0.08] mb-6">
-              <h2 className="text-lg font-bold text-[#F5F5F5]">Ảnh đại diện tài khoản</h2>
+              <h2 className="text-lg font-bold text-[#F5F5F5]">{isEnglish ? 'Account Profile Photo' : 'Ảnh đại diện tài khoản'}</h2>
               <p className="text-xs text-[#A0A0A0] mt-1">
-                Hỗ trợ ảnh định dạng JPEG, PNG hoặc WebP (dung lượng tối đa 5MB).
+                {isEnglish ? 'Supports JPEG, PNG, or WebP formats (Max 5MB).' : 'Hỗ trợ ảnh định dạng JPEG, PNG hoặc WebP (dung lượng tối đa 5MB).'}
               </p>
             </div>
 
@@ -2022,7 +2140,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="space-y-2 text-center sm:text-left">
                   <label className="inline-flex items-center space-x-2 px-4 py-2.5 bg-[#161616] hover:border-[#FFC799] border border-white/12 rounded-xl text-xs font-medium text-[#F5F5F5] cursor-pointer transition-colors">
                     <UploadCloud className="w-4 h-4 text-[#FFC799]" />
-                    <span>Chọn ảnh mới từ thiết bị</span>
+                    <span>{isEnglish ? 'Choose new photo from device' : 'Chọn ảnh mới từ thiết bị'}</span>
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/webp"
@@ -2045,7 +2163,7 @@ export const ProfilePage: React.FC = () => {
                   className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Camera className="w-3.5 h-3.5" />
-                  <span>Lưu ảnh đại diện</span>
+                  <span>{isEnglish ? 'Save Avatar' : 'Lưu ảnh đại diện'}</span>
                 </button>
               </div>
             </form>
@@ -2058,21 +2176,21 @@ export const ProfilePage: React.FC = () => {
         {activeTab === 'password' && (
           <div className="bg-[#161616] rounded-2xl border border-white/10 p-6 sm:p-8 max-w-xl">
             <div className="pb-5 border-b border-white/[0.08] mb-6">
-              <h2 className="text-lg font-bold text-[#F5F5F5]">Đổi mật khẩu bảo mật</h2>
+              <h2 className="text-lg font-bold text-[#F5F5F5]">{isEnglish ? 'Change Security Password' : 'Đổi mật khẩu bảo mật'}</h2>
               <p className="text-xs text-[#A0A0A0] mt-1">
-                Mật khẩu mới cần có tối thiểu 8 ký tự.
+                {isEnglish ? 'New password requires at least 8 characters.' : 'Mật khẩu mới cần có tối thiểu 8 ký tự.'}
               </p>
             </div>
 
             <form onSubmit={handleChangePassword} className="space-y-5">
               <div>
                 <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                  Mật khẩu hiện tại *
+                  {isEnglish ? 'Current Password *' : 'Mật khẩu hiện tại *'}
                 </label>
                 <div className="relative">
                   <input
                     type={showCurrentPassword ? 'text' : 'password'}
-                    placeholder="Nhập mật khẩu hiện tại..."
+                    placeholder={isEnglish ? "Enter current password..." : "Nhập mật khẩu hiện tại..."}
                     value={currentPassword}
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     required
@@ -2090,12 +2208,12 @@ export const ProfilePage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                  Mật khẩu mới *
+                  {isEnglish ? 'New Password *' : 'Mật khẩu mới *'}
                 </label>
                 <div className="relative">
                   <input
                     type={showNewPassword ? 'text' : 'password'}
-                    placeholder="Tối thiểu 8 ký tự..."
+                    placeholder={isEnglish ? "At least 8 characters..." : "Tối thiểu 8 ký tự..."}
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
@@ -2112,7 +2230,7 @@ export const ProfilePage: React.FC = () => {
 
                 {newPassword.length > 0 && (
                   <div className="mt-2 flex items-center justify-between text-[11px] text-[#A0A0A0]">
-                    <span>Độ mạnh mật khẩu:</span>
+                    <span>{isEnglish ? 'Password Strength:' : 'Độ mạnh mật khẩu:'}</span>
                     <span className={`font-semibold ${passwordStrength.color}`}>{passwordStrength.label}</span>
                   </div>
                 )}
@@ -2120,12 +2238,12 @@ export const ProfilePage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                  Xác nhận mật khẩu mới *
+                  {isEnglish ? 'Confirm New Password *' : 'Xác nhận mật khẩu mới *'}
                 </label>
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
-                    placeholder="Nhập lại mật khẩu mới..."
+                    placeholder={isEnglish ? "Re-enter new password..." : "Nhập lại mật khẩu mới..."}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -2148,7 +2266,7 @@ export const ProfilePage: React.FC = () => {
                   className="inline-flex items-center space-x-2 px-6 py-2.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <KeyRound className="w-3.5 h-3.5" />
-                  <span>Cập nhật mật khẩu</span>
+                  <span>{isEnglish ? 'Update Password' : 'Cập nhật mật khẩu'}</span>
                 </button>
               </div>
             </form>
@@ -2171,10 +2289,10 @@ export const ProfilePage: React.FC = () => {
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-white/10">
               <div>
                 <span className="text-[10px] uppercase tracking-[0.16em] text-[#FFC799] font-semibold block">
-                  Cổng Thanh Toán VietQR 24/7
+                  {isEnglish ? 'VietQR 24/7 Payment Gateway' : 'Cổng Thanh Toán VietQR 24/7'}
                 </span>
                 <h3 className="text-lg font-bold text-[#F5F5F5] mt-0.5">
-                  Quét mã QR thanh toán đơn {selectedBookingForQrPay.bookingCode}
+                  {isEnglish ? 'Scan QR to pay order ' : 'Quét mã QR thanh toán đơn '}{selectedBookingForQrPay.bookingCode}
                 </h3>
               </div>
               <button
@@ -2198,7 +2316,7 @@ export const ProfilePage: React.FC = () => {
                 }`}
               >
                 <span className="text-[10px] uppercase tracking-wider text-[#FFC799] font-semibold block">
-                  Đặt cọc 30% giữ xe
+                  {isEnglish ? '30% Deposit to Reserve' : 'Đặt cọc 30% giữ xe'}
                 </span>
                 <span className="text-sm font-bold font-mono-tabular mt-0.5 block">
                   {selectedBookingForQrPay.depositAmount.toLocaleString('vi-VN')} đ
@@ -2215,7 +2333,7 @@ export const ProfilePage: React.FC = () => {
                 }`}
               >
                 <span className="text-[10px] uppercase tracking-wider text-[#FFC799] font-semibold block">
-                  Tất toán 100%
+                  {isEnglish ? '100% Full Payment' : 'Tất toán 100%'}
                 </span>
                 <span className="text-sm font-bold font-mono-tabular mt-0.5 block">
                   {selectedBookingForQrPay.totalAmount.toLocaleString('vi-VN')} đ
@@ -2241,15 +2359,15 @@ export const ProfilePage: React.FC = () => {
 
               <div className="flex-1 w-full space-y-2 text-xs">
                 <div className="flex justify-between py-1 border-b border-white/[0.07]">
-                  <span className="text-[#A0A0A0]">Ngân hàng:</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Bank:' : 'Ngân hàng:'}</span>
                   <span className="font-semibold text-[#F5F5F5]">MB Bank (Quân Đội)</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-white/[0.07]">
-                  <span className="text-[#A0A0A0]">Số tài khoản:</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Account Number:' : 'Số tài khoản:'}</span>
                   <span className="font-mono-tabular font-bold text-[#FFC799]">0905 123 456</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-white/[0.07]">
-                  <span className="text-[#A0A0A0]">Số tiền:</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Amount:' : 'Số tiền:'}</span>
                   <span className="font-mono-tabular font-bold text-[#FFC799]">
                     {(qrPaymentType === 'Full100'
                       ? selectedBookingForQrPay.totalAmount
@@ -2259,7 +2377,7 @@ export const ProfilePage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className="text-[#A0A0A0]">Nội dung CK:</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'Transfer Note:' : 'Nội dung CK:'}</span>
                   <span className="font-mono-tabular font-bold text-[#F5F5F5]">
                     MOTORENT {selectedBookingForQrPay.bookingCode}
                   </span>
@@ -2270,7 +2388,7 @@ export const ProfilePage: React.FC = () => {
             {qrVerifiedSuccess ? (
               <div className="p-3.5 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/30 text-[#FFC799] text-xs font-semibold flex items-center justify-center space-x-2">
                 <CheckCircle2 className="w-4 h-4 text-[#FFC799]" />
-                <span>Giao dịch hợp lệ! Đã xác nhận thanh toán và khóa biển số xe.</span>
+                <span>{isEnglish ? 'Valid transaction! Payment confirmed and plate reserved.' : 'Giao dịch hợp lệ! Đã xác nhận thanh toán và khóa biển số xe.'}</span>
               </div>
             ) : (
               <button
@@ -2282,12 +2400,12 @@ export const ProfilePage: React.FC = () => {
                 {qrVerifying ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Đang đối soát giao dịch VietQR với ngân hàng...</span>
+                    <span>{isEnglish ? 'Verifying VietQR transaction with bank...' : 'Đang đối soát giao dịch VietQR với ngân hàng...'}</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Tôi đã quét mã chuyển khoản — Xác nhận hoàn thành</span>
+                    <span>{isEnglish ? 'I have completed the transfer — Confirm' : 'Tôi đã quét mã chuyển khoản — Xác nhận hoàn thành'}</span>
                   </>
                 )}
               </button>
@@ -2317,7 +2435,7 @@ export const ProfilePage: React.FC = () => {
               <div className="flex items-center justify-between pb-3 border-b border-white/10">
                 <div className="flex items-center space-x-2 text-[#FF8080] font-bold text-sm">
                   <AlertTriangle className="w-4 h-4" />
-                  <span>Xác nhận hủy đơn {selectedBookingForCancel.bookingCode}</span>
+                  <span>{isEnglish ? 'Confirm Cancellation of ' : 'Xác nhận hủy đơn '}{selectedBookingForCancel.bookingCode}</span>
                 </div>
                 <button
                   type="button"
@@ -2340,47 +2458,55 @@ export const ProfilePage: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-white uppercase tracking-wider text-[11px]">
-                    Chính sách hủy đơn BR-06
+                    {isEnglish ? 'Cancellation Policy' : 'Chính sách hủy đơn'}
                   </span>
                   <span className="font-mono-tabular font-medium">
                     {hoursUntilPickup > 0
-                      ? `Còn ${Math.max(0, Math.floor(hoursUntilPickup))} giờ trước nhận xe`
-                      : 'Đã tới giờ nhận xe'}
+                      ? (isEnglish ? `${Math.max(0, Math.floor(hoursUntilPickup))} hours before pickup` : `Còn ${Math.max(0, Math.floor(hoursUntilPickup))} giờ trước nhận xe`)
+                      : (isEnglish ? 'Pickup time reached' : 'Đã tới giờ nhận xe')}
                   </span>
                 </div>
 
                 {paid > 0 ? (
                   isMoreThan24h ? (
                     <p className="leading-relaxed text-[#FFC799]">
-                      Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách BR-06, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.
+                      {isEnglish ? (
+                        <>You are cancelling more than 24 hours before pickup. Under policy, you receive a <strong>100% full refund</strong> with zero cancellation charges.</>
+                      ) : (
+                        <>Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách hủy đơn, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.</>
+                      )}
                     </p>
                   ) : (
                     <p className="leading-relaxed text-amber-300">
-                      Bạn đang hủy trong vòng 24 giờ trước giờ nhận xe. Theo chính sách BR-06, hệ thống sẽ <strong>khấu trừ 50% tiền đặt cọc</strong> và hoàn lại số tiền còn lại.
+                      {isEnglish ? (
+                        <>You are cancelling within 24 hours of pickup. Under policy, <strong>50% of deposit is retained</strong> and the remainder is refunded.</>
+                      ) : (
+                        <>Bạn đang hủy trong vòng 24 giờ trước giờ nhận xe. Theo chính sách hủy đơn, hệ thống sẽ <strong>khấu trừ 50% tiền đặt cọc</strong> và hoàn lại số tiền còn lại.</>
+                      )}
                     </p>
                   )
                 ) : (
                   <p className="leading-relaxed text-[#A0A0A0]">
-                    Đơn đặt xe chưa phát sinh khoản thanh toán cọc. Hệ thống sẽ giải phóng xe về trạng thái sẵn sàng cho khách hàng khác mà không phát sinh phí.
+                    {isEnglish ? 'No deposit payment has been made yet. The vehicle will be released for other riders with zero cancellation fees.' : 'Đơn đặt xe chưa phát sinh khoản thanh toán cọc. Hệ thống sẽ giải phóng xe về trạng thái sẵn sàng cho khách hàng khác mà không phát sinh phí.'}
                   </p>
                 )}
 
                 {paid > 0 && (
                   <div className="pt-2 border-t border-white/10 grid grid-cols-3 gap-2 text-center font-mono-tabular text-[11px]">
                     <div className="bg-black/30 p-2 rounded-lg">
-                      <div className="text-[#A0A0A0] text-[10px]">Đã thanh toán</div>
-                      <div className="font-bold text-white">{paid.toLocaleString('vi-VN')} đ</div>
+                      <div className="text-[#A0A0A0] text-[10px]">{isEnglish ? 'Paid' : 'Đã thanh toán'}</div>
+                      <div className="font-bold text-white">{paid.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}</div>
                     </div>
                     <div className="bg-black/30 p-2 rounded-lg">
-                      <div className="text-[#A0A0A0] text-[10px]">Phí khấu trừ BR-06</div>
+                      <div className="text-[#A0A0A0] text-[10px]">{isEnglish ? 'Deduction Fee' : 'Phí khấu trừ'}</div>
                       <div className="font-bold text-[#FF8080]">
-                        {forfeitAmount > 0 ? `-${forfeitAmount.toLocaleString('vi-VN')} đ` : '0 đ'}
+                        {forfeitAmount > 0 ? `-${forfeitAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} ${isEnglish ? '₫' : 'đ'}` : (isEnglish ? '0 ₫' : '0 đ')}
                       </div>
                     </div>
                     <div className="bg-black/30 p-2 rounded-lg">
-                      <div className="text-[#A0A0A0] text-[10px]">Tiền hoàn dự kiến</div>
+                      <div className="text-[#A0A0A0] text-[10px]">{isEnglish ? 'Estimated Refund' : 'Tiền hoàn dự kiến'}</div>
                       <div className="font-bold text-[#FFC799]">
-                        {refundEstimate.toLocaleString('vi-VN')} đ
+                        {refundEstimate.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                       </div>
                     </div>
                   </div>
@@ -2389,15 +2515,17 @@ export const ProfilePage: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-medium text-[#F5F5F5] mb-1.5">
-                  Lý do hủy đơn
+                  {isEnglish ? 'Reason for Cancellation' : 'Lý do hủy đơn'}
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 mb-2">
                   {[
-                    'Thay đổi lịch trình',
-                    'Đổi sang mẫu xe khác',
-                    'Có việc đột xuất',
-                    'Đặt nhầm ngày nhận xe',
-                  ].map((reason) => (
+                    { vi: 'Thay đổi lịch trình', en: 'Schedule change' },
+                    { vi: 'Đổi sang mẫu xe khác', en: 'Switch to another bike' },
+                    { vi: 'Có việc đột xuất', en: 'Unexpected matter' },
+                    { vi: 'Đặt nhầm ngày nhận xe', en: 'Wrong pickup date' },
+                  ].map((item) => {
+                    const reason = isEnglish ? item.en : item.vi;
+                    return (
                     <button
                       key={reason}
                       type="button"
@@ -2410,13 +2538,14 @@ export const ProfilePage: React.FC = () => {
                     >
                       {reason}
                     </button>
-                  ))}
+                  );
+                })}
                 </div>
                 <input
                   type="text"
                   value={cancelReasonInput}
                   onChange={(e) => setCancelReasonInput(e.target.value)}
-                  placeholder="Hoặc nhập lý do khác..."
+                  placeholder={isEnglish ? "Or enter custom reason..." : "Hoặc nhập lý do khác..."}
                   className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
                 />
               </div>
@@ -2428,7 +2557,7 @@ export const ProfilePage: React.FC = () => {
                   onClick={() => setSelectedBookingForCancel(null)}
                   className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
                 >
-                  Giữ lại đơn
+                  {isEnglish ? 'Keep Booking' : 'Giữ lại đơn'}
                 </button>
                 <button
                   type="button"
@@ -2437,10 +2566,10 @@ export const ProfilePage: React.FC = () => {
                   className="flex-1 py-2.5 rounded-xl bg-[#FF8080] hover:bg-[#FF9999] text-[#101010] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
                 >
                   {cancelLoading
-                    ? 'Đang hủy...'
+                    ? (isEnglish ? 'Cancelling...' : 'Đang hủy...')
                     : paid > 0 && refundEstimate > 0
-                    ? `Xác nhận hủy (Hoàn ${refundEstimate.toLocaleString('vi-VN')} đ)`
-                    : 'Xác nhận hủy đơn'}
+                    ? (isEnglish ? `Confirm Cancel (Refund ${refundEstimate.toLocaleString('en-US')} ₫)` : `Xác nhận hủy (Hoàn ${refundEstimate.toLocaleString('vi-VN')} đ)`)
+                    : (isEnglish ? 'Confirm Cancellation' : 'Xác nhận hủy đơn')}
                 </button>
               </div>
             </div>
@@ -2457,7 +2586,7 @@ export const ProfilePage: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <div className="flex items-center space-x-2 text-emerald-400 font-bold text-sm">
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Yêu cầu hoàn tiền đơn {selectedBookingForRefund.bookingCode}</span>
+                <span>{isEnglish ? 'Request Refund for ' : 'Yêu cầu hoàn tiền đơn '}{selectedBookingForRefund.bookingCode}</span>
               </div>
               <button
                 type="button"
@@ -2470,46 +2599,46 @@ export const ProfilePage: React.FC = () => {
 
             <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-500/30 text-xs space-y-1">
               <div className="flex justify-between text-emerald-300">
-                <span>Số tiền hoàn theo BR-06:</span>
+                <span>{isEnglish ? 'Refund Amount:' : 'Số tiền hoàn:'}</span>
                 <strong className="font-mono-tabular text-sm text-emerald-400">
-                  {(selectedBookingForRefund.refundAmount || 0).toLocaleString('vi-VN')} đ
+                  {(selectedBookingForRefund.refundAmount || 0).toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                 </strong>
               </div>
               <p className="text-[11px] text-[#A0A0A0]">
-                Số tiền sẽ được chuyển khoản trực tiếp qua ngân hàng sau khi ban quản lý duyệt yêu cầu.
+                {isEnglish ? 'Funds will be transferred directly to your bank account after manager review within 24 hours.' : 'Số tiền sẽ được chuyển khoản trực tiếp qua ngân hàng sau khi ban quản lý duyệt yêu cầu.'}
               </p>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block font-medium text-[#F5F5F5] mb-1">
-                  Ngân hàng thụ hưởng <span className="text-[#FF8080]">*</span>
+                  {isEnglish ? 'Beneficiary Bank' : 'Ngân hàng thụ hưởng'} <span className="text-[#FF8080]">*</span>
                 </label>
                 <input
                   type="text"
                   value={bankNameInput}
                   onChange={(e) => setBankNameInput(e.target.value)}
-                  placeholder="Ví dụ: MB Bank, Vietcombank, Techcombank..."
+                  placeholder={isEnglish ? "e.g. MB Bank, Vietcombank, Techcombank..." : "Ví dụ: MB Bank, Vietcombank, Techcombank..."}
                   className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
                 />
               </div>
 
               <div>
                 <label className="block font-medium text-[#F5F5F5] mb-1">
-                  Số tài khoản nhận tiền <span className="text-[#FF8080]">*</span>
+                  {isEnglish ? 'Bank Account Number' : 'Số tài khoản nhận tiền'} <span className="text-[#FF8080]">*</span>
                 </label>
                 <input
                   type="text"
                   value={bankAccountNumberInput}
                   onChange={(e) => setBankAccountNumberInput(e.target.value)}
-                  placeholder="Nhập số tài khoản ngân hàng"
+                  placeholder={isEnglish ? "Enter bank account number" : "Nhập số tài khoản ngân hàng"}
                   className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs font-mono-tabular text-[#F5F5F5] outline-none focus:border-emerald-400"
                 />
               </div>
 
               <div>
                 <label className="block font-medium text-[#F5F5F5] mb-1">
-                  Tên chủ tài khoản (viết hoa không dấu) <span className="text-[#FF8080]">*</span>
+                  {isEnglish ? 'Account Holder Name (Uppercase)' : 'Tên chủ tài khoản (viết hoa không dấu)'} <span className="text-[#FF8080]">*</span>
                 </label>
                 <input
                   type="text"
@@ -2522,13 +2651,13 @@ export const ProfilePage: React.FC = () => {
 
               <div>
                 <label className="block font-medium text-[#A0A0A0] mb-1">
-                  Ghi chú bổ sung (nếu có)
+                  {isEnglish ? 'Additional Notes (Optional)' : 'Ghi chú bổ sung (nếu có)'}
                 </label>
                 <input
                   type="text"
                   value={refundReasonInput}
                   onChange={(e) => setRefundReasonInput(e.target.value)}
-                  placeholder="Lý do hoặc số điện thoại liên hệ đối soát"
+                  placeholder={isEnglish ? "Reason or contact phone for verification" : "Lý do hoặc số điện thoại liên hệ đối soát"}
                   className="w-full px-3 py-2 bg-[#101010] border border-white/12 rounded-lg text-xs text-[#F5F5F5] outline-none focus:border-emerald-400"
                 />
               </div>
@@ -2541,7 +2670,7 @@ export const ProfilePage: React.FC = () => {
                 onClick={() => setSelectedBookingForRefund(null)}
                 className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
               >
-                Đóng
+                {isEnglish ? 'Close' : 'Đóng'}
               </button>
               <button
                 type="button"
@@ -2549,7 +2678,7 @@ export const ProfilePage: React.FC = () => {
                 onClick={handleRequestRefund}
                 className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-[#101010] text-xs font-semibold transition-colors cursor-pointer disabled:opacity-60"
               >
-                {refundLoading ? 'Đang gửi...' : 'Gửi yêu cầu hoàn tiền'}
+                {refundLoading ? (isEnglish ? 'Submitting...' : 'Đang gửi...') : (isEnglish ? 'Submit Refund Request' : 'Gửi yêu cầu hoàn tiền')}
               </button>
             </div>
           </div>
@@ -2566,7 +2695,7 @@ export const ProfilePage: React.FC = () => {
               <div className="flex items-center space-x-2.5">
                 <Clock className="w-5 h-5 text-[#FFC799]" />
                 <h3 className="text-base font-bold text-[#F5F5F5]">
-                  Gia hạn thời gian thuê xe
+                  {isEnglish ? 'Extend Rental Period' : 'Gia hạn thời gian thuê xe'}
                 </h3>
               </div>
               <button
@@ -2580,13 +2709,13 @@ export const ProfilePage: React.FC = () => {
 
             <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs space-y-2">
               <div className="flex justify-between text-[#A0A0A0]">
-                <span>Mã đơn:</span>
+                <span>{isEnglish ? 'Booking Code:' : 'Mã đơn:'}</span>
                 <span className="text-[#FFC799] font-mono-tabular font-bold">
                   {selectedBookingForExtend.bookingCode}
                 </span>
               </div>
               <div className="flex justify-between text-[#A0A0A0]">
-                <span>Thời gian trả xe hiện tại:</span>
+                <span>{isEnglish ? 'Current Return Date:' : 'Thời gian trả xe hiện tại:'}</span>
                 <span className="text-[#F5F5F5] font-mono-tabular font-semibold">
                   {new Date(selectedBookingForExtend.returnDateTime).toLocaleString('vi-VN', {
                     hour: '2-digit',
@@ -2601,7 +2730,7 @@ export const ProfilePage: React.FC = () => {
 
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-[#F5F5F5]">
-                Chọn mốc thời gian trả xe mới *
+                {isEnglish ? 'Select New Return Date & Time *' : 'Chọn mốc thời gian trả xe mới *'}
               </label>
               <input
                 type="datetime-local"
@@ -2619,7 +2748,7 @@ export const ProfilePage: React.FC = () => {
                 className="w-full px-3.5 py-2.5 bg-[#101010] border border-white/12 focus:border-[#FFC799] rounded-xl text-xs text-[#F5F5F5] outline-none [color-scheme:dark]"
               />
               <p className="text-[11px] text-[#A0A0A0]">
-                Khung giờ trả xe mới phải nằm trong giờ mở cửa của chi nhánh và tối đa 30 ngày.
+                {isEnglish ? 'New return time must fall within station opening hours and at most 30 days.' : 'Khung giờ trả xe mới phải nằm trong giờ mở cửa của chi nhánh và tối đa 30 ngày.'}
               </p>
             </div>
 
@@ -2627,7 +2756,7 @@ export const ProfilePage: React.FC = () => {
             {extendEstimating ? (
               <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] text-center space-y-2">
                 <RefreshCw className="w-4 h-4 text-[#FFC799] animate-spin mx-auto" />
-                <span className="text-xs text-[#A0A0A0]">Đang kiểm tra lịch trống và tính toán lại chi phí...</span>
+                <span className="text-xs text-[#A0A0A0]">{isEnglish ? 'Checking calendar availability and recalculating rates...' : 'Đang kiểm tra lịch trống và tính toán lại chi phí...'}</span>
               </div>
             ) : extendError ? (
               <div className="p-3.5 rounded-xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-xs text-[#FF8080] flex items-start space-x-2.5">
@@ -2637,28 +2766,28 @@ export const ProfilePage: React.FC = () => {
             ) : extendEstimate ? (
               <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] space-y-2.5 text-xs">
                 <div className="flex justify-between items-center text-[#A0A0A0]">
-                  <span>Thời gian thuê thêm:</span>
+                  <span>{isEnglish ? 'Extended Duration:' : 'Thời gian thuê thêm:'}</span>
                   <span className="text-[#F5F5F5] font-mono-tabular font-medium">
-                    {extendEstimate.addedDays > 0 ? `${extendEstimate.addedDays} ngày ` : ''}
-                    ({extendEstimate.addedHours} giờ)
+                    {extendEstimate.addedDays > 0 ? (isEnglish ? `${extendEstimate.addedDays} days ` : `${extendEstimate.addedDays} ngày `) : ''}
+                    ({extendEstimate.addedHours} {isEnglish ? 'hrs' : 'giờ'})
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[#A0A0A0]">
-                  <span>Chi phí phát sinh thêm:</span>
+                  <span>{isEnglish ? 'Additional Rental Fee:' : 'Chi phí phát sinh thêm:'}</span>
                   <span className="text-[#FFC799] font-mono-tabular font-bold text-sm">
-                    +{extendEstimate.addedAmount.toLocaleString('vi-VN')} đ
+                    +{extendEstimate.addedAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </span>
                 </div>
                 <div className="pt-2 border-t border-white/[0.06] flex justify-between items-center">
-                  <span className="text-[#A0A0A0]">Tổng tiền thuê mới:</span>
+                  <span className="text-[#A0A0A0]">{isEnglish ? 'New Total Amount:' : 'Tổng tiền thuê mới:'}</span>
                   <span className="text-white font-mono-tabular font-bold">
-                    {extendEstimate.newTotalAmount.toLocaleString('vi-VN')} đ
+                    {extendEstimate.newTotalAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px] text-[#A0A0A0]">
-                  <span>Số dư còn lại cần thanh toán:</span>
+                  <span>{isEnglish ? 'Remaining Due:' : 'Số dư còn lại cần thanh toán:'}</span>
                   <span className="text-[#99FFE4] font-mono-tabular font-semibold">
-                    {extendEstimate.newRemainingAmount.toLocaleString('vi-VN')} đ
+                    {extendEstimate.newRemainingAmount.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </span>
                 </div>
               </div>
@@ -2672,7 +2801,7 @@ export const ProfilePage: React.FC = () => {
                 onClick={() => setSelectedBookingForExtend(null)}
                 className="flex-1 py-2.5 rounded-xl bg-[#101010] border border-white/10 text-[#A0A0A0] text-xs font-medium hover:text-[#F5F5F5] cursor-pointer"
               >
-                Hủy bỏ
+                {isEnglish ? 'Cancel' : 'Hủy bỏ'}
               </button>
               <button
                 type="button"
@@ -2683,10 +2812,10 @@ export const ProfilePage: React.FC = () => {
                 {extendLoading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                 <span>
                   {extendLoading
-                    ? 'Đang xử lý...'
+                    ? (isEnglish ? 'Processing...' : 'Đang xử lý...')
                     : extendEstimate
-                    ? `Xác nhận gia hạn (+${extendEstimate.addedAmount.toLocaleString('vi-VN')} đ)`
-                    : 'Xác nhận gia hạn'}
+                    ? (isEnglish ? `Confirm Extension (+${extendEstimate.addedAmount.toLocaleString('en-US')}₫)` : `Xác nhận gia hạn (+${extendEstimate.addedAmount.toLocaleString('vi-VN')} đ)`)
+                    : (isEnglish ? 'Confirm Extension' : 'Xác nhận gia hạn')}
                 </span>
               </button>
             </div>
@@ -2728,6 +2857,41 @@ export const ProfilePage: React.FC = () => {
             await Promise.all([fetchBookings(), fetchMyReviews()]);
           }}
         />
+      )}
+
+      {/* Secure Owner eKYC Lightbox Modal */}
+      {zoomEkycDoc && (
+        <div
+          onClick={() => setZoomEkycDoc(null)}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#161616] border border-white/15 rounded-2xl max-w-4xl w-full overflow-hidden shadow-2xl"
+          >
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-[#99FFE4]" />
+                <span className="font-bold text-sm text-[#F5F5F5]">{zoomEkycDoc.title}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setZoomEkycDoc(null)}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 bg-[#101010] flex items-center justify-center max-h-[80vh] overflow-auto">
+              <SecureEkycImage
+                src={zoomEkycDoc.src}
+                alt={zoomEkycDoc.title}
+                versionKey={`${user.identityStatus}_${user.updatedAt || ''}`}
+                className="max-w-full max-h-[72vh] object-contain rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

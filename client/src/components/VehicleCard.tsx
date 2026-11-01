@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
 import { getOptimizedVehicleImageUrl, getVehicleImageProps } from '../utils/imageHelper';
 import { useWishlist } from '../context/WishlistContext';
+import { useTranslation } from '../context/I18nContext';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -23,11 +24,7 @@ interface VehicleCardProps {
   viewMode?: 'grid' | 'list';
 }
 
-const ANGLE_VIEWS = [
-  { id: 1, label: 'Góc ngang', title: 'Góc ngang thân xe' },
-  { id: 0, label: 'Góc trước', title: 'Góc 3/4 mặt trước' },
-  { id: 2, label: 'Góc sau', title: 'Góc đuôi xe & khoang lái' },
-];
+
 
 export const VehicleCard: React.FC<VehicleCardProps> = ({
   vehicle,
@@ -35,8 +32,16 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
   onViewDetails,
   viewMode = 'grid',
 }) => {
+  const { isEnglish } = useTranslation();
   const navigate = useNavigate();
   const { isInWishlist, toggleWishlist, isToggling } = useWishlist();
+
+  const ANGLE_VIEWS = [
+    { id: 1, label: isEnglish ? 'Side' : 'Góc ngang', title: isEnglish ? 'Profile View' : 'Góc ngang thân xe' },
+    { id: 0, label: isEnglish ? 'Front' : 'Góc trước', title: isEnglish ? '3/4 Front View' : 'Góc 3/4 mặt trước' },
+    { id: 2, label: isEnglish ? 'Rear' : 'Góc sau', title: isEnglish ? 'Cockpit & Rear View' : 'Góc đuôi xe & khoang lái' },
+  ];
+
   const [activeAngle, setActiveAngle] = useState<number>(vehicle.images?.[1] ? 1 : 0);
   const [imgError, setImgError] = useState<boolean>(false);
 
@@ -53,17 +58,28 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
   const branchName =
     typeof vehicle.branchId === 'object' && vehicle.branchId !== null
       ? vehicle.branchId.name
-      : 'Trạm Trung tâm Đà Nẵng';
+      : (isEnglish ? 'Da Nang Central Station' : 'Trạm Trung tâm Đà Nẵng');
 
-  const depositPreview = Math.round(vehicle.dailyPrice * 0.3);
+  const activeSeasonalRule = vehicle.activeSeasonalRule ?? null;
+  const effectiveDailyPrice =
+    vehicle.effectiveDailyPrice ??
+    (activeSeasonalRule
+      ? Math.round(vehicle.dailyPrice * activeSeasonalRule.multiplier)
+      : vehicle.dailyPrice);
+  const depositPreview = Math.round(effectiveDailyPrice * 0.3);
   const isElectric = vehicle.fuelType === 'Electric';
 
-  const transmissionLabel =
-    vehicle.transmissionType === 'Manual'
-      ? 'Xe côn tay'
-      : vehicle.transmissionType === 'Automatic'
-      ? 'Xe tay ga đô thị'
-      : 'Xe số tiết kiệm';
+  const transmissionLabel = isEnglish
+    ? (vehicle.transmissionType === 'Manual'
+        ? 'Manual Clutch'
+        : vehicle.transmissionType === 'Automatic'
+        ? 'Urban Automatic'
+        : 'Economy Semi-Auto')
+    : (vehicle.transmissionType === 'Manual'
+        ? 'Xe côn tay'
+        : vehicle.transmissionType === 'Automatic'
+        ? 'Xe tay ga đô thị'
+        : 'Xe số tiết kiệm');
 
   const handleCardClick = () => {
     if (onViewDetails) {
@@ -121,13 +137,21 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
                   : 'bg-slate-400'
               }`}
             />
-            {isAvailable
-              ? 'Sẵn sàng tại trạm'
-              : vehicle.status === 'Rented'
-              ? 'Đang có khách thuê'
-              : vehicle.status === 'Transferring'
-              ? 'Đang điều chuyển'
-              : 'Cần bảo dưỡng'}
+            {isEnglish
+              ? (isAvailable
+                  ? 'Available at Station'
+                  : vehicle.status === 'Rented'
+                  ? 'Currently Rented'
+                  : vehicle.status === 'Transferring'
+                  ? 'In Transit'
+                  : 'Needs Maintenance')
+              : (isAvailable
+                  ? 'Sẵn sàng tại trạm'
+                  : vehicle.status === 'Rented'
+                  ? 'Đang có khách thuê'
+                  : vehicle.status === 'Transferring'
+                  ? 'Đang điều chuyển'
+                  : 'Cần bảo dưỡng')}
           </span>
 
           <div className="flex items-center space-x-1.5 pointer-events-auto">
@@ -148,8 +172,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
                   ? 'bg-[#FF8080] text-white hover:bg-[#ff6666]'
                   : 'bg-[#101010]/80 hover:bg-[#101010] text-white/80 hover:text-white border border-white/20'
               } ${isToggling(vehicle._id) ? 'opacity-50 cursor-not-allowed' : 'active:scale-90'}`}
-              title={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
-              aria-label={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
+              title={isInWishlist(vehicle._id) ? (isEnglish ? 'Remove from wishlist' : 'Bỏ lưu yêu thích') : (isEnglish ? 'Save to wishlist' : 'Lưu vào yêu thích')}
+              aria-label={isInWishlist(vehicle._id) ? (isEnglish ? 'Remove from wishlist' : 'Bỏ lưu yêu thích') : (isEnglish ? 'Save to wishlist' : 'Lưu vào yêu thích')}
             >
               <Heart
                 className={`w-3.5 h-3.5 transition-colors ${
@@ -173,7 +197,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             setImgError(false);
           }}
           className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#101010]/75 hover:bg-[#101010] text-[#F5F5F5] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 cursor-pointer"
-          aria-label="Góc trước đó"
+          aria-label={isEnglish ? 'Previous view angle' : 'Góc trước đó'}
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -190,7 +214,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             setImgError(false);
           }}
           className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#101010]/75 hover:bg-[#101010] text-[#F5F5F5] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 cursor-pointer"
-          aria-label="Góc tiếp theo"
+          aria-label={isEnglish ? 'Next view angle' : 'Góc tiếp theo'}
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -225,7 +249,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
                 <path d="M38 22 L42 16" />
               </svg>
               <span className="text-[11px] font-medium text-[#6E6E6E] mt-1">
-                {imgError ? 'Chưa tải được ảnh xe' : 'Xe chưa có ảnh'}
+                {imgError ? (isEnglish ? 'Image failed to load' : 'Chưa tải được ảnh xe') : (isEnglish ? 'No image available' : 'Xe chưa có ảnh')}
               </span>
             </div>
           )}
@@ -234,7 +258,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
         {/* Minimalist Bottom-Right Angle Pill & Bottom-Left Year Tag */}
         <div className="absolute bottom-2.5 left-3.5 right-3.5 z-20 flex items-center justify-between">
           <span className="text-[10px] font-semibold text-slate-600 bg-white/80 backdrop-blur-sm px-2 py-0.5 rounded-md border border-slate-300/60">
-            Đời {vehicle.yearManufactured || 2024}
+            {isEnglish ? 'Model ' : 'Đời '}{vehicle.yearManufactured || 2024}
           </span>
 
           <div className="flex items-center space-x-0.5 bg-[#101010]/85 backdrop-blur-md p-0.5 rounded-lg">
@@ -270,7 +294,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             </span>
             <span className="text-[#A0A0A0] flex items-center truncate max-w-[165px]">
               <MapPin className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
-              <span className="truncate">{branchName.replace('Chi nhánh ', '')}</span>
+              <span className="truncate">{branchName.replace('Chi nhánh ', '').replace('Branch ', '')}</span>
             </span>
           </div>
 
@@ -286,7 +310,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
                 className="text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FFC799]"
               >
                 {vehicle.vehicleModel}
-                <span className="sr-only"> · Xem chi tiết xe</span>
+                <span className="sr-only">{isEnglish ? " · View vehicle details" : " · Xem chi tiết xe"}</span>
               </button>
             </h3>
 
@@ -297,29 +321,31 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
                 navigate(`/bikes/${vehicle._id}#reviews-section`);
               }}
               className="flex items-center space-x-1 bg-[#101010] hover:bg-[#1f1f1f] border border-white/10 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition-colors"
-              title="Xem đánh giá từ khách hàng"
+              title={isEnglish ? 'View customer reviews' : 'Xem đánh giá từ khách hàng'}
             >
               <Star className="w-3 h-3 fill-[#FFC799] text-[#FFC799]" />
               <span className="text-[11px] font-bold text-[#F5F5F5]">
-                {avgRating > 0 ? avgRating.toFixed(1) : '5.0'}
+                {avgRating > 0 ? avgRating.toFixed(1) : (isEnglish ? 'New' : 'Mới')}
               </span>
-              <span className="text-[10px] text-[#6E6E6E]">
-                ({vehicle.reviewCount || 0})
-              </span>
+              {(vehicle.reviewCount ?? 0) > 0 && (
+                <span className="text-[10px] text-[#6E6E6E]">
+                  ({vehicle.reviewCount})
+                </span>
+              )}
             </div>
           </div>
 
           <p className="mt-2 flex items-center gap-1 text-xs text-[#A0A0A0]">
             <Star className="h-3.5 w-3.5 text-[#FFC799]" />
             {(vehicle.reviewCount ?? 0) > 0
-              ? `${avgRating.toFixed(1)} / 5 (${vehicle.reviewCount} đánh giá)`
-              : 'Chưa có đánh giá'}
+              ? `${avgRating.toFixed(1)} / 5 (${vehicle.reviewCount} ${isEnglish ? 'reviews' : 'đánh giá'})`
+              : (isEnglish ? 'No reviews yet' : 'Chưa có đánh giá')}
           </p>
 
           {/* Clean Recessed Spec Pills */}
           <div className="grid grid-cols-3 gap-2 mt-3.5">
             <div className="bg-[#101010]/70 border border-white/[0.07] rounded-xl px-2.5 py-2">
-              <span className="text-[10px] text-[#6E6E6E] block">Đồng hồ ODO</span>
+              <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Current ODO' : 'Đồng hồ ODO'}</span>
               <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
                 <Gauge className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
                 {vehicle.odometer.toLocaleString('vi-VN')}km
@@ -327,12 +353,12 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             </div>
 
             <div className="bg-[#101010]/70 border border-white/[0.07] rounded-xl px-2.5 py-2">
-              <span className="text-[10px] text-[#6E6E6E] block">Mức tiêu hao</span>
+              <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Fuel Economy' : 'Mức tiêu hao'}</span>
               <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
                 {isElectric ? (
                   <>
                     <Zap className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
-                    <span>198km/sạc</span>
+                    <span>{isEnglish ? '198km/charge' : '198km/sạc'}</span>
                   </>
                 ) : (
                   <>
@@ -344,10 +370,10 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             </div>
 
             <div className="bg-[#101010]/70 border border-white/[0.07] rounded-xl px-2.5 py-2">
-              <span className="text-[10px] text-[#6E6E6E] block">Đi kèm</span>
+              <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? "Included" : "Đi kèm"}</span>
               <span className="font-semibold text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
                 <ShieldCheck className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
-                <span>02 Mũ + Áo mưa</span>
+                <span>{isEnglish ? '02 Helmets + Raincoats' : '02 Mũ + Áo mưa'}</span>
               </span>
             </div>
           </div>
@@ -358,12 +384,12 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
           <div>
             <div className="flex items-baseline space-x-1">
               <span className="text-xl sm:text-2xl font-bold text-[#F5F5F5] font-mono-tabular tracking-tight">
-                {vehicle.dailyPrice.toLocaleString('vi-VN')}đ
+                {effectiveDailyPrice.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')}{isEnglish ? '₫' : 'đ'}
               </span>
-              <span className="text-xs text-[#A0A0A0]">/ ngày</span>
+              <span className="text-xs text-[#A0A0A0]">{isEnglish ? '/ day' : '/ ngày'}</span>
             </div>
             <span className="text-[11px] text-[#FFC799] font-mono-tabular block mt-0.5">
-              Cọc tham khảo/ngày: {depositPreview.toLocaleString('vi-VN')}đ
+              {isEnglish ? 'Estimated deposit/day: ' : 'Cọc tham khảo/ngày: '}{depositPreview.toLocaleString(isEnglish ? 'en-US' : 'vi-VN')}{isEnglish ? '₫' : 'đ'}
             </span>
           </div>
 
@@ -381,7 +407,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             }`}
           >
             <span>
-              {isAvailable ? 'Đặt xe' : vehicle.status === 'Rented' ? 'Đang thuê' : 'Chưa sẵn sàng'}
+              {isAvailable ? (isEnglish ? 'Book Now' : 'Đặt xe') : vehicle.status === 'Rented' ? (isEnglish ? 'Rented' : 'Đang thuê') : (isEnglish ? 'Unavailable' : 'Chưa sẵn sàng')}
             </span>
             {isAvailable && (
               <ArrowRight className="w-3.5 h-3.5 stroke-[2.2] transition-transform group-hover:translate-x-0.5" />

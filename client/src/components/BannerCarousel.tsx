@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
 import { api } from '../services/api';
 import type { Banner } from '../types';
 import { getBannerImageUrl } from '../utils/imageHelper';
+import { useTranslation } from '../context/I18nContext';
 
 export const BannerCarousel: React.FC = () => {
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -11,6 +12,7 @@ export const BannerCarousel: React.FC = () => {
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
+  const { isEnglish } = useTranslation();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchBanners = useCallback(async () => {
@@ -96,7 +98,7 @@ export const BannerCarousel: React.FC = () => {
 
   return (
     <section
-      aria-label="Banner Quảng Cáo & Khuyến Mãi"
+      aria-label={isEnglish ? 'Promotions & Marketing Banners' : 'Banner Quảng Cáo & Khuyến Mãi'}
       className="relative w-full overflow-hidden border-b border-white/[0.08] bg-[#141414]"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -146,7 +148,7 @@ export const BannerCarousel: React.FC = () => {
                   handlePrev();
                 }}
                 className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#101010]/80 hover:bg-[#FFC799] text-[#F5F5F5] hover:text-[#101010] border border-white/15 hover:border-[#FFC799] flex items-center justify-center transition-all opacity-80 sm:opacity-0 group-hover:opacity-100 z-10 cursor-pointer shadow-lg backdrop-blur-md"
-                aria-label="Slide trước"
+                aria-label={isEnglish ? 'Previous slide' : 'Slide trước'}
               >
                 <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
@@ -158,7 +160,7 @@ export const BannerCarousel: React.FC = () => {
                   handleNext();
                 }}
                 className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-[#101010]/80 hover:bg-[#FFC799] text-[#F5F5F5] hover:text-[#101010] border border-white/15 hover:border-[#FFC799] flex items-center justify-center transition-all opacity-80 sm:opacity-0 group-hover:opacity-100 z-10 cursor-pointer shadow-lg backdrop-blur-md"
-                aria-label="Slide tiếp theo"
+                aria-label={isEnglish ? 'Next slide' : 'Slide tiếp theo'}
               >
                 <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
@@ -178,7 +180,7 @@ export const BannerCarousel: React.FC = () => {
                         ? 'w-6 bg-[#FFC799]'
                         : 'w-2 bg-white/30 hover:bg-white/60'
                     }`}
-                    aria-label={`Chuyển đến slide ${idx + 1}`}
+                    aria-label={isEnglish ? `Go to slide ${idx + 1}` : `Chuyển đến slide ${idx + 1}`}
                   />
                 ))}
               </div>

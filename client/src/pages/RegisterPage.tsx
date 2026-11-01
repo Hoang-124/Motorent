@@ -18,6 +18,7 @@ import {
 import { api } from '../services/api';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/I18nContext';
 import {
   validateUsername,
   validateEmail,
@@ -33,6 +34,7 @@ export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login: authLogin } = useAuth();
+  const { isEnglish } = useTranslation();
 
   // Registration form values
   const [username, setUsername] = useState('');
@@ -101,7 +103,7 @@ export const RegisterPage: React.FC = () => {
   const emailError = (touched.email || hasSubmitted || isGoogleEmail) 
     ? validateEmail(email, { disallowGoogle: true }) 
     : null;
-  const lastNameError = (touched.lastName || hasSubmitted) ? validateName(lastName, 'Họ và tên đệm') : null;
+  const lastNameError = (touched.lastName || hasSubmitted) ? validateName(lastName, '{isEnglish ? "First & Middle Name" : "Họ và tên đệm"}') : null;
   const firstNameError = (touched.firstName || hasSubmitted) ? validateName(firstName, 'Tên') : null;
   const phoneError = (touched.phoneNumber || hasSubmitted) ? validatePhoneNumber(phoneNumber) : null;
   const passwordError = (touched.password || hasSubmitted) ? validatePassword(password) : null;
@@ -317,7 +319,7 @@ export const RegisterPage: React.FC = () => {
             </span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight leading-tight">
-            {successData ? 'Xác thực tài khoản' : 'Đăng ký tài khoản mới'}
+            {successData ? (isEnglish ? 'Account Verification' : 'Xác thực tài khoản') : (isEnglish ? 'Create New Account' : 'Đăng ký tài khoản mới')}
           </h2>
           <p className="text-xs text-[#A0A0A0] mt-1">
             {successData 
@@ -338,10 +340,10 @@ export const RegisterPage: React.FC = () => {
                     <CheckCircle2 className="w-9 h-9" />
                   </div>
                   <h3 className="text-2xl font-black text-white tracking-tight">
-                    Kích hoạt tài khoản thành công!
+                    {isEnglish ? "Account Activated Successfully!" : "Kích hoạt tài khoản thành công!"}
                   </h3>
                   <p className="text-xs text-[#A0A0A0] max-w-sm mx-auto">
-                    Chào mừng bạn đến với Motorent. Hệ thống đang tự động đăng nhập và chuyển hướng...
+                    {isEnglish ? "Welcome to Motorent. Logging you in and redirecting..." : "Chào mừng bạn đến với Motorent. Hệ thống đang tự động đăng nhập và chuyển hướng..."}
                   </p>
                   <div className="pt-2">
                     <RefreshCw className="w-5 h-5 text-[#FFC799] animate-spin mx-auto" />
@@ -356,10 +358,10 @@ export const RegisterPage: React.FC = () => {
 
                   <div>
                     <h3 className="text-xl font-black text-white tracking-tight">
-                      Nhập mã OTP xác thực
+                      {isEnglish ? "Enter Verification Code" : "Nhập mã OTP xác thực"}
                     </h3>
                     <p className="text-xs text-[#A0A0A0] leading-relaxed mt-1 max-w-sm mx-auto">
-                      Mã xác thực 6 chữ số đã được gửi tới địa chỉ{' '}
+                      {isEnglish ? 'A 6-digit verification code was sent to ' : 'Mã xác thực 6 chữ số đã được gửi tới địa chỉ '}
                       <strong className="text-[#FFC799] font-bold">{successData.email}</strong>.
                     </p>
                   </div>
@@ -451,11 +453,11 @@ export const RegisterPage: React.FC = () => {
                       {verifyingOtp ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
-                          <span>Đang kiểm tra mã OTP...</span>
+                          <span>{isEnglish ? "Verifying OTP..." : "Đang kiểm tra mã OTP..."}</span>
                         </>
                       ) : (
                         <>
-                          <span>Xác thực & Kích hoạt tài khoản</span>
+                          <span>{isEnglish ? "Verify & Activate Account" : "Xác thực & Kích hoạt tài khoản"}</span>
                           <ArrowRight className="w-4 h-4" />
                         </>
                       )}
@@ -475,8 +477,8 @@ export const RegisterPage: React.FC = () => {
                         )}
                         <span>
                           {resendCooldown > 0
-                            ? `Gửi lại mã (${resendCooldown}s)`
-                            : 'Gửi lại mã OTP'}
+                            ? isEnglish ? `Resend Code (${resendCooldown}s)` : `Gửi lại mã (${resendCooldown}s)`
+                            : isEnglish ? 'Resend OTP' : 'Gửi lại mã OTP'}
                         </span>
                       </button>
 
@@ -490,7 +492,7 @@ export const RegisterPage: React.FC = () => {
                         }}
                         className="font-semibold text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors"
                       >
-                        Đăng ký bằng email khác
+                        {isEnglish ? "Register with another email" : "Đăng ký bằng email khác"}
                       </button>
                     </div>
 
@@ -499,7 +501,7 @@ export const RegisterPage: React.FC = () => {
                         to="/login"
                         className="text-xs font-bold text-[#A0A0A0] hover:text-[#FFC799] transition-colors inline-flex items-center space-x-1"
                       >
-                        <span>Đã có tài khoản hoặc kích hoạt xong? Đăng nhập ngay</span>
+                        <span>{isEnglish ? "Already verified? Sign in now" : "Đã có tài khoản hoặc kích hoạt xong? Đăng nhập ngay"}</span>
                         <ArrowRight className="w-3 h-3" />
                       </Link>
                     </div>
@@ -522,14 +524,14 @@ export const RegisterPage: React.FC = () => {
                 {/* Username Field */}
                 <div>
                   <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                    Tên đăng nhập <span className="text-[#FF8080]">*</span>
+                    {isEnglish ? "Username" : "Tên đăng nhập"} <span className="text-[#FF8080]">*</span>
                   </label>
                   <div className="relative">
                     <UserIcon className="w-3.5 h-3.5 text-[#6E6E6E] absolute left-3 top-3 pointer-events-none" />
                     <input
                       ref={usernameRef}
                       type="text"
-                      placeholder="VD: nguyenvana"
+                      placeholder={isEnglish ? "e.g. johndoe" : "VD: nguyenvana"}
                       value={username}
                       onChange={(e) => {
                         setUsername(e.target.value);
@@ -662,7 +664,7 @@ export const RegisterPage: React.FC = () => {
                 {/* Last Name */}
                 <div>
                   <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                    Họ và tên đệm
+                    {isEnglish ? "Last & Middle Name" : "Họ và tên đệm"}
                   </label>
                   <input
                     type="text"
@@ -690,7 +692,7 @@ export const RegisterPage: React.FC = () => {
                 {/* First Name */}
                 <div>
                   <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                    Tên
+                    {isEnglish ? "First Name" : "Tên"}
                   </label>
                   <input
                     type="text"
@@ -719,7 +721,7 @@ export const RegisterPage: React.FC = () => {
               {/* Phone */}
               <div>
                 <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                  Số điện thoại di động
+                  {isEnglish ? "Mobile Phone Number" : "Số điện thoại di động"}
                 </label>
                 <div className="relative">
                   <Phone className="w-3.5 h-3.5 text-[#6E6E6E] absolute left-3 top-3 pointer-events-none" />
@@ -776,14 +778,14 @@ export const RegisterPage: React.FC = () => {
                 {/* Password */}
                 <div>
                   <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                    Mật khẩu <span className="text-[#FF8080]">*</span>
+                    {isEnglish ? "Password" : "Mật khẩu"} <span className="text-[#FF8080]">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="w-3.5 h-3.5 text-[#6E6E6E] absolute left-3 top-3 pointer-events-none" />
                     <input
                       ref={passwordRef}
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Ít nhất 6 ký tự..."
+                      placeholder={isEnglish ? "At least 6 characters..." : "Ít nhất 6 ký tự..."}
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
@@ -819,7 +821,7 @@ export const RegisterPage: React.FC = () => {
                   {password.length > 0 && (
                     <div className="mt-2 space-y-1.5 p-2 bg-white/[0.02] rounded-lg border border-white/5">
                       <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-[#A0A0A0] font-medium">Độ an toàn:</span>
+                        <span className="text-[#A0A0A0] font-medium">{isEnglish ? "Security strength:" : "Độ an toàn:"}</span>
                         <span className={`font-bold ${passwordStrength.color}`}>
                           {passwordStrength.label}
                         </span>
@@ -846,14 +848,14 @@ export const RegisterPage: React.FC = () => {
                 {/* Confirm Password */}
                 <div>
                   <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                    Xác nhận mật khẩu <span className="text-[#FF8080]">*</span>
+                    {isEnglish ? "Confirm Password" : "Xác nhận mật khẩu"} <span className="text-[#FF8080]">*</span>
                   </label>
                   <div className="relative">
                     <Lock className="w-3.5 h-3.5 text-[#6E6E6E] absolute left-3 top-3 pointer-events-none" />
                     <input
                       ref={confirmPasswordRef}
                       type={showConfirmPassword ? 'text' : 'password'}
-                      placeholder="Nhập lại mật khẩu..."
+                      placeholder={isEnglish ? "Re-enter password..." : "Nhập lại mật khẩu..."}
                       value={confirmPassword}
                       onChange={(e) => {
                         setConfirmPassword(e.target.value);
@@ -887,7 +889,7 @@ export const RegisterPage: React.FC = () => {
                   {isConfirmPasswordValid && touched.confirmPassword && !confirmPasswordError && (
                     <div className="flex items-center space-x-1 mt-1 text-[11px] font-medium text-[#FFC799]">
                       <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-                      <span>Mật khẩu xác nhận trùng khớp</span>
+                      <span>{isEnglish ? "Passwords match" : "Mật khẩu xác nhận trùng khớp"}</span>
                     </div>
                   )}
                 </div>
@@ -896,7 +898,7 @@ export const RegisterPage: React.FC = () => {
               {/* Security note */}
               <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5 text-[11px] text-[#A0A0A0] flex items-start space-x-2">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799] mt-0.5 flex-shrink-0" />
-                <span>Mật khẩu của bạn được mã hóa một chiều qua thuật toán bcryptjs an toàn.</span>
+                <span>{isEnglish ? "Your password is secured via one-way bcryptjs encryption." : "Mật khẩu của bạn được mã hóa một chiều qua thuật toán bcryptjs an toàn."}</span>
               </div>
 
               <button
@@ -907,20 +909,20 @@ export const RegisterPage: React.FC = () => {
                 {loading ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Đang xử lý đăng ký...</span>
+                    <span>{isEnglish ? "Creating account..." : "Đang xử lý đăng ký..."}</span>
                   </>
                 ) : (
                   <>
-                    <span>Đăng ký tài khoản</span>
+                    <span>{isEnglish ? "Create Account" : "Đăng ký tài khoản"}</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
 
               <div className="pt-2 text-center text-xs text-[#A0A0A0] border-t border-white/5">
-                Đã có tài khoản Motorent?{' '}
+                {isEnglish ? "Already have a Motorent account? " : "Đã có tài khoản Motorent? "}
                 <Link to="/login" className="font-semibold text-[#FFC799] hover:text-[#FFC799]">
-                  Đăng nhập
+                  {isEnglish ? "Sign In" : "Đăng nhập"}
                 </Link>
               </div>
             </form>

@@ -11,10 +11,10 @@ import {
   ArrowUpRight
 } from 'lucide-react';
 import { BookingWidget } from '../components/BookingWidget';
-import { BannerCarousel } from '../components/BannerCarousel';
 import type { Vehicle, Branch } from '../types';
 import { api } from '../services/api';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
+import { useTranslation } from '../context/I18nContext';
 
 interface BookingSearchCriteria {
   pickupBranchId: string;
@@ -23,14 +23,24 @@ interface BookingSearchCriteria {
   returnDate: string;
 }
 
-const ANGLE_VIEWS = [
+const ANGLE_VIEWS_VI = [
   { id: 1, label: 'Góc ngang thân xe' },
   { id: 0, label: 'Góc 3/4 phía trước' },
   { id: 2, label: 'Góc sau & khoang lái' },
 ];
 
+const ANGLE_VIEWS_EN = [
+  { id: 1, label: 'Profile View' },
+  { id: 0, label: '3/4 Front View' },
+  { id: 2, label: 'Cockpit & Rear View' },
+];
+
+
+
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { t, locale, isEnglish } = useTranslation();
+  const ANGLE_VIEWS = isEnglish ? ANGLE_VIEWS_EN : ANGLE_VIEWS_VI;
   const location = useLocation();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -74,7 +84,7 @@ export const HomePage: React.FC = () => {
         }
       }
     } catch {
-      setError('Không thể kết nối đến máy chủ để tải dữ liệu. Vui lòng kiểm tra lại kết nối mạng.');
+      setError(isEnglish ? 'Unable to connect to server. Please check your internet connection.' : 'Không thể kết nối đến máy chủ để tải dữ liệu. Vui lòng kiểm tra lại kết nối mạng.');
     } finally {
       setLoading(false);
     }
@@ -111,7 +121,7 @@ export const HomePage: React.FC = () => {
 
   const activeVehicle = vehicles.find((v) => v._id === selectedVehicleId) || vehicles[0];
 
-  const SCENIC_ROUTES = [
+    const SCENIC_ROUTES_VI = [
     {
       id: 'trung-tam-song-han',
       chapter: 'Lộ trình 01',
@@ -186,6 +196,83 @@ export const HomePage: React.FC = () => {
     },
   ];
 
+  const SCENIC_ROUTES_EN = [
+    {
+      id: 'trung-tam-song-han',
+      chapter: 'Route 01',
+      title: 'City Heart & Han River Bridges',
+      subtitle: 'Connecting Airport, Han Market, Hai Chau coffee district & breezy riverbanks',
+      distance: '8 – 12 km inner city',
+      duration: 'Half Day – Full Day',
+      elevation: 'Flat city avenues',
+      grade: 'Easy curbside stops',
+      surface: 'Wide downtown boulevards, smooth asphalt',
+      recommendedType: 'Urban Automatic Scooters (Vision, Air Blade) & Electric Scooters',
+      description:
+        'The most popular itinerary right after picking up your bike from the airport or hotel: leisurely stop by riverside cafes along Bach Dang Boulevard, cruise across Dragon Bridge, savor street food at Con Market & Han Market, and enjoy the cool river breeze as city lights come alive.',
+      mechanicNote:
+        'Hai Chau downtown offers abundant cafe and culinary stops. Compact automatic scooters or electric scooters with spacious under-seat storage are ideal to keep 02 helmets and daypacks secure.',
+      waypoints: [
+        'Bach Dang Promenade & Central Hai Chau Cafe Street',
+        'Dragon Bridge — Han River Bridge — Han Market',
+        'APEC Peace Park & Riverside Boardwalk',
+      ],
+      svgPath: 'M 10 78 Q 90 72, 175 76 T 310 70 Q 375 75, 430 73',
+      peakX: 310,
+      peakY: 70,
+    },
+    {
+      id: 'bien-my-khe',
+      chapter: 'Route 02',
+      title: 'My Khe Beach Boulevard & Linh Ung Pagoda',
+      subtitle: 'Glide smoothly along Da Nang’s premier 6-lane scenic coastal highway',
+      distance: '15 km coastal cruise',
+      duration: '2 – 3 hours scenic ride',
+      elevation: 'Gentle coastal curve',
+      grade: 'Effortless cruising',
+      surface: 'Vo Nguyen Giap — Hoang Sa scenic highway',
+      recommendedType: 'All Automatic Scooters (Air Blade 160, Vision) & VinFast Electric',
+      description:
+        'Cruise along Vo Nguyen Giap hugging the white sands of My Khe and Pham Van Dong beaches with fresh sea breezes from the East Sea. The expansive roadway leads directly to Linh Ung Pagoda atop Son Tra, where you can admire panoramic views of Da Nang’s entire skyline from the ocean.',
+      mechanicNote:
+        'The coastal route from My Khe up to Linh Ung Pagoda is entirely wide smooth asphalt. All automatic and electric scooters handle the gentle coastal elevation effortlessly. 16:00 – 18:00 offers the most golden evening light for cruising.',
+      waypoints: [
+        'Love Bridge & Han River Marina',
+        'My Khe Beach & East Sea Park',
+        'Linh Ung Pagoda overlooking the city crescent',
+      ],
+      svgPath: 'M 10 84 Q 115 80, 210 68 T 335 48 Q 385 56, 430 62',
+      peakX: 335,
+      peakY: 48,
+    },
+    {
+      id: 'ngu-hanh-son-hoi-an',
+      chapter: 'Route 03',
+      title: 'Marble Mountains & Hoi An Ancient Town',
+      subtitle: 'A relaxing coastal journey linking the beach city with the historic lantern port',
+      distance: '28 km direct highway',
+      duration: '40 minutes travel',
+      elevation: 'Open coastal highway',
+      grade: 'Direct straight route, minimal intersections',
+      surface: 'Truong Sa — Lac Long Quan wide open avenue',
+      recommendedType: 'Honda Air Blade 160, PCX, Future 125 FI or Winner X',
+      description:
+        'For days when you wish to venture beyond the city core: simply head straight along the My Khe — Non Nuoc coastal avenue to visit the Marble Mountains, then continue 15 km along the coast straight into Hoi An Ancient Town.',
+      mechanicNote:
+        'The 28 km suburban stretch is completely flat and effortless to ride. Choose a bike with an ergonomic saddle, generous footboard, and make use of the provided vibration-dampened phone mount for smooth navigation.',
+      waypoints: [
+        'Truong Sa Coastal Boulevard & Non Nuoc Stone Carving Village',
+        'Marble Mountains Cultural Heritage Site',
+        'Japanese Covered Bridge & Lantern-lit Hoai River',
+      ],
+      svgPath: 'M 10 82 Q 110 76, 210 80 T 330 78 Q 385 81, 430 82',
+      peakX: 210,
+      peakY: 80,
+    },
+  ];
+
+  const SCENIC_ROUTES = isEnglish ? SCENIC_ROUTES_EN : SCENIC_ROUTES_VI;
+
   const currentRoute = SCENIC_ROUTES[selectedRouteIndex];
 
   // Representative vehicles for the 3 main urban vehicle lines in Hero
@@ -210,30 +297,30 @@ export const HomePage: React.FC = () => {
   const HERO_VEHICLE_LINES = [
     {
       id: 'tay-ga',
-      label: 'Xe Tay Ga Đi Phố',
+      label: t('home.lineScooterTitle'),
       models: scooterRep?.vehicleModel || 'Vision • Air Blade 160',
-      highlight: 'Cốp rộng • Tự động êm ái',
-      priceText: scooterRep ? `${scooterRep.dailyPrice.toLocaleString('vi-VN')}đ/ngày` : 'Từ 130.000đ/ngày',
+      highlight: t('home.lineScooterHighlight'),
+      priceText: scooterRep ? `${scooterRep.dailyPrice.toLocaleString('vi-VN')}${isEnglish ? '₫/day' : 'đ/ngày'}` : (isEnglish ? 'From 130,000₫/day' : 'Từ 130.000đ/ngày'),
       imageUrl: getOptimizedVehicleImageUrl(scooterRep?.images?.[1] || scooterRep?.images?.[0]),
       link: '/bikes?type=xe-tay-ga',
       vehicle: scooterRep,
     },
     {
       id: 'xe-dien',
-      label: 'Xe Máy Điện Đô Thị',
+      label: t('home.lineElectricTitle'),
       models: electricRep?.vehicleModel || 'VinFast Feliz S • Evo',
-      highlight: 'Lướt êm • ~198km/sạc',
-      priceText: electricRep ? `${electricRep.dailyPrice.toLocaleString('vi-VN')}đ/ngày` : 'Từ 150.000đ/ngày',
+      highlight: t('home.lineElectricHighlight'),
+      priceText: electricRep ? `${electricRep.dailyPrice.toLocaleString('vi-VN')}${isEnglish ? '₫/day' : 'đ/ngày'}` : (isEnglish ? 'From 150,000₫/day' : 'Từ 150.000đ/ngày'),
       imageUrl: getOptimizedVehicleImageUrl(electricRep?.images?.[1] || electricRep?.images?.[0]),
       link: '/bikes?type=xe-dien',
       vehicle: electricRep,
     },
     {
       id: 'xe-so',
-      label: 'Xe Số & Côn Tay',
+      label: t('home.lineGearTitle'),
       models: gearRep?.vehicleModel || 'Wave Alpha • Future • Winner',
-      highlight: 'Gọn nhẹ • 1.6L/100km',
-      priceText: gearRep ? `${gearRep.dailyPrice.toLocaleString('vi-VN')}đ/ngày` : 'Từ 100.000đ/ngày',
+      highlight: t('home.lineGearHighlight'),
+      priceText: gearRep ? `${gearRep.dailyPrice.toLocaleString('vi-VN')}${isEnglish ? '₫/day' : 'đ/ngày'}` : (isEnglish ? 'From 100,000₫/day' : 'Từ 100.000đ/ngày'),
       imageUrl: getOptimizedVehicleImageUrl(gearRep?.images?.[1] || gearRep?.images?.[0]),
       link: '/bikes?type=xe-so',
       vehicle: gearRep,
@@ -277,9 +364,6 @@ export const HomePage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] bg-editorial-grain">
-      {/* Dynamic Home Banner Carousel (UC-116: Auto-slide, links, hidden if empty) */}
-      <BannerCarousel />
-
       {/* =========================================================================
           1. EDITORIAL HERO & ARCHITECTURAL DISPATCH TICKET
           ========================================================================= */}
@@ -293,33 +377,33 @@ export const HomePage: React.FC = () => {
             <div className="lg:col-span-7 space-y-7 pt-1 animate-fade-up">
               <div className="space-y-4">
                 <p className="text-xs uppercase tracking-[0.18em] text-[#FFC799] font-medium">
-                  Thuê Xe Máy Tự Lái Đô Thị &amp; Du Lịch Đà Nẵng
+                  {t('home.heroBadge')}
                 </p>
 
                 <h1 className="text-4xl sm:text-6xl lg:text-[64px] font-bold tracking-tight text-[#F5F5F5] leading-[1.08]">
-                  Dạo phố nhẹ nhàng,
+                  {t('home.heroTitleMain')}
                   <br />
                   <span className="font-serif-display italic font-normal text-[#FFC799]">
-                    lắng nghe nhịp sống Đà Nẵng.
+                    {t('home.heroTitleAccent')}
                   </span>
                 </h1>
               </div>
 
               <p className="text-base sm:text-[17px] text-[#A0A0A0] font-normal leading-[1.75] max-w-xl">
-                Từ những buổi sáng cà phê trung tâm Hải Châu, chiều lướt gió dọc đại lộ biển Mỹ Khê cho đến những chuyến vi vu phố cổ Hội An cuối tuần — Motorent mang đến dàn xe tay ga, xe điện và xe số đời mới êm ái, cốp rộng, tiết kiệm nhiên liệu để bạn tự do di chuyển khắp thành phố.
+                {t('home.heroDescription')}
               </p>
 
               {/* 3 Featured Urban Vehicle Lines with Studio Photography */}
               <div className="pt-2">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] uppercase tracking-[0.15em] text-[#FFC799] font-medium">
-                    Các dòng xe chủ lực đi phố &amp; dạo biển
+                    {t('home.featuredHeading')}
                   </span>
                   <Link
                     to="/bikes"
                     className="text-[11px] text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors flex items-center space-x-1"
                   >
-                    <span>Xem tất cả dòng xe</span>
+                    <span>{t('home.viewAllVehicles')}</span>
                     <ArrowRight className="w-3 h-3" />
                   </Link>
                 </div>
@@ -389,7 +473,7 @@ export const HomePage: React.FC = () => {
               className="px-3.5 py-1.5 bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] rounded-lg font-semibold flex items-center space-x-1 transition-colors cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span>Thử lại</span>
+              <span>{isEnglish ? "Try again" : "Thử lại"}</span>
             </button>
           </div>
         </section>
@@ -404,12 +488,12 @@ export const HomePage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
           <div className="max-w-2xl">
             <p className="text-xs uppercase tracking-[0.18em] text-[#FFC799] font-medium mb-2">
-              Danh Mục Xe Đời Mới 2023 – 2024
+              {isEnglish ? "Latest 2023 – 2024 Fleet Collection" : "Danh Mục Xe Đời Mới 2023 – 2024"}
             </p>
             <h2 className="text-3xl sm:text-5xl font-bold text-[#F5F5F5] tracking-tight leading-tight">
-              Tuyển chọn xe đi phố,{' '}
+              {isEnglish ? 'Curated urban rides, ' : 'Tuyển chọn xe đi phố, '}
               <span className="font-serif-display italic font-normal text-[#FFC799]">
-                êm ái và tiện nghi.
+                {isEnglish ? 'smooth & comfortable.' : 'êm ái và tiện nghi.'}
               </span>
             </h2>
           </div>
@@ -418,7 +502,7 @@ export const HomePage: React.FC = () => {
             to="/bikes"
             className="inline-flex items-center space-x-2 text-xs font-semibold text-[#F5F5F5] hover:text-[#FFC799] pb-1 border-b border-[#FFC799]/50 transition-colors self-start md:self-auto"
           >
-            <span>Mở toàn bộ danh mục ({vehicles.length} chiếc)</span>
+            <span>{isEnglish ? `Explore Entire Fleet (${vehicles.length} bikes)` : `Mở toàn bộ danh mục (${vehicles.length} chiếc)`}</span>
             <ArrowUpRight className="w-4 h-4 text-[#FFC799]" />
           </Link>
         </div>
@@ -429,8 +513,8 @@ export const HomePage: React.FC = () => {
             {/* Left 5 Columns: Open Typographic Index with Studio Thumbnails */}
             <div className="lg:col-span-5">
               <div className="flex items-center justify-between pb-3 text-[11px] uppercase tracking-[0.14em] text-[#6E6E6E] border-b border-white/10">
-                <span>Danh mục trưng bày</span>
-                <span>Giá niêm yết / ngày</span>
+                <span>{isEnglish ? "Showroom Fleet" : "Danh mục trưng bày"}</span>
+                <span>{isEnglish ? "Listed Rate / Day" : "Giá niêm yết / ngày"}</span>
               </div>
 
               <div className="divide-y divide-white/[0.08] border-b border-white/10">
@@ -480,11 +564,11 @@ export const HomePage: React.FC = () => {
                           </h4>
                           <p className="text-[11px] text-[#6E6E6E] truncate mt-0.5">
                             {bike.transmissionType === 'Manual'
-                              ? 'Côn tay thể thao'
+                              ? (isEnglish ? 'Sport Manual Clutch' : 'Côn tay thể thao')
                               : bike.transmissionType === 'Automatic'
-                              ? 'Tay ga đô thị'
-                              : 'Xe số tiết kiệm'}{' '}
-                            • Biển số {bike.licensePlate}
+                              ? (isEnglish ? 'Urban Automatic Scooter' : 'Tay ga đô thị')
+                              : (isEnglish ? 'Economy Semi-Auto Bike' : 'Xe số tiết kiệm')}{' '}
+                            • {isEnglish ? 'Plate' : 'Biển số'} {bike.licensePlate}
                           </p>
                         </div>
                       </div>
@@ -492,7 +576,7 @@ export const HomePage: React.FC = () => {
                       <div className="text-right shrink-0 flex items-center space-x-2.5">
                         <div>
                           <span className="font-mono-tabular font-semibold text-sm text-[#F5F5F5] block">
-                            {bike.dailyPrice.toLocaleString('vi-VN')} đ
+                            {bike.dailyPrice.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                           </span>
                           <span className="text-[10px] text-[#6E6E6E] font-mono-tabular">
                             ODO {bike.odometer.toLocaleString('vi-VN')}km
@@ -510,9 +594,9 @@ export const HomePage: React.FC = () => {
               </div>
 
               <div className="pt-5 flex items-center justify-between text-xs text-[#A0A0A0]">
-                <span>Tất cả xe đều kèm 02 mũ 3/4 khử trùng tia UV &amp; 02 áo mưa</span>
+                <span>{isEnglish ? "All bikes include 02 UV-sanitized 3/4 helmets & 02 raincoats" : "Tất cả xe đều kèm 02 mũ 3/4 khử trùng tia UV & 02 áo mưa"}</span>
                 <Link to="/bikes" className="text-[#FFC799] hover:underline font-medium shrink-0 ml-2">
-                  Xem thêm →
+                  {isEnglish ? "Explore more →" : "Xem thêm →"}
                 </Link>
               </div>
             </div>
@@ -530,13 +614,13 @@ export const HomePage: React.FC = () => {
                       {activeVehicle.licensePlate}
                     </span>
                     <span className="px-2.5 py-1 rounded bg-[#101010]/10 text-[#101010] font-medium text-xs border border-black/10">
-                      Sản xuất {activeVehicle.yearManufactured || 2024}
+                      {isEnglish ? "Year" : "Sản xuất"} {activeVehicle.yearManufactured || 2024}
                     </span>
                   </div>
 
                   <span className="inline-flex items-center px-3 py-1 rounded bg-[#101010]/90 text-[#F5F5F5] text-xs font-medium">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4] mr-2" />
-                    Sẵn sàng tại trạm
+                    {isEnglish ? "Available at station" : "Sẵn sàng tại trạm"}
                   </span>
                 </div>
 
@@ -551,8 +635,8 @@ export const HomePage: React.FC = () => {
                   />
                 ) : (
                   <div className="text-center text-[#47524D] py-8">
-                    <p className="font-semibold text-sm">Ảnh chụp thực tế tại trạm Motorent</p>
-                    <p className="text-xs mt-1">Nguyên bản theo biển số {activeVehicle.licensePlate}</p>
+                    <p className="font-semibold text-sm">{isEnglish ? "Actual photo at Motorent Station" : "Ảnh chụp thực tế tại trạm Motorent"}</p>
+                    <p className="text-xs mt-1">{isEnglish ? `Authentic to license plate ${activeVehicle.licensePlate}` : `Nguyên bản theo biển số ${activeVehicle.licensePlate}`}</p>
                   </div>
                 )}
 
@@ -583,7 +667,7 @@ export const HomePage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-white/[0.08]">
                   <div>
                     <span className="text-xs uppercase tracking-[0.15em] text-[#FFC799] font-medium">
-                      Thông tin phương tiện • {activeVehicle.brand}
+                      {isEnglish ? "Vehicle Specifications •" : "Thông tin phương tiện •"} {activeVehicle.brand}
                     </span>
                     <h3 className="text-2xl sm:text-3xl font-bold text-[#F5F5F5] mt-0.5">
                       {activeVehicle.vehicleModel}
@@ -592,11 +676,11 @@ export const HomePage: React.FC = () => {
 
                   <div className="flex items-baseline space-x-4">
                     <div className="text-left sm:text-right">
-                      <span className="text-[11px] text-[#6E6E6E] block">Giá thuê trọn gói</span>
+                      <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "All-Inclusive Rental Rate" : "Giá thuê trọn gói"}</span>
                       <span className="text-2xl sm:text-3xl font-bold text-[#F5F5F5] font-mono-tabular">
                         {activeVehicle.dailyPrice.toLocaleString('vi-VN')}
                       </span>
-                      <span className="text-xs text-[#A0A0A0] ml-1">đ/ngày</span>
+                      <span className="text-xs text-[#A0A0A0] ml-1">{isEnglish ? "₫/day" : "đ/ngày"}</span>
                     </div>
 
                     <button
@@ -604,7 +688,7 @@ export const HomePage: React.FC = () => {
                       onClick={() => handleBookVehicle(activeVehicle)}
                       className="px-6 py-3.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs sm:text-sm transition-all active:scale-95 flex items-center space-x-2 cursor-pointer shrink-0"
                     >
-                      <span>Giữ chiếc xe này</span>
+                      <span>{isEnglish ? "Reserve This Bike" : "Giữ chiếc xe này"}</span>
                       <ArrowRight className="w-4 h-4 stroke-[2.2]" />
                     </button>
                   </div>
@@ -613,34 +697,34 @@ export const HomePage: React.FC = () => {
                 {/* 4-Column Hairline Spec Row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.08] border-b border-white/[0.08] text-xs">
                   <div className="py-3.5 pr-4">
-                    <span className="text-[11px] text-[#6E6E6E] block">Đồng hồ ODO thực</span>
+                    <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "Actual ODO" : "Đồng hồ ODO thực"}</span>
                     <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-sm mt-0.5 block">
                       {activeVehicle.odometer.toLocaleString('vi-VN')} km
                     </span>
                   </div>
 
                   <div className="py-3.5 sm:px-4">
-                    <span className="text-[11px] text-[#6E6E6E] block">Truyền động</span>
+                    <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "Transmission" : "Truyền động"}</span>
                     <span className="font-semibold text-[#F5F5F5] text-sm mt-0.5 block">
                       {activeVehicle.transmissionType === 'Manual'
-                        ? 'Côn tay 6 cấp'
+                        ? (isEnglish ? '6-Speed Manual' : 'Côn tay 6 cấp')
                         : activeVehicle.transmissionType === 'Automatic'
-                        ? 'Vô cấp tự động'
-                        : 'Hộp số 4 cấp'}
+                        ? (isEnglish ? 'CVT Automatic' : 'Vô cấp tự động')
+                        : (isEnglish ? '4-Speed Gearbox' : 'Hộp số 4 cấp')}
                     </span>
                   </div>
 
                   <div className="py-3.5 pr-4 sm:px-4">
-                    <span className="text-[11px] text-[#6E6E6E] block">Tiêu hao nhiên liệu</span>
+                    <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "Fuel Economy" : "Tiêu hao nhiên liệu"}</span>
                     <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-sm mt-0.5 block">
-                      {activeVehicle.fuelType === 'Electric' ? 'Điện ~198km' : '~1.8 L / 100km'}
+                      {activeVehicle.fuelType === 'Electric' ? (isEnglish ? 'Electric ~198km' : 'Điện ~198km') : '~1.8 L / 100km'}
                     </span>
                   </div>
 
                   <div className="py-3.5 sm:pl-4">
-                    <span className="text-[11px] text-[#6E6E6E] block">Mức cọc giữ biển số (30%)</span>
+                    <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "Plate Reservation Deposit (30%)" : "Mức cọc giữ biển số (30%)"}</span>
                     <span className="font-mono-tabular font-semibold text-[#FFC799] text-sm mt-0.5 block">
-                      {Math.round(activeVehicle.dailyPrice * 0.3).toLocaleString('vi-VN')} đ
+                      {Math.round(activeVehicle.dailyPrice * 0.3).toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                   </div>
                 </div>
@@ -652,7 +736,7 @@ export const HomePage: React.FC = () => {
         ) : (
           <div className="py-20 text-center">
             <div className="inline-block animate-spin rounded-full h-7 w-7 border-b-2 border-[#FFC799] mb-3" />
-            <p className="text-xs text-[#A0A0A0]">Đang tải danh sách xe tại trạm...</p>
+            <p className="text-xs text-[#A0A0A0]">{isEnglish ? "Loading fleet at station..." : "Đang tải danh sách xe tại trạm..."}</p>
           </div>
         )}
 
@@ -667,12 +751,12 @@ export const HomePage: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-6 pb-8 border-b border-white/[0.08]">
           <div className="max-w-2xl">
             <p className="text-xs uppercase tracking-[0.18em] text-[#FFC799] font-medium mb-2">
-              Cẩm Nang Di Chuyển Đô Thị &amp; Ven Biển
+              {isEnglish ? "Urban & Coastal Exploration Guide" : "Cẩm Nang Di Chuyển Đô Thị & Ven Biển"}
             </p>
             <h2 className="text-3xl sm:text-5xl font-bold text-[#F5F5F5] tracking-tight leading-tight">
-              Ba lộ trình dạo phố{' '}
+              {isEnglish ? 'Three favorite city routes ' : 'Ba lộ trình dạo phố '}
               <span className="font-serif-display italic font-normal text-[#FFC799]">
-                được yêu thích nhất.
+                {isEnglish ? 'loved by riders.' : 'được yêu thích nhất.'}
               </span>
             </h2>
           </div>
@@ -730,19 +814,19 @@ export const HomePage: React.FC = () => {
             {/* Open 3-Column Route Metrics */}
             <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-white/[0.08] border-y border-white/[0.08] py-4 text-xs">
               <div className="pb-3 sm:pb-0 sm:pr-4">
-                <span className="text-[11px] text-[#6E6E6E] block">Đặc trưng lộ trình</span>
+                <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "Route Profile" : "Đặc trưng lộ trình"}</span>
                 <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-sm mt-0.5 block">
                   {currentRoute.elevation}
                 </span>
               </div>
               <div className="py-3 sm:py-0 sm:px-4">
-                <span className="text-[11px] text-[#6E6E6E] block">Nhịp độ di chuyển</span>
+                <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "Pace & Timing" : "Nhịp độ di chuyển"}</span>
                 <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-sm mt-0.5 block">
                   {currentRoute.grade}
                 </span>
               </div>
               <div className="pt-3 sm:pt-0 sm:pl-4">
-                <span className="text-[11px] text-[#6E6E6E] block">Tuyến đường chính</span>
+                <span className="text-[11px] text-[#6E6E6E] block">{isEnglish ? "Thoroughfare" : "Tuyến đường chính"}</span>
                 <span className="font-semibold text-[#FFC799] text-xs mt-0.5 block">
                   {currentRoute.surface}
                 </span>
@@ -753,7 +837,7 @@ export const HomePage: React.FC = () => {
             <div className="pl-5 border-l-2 border-[#FFC799] space-y-1.5 py-1">
               <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#F5F5F5] flex items-center space-x-2">
                 <ShieldCheck className="w-4 h-4 text-[#FFC799]" />
-                <span>Gợi ý di chuyển thuận tiện trong phố</span>
+                <span>{isEnglish ? "Practical City Riding Tips" : "Gợi ý di chuyển thuận tiện trong phố"}</span>
               </div>
               <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed">
                 {currentRoute.mechanicNote}
@@ -768,7 +852,7 @@ export const HomePage: React.FC = () => {
             <div>
               <div className="flex items-center justify-between text-[11px] text-[#A0A0A0] mb-3">
                 <span className="uppercase tracking-[0.14em] font-medium text-[#FFC799]">
-                  Dòng xe gợi ý cho lộ trình này
+                  {isEnglish ? "Recommended rides for this route" : "Dòng xe gợi ý cho lộ trình này"}
                 </span>
                 <span className="font-mono-tabular">{currentRoute.distance}</span>
               </div>
@@ -805,13 +889,13 @@ export const HomePage: React.FC = () => {
                         <div className="flex items-center justify-between mt-1 text-[11px]">
                           <span className="text-[#A0A0A0]">
                             {rv.fuelType === 'Electric'
-                              ? 'Xe máy điện'
+                              ? (isEnglish ? 'Electric Scooter' : 'Xe máy điện')
                               : rv.transmissionType === 'Automatic'
-                              ? 'Tay ga đô thị'
-                              : 'Xe số / Côn tay'}
+                              ? (isEnglish ? 'Urban Automatic' : 'Tay ga đô thị')
+                              : (isEnglish ? 'Semi-Auto / Manual' : 'Xe số / Côn tay')}
                           </span>
                           <span className="font-mono-tabular font-semibold text-[#FFC799]">
-                            {rv.dailyPrice.toLocaleString('vi-VN')}đ
+                            {rv.dailyPrice.toLocaleString('vi-VN')}{isEnglish ? '₫' : 'đ'}
                           </span>
                         </div>
                       </div>
@@ -825,14 +909,14 @@ export const HomePage: React.FC = () => {
               )}
 
               <p className="text-xs text-[#A0A0A0] mt-3">
-                Phù hợp nhất: <strong className="text-[#F5F5F5] font-medium">{currentRoute.recommendedType}</strong>
+                {isEnglish ? "Best Suited:" : "Phù hợp nhất:"} <strong className="text-[#F5F5F5] font-medium">{currentRoute.recommendedType}</strong>
               </p>
             </div>
 
             {/* Waypoints List */}
             <div className="pt-2 border-t border-white/[0.08]">
               <span className="text-[10px] uppercase tracking-[0.14em] text-[#6E6E6E] block mb-2.5">
-                Điểm dừng chân dọc lộ trình
+                {isEnglish ? "Highlights Along the Route" : "Điểm dừng chân dọc lộ trình"}
               </span>
               <ul className="space-y-2 text-xs text-[#A0A0A0]">
                 {currentRoute.waypoints.map((wp, i) => (
@@ -850,7 +934,7 @@ export const HomePage: React.FC = () => {
               className="w-full py-3 px-4 rounded-xl bg-white/[0.05] hover:bg-[#F5F5F5] text-[#F5F5F5] hover:text-[#101010] border border-white/10 font-semibold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
             >
               <Navigation className="w-3.5 h-3.5" />
-              <span>Chọn xe đi {currentRoute.title.split('&')[0].split('—')[0].trim()}</span>
+              <span>{isEnglish ? `Select bike for ${currentRoute.title.split("&")[0].split("—")[0].trim()}` : `Chọn xe đi ${currentRoute.title.split("&")[0].split("—")[0].trim()}`}</span>
             </button>
 
           </div>
@@ -867,16 +951,16 @@ export const HomePage: React.FC = () => {
           {/* Left 5 Columns: Editorial Manifesto */}
           <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-28">
             <p className="text-xs uppercase tracking-[0.18em] text-[#FFC799] font-medium">
-              Triết Lý Vận Hành &amp; Quy Trình
+              {isEnglish ? "Service Philosophy & Handover Protocol" : "Triết Lý Vận Hành & Quy Trình"}
             </p>
             <h2 className="text-3xl sm:text-5xl font-bold text-[#F5F5F5] leading-[1.12] tracking-tight">
-              Chúng tôi từ chối giữ{' '}
+              {isEnglish ? 'We refuse to withhold ' : 'Chúng tôi từ chối giữ '}
               <span className="font-serif-display italic font-normal text-[#FFC799]">
-                giấy tờ tùy thân gốc của bạn.
+                {isEnglish ? 'your original identification documents.' : 'giấy tờ tùy thân gốc của bạn.'}
               </span>
             </h2>
             <p className="text-sm sm:text-base text-[#A0A0A0] leading-relaxed pt-2">
-              Thuê xe máy tại một thành phố biển hiện đại không nên bắt đầu bằng sự nghi ngại. Motorent loại bỏ hoàn toàn thói quen giữ lại CCCD/Hộ chiếu bản gốc hay giao xe ngẫu nhiên vào phút chót.
+              {isEnglish ? 'Renting a motorbike in a modern beach city should not begin with anxiety. Motorent completely eliminates the industry habit of withholding your original Passport/National ID or swapping bikes at the last minute.' : 'Thuê xe máy tại một thành phố biển hiện đại không nên bắt đầu bằng sự nghi ngại. Motorent loại bỏ hoàn toàn thói quen giữ lại CCCD/Hộ chiếu bản gốc hay giao xe ngẫu nhiên vào phút chót.'}
             </p>
           </div>
 
@@ -889,10 +973,10 @@ export const HomePage: React.FC = () => {
               </span>
               <div className="space-y-1.5">
                 <h3 className="text-lg font-bold text-[#F5F5F5]">
-                  Định danh số hóa eKYC — Giữ trọn CCCD gốc bên mình
+                  {isEnglish ? 'Digital eKYC Identity — Keep your original National ID safe' : 'Định danh số hóa eKYC — Giữ trọn CCCD gốc bên mình'}
                 </h3>
                 <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed">
-                  Bạn chỉ cần chụp ảnh CCCD và Bằng lái xe một lần trên hệ thống có đóng dấu bảo mật tự động. Khi nhận xe tại trạm, nhân viên đối chiếu trong 30 giây và trả lại toàn bộ giấy tờ gốc để bạn thoải mái nhận phòng khách sạn hoặc làm thủ tục bay.
+                  {isEnglish ? 'You only need to snap your ID and Driver License once on our auto-watermarked platform. At the counter, staff verify in 30 seconds and return all original documents so you can easily check into your hotel or flight.' : 'Bạn chỉ cần chụp ảnh CCCD và Bằng lái xe một lần trên hệ thống có đóng dấu bảo mật tự động. Khi nhận xe tại trạm, nhân viên đối chiếu trong 30 giây và trả lại toàn bộ giấy tờ gốc để bạn thoải mái nhận phòng khách sạn hoặc làm thủ tục bay.'}
                 </p>
               </div>
             </div>
@@ -903,10 +987,10 @@ export const HomePage: React.FC = () => {
               </span>
               <div className="space-y-1.5">
                 <h3 className="text-lg font-bold text-[#F5F5F5]">
-                  Đặt cọc 30% khóa đích danh biển số xe đã chọn
+                  {isEnglish ? '30% deposit locks the exact license plate you picked' : 'Đặt cọc 30% khóa đích danh biển số xe đã chọn'}
                 </h3>
                 <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed">
-                  Bạn chọn chiếc xe nào trên danh mục, hệ thống khóa đúng biển số chiếc xe đó cho lịch trình của bạn. Không đánh tráo sang xe cũ hơn, không tăng giá vào dịp lễ pháo hoa hay cuối tuần.
+                  {isEnglish ? 'Whichever bike you choose on our catalog, our platform locks that exact plate number for your dates. No last-minute swaps to older bikes, no surge pricing during fireworks festivals or holiday weekends.' : 'Bạn chọn chiếc xe nào trên danh mục, hệ thống khóa đúng biển số chiếc xe đó cho lịch trình của bạn. Không đánh tráo sang xe cũ hơn, không tăng giá vào dịp lễ pháo hoa hay cuối tuần.'}
                 </p>
               </div>
             </div>
@@ -917,10 +1001,10 @@ export const HomePage: React.FC = () => {
               </span>
               <div className="space-y-1.5">
                 <h3 className="text-lg font-bold text-[#F5F5F5]">
-                  Nhận xe tại Sân bay Đà Nẵng, trả xe tại Biển Mỹ Khê (Phụ phí 0đ)
+                  {isEnglish ? 'Pick up at Da Nang Airport, return at My Khe Beach (0₫ surcharge)' : 'Nhận xe tại Sân bay Đà Nẵng, trả xe tại Biển Mỹ Khê (Phụ phí 0đ)'}
                 </h3>
                 <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed">
-                  Vừa bước ra khỏi cửa ga đến T1/T2 là có thể nhận xe vào trung tâm ngay. Kết thúc kỳ nghỉ, bạn có thể trả xe tại bất kỳ trạm nào trong mạng lưới Đà Nẵng mà không tốn phí điều chuyển một chiều.
+                  {isEnglish ? 'Step right out of Arrival Terminal T1/T2 and grab your bike to ride downtown immediately. When your holiday ends, return at any network station across Da Nang with zero one-way relocation fees.' : 'Vừa bước ra khỏi cửa ga đến T1/T2 là có thể nhận xe vào trung tâm ngay. Kết thúc kỳ nghỉ, bạn có thể trả xe tại bất kỳ trạm nào trong mạng lưới Đà Nẵng mà không tốn phí điều chuyển một chiều.'}
                 </p>
               </div>
             </div>
@@ -931,10 +1015,10 @@ export const HomePage: React.FC = () => {
               </span>
               <div className="space-y-1.5">
                 <h3 className="text-lg font-bold text-[#F5F5F5]">
-                  Hỗ trợ kỹ thuật tận nơi trong nội thành 24/7
+                  {isEnglish ? '24/7 on-demand mobile roadside assistance across the city' : 'Hỗ trợ kỹ thuật tận nơi trong nội thành 24/7'}
                 </h3>
                 <p className="text-xs sm:text-sm text-[#A0A0A0] leading-relaxed">
-                  Dù bạn đang dạo phố trung tâm Hải Châu, ven biển Mỹ Khê hay trên đường đi Hội An, đội kỹ thuật lưu động luôn túc trực để hỗ trợ tận nơi trong vòng 15–30 phút và đổi ngay một chiếc xe tương đương nếu phát sinh sự cố.
+                  {isEnglish ? 'Whether cruising through Hai Chau downtown, along My Khe beach, or heading to Hoi An, our mobile technician team is on standby to assist within 15–30 minutes and swap an equivalent bike instantly if any mechanical issue occurs.' : 'Dù bạn đang dạo phố trung tâm Hải Châu, ven biển Mỹ Khê hay trên đường đi Hội An, đội kỹ thuật lưu động luôn túc trực để hỗ trợ tận nơi trong vòng 15–30 phút và đổi ngay một chiếc xe tương đương nếu phát sinh sự cố.'}
                 </p>
               </div>
             </div>
@@ -952,12 +1036,12 @@ export const HomePage: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.18em] text-[#FFC799] font-medium mb-2">
-              Hệ Thống Trạm Giao Nhận
+              {isEnglish ? "Pickup & Drop-off Stations" : "Hệ Thống Trạm Giao Nhận"}
             </p>
             <h2 className="text-3xl sm:text-5xl font-bold text-[#F5F5F5] tracking-tight">
-              Điểm xuất phát{' '}
+              {isEnglish ? 'Departure points ' : 'Điểm xuất phát '}
               <span className="font-serif-display italic font-normal text-[#FFC799]">
-                trên khắp Đà Nẵng.
+                {isEnglish ? 'across Da Nang.' : 'trên khắp Đà Nẵng.'}
               </span>
             </h2>
           </div>
@@ -966,7 +1050,7 @@ export const HomePage: React.FC = () => {
             to="/branches"
             className="inline-flex items-center space-x-1.5 text-xs font-semibold text-[#F5F5F5] hover:text-[#FFC799] pb-1 border-b border-[#FFC799]/50 transition-colors self-start md:self-auto"
           >
-            <span>Xem chi tiết từng trạm</span>
+            <span>{isEnglish ? "View details for all stations" : "Xem chi tiết từng trạm"}</span>
             <ArrowUpRight className="w-4 h-4 text-[#FFC799]" />
           </Link>
         </div>
@@ -987,7 +1071,7 @@ export const HomePage: React.FC = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-serif-display italic text-lg text-[#FFC799]">
-                    Trạm 0{idx + 1} • {branch.code}
+                    {isEnglish ? "Station 0" : "Trạm 0"}{idx + 1} • {branch.code}
                   </span>
                   <span className="font-mono-tabular text-[11px] text-[#A0A0A0]">
                     {branch.hours_open || '06:00'} – {branch.hours_close || '23:00'}
@@ -1015,7 +1099,7 @@ export const HomePage: React.FC = () => {
                   to={`/bikes?pickup=${branch._id}`}
                   className="inline-flex items-center space-x-1 text-[#FFC799] font-semibold hover:underline"
                 >
-                  <span>Nhận xe tại trạm này</span>
+                  <span>{isEnglish ? "Pick up bike at this station" : "Nhận xe tại trạm này"}</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>

@@ -35,7 +35,8 @@ import {
 import axios from 'axios';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import type { Vehicle, Branch, Booking } from '../types';
+import { useTranslation } from '../context/I18nContext';
+import type { Vehicle, Branch, Booking, Discount } from '../types';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import {
   DateTimePicker,
@@ -46,55 +47,11 @@ import {
 } from '../components/DateTimePicker';
 import { BranchSelect } from '../components/BranchSelect';
 
-const ANGLE_VIEWS = [
-  { id: 1, label: 'Ngang xe', title: 'Góc ngang thân xe' },
-  { id: 0, label: '3/4 Trước', title: 'Góc 3/4 mặt trước' },
-  { id: 2, label: 'Góc sau', title: 'Góc đuôi xe & khoang lái' },
+const getAngleViews = (isEnglish: boolean) => [
+  { id: 1, label: isEnglish ? 'Side View' : 'Ngang xe', title: isEnglish ? 'Vehicle Side Profile' : 'Góc ngang thân xe' },
+  { id: 0, label: isEnglish ? '3/4 Front' : '3/4 Trước', title: isEnglish ? '3/4 Front Perspective' : 'Góc 3/4 mặt trước' },
+  { id: 2, label: isEnglish ? 'Rear View' : 'Góc sau', title: isEnglish ? 'Rear & Cockpit Perspective' : 'Góc đuôi xe & khoang lái' },
 ];
-
-const AVAILABLE_VOUCHERS = [
-  {
-    code: 'THEOGIO10',
-    title: 'Giảm 10% (Tối đa 15.000đ)',
-    desc: 'Áp dụng cho mọi gói thuê theo giờ & theo ngày (đơn từ 30.000đ)',
-    discountPercent: 10,
-    maxDiscount: 15000,
-    minOrder: 30000,
-  },
-  {
-    code: 'CHAOBANMOI',
-    title: 'Giảm 20.000đ Khách mới',
-    desc: 'Áp dụng cho đơn thuê từ 1 ngày trở lên (tối thiểu 80.000đ)',
-    discountPercent: 25,
-    maxDiscount: 20000,
-    minOrder: 80000,
-  },
-  {
-    code: 'MOTORENT30',
-    title: 'Giảm 30.000đ Thuê từ 2 ngày',
-    desc: 'Áp dụng cho đơn thuê từ 150.000đ trở lên',
-    discountPercent: 20,
-    maxDiscount: 30000,
-    minOrder: 150000,
-  },
-  {
-    code: 'DANANGVIP',
-    title: 'Giảm 15% (Tối đa 100.000đ)',
-    desc: 'Áp dụng cho đơn thuê dài ngày từ 300.000đ trở lên',
-    discountPercent: 15,
-    maxDiscount: 100000,
-    minOrder: 300000,
-  },
-];
-
-const computeVoucherDiscountAmount = (code: string, baseFee: number): number => {
-  if (!code || baseFee <= 0) return 0;
-  const found = AVAILABLE_VOUCHERS.find((v) => v.code === code.toUpperCase());
-  if (!found) return 0;
-  if (baseFee < found.minOrder) return 0;
-  const raw = Math.round((baseFee * found.discountPercent) / 100);
-  return Math.min(found.maxDiscount, raw);
-};
 
 interface PaymentReceiptInfo {
   transactionId: string;
@@ -103,11 +60,37 @@ interface PaymentReceiptInfo {
   paidAt: string;
 }
 
+interface BookingEstimateResult {
+  isAvailable: boolean;
+  conflicting: boolean;
+  basePrice: number;
+  baseRentalBeforeSeasonal?: number;
+  seasonalSurcharge?: number;
+  breakdown?: {
+    date: string;
+    hours: number;
+    ruleName: string | null;
+    multiplier: number;
+    baseAmount: number;
+    adjustedAmount: number;
+  }[];
+  discountAmount: number;
+  appliedDiscount: {
+    code: string;
+    discountPercent: number;
+    discountAmount: number;
+  } | null;
+  totalAmount: number;
+  depositAmount: number;
+  remainingAmount: number;
+}
+
 export const BookingPage: React.FC = () => {
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, isAuthenticated, updateUser } = useAuth();
+  const { isEnglish } = useTranslation();
 
   const pickupParam = searchParams.get('pickup') || '';
   const returnParam = searchParams.get('return') || '';
@@ -177,21 +160,18 @@ export const BookingPage: React.FC = () => {
   });
   const [step2Submitted, setStep2Submitted] = useState<boolean>(false);
 
-  // Form Step 3: Perks & Interactive Voucher Selection
-  const initialVoucherCode = AVAILABLE_VOUCHERS.some((v) => v.code === voucherParam)
-    ? voucherParam
-    : 'CHAOBANMOI';
-  const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>(initialVoucherCode);
+  // Form Step 3: Perks & Real DB Voucher Selection
+  const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([]);
+  const [selectedVoucherCode, setSelectedVoucherCode] = useState<string>(voucherParam);
   const [customVoucherInput, setCustomVoucherInput] = useState<string>('');
   const [discountFeedback, setDiscountFeedback] = useState<string>('');
+  const [estimateData, setEstimateData] = useState<BookingEstimateResult | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState<boolean>(false);
 
   // Form Step 4: Payment selection & QR Verification
   const [paymentOption, setPaymentOption] = useState<'VietQR' | 'VNPay' | 'Cash'>('VietQR');
   const [paymentScope, setPaymentScope] = useState<'Deposit30' | 'Full100'>('Deposit30');
-  const [vnpayBankCode, setVnpayBankCode] = useState<'NCB' | '' | 'INTCARD'>('NCB');
-  const [qrChecking, setQrChecking] = useState<boolean>(false);
-  const [qrVerified, setQrVerified] = useState<boolean>(false);
-  const [qrPrecheckCode, setQrPrecheckCode] = useState<string>('');
+  const [vnpayBankCode, setVnpayBankCode] = useState<'NCB' | '' | 'INTCARD'>('');
   const [copiedField, setCopiedField] = useState<string>('');
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [downloadingInvoice, setDownloadingInvoice] = useState<boolean>(false);
@@ -200,19 +180,24 @@ export const BookingPage: React.FC = () => {
   const [createdBooking, setCreatedBooking] = useState<Booking | null>(null);
   const [paymentReceipt, setPaymentReceipt] = useState<PaymentReceiptInfo | null>(null);
 
-  // 1. Fetch Vehicle & Branches
+  // 1. Fetch Vehicle, Branches & Active Discounts from DB
   useEffect(() => {
     const fetchInitData = async () => {
       setLoading(true);
       setErrorMsg('');
       try {
-        const [branchesRes, vehicleRes] = await Promise.all([
+        const [branchesRes, vehicleRes, discountsRes] = await Promise.all([
           api.get('/branches'),
           vehicleId ? api.get(`/vehicles/${vehicleId}`) : Promise.resolve(null),
+          api.get('/discounts?activeOnly=true').catch(() => null),
         ]);
 
         const branchList = branchesRes.data?.data || branchesRes.data || [];
         setBranches(branchList);
+
+        if (Array.isArray(discountsRes?.data?.data)) {
+          setAvailableDiscounts(discountsRes.data.data);
+        }
 
         if (vehicleRes && vehicleRes.data) {
           const vehData = vehicleRes.data.data || vehicleRes.data;
@@ -241,7 +226,7 @@ export const BookingPage: React.FC = () => {
         }
       } catch (err: unknown) {
         console.error('Lỗi nạp dữ liệu đặt xe:', err);
-        setErrorMsg('Không thể tải thông tin phương tiện. Vui lòng thử lại sau.');
+        setErrorMsg(isEnglish ? 'Unable to load vehicle details. Please try again later.' : 'Không thể tải thông tin phương tiện. Vui lòng thử lại sau.');
       } finally {
         setLoading(false);
       }
@@ -270,9 +255,7 @@ export const BookingPage: React.FC = () => {
       [targetUser.lastName, targetUser.firstName].filter(Boolean).join(' ') ||
       targetUser.username ||
       '';
-    const resolvedIdCard =
-      targetUser.idCardNumber ||
-      (targetUser.identityStatus === 'Verified' ? '048204008692' : '');
+    const resolvedIdCard = targetUser.idCardNumber || '';
 
     setCustomerName(fullName);
     setCustomerPhone(targetUser.phoneNumber || '');
@@ -286,8 +269,7 @@ export const BookingPage: React.FC = () => {
     if (user) {
       const fullName =
         [user.lastName, user.firstName].filter(Boolean).join(' ') || user.username || '';
-      const resolvedIdCard =
-        user.idCardNumber || (user.identityStatus === 'Verified' ? '048204008692' : '');
+      const resolvedIdCard = user.idCardNumber || '';
 
       setCustomerName((prev) => prev || fullName);
       setCustomerPhone((prev) => prev || user.phoneNumber || '');
@@ -300,14 +282,20 @@ export const BookingPage: React.FC = () => {
   const validateCustomerName = (val: string): string => {
     const trimmed = val.trim().replace(/\s+/g, ' ');
     if (!trimmed) {
-      return 'Vui lòng nhập họ và tên đầy đủ của người nhận xe.';
+      return isEnglish
+        ? 'Please enter the full name of the rider.'
+        : 'Vui lòng nhập họ và tên đầy đủ của người nhận xe.';
     }
     if (/[^a-zA-ZÀ-ỹ\s'.-]/u.test(trimmed)) {
-      return 'Họ và tên chỉ được chứa chữ cái, không chứa chữ số hoặc ký tự đặc biệt.';
+      return isEnglish
+        ? 'Full name should only contain letters.'
+        : 'Họ và tên chỉ được chứa chữ cái, không chứa chữ số hoặc ký tự đặc biệt.';
     }
     const words = trimmed.split(' ').filter(Boolean);
     if (words.length < 2 || trimmed.length < 4) {
-      return 'Vui lòng nhập đầy đủ cả Họ và Tên (tối thiểu 2 từ, VD: Nguyễn Hoàng).';
+      return isEnglish
+        ? 'Please enter both First and Last name (min 2 words, e.g. John Doe).'
+        : 'Vui lòng nhập đầy đủ cả Họ và Tên (tối thiểu 2 từ, VD: Nguyễn Hoàng).';
     }
     return '';
   };
@@ -315,10 +303,14 @@ export const BookingPage: React.FC = () => {
   const validateCustomerPhone = (val: string): string => {
     const clean = val.replace(/[\s.-]/g, '');
     if (!clean) {
-      return 'Vui lòng nhập số điện thoại di động để nhận mã xe.';
+      return isEnglish
+        ? 'Please enter a mobile phone number to receive bike code.'
+        : 'Vui lòng nhập số điện thoại di động để nhận mã xe.';
     }
     if (!/^(0|\+84)(3|5|7|8|9)[0-9]{8}$/.test(clean)) {
-      return 'Số điện thoại không hợp lệ (Cần 10 số đầu 03, 05, 07, 08, 09 — VD: 0905123456).';
+      return isEnglish
+        ? 'Invalid phone number (Requires 10 digits starting with 03, 05, 07, 08, 09).'
+        : 'Số điện thoại không hợp lệ (Cần 10 số đầu 03, 05, 07, 08, 09 — VD: 0905123456).';
     }
     return '';
   };
@@ -326,10 +318,14 @@ export const BookingPage: React.FC = () => {
   const validateCustomerEmail = (val: string): string => {
     const trimmed = val.trim();
     if (!trimmed) {
-      return 'Vui lòng nhập địa chỉ Email nhận hợp đồng thuê xe điện tử.';
+      return isEnglish
+        ? 'Please enter an email address for the digital rental agreement.'
+        : 'Vui lòng nhập địa chỉ Email nhận hợp đồng thuê xe điện tử.';
     }
     if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
-      return 'Địa chỉ Email không đúng định dạng (VD: tenban@gmail.com).';
+      return isEnglish
+        ? 'Invalid email format (e.g. yourname@gmail.com).'
+        : 'Địa chỉ Email không đúng định dạng (VD: tenban@gmail.com).';
     }
     return '';
   };
@@ -337,10 +333,14 @@ export const BookingPage: React.FC = () => {
   const validateIdCardNumber = (val: string): string => {
     const clean = val.replace(/\s+/g, '').toUpperCase();
     if (!clean) {
-      return 'Vui lòng nhập số CCCD (12 chữ số) hoặc Hộ chiếu để lập hợp đồng điện tử.';
+      return isEnglish
+        ? 'Please enter 12-digit Citizen ID or Passport number.'
+        : 'Vui lòng nhập số CCCD (12 chữ số) hoặc Hộ chiếu để lập hợp đồng điện tử.';
     }
     if (!/^([0-9]{12}|[0-9]{9}|[A-Z][0-9]{7,8})$/.test(clean)) {
-      return 'Số CCCD phải gồm đúng 12 chữ số (VD: 048204008692) hoặc Hộ chiếu hợp lệ (1 chữ cái + 7–8 số).';
+      return isEnglish
+        ? 'Must be a 12-digit National ID (e.g. 048204008692) or valid Passport (1 letter + 7–8 digits).'
+        : 'Số CCCD phải gồm đúng 12 chữ số (VD: 048204008692) hoặc Hộ chiếu hợp lệ (1 chữ cái + 7–8 số).';
     }
     return '';
   };
@@ -351,82 +351,140 @@ export const BookingPage: React.FC = () => {
   const idCardError = validateIdCardNumber(idCardNumber);
   const isStep2Valid = !nameError && !phoneError && !emailError && !idCardError;
 
-  // Reset QR precheck if payment scope or option changes
-  useEffect(() => {
-    setQrVerified(false);
-    setQrPrecheckCode('');
-  }, [paymentScope, paymentOption]);
-
-  // Smart Hourly vs. Daily Pricing Calculation
+  // Smart Hourly vs. Daily Pricing Calculation (with live Server-Side /bookings/estimate sync)
   const startDateTime = new Date(`${pickupDate}T${pickupTime}:00+07:00`);
   const endDateTime = new Date(`${returnDate}T${returnTime}:00+07:00`);
   const durationMs = Math.max(0, endDateTime.getTime() - startDateTime.getTime());
   const totalHours = Math.max(2, Math.ceil(durationMs / (1000 * 3600)));
-  const durationDays = Math.max(1, Math.ceil(totalHours / 24));
 
-  const dailyPrice = vehicle ? vehicle.dailyPrice : 0;
+  const dailyPrice = vehicle ? (vehicle.effectiveDailyPrice ?? vehicle.dailyPrice) : 0;
   const hourlyPrice =
-    vehicle?.hourlyPrice || (dailyPrice ? Math.round(dailyPrice / 5 / 1000) * 1000 : 0);
+    vehicle?.effectiveHourlyPrice ||
+    vehicle?.hourlyPrice ||
+    (dailyPrice ? Math.round(dailyPrice / 5 / 1000) * 1000 : 0);
 
   const isHourlyBilling = totalHours < 24 && totalHours * hourlyPrice < dailyPrice;
 
-  let baseRentalFee = 0;
+  let fallbackBaseRentalFee = 0;
   let billingDurationLabel = '';
   if (totalHours < 24) {
-    baseRentalFee = Math.min(dailyPrice, totalHours * hourlyPrice);
+    fallbackBaseRentalFee = Math.min(dailyPrice, totalHours * hourlyPrice);
     billingDurationLabel = isHourlyBilling
-      ? `${totalHours} giờ (Gói theo giờ)`
-      : `1 ngày (${totalHours} giờ)`;
+      ? (isEnglish ? `${totalHours} hrs (Hourly Pack)` : `${totalHours} giờ (Gói theo giờ)`)
+      : (isEnglish ? `1 day (${totalHours} hrs)` : `1 ngày (${totalHours} giờ)`);
   } else {
     const fullDays = Math.floor(totalHours / 24);
     const remHours = totalHours % 24;
     const remFee = remHours > 0 ? Math.min(dailyPrice, remHours * hourlyPrice) : 0;
-    baseRentalFee = fullDays * dailyPrice + remFee;
+    fallbackBaseRentalFee = fullDays * dailyPrice + remFee;
     if (remHours === 0) {
-      billingDurationLabel = `${fullDays} ngày (${totalHours} giờ)`;
+      billingDurationLabel = isEnglish ? `${fullDays} days (${totalHours} hrs)` : `${fullDays} ngày (${totalHours} giờ)`;
     } else if (remFee < dailyPrice) {
-      billingDurationLabel = `${fullDays} ngày + ${remHours} giờ lẻ`;
+      billingDurationLabel = isEnglish ? `${fullDays} days + ${remHours} extra hrs` : `${fullDays} ngày + ${remHours} giờ lẻ`;
     } else {
-      billingDurationLabel = `${fullDays + 1} ngày (${totalHours} giờ)`;
+      billingDurationLabel = isEnglish ? `${fullDays + 1} days (${totalHours} hrs)` : `${fullDays + 1} ngày (${totalHours} giờ)`;
     }
   }
 
-  // Dynamic voucher evaluation: if selectedVoucherCode isn't eligible for current baseRentalFee,
-  // check if user explicitly picked it or fall back cleanly
-  const activeDiscountAmount = computeVoucherDiscountAmount(selectedVoucherCode, baseRentalFee);
-  const appliedDiscount =
-    selectedVoucherCode && activeDiscountAmount > 0
-      ? { code: selectedVoucherCode, amount: activeDiscountAmount }
-      : null;
+  // Real-time server estimation & conflict detection via POST /api/bookings/estimate
+  useEffect(() => {
+    if (!vehicle || !pickupBranchId || !returnBranchId) return;
+    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime()) || startDateTime >= endDateTime) {
+      return;
+    }
 
-  const discountAmount = appliedDiscount ? appliedDiscount.amount : 0;
-  const totalAmount = Math.max(0, baseRentalFee - discountAmount);
-  const depositAmount = Math.round(totalAmount * 0.3); // Cọc 30%
-  const remainingAmount = totalAmount - depositAmount; // 70% còn lại
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        setEstimateLoading(true);
+        const res = await api.post('/bookings/estimate', {
+          vehicleId: vehicle._id,
+          pickupBranchId,
+          returnBranchId,
+          pickupDateTime: startDateTime.toISOString(),
+          returnDateTime: endDateTime.toISOString(),
+          discountCode: selectedVoucherCode || undefined,
+        });
+        if (active && res.data?.success && res.data?.data) {
+          setEstimateData(res.data.data);
+        }
+      } catch {
+        if (active) setEstimateData(null);
+      } finally {
+        if (active) setEstimateLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [
+    vehicle?._id,
+    pickupBranchId,
+    returnBranchId,
+    pickupDate,
+    pickupTime,
+    returnDate,
+    returnTime,
+    selectedVoucherCode,
+  ]);
+
+  const baseRentalFee = estimateData ? estimateData.basePrice : fallbackBaseRentalFee;
+  const isScheduleConflicting =
+    Boolean(estimateData?.conflicting) ||
+    vehicle?.status === 'Maintenance' ||
+    vehicle?.status === 'Transferring';
+
+  const computeDiscountPreview = (d: Discount, baseFee: number): number => {
+    if (!d.isActive || baseFee <= 0) return 0;
+    if (d.minBookingAmount && baseFee < d.minBookingAmount) return 0;
+    const raw = Math.round((baseFee * d.discountPercent) / 100);
+    return d.maxDiscountAmount && d.maxDiscountAmount > 0 ? Math.min(d.maxDiscountAmount, raw) : raw;
+  };
+
+  const appliedDiscount = estimateData?.appliedDiscount
+    ? {
+        code: estimateData.appliedDiscount.code,
+        amount: estimateData.appliedDiscount.discountAmount,
+      }
+    : null;
+
+  const discountAmount = estimateData ? estimateData.discountAmount : 0;
+  const totalAmount = estimateData ? estimateData.totalAmount : Math.max(0, baseRentalFee - discountAmount);
+  const depositAmount = estimateData ? estimateData.depositAmount : Math.round(totalAmount * 0.3);
+  const remainingAmount = estimateData ? estimateData.remainingAmount : totalAmount - depositAmount;
   const activePayAmount = paymentScope === 'Full100' ? totalAmount : depositAmount;
   const activeRemainingAfterPay = paymentScope === 'Full100' ? 0 : remainingAmount;
 
-  const handleSelectVoucher = (code: string) => {
+  const handleSelectVoucher = async (code: string) => {
     if (!code || code === selectedVoucherCode) {
       setSelectedVoucherCode('');
-      setDiscountFeedback('Đã gỡ mã ưu đãi.');
+      setDiscountFeedback(isEnglish ? 'Promo voucher removed.' : 'Đã gỡ mã ưu đãi.');
       return;
     }
-    const upper = code.toUpperCase();
-    const vObj = AVAILABLE_VOUCHERS.find((v) => v.code === upper);
-    if (!vObj) {
-      setDiscountFeedback('Mã giảm giá không tồn tại.');
-      return;
+    const upper = code.trim().toUpperCase();
+    try {
+      const validateRes = await api.post('/discounts/validate', {
+        code: upper,
+        bookingAmount: baseRentalFee,
+      });
+      if (validateRes.data?.success && validateRes.data?.data) {
+        const dData = validateRes.data.data;
+        setSelectedVoucherCode(dData.code);
+        setDiscountFeedback(
+          isEnglish
+            ? `Applied voucher ${dData.code}: -${Number(dData.discountAmount || 0).toLocaleString('en-US')}₫`
+            : `Đã áp dụng mã ${dData.code}: Giảm ${Number(dData.discountAmount || 0).toLocaleString('vi-VN')}đ`
+        );
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setDiscountFeedback(err.response.data.message);
+      } else {
+        setDiscountFeedback(isEnglish ? 'Invalid promo code or requirements not met.' : 'Mã giảm giá không hợp lệ hoặc chưa đủ điều kiện áp dụng.');
+      }
     }
-    if (baseRentalFee < vObj.minOrder) {
-      setDiscountFeedback(
-        `Mã ${upper} yêu cầu đơn thuê tối thiểu ${vObj.minOrder.toLocaleString('vi-VN')}đ (Hiện tại: ${baseRentalFee.toLocaleString('vi-VN')}đ).`
-      );
-      return;
-    }
-    const amt = computeVoucherDiscountAmount(upper, baseRentalFee);
-    setSelectedVoucherCode(upper);
-    setDiscountFeedback(`Đã áp dụng mã ${upper}: Giảm ${amt.toLocaleString('vi-VN')}đ`);
   };
 
   // Next Step Validator
@@ -435,15 +493,23 @@ export const BookingPage: React.FC = () => {
 
     if (currentStep === 1) {
       if (startDateTime >= endDateTime) {
-        setErrorMsg('Thời gian trả xe phải diễn ra sau thời gian nhận xe ít nhất 2 giờ.');
+        setErrorMsg(isEnglish ? 'Return time must be at least 2 hours after pickup time.' : 'Thời gian trả xe phải diễn ra sau thời gian nhận xe ít nhất 2 giờ.');
         return;
       }
       if (startDateTime < new Date()) {
-        setErrorMsg('Thời gian nhận xe không được nằm trong quá khứ.');
+        setErrorMsg(isEnglish ? 'Pickup time cannot be in the past.' : 'Thời gian nhận xe không được nằm trong quá khứ.');
         return;
       }
       if (!pickupBranchId || !returnBranchId) {
-        setErrorMsg('Vui lòng chọn chi nhánh nhận xe và chi nhánh trả xe.');
+        setErrorMsg(isEnglish ? 'Please select both pickup and return stations.' : 'Vui lòng chọn chi nhánh nhận xe và chi nhánh trả xe.');
+        return;
+      }
+      if (isScheduleConflicting) {
+        setErrorMsg(
+          isEnglish
+            ? 'This vehicle is reserved or under maintenance during this slot. Please select another time or bike.'
+            : 'Phương tiện đã có lịch đặt hoặc đang bảo dưỡng trong khung giờ bạn chọn. Vui lòng chọn khung giờ khác hoặc xe khác.'
+        );
         return;
       }
       setCurrentStep(2);
@@ -500,17 +566,6 @@ export const BookingPage: React.FC = () => {
     }
   };
 
-  // Interactive QR Pre-verification in Step 4
-  const handleVerifyQrPrecheck = () => {
-    setQrChecking(true);
-    setErrorMsg('');
-    setTimeout(() => {
-      setQrChecking(false);
-      setQrVerified(true);
-      setQrPrecheckCode(`FT26288${Math.floor(100000 + Math.random() * 900000)}`);
-    }, 900);
-  };
-
   const handleCopyText = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setCopiedField(label);
@@ -525,7 +580,7 @@ export const BookingPage: React.FC = () => {
     }
 
     if (!vehicle) {
-      setErrorMsg('Không tìm thấy thông tin phương tiện.');
+      setErrorMsg(isEnglish ? 'Vehicle information not found.' : 'Không tìm thấy thông tin phương tiện.');
       return;
     }
 
@@ -550,7 +605,7 @@ export const BookingPage: React.FC = () => {
         // If paying via VNPay, create official payment URL and redirect to gateway
         if (paymentOption === 'VNPay') {
           if (!newBooking?._id) {
-            setErrorMsg('Không thể khởi tạo mã đơn cho cổng VNPay Sandbox.');
+            setErrorMsg(isEnglish ? 'Unable to initialize order ID for VNPay gateway.' : 'Không thể khởi tạo mã đơn cho cổng VNPay.');
             setSubmitting(false);
             return;
           }
@@ -564,7 +619,7 @@ export const BookingPage: React.FC = () => {
               window.location.href = vnpayRes.data.data.paymentUrl;
               return;
             }
-            setErrorMsg('Không nhận được liên kết chuyển hướng từ cổng VNPay Sandbox.');
+            setErrorMsg(isEnglish ? 'No redirect link received from VNPay gateway.' : 'Không nhận được liên kết chuyển hướng từ cổng VNPay.');
             setSubmitting(false);
             return;
           } catch (vnpErr) {
@@ -572,39 +627,44 @@ export const BookingPage: React.FC = () => {
             const vnpMsg =
               axios.isAxiosError(vnpErr) && vnpErr.response?.data?.message
                 ? vnpErr.response.data.message
-                : 'Không thể khởi tạo liên kết VNPay Sandbox. Vui lòng thử lại.';
+                : (isEnglish ? 'Unable to initialize VNPay payment link. Please try again.' : 'Không thể khởi tạo liên kết VNPay. Vui lòng thử lại.');
             setErrorMsg(vnpMsg);
             setSubmitting(false);
             return;
           }
         }
 
-        // If paying via VietQR online, immediately confirm deposit/full payment on backend
+        // If paying via VietQR online, confirm payment on backend and record real Payment row
         if (paymentOption === 'VietQR') {
           try {
             const confirmRes = await api.post('/payments/vietqr/confirm', {
               bookingId: newBooking._id,
               paymentType: paymentScope,
             });
-            const confirmedBooking: Booking = confirmRes.data?.data?.booking || {
-              ...newBooking,
-              status: 'Approved',
-              depositPaid: true,
-            };
-            const paymentData = confirmRes.data?.data?.payment;
-            setCreatedBooking(confirmedBooking);
-            setPaymentReceipt({
-              transactionId:
-                paymentData?.transactionId ||
-                qrPrecheckCode ||
-                `VIETQR_${Date.now().toString().slice(-8)}`,
-              amount: paymentData?.amount || activePayAmount,
-              paymentType: paymentScope,
-              paidAt: new Date().toLocaleString('vi-VN'),
-            });
-          } catch {
-            // Fallback if confirm endpoint fails
+            if (confirmRes.data?.success && confirmRes.data?.data) {
+              const confirmedBooking: Booking = confirmRes.data.data?.booking || confirmRes.data.data;
+              const serverTxnRef =
+                (confirmedBooking as Booking & { vnpayTxnRef?: string }).vnpayTxnRef ||
+                confirmedBooking.bookingCode;
+              setCreatedBooking(confirmedBooking);
+              setPaymentReceipt({
+                transactionId: serverTxnRef,
+                amount: confirmedBooking.paidAmount || activePayAmount,
+                paymentType: paymentScope,
+                paidAt: new Date().toLocaleString(isEnglish ? 'en-US' : 'vi-VN'),
+              });
+            } else {
+              setCreatedBooking(newBooking);
+              setPaymentReceipt(null);
+            }
+          } catch (qrErr) {
+            const qrMsg =
+              axios.isAxiosError(qrErr) && qrErr.response?.data?.message
+                ? qrErr.response.data.message
+                : (isEnglish ? 'Booking order created successfully, but automatic QR reconciliation could not be confirmed. You can pay again in My Trips.' : 'Đơn đặt xe đã tạo thành công nhưng chưa thể xác nhận giao dịch QR tự động. Bạn có thể thanh toán lại trong mục Chuyến xe của tôi.');
+            setErrorMsg(qrMsg);
             setCreatedBooking(newBooking);
+            setPaymentReceipt(null);
           }
         } else {
           setCreatedBooking(newBooking);
@@ -614,7 +674,7 @@ export const BookingPage: React.FC = () => {
         setCurrentStep(5);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       } else {
-        setErrorMsg(res.data?.message || 'Không thể tạo đơn đặt xe.');
+        setErrorMsg(res.data?.message || (isEnglish ? 'Unable to create booking order.' : 'Không thể tạo đơn đặt xe.'));
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -622,15 +682,15 @@ export const BookingPage: React.FC = () => {
         if (err.response?.status === 409) {
           setErrorMsg(
             serverMsg ||
-              'Phương tiện đã có khách khác đặt trong khoảng thời gian này. Vui lòng chọn xe khác.'
+              (isEnglish ? 'This vehicle has just been booked by another rider for this timeframe. Please choose another bike.' : 'Phương tiện đã có khách khác đặt trong khoảng thời gian này. Vui lòng chọn xe khác.')
           );
         } else if (err.response?.status === 401) {
-          setErrorMsg('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+          setErrorMsg(isEnglish ? 'Session expired. Please sign in again.' : 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
         } else {
-          setErrorMsg(serverMsg || 'Không thể hoàn tất tạo đơn đặt xe.');
+          setErrorMsg(serverMsg || (isEnglish ? 'Unable to complete booking order.' : 'Không thể hoàn tất tạo đơn đặt xe.'));
         }
       } else {
-        setErrorMsg('Lỗi kết nối máy chủ. Vui lòng thử lại.');
+        setErrorMsg(isEnglish ? 'Server connection error. Please try again.' : 'Lỗi kết nối máy chủ. Vui lòng thử lại.');
       }
     } finally {
       setSubmitting(false);
@@ -662,7 +722,6 @@ export const BookingPage: React.FC = () => {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Invoice download error:', err);
-      // Fallback: open endpoint in new tab
       window.open(`/api/bookings/${bookingId}/invoice`, '_blank');
     } finally {
       setDownloadingInvoice(false);
@@ -671,11 +730,13 @@ export const BookingPage: React.FC = () => {
 
   const getGoogleCalendarUrl = () => {
     if (!vehicle) return '#';
-    const title = encodeURIComponent(`Thuê xe máy MotoRent: ${vehicle.vehicleModel} (${vehicle.licensePlate})`);
+    const title = encodeURIComponent(isEnglish ? `MotoRent Motorbike Rental: ${vehicle.vehicleModel} (${vehicle.licensePlate})` : `Thuê xe máy MotoRent: ${vehicle.vehicleModel} (${vehicle.licensePlate})`);
     const details = encodeURIComponent(
-      `Hợp đồng thuê xe máy MotoRent Đà Nẵng\nMã đặt xe: ${createdBooking?.bookingCode || 'MV-88692'}\nXe: ${vehicle.vehicleModel} - Biển số: ${vehicle.licensePlate}\nTrạm nhận: ${pickupBranch?.name || ''} (${pickupBranch?.address || ''})\nHotline hỗ trợ 24/7: 0905 123 456`
+      isEnglish
+        ? `Digital Rental Contract • MotoRent Da Nang\nBooking Code: ${createdBooking?.bookingCode || ''}\nVehicle: ${vehicle.vehicleModel} - License Plate: ${vehicle.licensePlate}\nPickup Station: ${pickupBranch?.name || ''} (${pickupBranch?.address || ''})${pickupBranch?.phone ? `\nHotline: ${pickupBranch.phone}` : ''}`
+        : `Hợp đồng thuê xe máy MotoRent Đà Nẵng\nMã đặt xe: ${createdBooking?.bookingCode || ''}\nXe: ${vehicle.vehicleModel} - Biển số: ${vehicle.licensePlate}\nTrạm nhận: ${pickupBranch?.name || ''} (${pickupBranch?.address || ''})${pickupBranch?.phone ? `\nHotline trạm: ${pickupBranch.phone}` : ''}`
     );
-    const location = encodeURIComponent(pickupBranch?.address || 'Đà Nẵng');
+    const location = encodeURIComponent(pickupBranch?.address || (isEnglish ? 'Da Nang' : 'Đà Nẵng'));
     try {
       const startIso = startDateTime.toISOString().replace(/-|:|\.\d\d\d/g, '');
       const endIso = endDateTime.toISOString().replace(/-|:|\.\d\d\d/g, '');
@@ -700,10 +761,10 @@ export const BookingPage: React.FC = () => {
           </div>
           <div className="text-center space-y-1">
             <p className="text-sm font-black text-[#F5F5F5] tracking-tight">
-              Đang kết nối trung tâm xe MotoRent
+              {isEnglish ? 'Connecting to MotoRent Fleet Hub' : 'Đang kết nối trung tâm xe MotoRent'}
             </p>
             <p className="text-xs text-[#6E6E6E]">
-              Tải cấu hình phương tiện, kiểm tra lịch trống và áp dụng biểu phí...
+              {isEnglish ? 'Loading vehicle specs, checking live schedule and applying rates...' : 'Tải cấu hình phương tiện, kiểm tra lịch trống và áp dụng biểu phí...'}
             </p>
           </div>
           <div className="w-48 h-1.5 rounded-full overflow-hidden bg-white/10 animate-shimmer" />
@@ -717,15 +778,15 @@ export const BookingPage: React.FC = () => {
       <div className="min-h-screen bg-[#101010] flex items-center justify-center p-4">
         <div className="bg-[#161616] p-8 rounded-2xl border border-white/10 text-center max-w-md w-full space-y-4">
           <AlertCircle className="w-12 h-12 text-[#FFC799] mx-auto" />
-          <h2 className="text-xl font-bold text-[#F5F5F5]">Không tìm thấy phương tiện</h2>
+          <h2 className="text-xl font-bold text-[#F5F5F5]">{isEnglish ? 'Vehicle Not Found' : 'Không tìm thấy phương tiện'}</h2>
           <p className="text-xs text-[#6E6E6E]">
-            Phương tiện bạn tìm kiếm hiện không tồn tại hoặc đang được điều chuyển chi nhánh.
+            {isEnglish ? 'The vehicle you are looking for does not exist or is currently being transferred between branches.' : 'Phương tiện bạn tìm kiếm hiện không tồn tại hoặc đang được điều chuyển chi nhánh.'}
           </p>
           <Link
             to="/bikes"
             className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs transition-colors"
           >
-            <span>Khám phá đội xe sẵn sàng</span>
+            <span>{isEnglish ? 'Explore Available Fleet' : 'Khám phá đội xe sẵn sàng'}</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
@@ -740,11 +801,11 @@ export const BookingPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <nav className="flex items-center space-x-2 text-xs text-[#6E6E6E]">
             <Link to="/" className="hover:text-[#F5F5F5] transition-colors">
-              Trang chủ
+              {isEnglish ? 'Home' : 'Trang chủ'}
             </Link>
             <ChevronRight className="w-3.5 h-3.5 text-[#6E6E6E]" />
             <Link to="/bikes" className="hover:text-[#F5F5F5] transition-colors">
-              Đội xe chính hãng
+              {isEnglish ? 'Official Fleet' : 'Đội xe chính hãng'}
             </Link>
             <ChevronRight className="w-3.5 h-3.5 text-[#6E6E6E]" />
             <span className="text-[#F5F5F5] font-semibold truncate max-w-xs">{vehicle.vehicleModel}</span>
@@ -755,20 +816,26 @@ export const BookingPage: React.FC = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#99FFE4] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#99FFE4]"></span>
             </span>
-            <span>Ước tính: <strong className="text-[#F5F5F5]">~2 phút hoàn tất</strong> • Khóa biển số ngay lập tức</span>
+            <span>{isEnglish ? 'Estimate: ' : 'Ước tính: '}<strong className="text-[#F5F5F5]">{isEnglish ? '~2 mins to complete' : '~2 phút hoàn tất'}</strong> • {isEnglish ? 'Instant license plate lock' : 'Khóa biển số ngay lập tức'}</span>
           </div>
         </div>
 
         {/* Dynamic Stepper Header */}
         <div className="bg-[#161616] rounded-2xl px-4 py-4 sm:px-6 sm:py-5 border border-white/10 mb-8 shadow-xl">
           <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
-            {[
+            {(isEnglish ? [
+              { num: 1, code: '01', label: 'Schedule', sub: 'Station & Times' },
+              { num: 2, code: '02', label: 'Rider Info', sub: 'Rental Signee' },
+              { num: 3, code: '03', label: 'Protection', sub: 'Insurance & Promo' },
+              { num: 4, code: '04', label: 'Payment', sub: 'Lock License Plate' },
+              { num: 5, code: '05', label: 'Receipt', sub: 'Booking Completed' },
+            ] : [
               { num: 1, code: '01', label: 'Lịch trình', sub: 'Trạm & Giờ thuê' },
               { num: 2, code: '02', label: 'Khách hàng', sub: 'Hồ sơ nhận xe' },
               { num: 3, code: '03', label: 'Gói dịch vụ', sub: 'Bảo hiểm & Mã giảm' },
               { num: 4, code: '04', label: 'Thanh toán QR', sub: 'Cọc giữ biển số' },
               { num: 5, code: '05', label: 'Biên lai & Mã xe', sub: 'Hoàn tất đặt xe' },
-            ].map((st, idx, arr) => {
+            ]).map((st, idx, arr) => {
               const isCompleted = currentStep > st.num;
               const isActive = currentStep === st.num;
               const canClickBack = st.num < currentStep && currentStep < 5;
@@ -811,7 +878,7 @@ export const BookingPage: React.FC = () => {
                             : 'text-[#6E6E6E]'
                         }`}
                       >
-                        Bước {st.code}
+                        {isEnglish ? `Step ${st.code}` : `Bước ${st.code}`}
                       </span>
                       <span
                         className={`block text-xs sm:text-[13px] font-bold whitespace-nowrap leading-tight ${
@@ -845,16 +912,16 @@ export const BookingPage: React.FC = () => {
             <div className="flex items-center space-x-2">
               <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
               <span>
-                {currentStep === 1 && 'Bước 1/5: Chọn ngày giờ và chi nhánh nhận - trả xe'}
-                {currentStep === 2 && 'Bước 2/5: Xác nhận thông tin CCCD và người đứng tên hợp đồng'}
-                {currentStep === 3 && 'Bước 3/5: Lựa chọn bảo hiểm và áp dụng voucher giảm cước'}
-                {currentStep === 4 && 'Bước 4/5: Quét mã QR VietQR hoặc thanh toán VNPay để khóa xe'}
-                {currentStep === 5 && 'Bước 5/5: Hoàn tất đặt xe • Xuất biên lai và hợp đồng điện tử'}
+                {currentStep === 1 && (isEnglish ? 'Step 1/5: Select dates, times, and rental stations' : 'Bước 1/5: Chọn ngày giờ và chi nhánh nhận - trả xe')}
+                {currentStep === 2 && (isEnglish ? 'Step 2/5: Confirm ID details and rental agreement signee' : 'Bước 2/5: Xác nhận thông tin CCCD và người đứng tên hợp đồng')}
+                {currentStep === 3 && (isEnglish ? 'Step 3/5: Choose insurance protection and apply promo voucher' : 'Bước 3/5: Lựa chọn bảo hiểm và áp dụng voucher giảm cước')}
+                {currentStep === 4 && (isEnglish ? 'Step 4/5: Scan VietQR or pay via VNPay to lock vehicle' : 'Bước 4/5: Quét mã QR VietQR hoặc thanh toán VNPay để khóa xe')}
+                {currentStep === 5 && (isEnglish ? 'Step 5/5: Reservation completed • View invoice & digital contract' : 'Bước 5/5: Hoàn tất đặt xe • Xuất biên lai và hợp đồng điện tử')}
               </span>
             </div>
             <div className="flex items-center space-x-2.5 shrink-0">
               <span className="font-mono text-[10px] text-[#6E6E6E]">
-                {Math.round((currentStep / 5) * 100)}% hoàn thành
+                {Math.round((currentStep / 5) * 100)}% {isEnglish ? 'completed' : 'hoàn thành'}
               </span>
               <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
@@ -883,14 +950,14 @@ export const BookingPage: React.FC = () => {
               <div className="p-4 rounded-xl bg-[#FFC799]/12 border border-[#FFC799]/30 flex items-center justify-between">
                 <div className="flex items-center space-x-2 text-[#FFC799] text-xs">
                   <AlertCircle className="w-4 h-4 flex-shrink-0 text-[#FFC799]" />
-                  <span>Đăng nhập để tự động lưu hợp đồng điện tử và đồng bộ lịch sử đặt xe.</span>
+                  <span>{isEnglish ? 'Sign in to auto-save digital agreement and sync rental history.' : 'Đăng nhập để tự động lưu hợp đồng điện tử và đồng bộ lịch sử đặt xe.'}</span>
                 </div>
                 <Link
                   to={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
                   className="px-3.5 py-1.5 bg-[#FFC799] hover:bg-[#FFC799] text-[#101010] text-xs font-bold rounded-lg transition-colors flex items-center space-x-1.5 flex-shrink-0 ml-3"
                 >
                   <LogIn className="w-3.5 h-3.5" />
-                  <span>Đăng nhập</span>
+                  <span>{isEnglish ? 'Sign In' : 'Đăng nhập'}</span>
                 </Link>
               </div>
             )}
@@ -898,32 +965,43 @@ export const BookingPage: React.FC = () => {
             {/* STEP 1: Schedule & Branches */}
             {currentStep === 1 && (
               <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
-                {/* Live Availability & Instant Plate Locking Badge */}
-                <div className="p-3.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/25 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center space-x-2.5">
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                    </span>
-                    <span className="font-semibold text-emerald-300">
-                      Xe đang sẵn sàng tại trạm • Khóa giữ biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> ngay khi hoàn tất
+                {/* Live Availability & Instant Plate Locking Badge (100% Real-time Server Sync) */}
+                {isScheduleConflicting ? (
+                  <div className="p-3.5 rounded-xl bg-[#FF8080]/12 border border-[#FF8080]/30 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center space-x-2.5 text-[#FF8080]">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span className="font-semibold">
+                        {isEnglish ? <>Vehicle <strong className="font-mono text-white">{vehicle.licensePlate}</strong> is already reserved or in maintenance for this slot. Please choose another timeframe or bike.</> : <>Xe biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> đã có lịch đặt hoặc đang bảo dưỡng trong khung giờ này. Vui lòng đổi thời gian nhận/trả hoặc chọn xe khác.</>}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/25 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center space-x-2.5">
+                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                      <span className="font-semibold text-emerald-300">
+                        {estimateLoading ? (isEnglish ? 'Checking real-time vehicle availability...' : 'Đang kiểm tra lịch trống thực tế...') : (isEnglish ? 'Schedule available & vehicle ready' : 'Khung giờ hợp lệ & xe sẵn sàng')} • {isEnglish ? 'Lock license plate ' : 'Khóa giữ biển số '}<strong className="font-mono text-white">{vehicle.licensePlate}</strong> {isEnglish ? 'upon completion' : 'ngay khi hoàn tất'}
+                      </span>
+                    </div>
+                    <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold shrink-0">
+                      <Lock className="w-3 h-3" />
+                      <span>{isEnglish ? 'Exclusive Lock' : 'Khóa độc quyền'}</span>
                     </span>
                   </div>
-                  <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold shrink-0">
-                    <Lock className="w-3 h-3" />
-                    <span>Khóa độc quyền</span>
-                  </span>
-                </div>
+                )}
 
                 <div>
                   <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
-                    BƯỚC 01 / 04 • LỊCH TRÌNH NHẬN & TRẢ XE
+                    {isEnglish ? 'STEP 01 / 04 • PICKUP & RETURN SCHEDULE' : 'BƯỚC 01 / 04 • LỊCH TRÌNH NHẬN & TRẢ XE'}
                   </span>
                   <h2 className="text-xl sm:text-2xl font-black text-[#F5F5F5]">
-                    Chọn thời gian & Trạm giao nhận xe
+                    {isEnglish ? 'Select Schedule & Rental Stations' : 'Chọn thời gian & Trạm giao nhận xe'}
                   </h2>
                   <p className="text-xs text-[#6E6E6E] mt-1">
-                    Hỗ trợ nhận xe tại Sân bay Quốc tế Đà Nẵng và trả xe liên trạm tại Bãi biển Mỹ Khê hoặc Cầu Rồng hoàn toàn miễn phí.
+                    {isEnglish ? 'Complimentary pickup at Da Nang International Airport and free cross-station returns at My Khe Beach or Dragon Bridge.' : 'Hỗ trợ nhận xe tại Sân bay Quốc tế Đà Nẵng và trả xe liên trạm tại Bãi biển Mỹ Khê hoặc Cầu Rồng hoàn toàn miễn phí.'}
                   </p>
                 </div>
 
@@ -933,7 +1011,7 @@ export const BookingPage: React.FC = () => {
                     label={
                       <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
                         <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Chi nhánh nhận xe</span>
+                        <span>{isEnglish ? 'Pickup Station' : 'Chi nhánh nhận xe'}</span>
                       </label>
                     }
                     branches={branches}
@@ -945,7 +1023,7 @@ export const BookingPage: React.FC = () => {
                     label={
                       <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
                         <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Chi nhánh trả xe</span>
+                        <span>{isEnglish ? 'Return Station' : 'Chi nhánh trả xe'}</span>
                       </label>
                     }
                     branches={branches}
@@ -962,7 +1040,7 @@ export const BookingPage: React.FC = () => {
                       label={
                         <span className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
                           <Calendar className="w-3.5 h-3.5 text-[#FFC799]" />
-                          <span>Thời điểm nhận xe</span>
+                          <span>{isEnglish ? 'Pickup Date & Time' : 'Thời điểm nhận xe'}</span>
                         </span>
                       }
                       dateValue={pickupDate}
@@ -997,7 +1075,7 @@ export const BookingPage: React.FC = () => {
                       label={
                         <span className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
                           <Clock className="w-3.5 h-3.5 text-[#FFC799]" />
-                          <span>Thời điểm trả xe</span>
+                          <span>{isEnglish ? 'Return Date & Time' : 'Thời điểm trả xe'}</span>
                         </span>
                       }
                       dateValue={returnDate}
@@ -1022,16 +1100,16 @@ export const BookingPage: React.FC = () => {
                   {/* Quick Duration Chips (Hourly & Daily) */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                     <span className="text-[11px] font-medium text-[#A0A0A0]">
-                      Chọn nhanh gói thời gian:
+                      {isEnglish ? 'Quick Duration Presets:' : 'Chọn nhanh gói thời gian:'}
                     </span>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {[
-                        { label: '2 giờ', days: 0, addHours: 2, retTime: '' },
-                        { label: '4 giờ', days: 0, addHours: 4, retTime: '' },
-                        { label: 'Trong ngày', days: 0, addHours: 0, retTime: '20:00' },
-                        { label: '1 ngày (24h)', days: 1, addHours: 0, retTime: pickupTime },
-                        { label: '2 ngày', days: 2, addHours: 0, retTime: '18:00' },
-                        { label: '3 ngày', days: 3, addHours: 0, retTime: '18:00' },
+                        { label: isEnglish ? '2 Hours' : '2 giờ', days: 0, addHours: 2, retTime: '' },
+                        { label: isEnglish ? '4 Hours' : '4 giờ', days: 0, addHours: 4, retTime: '' },
+                        { label: isEnglish ? 'Same Day' : 'Trong ngày', days: 0, addHours: 0, retTime: '20:00' },
+                        { label: isEnglish ? '1 Day (24h)' : '1 ngày (24h)', days: 1, addHours: 0, retTime: pickupTime },
+                        { label: isEnglish ? '2 Days' : '2 ngày', days: 2, addHours: 0, retTime: '18:00' },
+                        { label: isEnglish ? '3 Days' : '3 ngày', days: 3, addHours: 0, retTime: '18:00' },
                       ].map((preset) => {
                         const targetDateObj = parseLocalDateStr(pickupDate);
                         targetDateObj.setDate(targetDateObj.getDate() + preset.days);
@@ -1083,7 +1161,7 @@ export const BookingPage: React.FC = () => {
 
                 <div className="p-4 bg-[#101010] border border-white/10 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 text-[#A0A0A0]">
-                    <span>Thời lượng &amp; cước thuê:</span>
+                    <span>{isEnglish ? 'Duration & Rental Fare:' : 'Thời lượng & cước thuê:'}</span>
                     <span className="text-[11px] font-mono text-[#6E6E6E]">
                       ({pickupTime} {formatDisplayDateVN(pickupDate)} → {returnTime} {formatDisplayDateVN(returnDate)})
                     </span>
@@ -1094,7 +1172,7 @@ export const BookingPage: React.FC = () => {
                     </span>
                     <span className="text-[#6E6E6E]">•</span>
                     <span className="font-mono font-black text-[#FFC799] text-sm">
-                      {baseRentalFee.toLocaleString('vi-VN')} đ
+                      {baseRentalFee.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                   </div>
                 </div>
@@ -1104,7 +1182,7 @@ export const BookingPage: React.FC = () => {
                   onClick={handleNextStep}
                   className="w-full py-3.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 cursor-pointer"
                 >
-                  <span>Tiếp tục: Thông tin người thuê</span>
+                  <span>{isEnglish ? 'Continue: Rider Information' : 'Tiếp tục: Thông tin người thuê'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -1116,20 +1194,20 @@ export const BookingPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                   <div>
                     <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
-                      BƯỚC 02 / 04 • THÔNG TIN NGƯỜI LÁI XE
+                      {isEnglish ? 'STEP 02 / 04 • RIDER INFORMATION' : 'BƯỚC 02 / 04 • THÔNG TIN NGƯỜI LÁI XE'}
                     </span>
                     <h2 className="text-xl sm:text-2xl font-black text-[#F5F5F5]">
-                      Thông tin người nhận xe & Hợp đồng điện tử
+                      {isEnglish ? 'Rider Profile & Digital Agreement' : 'Thông tin người nhận xe & Hợp đồng điện tử'}
                     </h2>
                     <p className="text-xs text-[#6E6E6E] mt-1">
-                      Cam kết 100% không giữ bản gốc CCCD/Hộ chiếu. Nhân viên chi nhánh chỉ đối chiếu nhanh khi bàn giao chìa khóa.
+                      {isEnglish ? '100% zero original ID retention guarantee. Station staff verifies briefly upon vehicle handover.' : 'Cam kết 100% không giữ bản gốc CCCD/Hộ chiếu. Nhân viên chi nhánh chỉ đối chiếu nhanh khi bàn giao chìa khóa.'}
                     </p>
                   </div>
 
                   {isStep2Valid && (
                     <span className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono font-bold shrink-0 self-start">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Hồ sơ hợp lệ (4/4)</span>
+                      <span>{isEnglish ? 'Valid Profile (4/4)' : 'Hồ sơ hợp lệ (4/4)'}</span>
                     </span>
                   )}
                 </div>
@@ -1157,8 +1235,8 @@ export const BookingPage: React.FC = () => {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-bold text-[#F5F5F5]">
                             {user.identityStatus === 'Verified'
-                              ? 'Tài khoản đã xác thực eKYC — Đã tự động điền thông tin người nhận xe'
-                              : 'Đã tự động điền thông tin từ tài khoản đăng nhập'}
+                              ? (isEnglish ? 'eKYC Verified Account — Rider details autofilled' : 'Tài khoản đã xác thực eKYC — Đã tự động điền thông tin người nhận xe')
+                              : (isEnglish ? 'Autofilled details from logged-in account' : 'Đã tự động điền thông tin từ tài khoản đăng nhập')}
                           </span>
                           {user.identityStatus === 'Verified' && (
                             <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold">
@@ -1168,8 +1246,8 @@ export const BookingPage: React.FC = () => {
                         </div>
                         <p className="text-[11px] text-[#A09D98]">
                           {user.identityStatus === 'Verified'
-                            ? 'Họ tên, SĐT, Email và Số CCCD 12 số đã được đồng bộ từ hồ sơ định danh hợp lệ. Bạn vẫn có thể chỉnh sửa nếu đặt xe hộ người thân.'
-                            : 'Thông tin cá nhân được lấy từ hồ sơ của bạn. Vui lòng kiểm tra hoặc nhập bổ sung các trường còn thiếu.'}
+                            ? (isEnglish ? 'Full name, phone, email, and 12-digit Citizen ID synced from valid identity profile. You may modify details if renting for a companion.' : 'Họ tên, SĐT, Email và Số CCCD 12 số đã được đồng bộ từ hồ sơ định danh hợp lệ. Bạn vẫn có thể chỉnh sửa nếu đặt xe hộ người thân.')
+                            : (isEnglish ? 'Personal details loaded from your profile. Please check or fill in any missing fields.' : 'Thông tin cá nhân được lấy từ hồ sơ của bạn. Vui lòng kiểm tra hoặc nhập bổ sung các trường còn thiếu.')}
                         </p>
                       </div>
                     </div>
@@ -1180,20 +1258,20 @@ export const BookingPage: React.FC = () => {
                       className="px-3.5 py-2 rounded-xl bg-[#101010] hover:bg-white/[0.06] border border-white/15 hover:border-[#FFC799]/50 text-[11px] font-mono font-bold text-[#FFC799] transition-all flex items-center space-x-1.5 shrink-0 self-start sm:self-center cursor-pointer"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Điền lại từ hồ sơ</span>
+                      <span>{isEnglish ? 'Refill from Profile' : 'Điền lại từ hồ sơ'}</span>
                     </button>
                   </div>
                 ) : (
                   <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-center space-x-2.5 text-xs text-[#A09D98]">
                       <LogIn className="w-4 h-4 text-[#FFC799] shrink-0" />
-                      <span>Đăng nhập tài khoản đã xác thực eKYC để tự động điền toàn bộ thông tin hợp đồng.</span>
+                      <span>{isEnglish ? 'Sign in with verified eKYC account to autofill agreement details.' : 'Đăng nhập tài khoản đã xác thực eKYC để tự động điền toàn bộ thông tin hợp đồng.'}</span>
                     </div>
                     <Link
                       to={`/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
                       className="px-3 py-1.5 rounded-lg bg-[#FFC799]/15 border border-[#FFC799]/30 text-[#FFC799] text-xs font-bold hover:bg-[#FFC799]/25 transition-colors shrink-0 self-start sm:self-center"
                     >
-                      Đăng nhập ngay
+                      {isEnglish ? 'Sign In Now' : 'Đăng nhập ngay'}
                     </Link>
                   </div>
                 )}
@@ -1204,20 +1282,20 @@ export const BookingPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
                         <User className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Họ và tên người thuê *</span>
+                        <span>{isEnglish ? 'Rider Full Name *' : 'Họ và tên người thuê *'}</span>
                       </label>
                       {!nameError ? (
                         <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
-                          <span>Hợp lệ</span>
+                          <span>{isEnglish ? 'Valid' : 'Hợp lệ'}</span>
                         </span>
                       ) : (step2Touched.name || step2Submitted) ? (
-                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                        <span className="text-[10px] font-mono font-bold text-red-400">{isEnglish ? 'Invalid' : 'Chưa hợp lệ'}</span>
                       ) : null}
                     </div>
                     <input
                       type="text"
-                      placeholder="VD: Nguyễn Hoàng"
+                      placeholder={isEnglish ? 'E.g. John Doe' : 'VD: Nguyễn Hoàng'}
                       value={customerName}
                       onChange={(e) => {
                         setCustomerName(e.target.value);
@@ -1245,15 +1323,15 @@ export const BookingPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
                         <Phone className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Số điện thoại nhận mã xe *</span>
+                        <span>{isEnglish ? 'Contact Phone for Booking Code *' : 'Số điện thoại nhận mã xe *'}</span>
                       </label>
                       {!phoneError ? (
                         <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
-                          <span>Hợp lệ</span>
+                          <span>{isEnglish ? 'Valid' : 'Hợp lệ'}</span>
                         </span>
                       ) : (step2Touched.phone || step2Submitted) ? (
-                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                        <span className="text-[10px] font-mono font-bold text-red-400">{isEnglish ? 'Invalid' : 'Chưa hợp lệ'}</span>
                       ) : null}
                     </div>
                     <input
@@ -1288,15 +1366,15 @@ export const BookingPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
                         <Mail className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Email nhận hợp đồng điện tử *</span>
+                        <span>{isEnglish ? 'Email for Digital Agreement *' : 'Email nhận hợp đồng điện tử *'}</span>
                       </label>
                       {!emailError ? (
                         <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
-                          <span>Hợp lệ</span>
+                          <span>{isEnglish ? 'Valid' : 'Hợp lệ'}</span>
                         </span>
                       ) : (step2Touched.email || step2Submitted) ? (
-                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                        <span className="text-[10px] font-mono font-bold text-red-400">{isEnglish ? 'Invalid' : 'Chưa hợp lệ'}</span>
                       ) : null}
                     </div>
                     <input
@@ -1329,26 +1407,27 @@ export const BookingPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-[#C8C2B8] flex items-center space-x-1.5">
                         <FileText className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Số CCCD (12 số) / Hộ chiếu *</span>
+                        <span>{isEnglish ? 'National ID (12 digits) / Passport *' : 'Số CCCD (12 số) / Hộ chiếu *'}</span>
                       </label>
                       {!idCardError ? (
                         <span className="text-[10px] font-mono font-bold text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>
                             {user?.identityStatus === 'Verified' &&
-                            idCardNumber === (user.idCardNumber || '048204008692')
-                              ? 'Đã đối soát eKYC'
-                              : 'Hợp lệ'}
+                            Boolean(user.idCardNumber) &&
+                            idCardNumber === user.idCardNumber
+                              ? (isEnglish ? 'eKYC Verified' : 'Đã đối soát eKYC')
+                              : (isEnglish ? 'Valid' : 'Hợp lệ')}
                           </span>
                         </span>
                       ) : (step2Touched.idCard || step2Submitted) ? (
-                        <span className="text-[10px] font-mono font-bold text-red-400">Chưa hợp lệ</span>
+                        <span className="text-[10px] font-mono font-bold text-red-400">{isEnglish ? 'Invalid' : 'Chưa hợp lệ'}</span>
                       ) : null}
                     </div>
                     <input
                       type="text"
                       maxLength={12}
-                      placeholder="VD: 048204008692"
+                      placeholder={isEnglish ? "e.g. 048204008692" : "VD: 048204008692"}
                       value={idCardNumber}
                       onChange={(e) => {
                         const sanitized = e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
@@ -1376,7 +1455,7 @@ export const BookingPage: React.FC = () => {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-[#C8C2B8]">
-                      Ghi chú thêm (Số hiệu chuyến bay nếu nhận xe tại sân bay, yêu cầu nón trẻ em...)
+                      {isEnglish ? 'Special Notes (Flight number for airport pickup, child helmets...)' : 'Ghi chú thêm (Số hiệu chuyến bay nếu nhận xe tại sân bay, yêu cầu nón trẻ em...)'}
                     </label>
                     <span className="text-[10px] font-mono text-[#6E6E6E]">
                       {customerNotes.length}/300
@@ -1385,7 +1464,7 @@ export const BookingPage: React.FC = () => {
                   <textarea
                     rows={2}
                     maxLength={300}
-                    placeholder="VD: Chuyến bay VJ628 hạ cánh lúc 09:15, nhờ giao xe tại sảnh Ga đến T2..."
+                    placeholder={isEnglish ? 'E.g. Flight VJ628 landing at 09:15, pickup at Terminal T2...' : 'VD: Chuyến bay VJ628 hạ cánh lúc 09:15, nhờ giao xe tại sảnh Ga đến T2...'}
                     value={customerNotes}
                     onChange={(e) => setCustomerNotes(e.target.value)}
                     className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799] resize-none"
@@ -1399,7 +1478,7 @@ export const BookingPage: React.FC = () => {
                     className="py-3.5 px-5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-[#C8C2B8] font-bold text-xs transition-colors flex items-center space-x-2 cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    <span>Quay lại</span>
+                    <span>{isEnglish ? 'Back' : 'Quay lại'}</span>
                   </button>
 
                   <button
@@ -1407,7 +1486,7 @@ export const BookingPage: React.FC = () => {
                     onClick={handleNextStep}
                     className="flex-1 py-3.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 cursor-pointer"
                   >
-                    <span>Tiếp tục: Dịch vụ & Ưu đãi</span>
+                    <span>{isEnglish ? 'Continue: Packages & Discounts' : 'Tiếp tục: Dịch vụ & Ưu đãi'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1419,33 +1498,33 @@ export const BookingPage: React.FC = () => {
               <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
                 <div>
                   <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
-                    BƯỚC 03 / 04 • TIỆN ÍCH & MÃ KHUYẾN MÃI
+                    {isEnglish ? 'STEP 03 / 04 • AMENITIES & PROMOTIONS' : 'BƯỚC 03 / 04 • TIỆN ÍCH & MÃ KHUYẾN MÃI'}
                   </span>
                   <h2 className="text-xl sm:text-2xl font-black text-[#F5F5F5]">
-                    Trang bị đi kèm theo xe & Voucher ưu đãi
+                    {isEnglish ? 'Complimentary Accessories & Promo Vouchers' : 'Trang bị đi kèm theo xe & Voucher ưu đãi'}
                   </h2>
                   <p className="text-xs text-[#6E6E6E] mt-1">
-                    Tất cả trang bị an toàn dưới đây được chuẩn bị sẵn trong cốp xe mà không phát sinh thêm chi phí.
+                    {isEnglish ? 'All safety accessories below are prepared inside the bike underseat storage at zero extra fee.' : 'Tất cả trang bị an toàn dưới đây được chuẩn bị sẵn trong cốp xe mà không phát sinh thêm chi phí.'}
                   </p>
                 </div>
 
                 <div className="space-y-2.5">
                   {[
                     {
-                      title: '02 Mũ bảo hiểm 3/4 kính chắn gió',
-                      desc: 'Đã khử khuẩn tia cực tím UV và bọc lót kháng khuẩn mới',
+                      title: isEnglish ? '02 Clear-Visor 3/4 Helmets' : '02 Mũ bảo hiểm 3/4 kính chắn gió',
+                      desc: isEnglish ? 'UV-sanitized with brand-new antibacterial liners' : 'Đã khử khuẩn tia cực tím UV và bọc lót kháng khuẩn mới',
                     },
                     {
-                      title: '02 Áo mưa cánh dơi phản quang',
-                      desc: 'Chất liệu vải dù PVC dày dặn, an toàn khi di chuyển đường đèo',
+                      title: isEnglish ? '02 Reflective Poncho Raincoats' : '02 Áo mưa cánh dơi phản quang',
+                      desc: isEnglish ? 'Heavy-duty PVC fabric for safe coastal and mountain pass cruising' : 'Chất liệu vải dù PVC dày dặn, an toàn khi di chuyển đường đèo',
                     },
                     {
-                      title: 'Giá đỡ điện thoại hợp kim chống rung OIS',
-                      desc: 'Bảo vệ cụm camera điện thoại và hỗ trợ dẫn đường GPS',
+                      title: isEnglish ? 'OIS Anti-Vibration Phone Mount' : 'Giá đỡ điện thoại hợp kim chống rung OIS',
+                      desc: isEnglish ? 'Protects smartphone camera sensor and supports GPS navigation' : 'Bảo vệ cụm camera điện thoại và hỗ trợ dẫn đường GPS',
                     },
                     {
-                      title: 'Bảo hiểm cứu hộ kỹ thuật 24/7 Đà Nẵng – Hội An',
-                      desc: 'Đổi xe tương đương tận nơi trong 30 phút nếu gặp sự cố kỹ thuật',
+                      title: isEnglish ? '24/7 Roadside Rescue Da Nang – Hoi An' : 'Bảo hiểm cứu hộ kỹ thuật 24/7 Đà Nẵng – Hội An',
+                      desc: isEnglish ? 'On-site equivalent bike swap within 30 mins upon technical incident' : 'Đổi xe tương đương tận nơi trong 30 phút nếu gặp sự cố kỹ thuật',
                     },
                   ].map((perk) => (
                     <div
@@ -1461,7 +1540,7 @@ export const BookingPage: React.FC = () => {
                           <p className="text-[11px] text-[#6E6E6E]">{perk.desc}</p>
                         </div>
                       </div>
-                      <span className="text-xs font-mono font-bold text-[#FFC799] shrink-0 ml-3">Miễn phí 0đ</span>
+                      <span className="text-xs font-mono font-bold text-[#FFC799] shrink-0 ml-3">{isEnglish ? 'Free 0₫' : 'Miễn phí 0đ'}</span>
                     </div>
                   ))}
                 </div>
@@ -1471,7 +1550,7 @@ export const BookingPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
                       <Tag className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Chọn Voucher ưu đãi khả dụng</span>
+                      <span>{isEnglish ? 'Select Available Promo Voucher' : 'Chọn Voucher ưu đãi khả dụng'}</span>
                     </label>
                     {selectedVoucherCode && (
                       <button
@@ -1479,71 +1558,82 @@ export const BookingPage: React.FC = () => {
                         onClick={() => handleSelectVoucher('')}
                         className="text-[11px] font-semibold text-[#A0A0A0] hover:text-[#FF8080] cursor-pointer"
                       >
-                        Không dùng voucher
+                        {isEnglish ? 'Do not use voucher' : 'Không dùng voucher'}
                       </button>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {AVAILABLE_VOUCHERS.map((v) => {
-                      const eligible = baseRentalFee >= v.minOrder;
-                      const isSelected = selectedVoucherCode === v.code && eligible;
-                      const estSave = computeVoucherDiscountAmount(v.code, baseRentalFee);
+                  {availableDiscounts.length === 0 ? (
+                    <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0]">
+                      {isEnglish ? 'No public promo codes currently active. You can still enter your private code below.' : 'Hiện chưa có chương trình mã giảm giá công khai nào đang mở. Bạn vẫn có thể nhập mã ưu đãi riêng bên dưới nếu có.'}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {availableDiscounts.map((v) => {
+                        const minOrder = v.minBookingAmount || 0;
+                        const eligible = baseRentalFee >= minOrder;
+                        const isSelected = selectedVoucherCode === v.code && eligible;
+                        const estSave = computeDiscountPreview(v, baseRentalFee);
 
-                      return (
-                        <button
-                          key={v.code}
-                          type="button"
-                          disabled={!eligible}
-                          onClick={() => handleSelectVoucher(v.code)}
-                          className={`p-3 rounded-xl border text-left transition-all flex items-start justify-between gap-2 ${
-                            !eligible
-                              ? 'bg-[#101010]/50 border-white/[0.05] opacity-50 cursor-not-allowed'
-                              : isSelected
-                              ? 'bg-[#FFC799]/14 border-[#FFC799] shadow-sm cursor-pointer'
-                              : 'bg-[#101010] border-white/10 hover:border-[#FFC799]/40 cursor-pointer'
-                          }`}
-                        >
-                          <div className="min-w-0 space-y-0.5">
-                            <div className="flex items-center space-x-1.5">
-                              <span className="font-mono text-xs font-black text-[#FFC799]">
-                                {v.code}
-                              </span>
-                              {eligible && estSave > 0 && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-[#99FFE4]/15 text-[#99FFE4]">
-                                  -{estSave.toLocaleString('vi-VN')}đ
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] font-bold text-[#F5F5F5] truncate">
-                              {v.title}
-                            </p>
-                            <p className="text-[10px] text-[#A0A0A0] leading-tight">
-                              {eligible
-                                ? v.desc
-                                : `Cần đơn tối thiểu ${v.minOrder.toLocaleString('vi-VN')}đ`}
-                            </p>
-                          </div>
-                          <div
-                            className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
-                              isSelected
-                                ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                                : 'border-white/20 text-transparent'
+                        return (
+                          <button
+                            key={v._id || v.code}
+                            type="button"
+                            disabled={!eligible}
+                            onClick={() => handleSelectVoucher(v.code)}
+                            className={`p-3 rounded-xl border text-left transition-all flex items-start justify-between gap-2 ${
+                              !eligible
+                                ? 'bg-[#101010]/50 border-white/[0.05] opacity-50 cursor-not-allowed'
+                                : isSelected
+                                ? 'bg-[#FFC799]/14 border-[#FFC799] shadow-sm cursor-pointer'
+                                : 'bg-[#101010] border-white/10 hover:border-[#FFC799]/40 cursor-pointer'
                             }`}
                           >
-                            <Check className="w-2.5 h-2.5 stroke-[3]" />
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                            <div className="min-w-0 space-y-0.5">
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-xs font-black text-[#FFC799]">
+                                  {v.code}
+                                </span>
+                                {eligible && estSave > 0 && (
+                                  <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-[#99FFE4]/15 text-[#99FFE4]">
+                                    -{estSave.toLocaleString('vi-VN')}đ
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] font-bold text-[#F5F5F5] truncate">
+                                {v.maxDiscountAmount
+                                  ? (isEnglish
+                                      ? `${v.discountPercent}% OFF (up to ${v.maxDiscountAmount.toLocaleString('en-US')}₫)`
+                                      : `Giảm ${v.discountPercent}% (tối đa ${v.maxDiscountAmount.toLocaleString('vi-VN')}đ)`)
+                                  : (isEnglish ? `${v.discountPercent}% OFF` : `Giảm ${v.discountPercent}%`)}
+                              </p>
+                              <p className="text-[10px] text-[#A0A0A0] leading-tight">
+                                {eligible
+                                  ? v.description || (isEnglish ? `${Math.max(0, v.usageLimit - v.usedCount)} uses left` : `Còn ${Math.max(0, v.usageLimit - v.usedCount)} lượt áp dụng`)
+                                  : (isEnglish ? `Min order ${minOrder.toLocaleString('en-US')}₫` : `Cần đơn tối thiểu ${minOrder.toLocaleString('vi-VN')}đ`)}
+                              </p>
+                            </div>
+                            <div
+                              className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 mt-0.5 border ${
+                                isSelected
+                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                  : 'border-white/20 text-transparent'
+                              }`}
+                            >
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* 1-Click Custom Voucher Input Box */}
                   <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <div className="relative flex-1">
                       <input
                         type="text"
-                        placeholder="Nhập mã khuyến mãi khác (VD: MOTORENT30)..."
+                        placeholder={isEnglish ? 'Enter promo code (e.g. CHAOBANMOI)...' : 'Nhập mã khuyến mãi (VD: CHAOBANMOI)...'}
                         value={customVoucherInput}
                         onChange={(e) => setCustomVoucherInput(e.target.value.toUpperCase())}
                         className="w-full bg-[#101010] border border-white/10 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] font-mono tracking-wider outline-none placeholder:text-[#6E6E6E]"
@@ -1558,7 +1648,7 @@ export const BookingPage: React.FC = () => {
                       }}
                       className="px-4 py-2.5 bg-white/[0.08] hover:bg-[#FFC799] hover:text-[#101010] text-[#F5F5F5] border border-white/10 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 text-center"
                     >
-                      Áp dụng mã
+                      {isEnglish ? 'Apply Code' : 'Áp dụng mã'}
                     </button>
                   </div>
 
@@ -1576,7 +1666,7 @@ export const BookingPage: React.FC = () => {
                     className="py-3.5 px-5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-[#C8C2B8] font-bold text-xs transition-colors flex items-center space-x-2 cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    <span>Quay lại</span>
+                    <span>{isEnglish ? 'Back' : 'Quay lại'}</span>
                   </button>
 
                   <button
@@ -1584,7 +1674,7 @@ export const BookingPage: React.FC = () => {
                     onClick={handleNextStep}
                     className="flex-1 py-3.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 cursor-pointer"
                   >
-                    <span>Tiếp tục: Thanh toán QR & Khóa xe</span>
+                    <span>{isEnglish ? 'Continue: QR Payment & Lock' : 'Tiếp tục: Thanh toán QR & Khóa xe'}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1596,20 +1686,20 @@ export const BookingPage: React.FC = () => {
               <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
                 <div>
                   <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block mb-1">
-                    BƯỚC 04 / 04 • THANH TOÁN & KHÓA BIỂN SỐ XE
+                    {isEnglish ? 'STEP 04 / 04 • PAYMENT & PLATE LOCK' : 'BƯỚC 04 / 04 • THANH TOÁN & KHÓA BIỂN SỐ XE'}
                   </span>
                   <h2 className="text-xl sm:text-2xl font-black text-[#F5F5F5]">
-                    Xác nhận thanh toán & Khóa giữ xe độc quyền
+                    {isEnglish ? 'Confirm Payment & Reserve License Plate' : 'Xác nhận thanh toán & Khóa giữ xe độc quyền'}
                   </h2>
                   <p className="text-xs text-[#6E6E6E] mt-1">
-                    Quét mã VietQR 24/7 bên dưới để hệ thống tự động đối soát, xuất biên lai điện tử và chuyển trạng thái đơn sang <strong className="text-[#F5F5F5]">Đã duyệt (Approved)</strong> ngay lập tức.
+                    {isEnglish ? <>Scan the VietQR 24/7 code below for instant verification, digital receipt issuance, and transition to <strong className="text-[#F5F5F5]">Approved</strong> status immediately.</> : <>Quét mã VietQR 24/7 bên dưới để hệ thống tự động đối soát, xuất biên lai điện tử và chuyển trạng thái đơn sang <strong className="text-[#F5F5F5]">Đã duyệt (Approved)</strong> ngay lập tức.</>}
                   </p>
                 </div>
 
                 {/* 1. Payment Scope Toggle (Deposit 30% vs Full 100%) */}
                 <div className="space-y-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#6E6E6E] block">
-                    1. Chọn hạn mức thanh toán ngay:
+                    {isEnglish ? '1. Select payment scope:' : '1. Chọn hạn mức thanh toán ngay:'}
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
@@ -1622,16 +1712,16 @@ export const BookingPage: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-[#F5F5F5]">Đặt cọc 30% khóa xe</span>
+                        <span className="text-xs font-bold text-[#F5F5F5]">{isEnglish ? '30% Deposit to reserve' : 'Đặt cọc 30% khóa xe'}</span>
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[#FFC799]/20 text-[#FFC799]">
-                          Phổ biến
+                          {isEnglish ? 'Popular' : 'Phổ biến'}
                         </span>
                       </div>
                       <p className="font-mono text-base font-black text-[#FFC799]">
-                        {depositAmount.toLocaleString('vi-VN')} đ
+                        {depositAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                       </p>
                       <p className="text-[11px] text-[#6E6E6E] mt-0.5">
-                        70% còn lại ({remainingAmount.toLocaleString('vi-VN')} đ) thanh toán khi nhận xe
+                        {isEnglish ? `Remaining 70% (${remainingAmount.toLocaleString('vi-VN')} ₫) paid upon bike handover` : `70% còn lại (${remainingAmount.toLocaleString('vi-VN')} đ) thanh toán khi nhận xe`}
                       </p>
                     </button>
 
@@ -1645,16 +1735,16 @@ export const BookingPage: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-[#F5F5F5]">Tất toán trước 100%</span>
+                        <span className="text-xs font-bold text-[#F5F5F5]">{isEnglish ? '100% Full Payment in advance' : 'Tất toán trước 100%'}</span>
                         <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[#FFC799]/20 text-[#FFC799]">
-                          Nhận xe 30s
+                          {isEnglish ? '30s Handover' : 'Nhận xe 30s'}
                         </span>
                       </div>
                       <p className="font-mono text-base font-black text-[#F5F5F5]">
-                        {totalAmount.toLocaleString('vi-VN')} đ
+                        {totalAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                       </p>
                       <p className="text-[11px] text-[#6E6E6E] mt-0.5">
-                        Không cần thanh toán thêm khi nhận xe tại chi nhánh
+                        {isEnglish ? 'Zero additional payment required at branch counter' : 'Không cần thanh toán thêm khi nhận xe tại chi nhánh'}
                       </p>
                     </button>
                   </div>
@@ -1663,7 +1753,7 @@ export const BookingPage: React.FC = () => {
                 {/* 2. Payment Channel Selector */}
                 <div className="space-y-2">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#6E6E6E] block">
-                    2. Chọn kênh thanh toán:
+                    {isEnglish ? '2. Select payment channel:' : '2. Chọn kênh thanh toán:'}
                   </span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div
@@ -1677,12 +1767,12 @@ export const BookingPage: React.FC = () => {
                       <div className="flex items-center justify-between mb-2">
                         <QrCode className="w-5 h-5 text-[#FFC799]" />
                         <span className="text-[10px] font-bold uppercase tracking-wider bg-[#FFC799]/20 text-[#FFC799] px-2 py-0.5 rounded">
-                          Tự động 24/7
+                          {isEnglish ? 'Automated 24/7' : 'Tự động 24/7'}
                         </span>
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-[#F5F5F5]">VietQR Ngân hàng</h4>
-                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">Quét mã QR xác nhận hoàn thành ngay</p>
+                        <h4 className="text-xs font-black text-[#F5F5F5]">{isEnglish ? 'VietQR Bank Transfer' : 'VietQR Ngân hàng'}</h4>
+                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">{isEnglish ? 'Scan QR for instant automated verification' : 'Quét mã QR xác nhận hoàn thành ngay'}</p>
                       </div>
                     </div>
 
@@ -1701,8 +1791,8 @@ export const BookingPage: React.FC = () => {
                         </span>
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-[#F5F5F5]">Cổng VNPay</h4>
-                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">Thẻ ATM nội địa NCB, Visa, QR</p>
+                        <h4 className="text-xs font-black text-[#F5F5F5]">{isEnglish ? 'VNPay Gateway' : 'Cổng VNPay'}</h4>
+                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">{isEnglish ? 'Domestic ATM cards, Visa, Mastercard, QR' : 'Thẻ ATM nội địa NCB, Visa, QR'}</p>
                       </div>
                     </div>
 
@@ -1718,8 +1808,8 @@ export const BookingPage: React.FC = () => {
                         <Building2 className="w-5 h-5 text-[#6E6E6E]" />
                       </div>
                       <div>
-                        <h4 className="text-xs font-black text-[#F5F5F5]">Cọc tại quầy</h4>
-                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">Giữ chỗ tạm thời 30 phút tại trạm</p>
+                        <h4 className="text-xs font-black text-[#F5F5F5]">{isEnglish ? 'Pay Deposit at Counter' : 'Cọc tại quầy'}</h4>
+                        <p className="text-[11px] text-[#6E6E6E] mt-0.5">{isEnglish ? 'Temporary 30-minute hold at station' : 'Giữ chỗ tạm thời 30 phút tại trạm'}</p>
                       </div>
                     </div>
                   </div>
@@ -1732,7 +1822,7 @@ export const BookingPage: React.FC = () => {
                       <div className="bg-white p-3 rounded-xl shadow-lg flex flex-col items-center shrink-0">
                         <img
                           src={`https://api.vietqr.io/image/970422-0905123456-compact2.jpg?amount=${activePayAmount}&addInfo=${encodeURIComponent(transferMemo)}&accountName=CONG%20TY%20MOTORENT`}
-                          alt="VietQR Chuyển khoản"
+                          alt={isEnglish ? "VietQR Transfer Code" : "VietQR Chuyển khoản"}
                           className="w-40 h-40 object-contain"
                         />
                         <span className="text-[10px] font-black text-slate-900 mt-1 uppercase tracking-tight">
@@ -1742,11 +1832,11 @@ export const BookingPage: React.FC = () => {
 
                       <div className="flex-1 w-full space-y-2.5 text-xs">
                         <div className="flex items-center justify-between py-1.5 border-b border-white/[0.08]">
-                          <span className="text-[#6E6E6E]">Ngân hàng thụ hưởng:</span>
-                          <span className="font-bold text-[#F5F5F5]">MB Bank (Ngân hàng Quân Đội)</span>
+                          <span className="text-[#6E6E6E]">{isEnglish ? 'Beneficiary Bank:' : 'Ngân hàng thụ hưởng:'}</span>
+                          <span className="font-bold text-[#F5F5F5]">{isEnglish ? 'MB Bank (Military Commercial Bank)' : 'MB Bank (Ngân hàng Quân Đội)'}</span>
                         </div>
                         <div className="flex items-center justify-between py-1.5 border-b border-white/[0.08]">
-                          <span className="text-[#6E6E6E]">Số tài khoản:</span>
+                          <span className="text-[#6E6E6E]">{isEnglish ? 'Account Number:' : 'Số tài khoản:'}</span>
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-bold text-[#FFC799]">0905 123 456</span>
                             <button
@@ -1754,24 +1844,24 @@ export const BookingPage: React.FC = () => {
                               onClick={() => handleCopyText('0905123456', 'stk')}
                               className="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-[#C8C2B8] cursor-pointer"
                             >
-                              {copiedField === 'stk' ? 'Đã chép' : 'Sao chép'}
+                              {copiedField === 'stk' ? (isEnglish ? 'Copied' : 'Đã chép') : (isEnglish ? 'Copy' : 'Sao chép')}
                             </button>
                           </div>
                         </div>
                         <div className="flex items-center justify-between py-1.5 border-b border-white/[0.08]">
-                          <span className="text-[#6E6E6E]">Chủ tài khoản:</span>
+                          <span className="text-[#6E6E6E]">{isEnglish ? 'Account Holder:' : 'Chủ tài khoản:'}</span>
                           <span className="font-bold text-[#F5F5F5] uppercase">CONG TY TNHH MOTORENT</span>
                         </div>
                         <div className="flex items-center justify-between py-1.5 border-b border-white/[0.08]">
                           <span className="text-[#6E6E6E]">
-                            Số tiền ({paymentScope === 'Full100' ? 'Tất toán 100%' : 'Cọc 30%'}):
+                            {isEnglish ? 'Amount' : 'Số tiền'} ({paymentScope === 'Full100' ? (isEnglish ? '100% Full Payment' : 'Tất toán 100%') : (isEnglish ? '30% Deposit' : 'Cọc 30%')}):
                           </span>
                           <span className="font-mono font-black text-[#FFC799] text-sm">
-                            {activePayAmount.toLocaleString('vi-VN')} đ
+                            {activePayAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                           </span>
                         </div>
                         <div className="flex items-center justify-between py-1.5">
-                          <span className="text-[#6E6E6E]">Nội dung chuyển khoản:</span>
+                          <span className="text-[#6E6E6E]">{isEnglish ? 'Transfer Memo:' : 'Nội dung chuyển khoản:'}</span>
                           <div className="flex items-center gap-2">
                             <span className="font-mono font-bold text-[#FFC799]">{transferMemo}</span>
                             <button
@@ -1779,55 +1869,20 @@ export const BookingPage: React.FC = () => {
                               onClick={() => handleCopyText(transferMemo, 'memo')}
                               className="px-2 py-0.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-[10px] text-[#C8C2B8] cursor-pointer"
                             >
-                              {copiedField === 'memo' ? 'Đã chép' : 'Sao chép'}
+                              {copiedField === 'memo' ? (isEnglish ? 'Copied' : 'Đã chép') : (isEnglish ? 'Copy' : 'Sao chép')}
                             </button>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Interactive QR Verification Status Bar */}
-                    {qrVerified ? (
-                      <div className="p-4 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start space-x-3">
-                          <CheckCircle2 className="w-5 h-5 text-[#FFC799] shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs font-bold text-[#FFC799]">
-                              Đã xác nhận giao dịch chuyển khoản QR thành công!
-                            </p>
-                            <p className="text-[11px] text-[#C8C2B8] mt-0.5">
-                              Mã đối soát NAPAS: <strong className="font-mono text-[#F5F5F5]">{qrPrecheckCode}</strong> • Số tiền:{' '}
-                              <strong className="font-mono text-[#FFC799]">
-                                {activePayAmount.toLocaleString('vi-VN')} đ
-                              </strong>
-                            </p>
-                          </div>
-                        </div>
-                        <span className="inline-flex items-center px-2.5 py-1 rounded bg-[#FFC799]/20 text-[#FFC799] font-mono text-[10px] font-bold uppercase tracking-wider shrink-0">
-                          ĐÃ BÁO CÓ NGÂN HÀNG
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2.5 text-xs text-[#C8C2B8]">
-                          <div className="w-2 h-2 rounded-full bg-[#FFC799] animate-pulse shrink-0" />
-                          <span>
-                            Sau khi quét mã QR trên ứng dụng ngân hàng, bấm nút bên cạnh để kiểm tra báo có ngay:
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          disabled={qrChecking}
-                          onClick={handleVerifyQrPrecheck}
-                          className="px-4 py-2 rounded-lg bg-white/[0.08] hover:bg-white/[0.14] border border-white/15 text-[#F5F5F5] font-bold text-xs flex items-center justify-center space-x-2 transition-all shrink-0 cursor-pointer"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 text-[#FFC799] ${qrChecking ? 'animate-spin' : ''}`} />
-                          <span>
-                            {qrChecking ? 'Đang đối soát ngân hàng...' : 'Kiểm tra giao dịch QR vừa quét'}
-                          </span>
-                        </button>
-                      </div>
-                    )}
+                    {/* Real Server-Side VietQR Confirmation Guidance */}
+                    <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 flex items-center space-x-2.5 text-xs text-[#C8C2B8]">
+                      <ShieldCheck className="w-4 h-4 text-[#FFC799] shrink-0" />
+                      <span>
+                        {isEnglish ? 'After scanning the VietQR code in your banking app with the exact memo, click the confirmation button below to record your transaction and lock the plate for your schedule.' : 'Sau khi quét mã VietQR trên ứng dụng ngân hàng với đúng nội dung chuyển khoản, nhấn nút xác nhận bên dưới để máy chủ ghi nhận giao dịch và khóa biển số theo khung giờ đã chọn.'}
+                      </span>
+                    </div>
                   </div>
                 )}
 
@@ -1836,24 +1891,19 @@ export const BookingPage: React.FC = () => {
                     {/* Gateway Header */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.08]">
                       <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-[#F5F5F5]">
-                            Cổng Thanh Toán VNPay Sandbox Chính Thức
-                          </span>
-                          <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 font-mono text-[10px] font-bold text-emerald-400">
-                            TMNCODE: CYA7OTRA
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#8A857D] font-mono">
-                          Endpoint: https://sandbox.vnpayment.vn/paymentv2/vpcpay.html
+                        <span className="text-xs font-black text-[#F5F5F5] block">
+                          {isEnglish ? 'VNPay Online Payment Gateway' : 'Cổng Thanh Toán Trực Tuyến VNPay'}
+                        </span>
+                        <p className="text-[11px] text-[#8A857D]">
+                          {isEnglish ? 'Secure redirect with HMAC-SHA512 digital signature verified directly from server.' : 'Chuyển hướng an toàn kèm chữ ký số HMAC-SHA512 đối soát trực tiếp từ máy chủ.'}
                         </p>
                       </div>
                       <div className="text-left sm:text-right">
                         <span className="text-[10px] text-[#6E6E6E] block uppercase font-mono">
-                          Số tiền thanh toán VNPay
+                          {isEnglish ? 'VNPay Payment Amount' : 'Số tiền thanh toán VNPay'}
                         </span>
                         <span className="font-mono text-base font-black text-[#FFC799]">
-                          {activePayAmount.toLocaleString('vi-VN')} đ
+                          {activePayAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                         </span>
                       </div>
                     </div>
@@ -1861,24 +1911,24 @@ export const BookingPage: React.FC = () => {
                     {/* BankCode / Method Selector on VNPay */}
                     <div className="space-y-2">
                       <span className="text-[11px] font-bold text-[#C8C2B8] block">
-                        Chọn phương thức giả lập trên cổng VNPay:
+                        {isEnglish ? 'Select payment option on VNPay gateway:' : 'Chọn phương thức thanh toán trên cổng VNPay:'}
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {[
                           {
-                            code: 'NCB' as const,
-                            title: 'Thẻ ATM NCB (Khuyên dùng)',
-                            desc: 'Vào thẳng form nhập thẻ NCB Sandbox',
+                            code: '' as const,
+                            title: isEnglish ? 'All Domestic Banks & QR' : 'Tất cả ngân hàng nội địa & QR',
+                            desc: isEnglish ? 'Select bank directly on VNPay portal' : 'Chọn ngân hàng trực tiếp trên cổng VNPay',
                           },
                           {
-                            code: '' as const,
-                            title: 'Tất cả kênh trên VNPay',
-                            desc: 'Tự chọn ngân hàng tại cổng VNPay',
+                            code: 'NCB' as const,
+                            title: isEnglish ? 'Domestic ATM Card (NCB)' : 'Thẻ ATM nội địa (NCB)',
+                            desc: isEnglish ? 'Pay via domestic bank ATM card' : 'Thanh toán qua thẻ ATM nội địa',
                           },
                           {
                             code: 'INTCARD' as const,
-                            title: 'Thẻ Quốc tế Visa / Master',
-                            desc: 'Giả lập thẻ tín dụng quốc tế',
+                            title: isEnglish ? 'International Cards (Visa / Master)' : 'Thẻ Quốc tế Visa / Master',
+                            desc: isEnglish ? 'Pay via international credit/debit card' : 'Thanh toán qua thẻ quốc tế',
                           },
                         ].map((m) => {
                           const active = vnpayBankCode === m.code;
@@ -1903,73 +1953,14 @@ export const BookingPage: React.FC = () => {
                         })}
                       </div>
                     </div>
-
-                    {/* VNPay Sandbox Quick-Copy Helper Card */}
-                    <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 text-xs space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-[#FFC799]">
-                        <div className="flex items-center space-x-1.5">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>Thông tin thẻ ATM Sandbox thử nghiệm nhanh:</span>
-                        </div>
-                        <span className="font-mono text-[10px] text-[#99FFE4] bg-[#99FFE4]/10 px-2 py-0.5 rounded">
-                          Môi trường TEST
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
-                        <div
-                          onClick={() => handleCopyText('9704198526191432198', 'vnpayCard')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Số thẻ NCB</span>
-                          <span className="text-[#F5F5F5] font-bold">9704 1985...</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayCard' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
-                        <div
-                          onClick={() => handleCopyText('NGUYEN VAN A', 'vnpayName')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Tên chủ thẻ</span>
-                          <span className="text-[#F5F5F5] font-bold">NGUYEN VAN A</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayName' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
-                        <div
-                          onClick={() => handleCopyText('07/15', 'vnpayDate')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Ngày phát hành</span>
-                          <span className="text-[#F5F5F5] font-bold">07/15</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayDate' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
-                        <div
-                          onClick={() => handleCopyText('123456', 'vnpayOtp')}
-                          className="p-2 rounded-lg bg-[#101010] border border-white/5 hover:border-[#FFC799]/40 cursor-pointer transition-colors"
-                          title="Nhấp để sao chép"
-                        >
-                          <span className="text-[10px] text-[#6E6E6E] block font-sans">Mã OTP</span>
-                          <span className="text-[#F5F5F5] font-bold">123456</span>
-                          <span className="text-[9px] text-[#FFC799] block mt-0.5 font-sans">
-                            {copiedField === 'vnpayOtp' ? '✓ Đã chép' : 'Sao chép'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 )}
 
                 {paymentOption === 'Cash' && (
                   <div className="p-4 rounded-xl bg-[#101010] border border-[#FFC799]/30 text-xs text-[#C8C2B8] space-y-1.5">
-                    <p className="font-bold text-[#FFC799]">Lưu ý khi chọn Cọc tại quầy:</p>
+                    <p className="font-bold text-[#FFC799]">{isEnglish ? 'Notice when choosing Pay at Counter:' : 'Lưu ý khi chọn Cọc tại quầy:'}</p>
                     <p>
-                      Đơn đặt xe sẽ ở trạng thái <strong>Chờ cọc 30% (Pending)</strong>. Bạn vẫn có thể mở lại mã VietQR để thanh toán bất kỳ lúc nào trong mục <strong>Hồ sơ &rarr; Chuyến xe của tôi</strong>.
+                      {isEnglish ? <>Your reservation will be held in <strong>Pending Deposit (Pending)</strong> status. You can reopen the VietQR code to complete payment anytime under <strong>Profile &rarr; My Bookings</strong>.</> : <>Đơn đặt xe sẽ ở trạng thái <strong>Chờ cọc 30% (Pending)</strong>. Bạn vẫn có thể mở lại mã VietQR để thanh toán bất kỳ lúc nào trong mục <strong>Hồ sơ &rarr; Chuyến xe của tôi</strong>.</>}
                     </p>
                   </div>
                 )}
@@ -1978,11 +1969,11 @@ export const BookingPage: React.FC = () => {
                 <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] text-[11px] text-[#6E6E6E] space-y-1.5">
                   <div className="flex items-center space-x-2 text-[#FFC799] font-bold">
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Chính sách bảo vệ quyền lợi người thuê</span>
+                    <span>{isEnglish ? 'Rider Protection Policy' : 'Chính sách bảo vệ quyền lợi người thuê'}</span>
                   </div>
-                  <p>• Hoàn lại 100% tiền đã thanh toán nếu thông báo hủy chuyến trước 24 giờ so với giờ nhận xe.</p>
+                  <p>{isEnglish ? '• 100% refund of paid amount if cancellation notice is received 24h prior to pickup.' : '• Hoàn lại 100% tiền đã thanh toán nếu thông báo hủy chuyến trước 24 giờ so với giờ nhận xe.'}</p>
                   <p>
-                    • Biển số xe <strong className="text-[#F5F5F5] font-mono">{vehicle.licensePlate}</strong> được khóa độc quyền cho bạn ngay sau khi hoàn tất.
+                    {isEnglish ? <>• License plate <strong className="text-[#F5F5F5] font-mono">{vehicle.licensePlate}</strong> is exclusively reserved for you immediately upon completion.</> : <>• Biển số xe <strong className="text-[#F5F5F5] font-mono">{vehicle.licensePlate}</strong> được khóa độc quyền cho bạn ngay sau khi hoàn tất.</>}
                   </p>
                 </div>
 
@@ -2000,7 +1991,7 @@ export const BookingPage: React.FC = () => {
                     className="py-3.5 px-5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-[#C8C2B8] font-bold text-xs transition-colors flex items-center space-x-2 cursor-pointer"
                   >
                     <ArrowLeft className="w-4 h-4" />
-                    <span>Quay lại</span>
+                    <span>{isEnglish ? 'Back' : 'Quay lại'}</span>
                   </button>
 
                   <button
@@ -2014,8 +2005,8 @@ export const BookingPage: React.FC = () => {
                         <div className="w-4 h-4 border-2 border-[#101010]/40 border-t-transparent rounded-full animate-spin" />
                         <span>
                           {paymentOption === 'VNPay'
-                            ? 'Đang tạo chữ ký VNPay Sandbox & chuyển hướng...'
-                            : 'Đang đối soát thanh toán & khóa biển số...'}
+                            ? (isEnglish ? 'Creating VNPay Sandbox signature & redirecting...' : 'Đang tạo chữ ký VNPay Sandbox & chuyển hướng...')
+                            : (isEnglish ? 'Reconciling payment & locking license plate...' : 'Đang đối soát thanh toán & khóa biển số...')}
                         </span>
                       </div>
                     ) : (
@@ -2027,10 +2018,10 @@ export const BookingPage: React.FC = () => {
                         )}
                         <span>
                           {paymentOption === 'Cash'
-                            ? 'Tạo đơn giữ chỗ tại quầy'
+                            ? (isEnglish ? 'Create Hold Booking at Counter' : 'Tạo đơn giữ chỗ tại quầy')
                             : paymentOption === 'VNPay'
-                              ? `Chuyển tới cổng VNPay Sandbox (${activePayAmount.toLocaleString('vi-VN')}đ) →`
-                              : `Tôi đã thanh toán ${activePayAmount.toLocaleString('vi-VN')}đ — Hoàn tất & Khóa xe`}
+                              ? (isEnglish ? `Proceed to VNPay Gateway (${activePayAmount.toLocaleString('vi-VN')}₫) →` : `Chuyển tới cổng VNPay Sandbox (${activePayAmount.toLocaleString('vi-VN')}đ) →`)
+                              : (isEnglish ? `I have transferred ${activePayAmount.toLocaleString('vi-VN')}₫ — Complete & Lock Bike` : `Tôi đã thanh toán ${activePayAmount.toLocaleString('vi-VN')}đ — Hoàn tất & Khóa xe`)}
                         </span>
                       </>
                     )}
@@ -2051,11 +2042,11 @@ export const BookingPage: React.FC = () => {
                     <div>
                       <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block">
                         {paymentReceipt
-                          ? 'ĐÃ XÁC NHẬN THANH TOÁN QR • ĐƠN ĐÃ DUYỆT (APPROVED)'
-                          : 'ĐÃ TẠO ĐƠN GIỮ CHỖ • CHỜ ĐỐI SOÁT TẠI QUẦY'}
+                          ? (isEnglish ? 'QR PAYMENT VERIFIED • RESERVATION APPROVED' : 'ĐÃ XÁC NHẬN THANH TOÁN QR • ĐƠN ĐÃ DUYỆT (APPROVED)')
+                          : (isEnglish ? 'HOLD RESERVATION CREATED • PENDING COUNTER VERIFICATION' : 'ĐÃ TẠO ĐƠN GIỮ CHỖ • CHỜ ĐỐI SOÁT TẠI QUẦY')}
                       </span>
                       <h2 className="text-xl sm:text-2xl font-black text-[#F5F5F5]">
-                        Biển số {vehicle.licensePlate} đã khóa cho bạn
+                        {isEnglish ? `License plate ${vehicle.licensePlate} is locked for you` : `Biển số ${vehicle.licensePlate} đã khóa cho bạn`}
                       </h2>
                     </div>
                   </div>
@@ -2064,20 +2055,22 @@ export const BookingPage: React.FC = () => {
                   <div className="px-4 py-2.5 bg-[#101010] border border-white/15 rounded-xl flex items-center justify-between sm:justify-end gap-3 shrink-0">
                     <div>
                       <span className="text-[10px] text-[#6E6E6E] font-bold uppercase tracking-wider block">
-                        Mã hợp đồng (Check-in)
+                        {isEnglish ? 'Agreement Code (Check-in)' : 'Mã hợp đồng (Check-in)'}
                       </span>
                       <span className="font-mono text-lg font-black text-[#FFC799]">
-                        {createdBooking?.bookingCode || 'MV-88692'}
+                        {createdBooking?.bookingCode || '—'}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(createdBooking?.bookingCode || 'MV-88692')}
-                      className="p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-[#C8C2B8] transition-colors cursor-pointer"
-                      title="Sao chép mã"
-                    >
-                      {copiedCode ? <Check className="w-4 h-4 text-[#FFC799]" /> : <Copy className="w-4 h-4" />}
-                    </button>
+                    {createdBooking?.bookingCode && (
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(createdBooking.bookingCode)}
+                        className="p-2 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-[#C8C2B8] transition-colors cursor-pointer"
+                        title={isEnglish ? 'Copy Code' : 'Sao chép mã'}
+                      >
+                        {copiedCode ? <Check className="w-4 h-4 text-[#FFC799]" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -2087,25 +2080,25 @@ export const BookingPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[#FFC799] flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>Biên lai xác nhận thanh toán VietQR 24/7</span>
+                        <span>{isEnglish ? 'VietQR 24/7 Payment Confirmation Receipt' : 'Biên lai xác nhận thanh toán VietQR 24/7'}</span>
                       </span>
                       <span className="font-mono text-[11px] font-bold px-2.5 py-0.5 rounded bg-[#FFC799]/20 text-[#FFC799]">
-                        ĐÃ BÁO CÓ THÀNH CÔNG
+                        {isEnglish ? 'PAYMENT RECEIVED' : 'ĐÃ BÁO CÓ THÀNH CÔNG'}
                       </span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 text-xs">
                       <div className="p-2.5 rounded-lg bg-[#101010]/80 border border-white/10">
-                        <span className="text-[10px] text-[#6E6E6E] block">Mã giao dịch ngân hàng</span>
+                        <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Bank Transaction ID' : 'Mã giao dịch ngân hàng'}</span>
                         <span className="font-mono font-bold text-[#F5F5F5]">{paymentReceipt.transactionId}</span>
                       </div>
                       <div className="p-2.5 rounded-lg bg-[#101010]/80 border border-white/10">
-                        <span className="text-[10px] text-[#6E6E6E] block">Số tiền đã thanh toán</span>
+                        <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Paid Amount' : 'Số tiền đã thanh toán'}</span>
                         <span className="font-mono font-black text-[#FFC799]">
-                          {paymentReceipt.amount.toLocaleString('vi-VN')} đ
+                          {paymentReceipt.amount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                         </span>
                       </div>
                       <div className="p-2.5 rounded-lg bg-[#101010]/80 border border-white/10">
-                        <span className="text-[10px] text-[#6E6E6E] block">Thời điểm xác nhận</span>
+                        <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Confirmation Time' : 'Thời điểm xác nhận'}</span>
                         <span className="font-mono font-semibold text-[#F5F5F5]">{paymentReceipt.paidAt}</span>
                       </div>
                     </div>
@@ -2115,35 +2108,35 @@ export const BookingPage: React.FC = () => {
                 {/* Ticket Details Summary */}
                 <div className="p-5 bg-[#101010] border border-white/10 rounded-xl space-y-3 text-xs">
                   <div className="flex justify-between py-1.5 border-b border-white/[0.06]">
-                    <span className="text-[#6E6E6E]">Phương tiện & Biển số:</span>
+                    <span className="text-[#6E6E6E]">{isEnglish ? 'Vehicle & Plate:' : 'Phương tiện & Biển số:'}</span>
                     <span className="font-bold text-[#F5F5F5]">
                       {vehicle.vehicleModel} • <span className="font-mono text-[#FFC799]">{vehicle.licensePlate}</span>
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-white/[0.06]">
-                    <span className="text-[#6E6E6E]">Thời gian nhận xe:</span>
+                    <span className="text-[#6E6E6E]">{isEnglish ? 'Pickup Time:' : 'Thời gian nhận xe:'}</span>
                     <span className="font-semibold text-[#F5F5F5]">
-                      {pickupTime} ngày {pickupDate}
+                      {pickupTime} {isEnglish ? 'on' : 'ngày'} {pickupDate}
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-white/[0.06]">
-                    <span className="text-[#6E6E6E]">Chi nhánh nhận xe:</span>
+                    <span className="text-[#6E6E6E]">{isEnglish ? 'Pickup Branch:' : 'Chi nhánh nhận xe:'}</span>
                     <span className="font-semibold text-[#F5F5F5]">{pickupBranch?.name}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-white/[0.06]">
-                    <span className="text-[#6E6E6E]">Trạng thái thanh toán:</span>
+                    <span className="text-[#6E6E6E]">{isEnglish ? 'Payment Status:' : 'Trạng thái thanh toán:'}</span>
                     <span className="font-mono font-bold text-[#FFC799]">
                       {paymentReceipt
-                        ? `${paymentReceipt.amount.toLocaleString('vi-VN')} đ (Đã thanh toán QR)`
-                        : `Chờ thanh toán cọc ${depositAmount.toLocaleString('vi-VN')} đ tại quầy`}
+                        ? (isEnglish ? `${paymentReceipt.amount.toLocaleString('vi-VN')} ₫ (Paid via QR)` : `${paymentReceipt.amount.toLocaleString('vi-VN')} đ (Đã thanh toán QR)`)
+                        : (isEnglish ? `Pending deposit ${depositAmount.toLocaleString('vi-VN')} ₫ at counter` : `Chờ thanh toán cọc ${depositAmount.toLocaleString('vi-VN')} đ tại quầy`)}
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5">
-                    <span className="text-[#6E6E6E]">Còn lại thanh toán khi nhận xe:</span>
+                    <span className="text-[#6E6E6E]">{isEnglish ? 'Remaining Balance at Handover:' : 'Còn lại thanh toán khi nhận xe:'}</span>
                     <span className="font-mono font-bold text-[#F5F5F5]">
                       {paymentReceipt
-                        ? `${activeRemainingAfterPay.toLocaleString('vi-VN')} đ`
-                        : `${remainingAmount.toLocaleString('vi-VN')} đ`}
+                        ? `${activeRemainingAfterPay.toLocaleString('vi-VN')} ${isEnglish ? '₫' : 'đ'}`
+                        : `${remainingAmount.toLocaleString('vi-VN')} ${isEnglish ? '₫' : 'đ'}`}
                     </span>
                   </div>
                 </div>
@@ -2158,7 +2151,7 @@ export const BookingPage: React.FC = () => {
                     className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-[#C8C2B8] hover:text-[#F5F5F5] font-bold text-xs flex items-center justify-center space-x-2 transition-all cursor-pointer"
                   >
                     <CalendarPlus className="w-4 h-4 text-[#99FFE4]" />
-                    <span>Lưu vào Google Calendar</span>
+                    <span>{isEnglish ? 'Save to Google Calendar' : 'Lưu vào Google Calendar'}</span>
                   </a>
 
                   {/* PDF Electronic Invoice Download Button */}
@@ -2175,12 +2168,12 @@ export const BookingPage: React.FC = () => {
                     {downloadingInvoice ? (
                       <>
                         <div className="w-3.5 h-3.5 border-2 border-[#FFC799] border-t-transparent rounded-full animate-spin" />
-                        <span>Đang xuất PDF hóa đơn...</span>
+                        <span>{isEnglish ? 'Exporting PDF invoice...' : 'Đang xuất PDF hóa đơn...'}</span>
                       </>
                     ) : (
                       <>
                         <Download className="w-4 h-4" />
-                        <span>Tải hóa đơn điện tử (PDF)</span>
+                        <span>{isEnglish ? 'Download Digital Invoice (PDF)' : 'Tải hóa đơn điện tử (PDF)'}</span>
                       </>
                     )}
                   </button>
@@ -2189,14 +2182,14 @@ export const BookingPage: React.FC = () => {
                     to="/bikes"
                     className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-[#C8C2B8] font-bold text-xs text-center transition-colors"
                   >
-                    Khám phá thêm xe khác
+                    {isEnglish ? 'Explore other bikes' : 'Khám phá thêm xe khác'}
                   </Link>
 
                   <Link
                     to="/profile?tab=bookings"
                     className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs uppercase tracking-wider text-center transition-all shadow-md"
                   >
-                    Xem trong Chuyến xe của tôi
+                    {isEnglish ? 'View in My Trips' : 'Xem trong Chuyến xe của tôi'}
                   </Link>
                 </div>
               </div>
@@ -2211,8 +2204,7 @@ export const BookingPage: React.FC = () => {
                 <div>
                   <h3 className="text-base font-black text-[#F5F5F5]">{vehicle.vehicleModel}</h3>
                   <p className="text-xs text-[#6E6E6E] font-mono mt-0.5">
-                    Biển số: <strong className="text-[#F5F5F5]">{vehicle.licensePlate}</strong> • Đời{' '}
-                    {vehicle.yearManufactured || 2024}
+                    {isEnglish ? 'Plate:' : 'Biển số:'} <strong className="text-[#F5F5F5]">{vehicle.licensePlate}</strong> • {isEnglish ? 'Model ' : 'Đời '}{vehicle.yearManufactured || 2024}
                   </p>
                 </div>
                 {vehicle.color && (
@@ -2226,14 +2218,14 @@ export const BookingPage: React.FC = () => {
               <div className="relative w-full h-56 bg-gradient-to-b from-[#E8F1ED] via-[#F4F8F6] to-[#DCE9E3] overflow-hidden flex items-center justify-center">
                 <div className="absolute top-3 left-4 z-20 flex items-center space-x-1.5 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[10px] font-semibold text-[#F5F5F5]">
                   <Camera className="w-3 h-3 text-[#FFC799]" />
-                  <span>{ANGLE_VIEWS.find((a) => a.id === activeAngle)?.title}</span>
+                  <span>{getAngleViews(isEnglish).find((a) => a.id === activeAngle)?.title}</span>
                 </div>
 
                 <div className="w-full h-full flex items-center justify-center overflow-hidden">
                   {vehicle.images && vehicle.images[activeAngle] && !imgError ? (
                     <img
                       src={getOptimizedVehicleImageUrl(vehicle.images[activeAngle])}
-                      alt={`${vehicle.vehicleModel} - ${ANGLE_VIEWS.find((a) => a.id === activeAngle)?.title}`}
+                      alt={`${vehicle.vehicleModel} - ${getAngleViews(isEnglish).find((a) => a.id === activeAngle)?.title}`}
                       loading="lazy"
                       decoding="async"
                       crossOrigin="anonymous"
@@ -2265,7 +2257,7 @@ export const BookingPage: React.FC = () => {
 
                 {/* 3-Angle Switcher Buttons */}
                 <div className="absolute bottom-2.5 left-4 z-20 flex items-center bg-[#101010]/90 backdrop-blur-md p-1 rounded-lg border border-white/15 space-x-1">
-                  {ANGLE_VIEWS.map((ang) => (
+                  {getAngleViews(isEnglish).map((ang) => (
                     <button
                       key={ang.id}
                       type="button"
@@ -2290,7 +2282,7 @@ export const BookingPage: React.FC = () => {
                 <div className="flex items-center space-x-2.5 bg-[#101010] p-3 rounded-xl border border-white/[0.06]">
                   <Gauge className="w-4 h-4 text-[#FFC799]" />
                   <div>
-                    <span className="text-[10px] text-[#6E6E6E] block">ODO chuẩn</span>
+                    <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Standard ODO' : 'ODO chuẩn'}</span>
                     <span className="font-mono font-bold text-[#F5F5F5]">
                       {vehicle.odometer.toLocaleString('vi-VN')} km
                     </span>
@@ -2302,16 +2294,16 @@ export const BookingPage: React.FC = () => {
                     <>
                       <Zap className="w-4 h-4 text-[#FFC799]" />
                       <div>
-                        <span className="text-[10px] text-[#6E6E6E] block">Nhiên liệu</span>
-                        <span className="font-bold text-[#F5F5F5]">Pin LFP ~198 km</span>
+                        <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Fuel' : 'Nhiên liệu'}</span>
+                        <span className="font-bold text-[#F5F5F5]">{isEnglish ? 'LFP Battery ~198 km' : 'Pin LFP ~198 km'}</span>
                       </div>
                     </>
                   ) : (
                     <>
                       <Fuel className="w-4 h-4 text-[#FFC799]" />
                       <div>
-                        <span className="text-[10px] text-[#6E6E6E] block">Tiêu hao</span>
-                        <span className="font-bold text-[#F5F5F5]">Xăng ~1.8L/100km</span>
+                        <span className="text-[10px] text-[#6E6E6E] block">{isEnglish ? 'Consumption' : 'Tiêu hao'}</span>
+                        <span className="font-bold text-[#F5F5F5]">{isEnglish ? 'Gasoline ~1.8L/100km' : 'Xăng ~1.8L/100km'}</span>
                       </div>
                     </>
                   )}
@@ -2324,114 +2316,114 @@ export const BookingPage: React.FC = () => {
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-mono font-bold uppercase tracking-widest text-[#FFC799] flex items-center space-x-2">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>Bảng kê chi phí hợp đồng</span>
+                  <span>{isEnglish ? 'Contract Price Breakdown' : 'Bảng kê chi phí hợp đồng'}</span>
                 </h4>
                 <span className="px-2 py-0.5 rounded-full bg-[#FFC799]/10 border border-[#FFC799]/30 text-[10px] font-mono font-bold text-[#FFC799]">
-                  {isHourlyBilling ? 'Tính theo giờ' : 'Tính theo ngày'}
+                  {isHourlyBilling ? (isEnglish ? 'Hourly Rate' : 'Tính theo giờ') : (isEnglish ? 'Daily Rate' : 'Tính theo ngày')}
                 </span>
               </div>
 
               <div className="space-y-2 text-xs text-[#C8C2B8]">
                 <div className="flex justify-between items-center py-1">
                   <span className="text-[#6E6E6E] flex items-center gap-1.5">
-                    <span>Đơn giá theo giờ:</span>
+                    <span>{isEnglish ? 'Hourly Rate:' : 'Đơn giá theo giờ:'}</span>
                     {isHourlyBilling && (
                       <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-mono font-bold">
-                        Đang áp dụng
+                        {isEnglish ? 'Active' : 'Đang áp dụng'}
                       </span>
                     )}
                   </span>
                   <span className={`font-mono font-bold ${isHourlyBilling ? 'text-[#FFC799]' : 'text-[#8A857D]'}`}>
-                    {hourlyPrice.toLocaleString('vi-VN')} đ/giờ
+                    {(vehicle.effectiveHourlyPrice ?? hourlyPrice).toLocaleString('vi-VN')} {isEnglish ? '₫/hr' : 'đ/giờ'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center py-1">
                   <span className="text-[#6E6E6E] flex items-center gap-1.5">
-                    <span>Đơn giá thuê ngày:</span>
+                    <span>{isEnglish ? 'Daily Rate:' : 'Đơn giá thuê ngày:'}</span>
                     {!isHourlyBilling && (
                       <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-400 text-[9px] font-mono font-bold">
-                        Đang áp dụng
+                        {isEnglish ? 'Active' : 'Đang áp dụng'}
                       </span>
                     )}
                   </span>
                   <span className={`font-mono font-bold ${!isHourlyBilling ? 'text-[#F5F5F5]' : 'text-[#8A857D]'}`}>
-                    {dailyPrice.toLocaleString('vi-VN')} đ/ngày
+                    {(vehicle.effectiveDailyPrice ?? dailyPrice).toLocaleString('vi-VN')} {isEnglish ? '₫/day' : 'đ/ngày'}
                   </span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className="text-[#6E6E6E]">Thời lượng thuê:</span>
+                  <span className="text-[#6E6E6E]">{isEnglish ? 'Rental Duration:' : 'Thời lượng thuê:'}</span>
                   <span className="font-mono font-bold text-[#FFC799]">{billingDurationLabel}</span>
                 </div>
                 <div className="flex justify-between py-1">
-                  <span className="text-[#6E6E6E]">Tạm tính tiền thuê xe:</span>
+                  <span className="text-[#6E6E6E]">{isEnglish ? 'Subtotal Rental Fee:' : 'Tạm tính tiền thuê xe:'}</span>
                   <span className="font-mono font-bold text-[#F5F5F5]">
-                    {baseRentalFee.toLocaleString('vi-VN')} đ
+                    {baseRentalFee.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </span>
                 </div>
 
                 {/* Clean Single-Row Voucher Summary in Cost Breakdown */}
                 <div className="flex justify-between items-center py-1">
                   <span className="text-[#6E6E6E] flex items-center gap-1.5">
-                    <span>Ưu đãi voucher:</span>
+                    <span>{isEnglish ? 'Applied Voucher:' : 'Ưu đãi voucher:'}</span>
                     {appliedDiscount ? (
                       <span className="px-1.5 py-0.5 rounded bg-[#FFC799]/15 border border-[#FFC799]/30 font-mono text-[10px] font-bold text-[#FFC799]">
                         {appliedDiscount.code}
                       </span>
                     ) : (
-                      <span className="text-[11px] text-[#6E6E6E]">Chưa áp dụng</span>
+                      <span className="text-[11px] text-[#6E6E6E]">{isEnglish ? 'None' : 'Chưa áp dụng'}</span>
                     )}
                   </span>
                   {appliedDiscount ? (
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-emerald-400">
-                        - {appliedDiscount.amount.toLocaleString('vi-VN')} đ
+                        - {appliedDiscount.amount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                       </span>
                       <button
                         type="button"
                         onClick={() => handleSelectVoucher('')}
                         className="text-[10px] font-mono text-[#8A857D] hover:text-red-400 underline cursor-pointer"
                       >
-                        Bỏ
+                        {isEnglish ? 'Remove' : 'Bỏ'}
                       </button>
                     </div>
                   ) : (
-                    <span className="font-mono text-[#6E6E6E]">0 đ</span>
+                    <span className="font-mono text-[#6E6E6E]">0 {isEnglish ? '₫' : 'đ'}</span>
                   )}
                 </div>
 
                 <div className="flex justify-between py-1 text-[#6E6E6E]">
-                  <span>Phụ phí trả xe liên trạm:</span>
-                  <span className="text-[#FFC799] font-bold">0 đ (Miễn phí)</span>
+                  <span>{isEnglish ? 'Cross-Station Return Fee:' : 'Phụ phí trả xe liên trạm:'}</span>
+                  <span className="text-[#FFC799] font-bold">{isEnglish ? '0 ₫ (Free)' : '0 đ (Miễn phí)'}</span>
                 </div>
               </div>
 
               {/* Total & Deposit Split Box */}
               <div className="pt-3 border-t border-white/10 space-y-2.5">
                 <div className="flex justify-between items-baseline">
-                  <span className="text-xs text-[#6E6E6E] font-bold uppercase tracking-wider">Tổng hợp đồng:</span>
+                  <span className="text-xs text-[#6E6E6E] font-bold uppercase tracking-wider">{isEnglish ? 'Total Agreement:' : 'Tổng hợp đồng:'}</span>
                   <span className="text-xl font-black text-[#F5F5F5] font-mono">
-                    {totalAmount.toLocaleString('vi-VN')} <span className="text-xs text-[#6E6E6E] font-normal">đ</span>
+                    {totalAmount.toLocaleString('vi-VN')} <span className="text-xs text-[#6E6E6E] font-normal">{isEnglish ? '₫' : 'đ'}</span>
                   </span>
                 </div>
 
                 <div className="p-3.5 bg-[#101010] border border-[#FFC799]/30 rounded-xl space-y-1">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-bold text-[#F5F5F5]">
-                      {paymentScope === 'Full100' ? 'Thanh toán ngay (100%):' : 'Tiền cọc giữ xe (30%):'}
+                      {paymentScope === 'Full100' ? (isEnglish ? 'Full Payment (100%):' : 'Thanh toán ngay (100%):') : (isEnglish ? 'Deposit Amount (30%):' : 'Tiền cọc giữ xe (30%):')}
                     </span>
                     <span className="font-mono font-black text-[#FFC799] text-sm">
-                      {activePayAmount.toLocaleString('vi-VN')} đ
+                      {activePayAmount.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                     </span>
                   </div>
                   <p className="text-[11px] text-[#6E6E6E]">
-                    Đối soát tự động qua VietQR 24/7 để khóa biển số riêng
+                    {isEnglish ? 'Auto-verified 24/7 via VietQR to lock exact plate' : 'Đối soát tự động qua VietQR 24/7 để khóa biển số riêng'}
                   </p>
                 </div>
 
                 <div className="flex justify-between items-center text-xs text-[#6E6E6E] px-1">
-                  <span>Còn lại thanh toán khi nhận xe:</span>
+                  <span>{isEnglish ? 'Remaining Balance at Handover:' : 'Còn lại thanh toán khi nhận xe:'}</span>
                   <span className="font-mono font-bold text-[#F5F5F5]">
-                    {activeRemainingAfterPay.toLocaleString('vi-VN')} đ
+                    {activeRemainingAfterPay.toLocaleString('vi-VN')} {isEnglish ? '₫' : 'đ'}
                   </span>
                 </div>
               </div>

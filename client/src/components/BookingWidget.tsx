@@ -11,6 +11,7 @@ import {
 import type { Branch } from '../types';
 import { DateTimePicker, formatLocalDateStr, normalizeReturnSchedule } from './DateTimePicker';
 import { BranchSelect } from './BranchSelect';
+import { useTranslation } from '../context/I18nContext';
 
 interface BookingWidgetProps {
   branches: Branch[];
@@ -23,6 +24,7 @@ interface BookingWidgetProps {
 }
 
 export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch }) => {
+  const { isEnglish } = useTranslation();
   const [pickupBranchId, setPickupBranchId] = useState<string>('');
   const [returnBranchId, setReturnBranchId] = useState<string>('');
   const [isDifferentReturn, setIsDifferentReturn] = useState<boolean>(false);
@@ -80,13 +82,10 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-white/[0.08]">
         <div>
           <span className="text-[10px] uppercase tracking-[0.18em] text-[#FFC799] block font-medium">
-            Phiếu Điều Phối Trực Tuyến
+            {isEnglish ? 'Online Dispatch Ticket' : 'Phiếu Điều Phối Trực Tuyến'}
           </span>
           <h3 className="text-lg font-semibold text-[#F5F5F5] tracking-tight mt-0.5">
-            Đặt lịch &amp;{' '}
-            <span className="font-serif-display italic font-normal text-[#FFC799] text-xl">
-              giữ biển số xe
-            </span>
+            {isEnglish ? <>Reserve &amp; <span className="font-serif-display italic font-normal text-[#FFC799] text-xl">lock vehicle plate</span></> : <>Đặt lịch &amp; <span className="font-serif-display italic font-normal text-[#FFC799] text-xl">giữ biển số xe</span></>}
           </h3>
         </div>
 
@@ -100,7 +99,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
                 : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
             }`}
           >
-            Cùng trạm
+            {isEnglish ? 'Round Trip' : 'Cùng trạm'}
           </button>
           <button
             type="button"
@@ -112,7 +111,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
             }`}
           >
             <ArrowRightLeft className="w-3 h-3" />
-            <span>Liên trạm (0đ)</span>
+            <span>{isEnglish ? 'Cross-Station (0₫)' : 'Liên trạm (0đ)'}</span>
           </button>
         </div>
       </div>
@@ -125,7 +124,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
           {/* Pickup Location */}
           <div className="p-3.5 sm:p-4 space-y-2">
             <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center justify-between">
-              <span>Điểm nhận xe</span>
+              <span>{isEnglish ? 'Pickup Location' : 'Điểm nhận xe'}</span>
               <MapPin className="w-3 h-3 text-[#FFC799]" />
             </label>
             <BranchSelect
@@ -139,9 +138,9 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
           {/* Return Location */}
           <div className="p-3.5 sm:p-4 space-y-2">
             <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center justify-between">
-              <span>Điểm trả xe</span>
+              <span>{isEnglish ? 'Return Location' : 'Điểm trả xe'}</span>
               <span className="text-[10px] text-[#FFC799] font-mono-tabular">
-                {isDifferentReturn ? 'Khác trạm (0đ)' : 'Tại trạm nhận'}
+                {isDifferentReturn ? (isEnglish ? 'Cross-Station (0₫)' : 'Khác trạm (0đ)') : (isEnglish ? 'Same Station' : 'Tại trạm nhận')}
               </span>
             </label>
             <BranchSelect
@@ -156,8 +155,8 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
               onChange={(id) => setReturnBranchId(id)}
               helperText={
                 isDifferentReturn
-                  ? 'Miễn phí điều chuyển nội bộ'
-                  : 'Trả tại cùng điểm xuất phát'
+                  ? (isEnglish ? 'Free inter-station transfer' : 'Miễn phí điều chuyển nội bộ')
+                  : (isEnglish ? 'Return at pickup station' : 'Trả tại cùng điểm xuất phát')
               }
             />
           </div>
@@ -168,9 +167,9 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center">
               <Calendar className="w-3 h-3 text-[#FFC799] mr-1.5" />
-              Thời gian nhận xe
+              {isEnglish ? 'Pickup Date & Time' : 'Thời gian nhận xe'}
             </label>
-            <span className="text-[10px] text-[#6E6E6E]">06:30 – 22:30 mỗi ngày</span>
+            <span className="text-[10px] text-[#6E6E6E]">{isEnglish ? '06:30 – 22:30 daily' : '06:30 – 22:30 mỗi ngày'}</span>
           </div>
           <DateTimePicker
             mode="pickup"
@@ -208,11 +207,11 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-medium uppercase tracking-[0.14em] text-[#A0A0A0] flex items-center">
               <Clock className="w-3 h-3 text-[#FFC799] mr-1.5" />
-              Thời gian trả xe
+              {isEnglish ? 'Return Date & Time' : 'Thời gian trả xe'}
             </label>
             <span className="text-[10px] text-[#FFC799] font-medium flex items-center">
               <CheckCircle2 className="w-3 h-3 mr-1" />
-              Tổng hành trình: {durationDays} ngày
+              {isEnglish ? `Total Duration: ${durationDays} days` : `Tổng hành trình: ${durationDays} ngày`}
             </span>
           </div>
           <DateTimePicker
@@ -248,7 +247,7 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
         >
           <span className="flex items-center space-x-2">
             <Search className="w-4 h-4 stroke-[2.2]" />
-            <span>Tìm xe sẵn sàng tại trạm ({durationDays} ngày)</span>
+            <span>{isEnglish ? `Find Available Bikes (${durationDays} days)` : `Tìm xe sẵn sàng tại trạm (${durationDays} ngày)`}</span>
           </span>
           <span className="w-7 h-7 rounded-full bg-[#101010] text-[#F5F5F5] flex items-center justify-center transition-transform group-hover:translate-x-0.5">
             <ArrowRight className="w-3.5 h-3.5" />
@@ -256,11 +255,11 @@ export const BookingWidget: React.FC<BookingWidgetProps> = ({ branches, onSearch
         </button>
 
         <div className="flex items-center justify-between text-[11px] text-[#A0A0A0] pt-1">
-          <span>Không giữ CCCD gốc</span>
+          <span>{isEnglish ? 'Keep original ID card' : 'Không giữ CCCD gốc'}</span>
           <span>•</span>
-          <span>Cọc 30% giữ biển số</span>
+          <span>{isEnglish ? '30% deposit locks plate' : 'Cọc 30% giữ biển số'}</span>
           <span>•</span>
-          <span>Hỗ trợ nội thành 24/7</span>
+          <span>{isEnglish ? '24/7 Citywide Support' : 'Hỗ trợ nội thành 24/7'}</span>
         </div>
       </div>
     </div>

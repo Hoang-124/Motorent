@@ -19,6 +19,8 @@ describe('UC-99: RBAC Matrix & Role-Based Authorization Enforcement', () => {
   let branchMKId: mongoose.Types.ObjectId;
 
   beforeAll(async () => {
+  // 60s timeout for mongodb-memory-server
+
     await setupTestEnvironment();
 
     const admin = await User.findOne({ username: 'admin' });
@@ -76,7 +78,7 @@ describe('UC-99: RBAC Matrix & Role-Based Authorization Enforcement', () => {
       env.JWT_SECRET,
       { expiresIn: '24h' }
     );
-  }, 30000);
+  }, 90000);
 
   afterAll(async () => {
     await mongoose.disconnect();
@@ -146,6 +148,32 @@ describe('UC-99: RBAC Matrix & Role-Based Authorization Enforcement', () => {
     expect(res.body.data.permissions).toContain('USER_MANAGE');
     expect(res.body.data.permissions).toContain('FINANCE_TAX_REPORT');
     expect(res.body.data.permissions).toContain('BRANCH_MANAGE');
+  });
+
+  it('5b. Alias route /api/rbac-matrix returns identical matrix for authenticated Staff and SystemAdmin (200 OK)', async () => {
+    const unauthRes = await request(app).get('/api/rbac-matrix');
+    expect(unauthRes.status).toBe(401);
+
+    const forbiddenRes = await request(app)
+      .get('/api/rbac-matrix')
+      .set('Authorization', `Bearer ${customerToken}`);
+    expect(forbiddenRes.status).toBe(403);
+
+    const staffRes = await request(app)
+      .get('/api/rbac-matrix')
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(staffRes.status).toBe(200);
+    expect(staffRes.body.success).toBe(true);
+    expect(staffRes.body.data.role).toBe('Staff');
+    expect(staffRes.body.data.matrix).toBeDefined();
+    expect(staffRes.body.data.permissions).toContain('BOOKING_CHECKIN');
+
+    const adminRes = await request(app)
+      .get('/api/rbac-matrix')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminRes.status).toBe(200);
+    expect(adminRes.body.data.role).toBe('SystemAdmin');
+    expect(adminRes.body.data.permissions).toContain('AUDIT_VIEW');
   });
 
   it('6. hasPermission helper correctly evaluates role capability against matrix', () => {

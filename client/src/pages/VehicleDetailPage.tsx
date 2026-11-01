@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from '../context/I18nContext';
 import type { Vehicle, Review, VehicleReview, VehicleReviewsResponse } from '../types';
 import {
   getOptimizedVehicleImageUrl,
@@ -48,7 +49,7 @@ type UnifiedReviewItem = Review &
 const toDateKey = (year: number, monthIndex: number, day: number): string =>
   `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-const money = (amount: number): string => `${amount.toLocaleString('vi-VN')} đ`;
+const formatMoney = (amount: number, isEn: boolean): string => isEn ? `${amount.toLocaleString('vi-VN')} ₫` : `${amount.toLocaleString('vi-VN')} đ`;
 
 const initialCalendarMonth = (search: string): Date => {
   const pickupDate = new URLSearchParams(search).get('pickupDate') || '';
@@ -80,6 +81,8 @@ export const VehicleDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isAuthenticated } = useAuth();
+  const { isEnglish } = useTranslation();
+  const money = (amount: number): string => formatMoney(amount, isEnglish);
 
   const navigationState = location.state as { fleetSearch?: string } | null;
   const fleetSearch =
@@ -167,7 +170,7 @@ export const VehicleDetailPage: React.FC = () => {
       .catch(() => {
         if (active)
           setErrorMessage(
-            'Không thể tải thông tin xe. Xe có thể đã bị gỡ khỏi danh sách.'
+            isEnglish ? 'Unable to load vehicle details. The bike may have been unlisted.' : 'Không thể tải thông tin xe. Xe có thể đã bị gỡ khỏi danh sách.'
           );
       })
       .finally(() => {
@@ -232,7 +235,7 @@ export const VehicleDetailPage: React.FC = () => {
         }
       })
       .catch(() => {
-        if (active) setReviewsError('Chưa tải được đánh giá. Vui lòng thử lại.');
+        if (active) setReviewsError(isEnglish ? 'Unable to load reviews. Please try again.' : 'Chưa tải được đánh giá. Vui lòng thử lại.');
       })
       .finally(() => {
         if (active) setReviewsLoading(false);
@@ -265,7 +268,7 @@ export const VehicleDetailPage: React.FC = () => {
       .catch(() => {
         if (active)
           setAvailabilityError(
-            'Chưa tải được lịch xe của tháng này. Vui lòng thử lại.'
+            isEnglish ? 'Unable to load availability schedule for this month. Please try again.' : 'Chưa tải được lịch xe của tháng này. Vui lòng thử lại.'
           );
       })
       .finally(() => {
@@ -293,14 +296,14 @@ export const VehicleDetailPage: React.FC = () => {
     setFeedbackMsg(null);
     try {
       await api.delete(`/reviews/${reviewToDelete._id}`);
-      setFeedbackMsg({ type: 'success', text: 'Đã xóa đánh giá thành công.' });
+      setFeedbackMsg({ type: 'success', text: isEnglish ? 'Review deleted successfully.' : 'Đã xóa đánh giá thành công.' });
       setReviewToDelete(null);
       setVehicleReload((v) => v + 1);
       setReviewsReload((r) => r + 1);
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message || 'Có lỗi xảy ra khi xóa đánh giá.';
+          ?.message || (isEnglish ? 'An error occurred while deleting the review.' : 'Có lỗi xảy ra khi xóa đánh giá.');
       setFeedbackMsg({ type: 'error', text: msg });
     } finally {
       setDeleteLoading(false);
@@ -314,7 +317,7 @@ export const VehicleDetailPage: React.FC = () => {
         className="min-h-[65vh] bg-[#101010] px-4 py-24 text-center text-[#A0A0A0]"
       >
         <Loader2 className="mx-auto mb-4 h-7 w-7 animate-spin text-[#FFC799]" />
-        Đang tải thông tin xe…
+        {isEnglish ? "Loading vehicle details…" : "Đang tải thông tin xe…"}
       </div>
     );
   }
@@ -324,20 +327,20 @@ export const VehicleDetailPage: React.FC = () => {
       <div className="min-h-[65vh] bg-[#101010] px-4 py-24 text-center text-[#F5F5F5]">
         <AlertCircle className="mx-auto mb-4 h-9 w-9 text-[#FFC799]" />
         <p role="alert" className="mx-auto max-w-lg text-base font-semibold leading-relaxed">
-          {errorMessage || 'Không tìm thấy xe.'}
+          {errorMessage || (isEnglish ? 'Vehicle not found.' : 'Không tìm thấy xe.')}
         </p>
         <button
           type="button"
           onClick={() => setVehicleReload((value) => value + 1)}
           className="mx-auto mt-6 flex items-center gap-2 rounded-xl border border-white/15 px-5 py-3 text-sm hover:bg-white/5"
         >
-          <RefreshCw className="h-4 w-4" /> Thử lại
+          <RefreshCw className="h-4 w-4" /> {isEnglish ? "Try again" : "Thử lại"}
         </button>
         <Link
           to={backToFleet}
           className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#FFC799] px-5 py-3 text-sm font-bold text-[#101010]"
         >
-          <ArrowLeft className="h-4 w-4" /> Quay lại danh sách xe
+          <ArrowLeft className="h-4 w-4" /> {isEnglish ? "Back to fleet" : "Quay lại danh sách xe"}
         </Link>
       </div>
     );
@@ -352,15 +355,25 @@ export const VehicleDetailPage: React.FC = () => {
     .filter(Boolean);
   const imageUrl = images[activeImage] || '';
   const canBook = vehicle.status === 'Available' && !vehicle.requiresMaintenance;
-  const statusLabel = vehicle.requiresMaintenance
-    ? 'Cần bảo dưỡng trước khi cho thuê'
-    : vehicle.status === 'Available'
-    ? 'Sẵn sàng nhận đặt xe'
-    : vehicle.status === 'Rented'
-    ? 'Đang có khách thuê'
-    : vehicle.status === 'Transferring'
-    ? 'Đang điều chuyển'
-    : 'Đang bảo dưỡng';
+  const statusLabel = isEnglish
+    ? (vehicle.requiresMaintenance
+        ? 'Requires maintenance before rental'
+        : vehicle.status === 'Available'
+        ? 'Ready for booking'
+        : vehicle.status === 'Rented'
+        ? 'Currently rented'
+        : vehicle.status === 'Transferring'
+        ? 'In transfer'
+        : 'In maintenance')
+    : (vehicle.requiresMaintenance
+        ? 'Cần bảo dưỡng trước khi cho thuê'
+        : vehicle.status === 'Available'
+        ? 'Sẵn sàng nhận đặt xe'
+        : vehicle.status === 'Rented'
+        ? 'Đang có khách thuê'
+        : vehicle.status === 'Transferring'
+        ? 'Đang điều chuyển'
+        : 'Đang bảo dưỡng');
   const blocked = new Set(blockedDates || []);
   const todayParts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -390,7 +403,7 @@ export const VehicleDetailPage: React.FC = () => {
           to={backToFleet}
           className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-[#A0A0A0] transition hover:text-[#FFC799]"
         >
-          <ArrowLeft className="h-4 w-4" /> Quay lại danh sách xe
+          <ArrowLeft className="h-4 w-4" /> {isEnglish ? "Back to fleet" : "Quay lại danh sách xe"}
         </Link>
 
         {feedbackMsg && (
@@ -421,7 +434,7 @@ export const VehicleDetailPage: React.FC = () => {
 
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <section
-            aria-label="Hình ảnh xe"
+            aria-label={isEnglish ? "Vehicle gallery" : "Hình ảnh xe"}
             className="min-w-0 self-start overflow-hidden rounded-3xl border border-white/10 bg-[#161616]"
           >
             <div className="relative flex h-[280px] items-center justify-center studio-paper-backdrop p-5 sm:h-[480px] sm:p-8">
@@ -433,14 +446,14 @@ export const VehicleDetailPage: React.FC = () => {
                     sizes: '(min-width: 1024px) 55vw, 100vw',
                     priority: true,
                   })}
-                  alt={`${vehicle.vehicleModel}, ảnh ${activeImage + 1}`}
+                  alt={isEnglish ? `${vehicle.vehicleModel}, photo ${activeImage + 1}` : `${vehicle.vehicleModel}, ảnh ${activeImage + 1}`}
                   onError={() => setImageFailed(true)}
                   className="h-full w-full object-contain mix-blend-multiply"
                 />
               ) : (
                 <div className="flex flex-col items-center gap-3 p-8 text-center text-[#6E6E6E]">
                   <ImageOff className="h-10 w-10" />
-                  {imageFailed ? 'Ảnh này hiện chưa tải được.' : 'Xe chưa có hình ảnh.'}
+                  {imageFailed ? (isEnglish ? 'Image failed to load.' : 'Ảnh này hiện chưa tải được.') : (isEnglish ? 'No image available.' : 'Xe chưa có hình ảnh.')}
                 </div>
               )}
               {images.length > 1 && (
@@ -450,7 +463,7 @@ export const VehicleDetailPage: React.FC = () => {
                     onClick={() =>
                       setActiveImage((index) => (index - 1 + images.length) % images.length)
                     }
-                    aria-label="Ảnh trước"
+                    aria-label={isEnglish ? "Previous photo" : "Ảnh trước"}
                     className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-[#101010]/80 text-white hover:bg-[#101010]"
                   >
                     <ChevronLeft className="h-5 w-5" />
@@ -460,7 +473,7 @@ export const VehicleDetailPage: React.FC = () => {
                     onClick={() =>
                       setActiveImage((index) => (index + 1) % images.length)
                     }
-                    aria-label="Ảnh tiếp theo"
+                    aria-label={isEnglish ? "Next photo" : "Ảnh tiếp theo"}
                     className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-[#101010]/80 text-white hover:bg-[#101010]"
                   >
                     <ChevronRight className="h-5 w-5" />
@@ -475,7 +488,7 @@ export const VehicleDetailPage: React.FC = () => {
                     key={`${image}-${index}`}
                     type="button"
                     onClick={() => setActiveImage(index)}
-                    aria-label={`Xem ảnh ${index + 1}`}
+                    aria-label={isEnglish ? `View photo ${index + 1}` : `Xem ảnh ${index + 1}`}
                     aria-pressed={activeImage === index}
                     className={`h-20 w-24 shrink-0 overflow-hidden rounded-xl border-2 bg-white transition ${
                       activeImage === index
@@ -489,7 +502,7 @@ export const VehicleDetailPage: React.FC = () => {
                         widths: [160, 320],
                         sizes: '96px',
                       })}
-                      alt={`${vehicle.vehicleModel}, ảnh ${index + 1}`}
+                      alt={isEnglish ? `${vehicle.vehicleModel}, photo ${index + 1}` : `${vehicle.vehicleModel}, ảnh ${index + 1}`}
                       className="h-full w-full object-contain"
                     />
                   </button>
@@ -523,7 +536,7 @@ export const VehicleDetailPage: React.FC = () => {
                 {vehicle.vehicleModel}
               </h1>
               <p className="mt-2 font-mono-tabular text-xs text-[#A0A0A0]">
-                Biển số: {vehicle.licensePlate}
+                {isEnglish ? "Plate:" : "Biển số:"} {vehicle.licensePlate}
               </p>
               <a
                 href="#vehicle-reviews"
@@ -531,34 +544,44 @@ export const VehicleDetailPage: React.FC = () => {
               >
                 <Star className="h-4 w-4 fill-[#FFC799] text-[#FFC799]" />
                 <span className="font-bold">
-                  {reviewCount ? averageRating.toFixed(1) : 'Chưa có đánh giá'}
+                  {reviewCount ? averageRating.toFixed(1) : (isEnglish ? 'No reviews yet' : 'Chưa có đánh giá')}
                 </span>
                 {!!reviewCount && (
-                  <span className="text-[#6E6E6E]">({reviewCount} đánh giá)</span>
+                  <span className="text-[#6E6E6E]">({reviewCount} {isEnglish ? "reviews" : "đánh giá"})</span>
                 )}
               </a>
 
               <div className="mt-6 grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
                 <div className="rounded-2xl border border-white/5 bg-white/[0.035] p-4">
-                  <p className="text-xs text-[#A0A0A0]">Thuê theo ngày</p>
+                  <p className="text-xs text-[#A0A0A0]">{isEnglish ? "Daily Rental" : "Thuê theo ngày"}</p>
                   <p className="mt-1 text-xl font-black text-white">
-                    {money(vehicle.dailyPrice)}
-                    <span className="ml-1 text-xs font-semibold text-[#A0A0A0]">/ngày</span>
+                    {money(
+                      vehicle.effectiveDailyPrice ??
+                        (vehicle.activeSeasonalRule
+                          ? Math.round(vehicle.dailyPrice * vehicle.activeSeasonalRule.multiplier)
+                          : vehicle.dailyPrice)
+                    )}
+                    <span className="ml-1 text-xs font-semibold text-[#A0A0A0]">{isEnglish ? "/day" : "/ngày"}</span>
                   </p>
                 </div>
                 {vehicle.hourlyPrice ? (
                   <div className="rounded-2xl border border-white/5 bg-white/[0.035] p-4">
-                    <p className="text-xs text-[#A0A0A0]">Thuê theo giờ</p>
+                    <p className="text-xs text-[#A0A0A0]">{isEnglish ? "Hourly Rental" : "Thuê theo giờ"}</p>
                     <p className="mt-1 text-xl font-black text-white">
-                      {money(vehicle.hourlyPrice)}
-                      <span className="ml-1 text-xs font-semibold text-[#A0A0A0]">/giờ</span>
+                      {money(
+                        vehicle.effectiveHourlyPrice ??
+                          (vehicle.activeSeasonalRule
+                            ? Math.round(vehicle.hourlyPrice * vehicle.activeSeasonalRule.multiplier)
+                            : vehicle.hourlyPrice)
+                      )}
+                      <span className="ml-1 text-xs font-semibold text-[#A0A0A0]">{isEnglish ? "/hr" : "/giờ"}</span>
                     </p>
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-white/5 bg-white/[0.035] p-4">
-                    <p className="text-xs text-[#A0A0A0]">Thuê theo giờ</p>
+                    <p className="text-xs text-[#A0A0A0]">{isEnglish ? "Hourly Rental" : "Thuê theo giờ"}</p>
                     <p className="mt-1 text-sm font-semibold leading-7 text-[#A0A0A0]">
-                      Chưa có giá theo giờ
+                      {isEnglish ? "Hourly rate not set" : "Chưa có giá theo giờ"}
                     </p>
                   </div>
                 )}
@@ -569,7 +592,7 @@ export const VehicleDetailPage: React.FC = () => {
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#FFC799]" />
                   <div>
                     <p className="font-medium text-[#F5F5F5]">
-                      {branch?.name || 'Chi nhánh Motorent'}
+                      {branch?.name || (isEnglish ? 'Motorent Station' : 'Chi nhánh Motorent')}
                     </p>
                     {branch?.address && (
                       <p className="mt-1 text-xs leading-relaxed">{branch.address}</p>
@@ -587,20 +610,20 @@ export const VehicleDetailPage: React.FC = () => {
                     ) : (
                       <Fuel className="h-4 w-4 text-[#FFC799]" />
                     )}
-                    {vehicle.fuelType === 'Electric' ? 'Điện' : 'Xăng'}
+                    {vehicle.fuelType === 'Electric' ? (isEnglish ? 'Electric' : 'Điện') : (isEnglish ? 'Gasoline' : 'Xăng')}
                   </span>
                   <span className="flex items-center gap-2">
                     <Timer className="h-4 w-4 text-[#FFC799]" />
                     {vehicle.transmissionType === 'Automatic'
-                      ? 'Tự động'
+                      ? (isEnglish ? 'Automatic' : 'Tự động')
                       : vehicle.transmissionType === 'Manual'
-                      ? 'Côn tay'
-                      : 'Bán tự động'}
+                      ? (isEnglish ? 'Manual' : 'Côn tay')
+                      : (isEnglish ? 'Semi-Automatic' : 'Bán tự động')}
                   </span>
                   <span>
                     {vehicle.yearManufactured
-                      ? `Đời ${vehicle.yearManufactured}`
-                      : 'Chưa cập nhật đời xe'}
+                      ? (isEnglish ? `Model ${vehicle.yearManufactured}` : `Đời ${vehicle.yearManufactured}`)
+                      : (isEnglish ? 'Model year not updated' : 'Chưa cập nhật đời xe')}
                     {vehicle.color ? ` · ${vehicle.color}` : ''}
                   </span>
                 </div>
@@ -616,7 +639,7 @@ export const VehicleDetailPage: React.FC = () => {
                 }
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFC799] px-5 py-3.5 text-sm font-semibold text-[#101010] transition hover:bg-[#FFD9BA] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-[#6E6E6E]"
               >
-                {canBook ? 'Chọn thời gian và đặt xe' : 'Xe hiện chưa nhận đặt'}
+                {canBook ? (isEnglish ? 'Select dates & book this bike' : 'Chọn thời gian và đặt xe') : (isEnglish ? 'Bike currently unavailable' : 'Xe hiện chưa nhận đặt')}
                 {canBook && <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
@@ -631,10 +654,10 @@ export const VehicleDetailPage: React.FC = () => {
                     id="availability-heading"
                     className="flex items-center gap-2 text-lg font-black text-white"
                   >
-                    <CalendarDays className="h-5 w-5 text-[#FFC799]" /> Lịch xe
+                    <CalendarDays className="h-5 w-5 text-[#FFC799]" /> {isEnglish ? "Availability Calendar" : "Lịch xe"}
                   </h2>
                   <p className="mt-1 text-xs text-[#6E6E6E]">
-                    Xem những ngày xe đã có lịch thuê.
+                    {isEnglish ? "View dates when this vehicle is already booked." : "Xem những ngày xe đã có lịch thuê."}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
@@ -649,7 +672,7 @@ export const VehicleDetailPage: React.FC = () => {
                         )
                       )
                     }
-                    aria-label="Tháng trước"
+                    aria-label={isEnglish ? "Previous month" : "Tháng trước"}
                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#A0A0A0] hover:bg-white/5"
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -665,7 +688,7 @@ export const VehicleDetailPage: React.FC = () => {
                         )
                       )
                     }
-                    aria-label="Tháng sau"
+                    aria-label={isEnglish ? "Next month" : "Tháng sau"}
                     className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#A0A0A0] hover:bg-white/5"
                   >
                     <ChevronRight className="h-4 w-4" />
@@ -689,7 +712,7 @@ export const VehicleDetailPage: React.FC = () => {
                     onClick={() => setAvailabilityReload((value) => value + 1)}
                     className="mt-3 inline-flex items-center gap-2 font-semibold underline underline-offset-4"
                   >
-                    <RefreshCw className="h-3.5 w-3.5" /> Tải lại lịch
+                    <RefreshCw className="h-3.5 w-3.5" /> {isEnglish ? "Reload calendar" : "Tải lại lịch"}
                   </button>
                 </div>
               ) : (
@@ -697,7 +720,7 @@ export const VehicleDetailPage: React.FC = () => {
                   className="grid grid-cols-7 gap-1.5 text-center text-xs"
                   aria-busy={availabilityLoading}
                 >
-                  {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map((day) => (
+                  {(isEnglish ? ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']).map((day) => (
                     <span key={day} className="py-2 font-semibold text-[#6E6E6E]">
                       {day}
                     </span>
@@ -712,13 +735,21 @@ export const VehicleDetailPage: React.FC = () => {
                     const isBooked = blocked.has(dateKey);
                     const isPast = dateKey < todayKey;
                     const known = blockedDates !== null && !availabilityLoading;
-                    const label = !known
-                      ? 'đang tải lịch'
-                      : isBooked
-                      ? 'đã có lịch thuê'
-                      : isPast
-                      ? 'ngày đã qua, chưa có lịch thuê'
-                      : 'chưa có lịch thuê';
+                    const label = isEnglish
+                      ? (!known
+                          ? 'loading calendar'
+                          : isBooked
+                          ? 'reserved date'
+                          : isPast
+                          ? 'past date, unbooked'
+                          : 'available')
+                      : (!known
+                          ? 'đang tải lịch'
+                          : isBooked
+                          ? 'đã có lịch thuê'
+                          : isPast
+                          ? 'ngày đã qua, chưa có lịch thuê'
+                          : 'chưa có lịch thuê');
                     return (
                       <span
                         key={dateKey}
@@ -744,24 +775,25 @@ export const VehicleDetailPage: React.FC = () => {
                   role="status"
                   className="mt-3 flex items-center gap-2 text-xs text-[#A0A0A0]"
                 >
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Đang cập nhật lịch xe…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> {isEnglish ? "Updating availability schedule…" : "Đang cập nhật lịch xe…"}
                 </p>
               )}
               {!availabilityError && !availabilityLoading && (
                 <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-[#A0A0A0]">
                   <span className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#99FFE4]" />
-                    Chưa có lịch thuê
+                    {isEnglish ? "Available" : "Chưa có lịch thuê"}
                   </span>
                   <span className="flex items-center gap-1.5">
                     <span className="h-2.5 w-2.5 rounded-full bg-[#FFC799]" />
-                    Đã có lịch thuê
+                    {isEnglish ? "Booked" : "Đã có lịch thuê"}
                   </span>
                 </div>
               )}
               <p className="mt-3 text-[11px] leading-relaxed text-[#6E6E6E]">
-                Lịch theo giờ Việt Nam. Thời gian nhận và trả xe sẽ được kiểm tra lại khi
-                đặt xe.
+                {isEnglish
+                  ? 'Calendar based on Vietnam time (GMT+7). Pickup and return dates are re-verified upon checkout.'
+                  : 'Lịch theo giờ Việt Nam. Thời gian nhận và trả xe sẽ được kiểm tra lại khi đặt xe.'}
               </p>
             </section>
           </section>
@@ -782,10 +814,10 @@ export const VehicleDetailPage: React.FC = () => {
                   className="text-2xl font-black text-white flex items-center gap-2.5"
                 >
                   <MessageSquare className="h-6 w-6 text-[#FFC799]" />
-                  <span>Đánh giá từ khách thuê</span>
+                  <span>{isEnglish ? "Verified Rider Reviews" : "Đánh giá từ khách thuê"}</span>
                 </h2>
                 <p className="mt-1 text-sm text-[#A0A0A0]">
-                  {reviewCount || 0} đánh giá đã được công khai
+                  {reviewCount || 0} {isEnglish ? "published reviews" : "đánh giá đã được công khai"}
                 </p>
               </div>
               <div className="flex items-center gap-2 text-[#FFC799]">
@@ -816,7 +848,7 @@ export const VehicleDetailPage: React.FC = () => {
                     ))}
                   </div>
                   <p className="text-xs text-[#A0A0A0]">
-                    Dựa trên {reviewCount} lượt đánh giá thực tế
+                    {isEnglish ? "Based on " : "Dựa trên "}{reviewCount} {isEnglish ? "verified customer reviews" : "lượt đánh giá thực tế"}
                   </p>
                 </div>
 
@@ -852,8 +884,7 @@ export const VehicleDetailPage: React.FC = () => {
                 role="status"
                 className="flex items-center justify-center gap-2 py-12 text-sm text-[#A0A0A0]"
               >
-                <Loader2 className="h-4 w-4 animate-spin text-[#FFC799]" /> Đang tải đánh
-                giá…
+                <Loader2 className="h-4 w-4 animate-spin text-[#FFC799]" /> {isEnglish ? "Loading reviews…" : "Đang tải đánh giá…"}
               </p>
             ) : reviewsError ? (
               <div
@@ -866,12 +897,12 @@ export const VehicleDetailPage: React.FC = () => {
                   onClick={() => setReviewsReload((value) => value + 1)}
                   className="mt-3 inline-flex items-center gap-2 font-semibold underline underline-offset-4"
                 >
-                  <RefreshCw className="h-4 w-4" /> Tải lại đánh giá
+                  <RefreshCw className="h-4 w-4" /> {isEnglish ? "Reload reviews" : "Tải lại đánh giá"}
                 </button>
               </div>
             ) : reviews.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 py-12 text-center text-sm text-[#A0A0A0]">
-                Xe chưa có đánh giá công khai.
+                {isEnglish ? "No public reviews yet for this vehicle." : "Xe chưa có đánh giá công khai."}
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
@@ -902,7 +933,7 @@ export const VehicleDetailPage: React.FC = () => {
                     [reviewerObj?.firstName, reviewerObj?.lastName]
                       .filter(Boolean)
                       .join(' ') ||
-                    'Khách thuê';
+                    isEnglish ? 'Rider' : 'Khách thuê';
 
                   const rawAvatar = review.user?.avatarUrl || reviewerObj?.avatarUrl;
                   const avatar = safeImageUrl(getUserAvatarUrl(rawAvatar));
@@ -948,7 +979,7 @@ export const VehicleDetailPage: React.FC = () => {
                           <div
                             className="flex gap-0.5"
                             role="img"
-                            aria-label={`${review.rating} trên 5 sao`}
+                            aria-label={isEnglish ? `${review.rating} out of 5 stars` : `${review.rating} trên 5 sao`}
                           >
                             {Array.from({ length: 5 }, (_, index) => (
                               <Star
@@ -968,7 +999,7 @@ export const VehicleDetailPage: React.FC = () => {
                                 type="button"
                                 onClick={() => setEditingReview(review as Review)}
                                 className="p-1.5 text-[#A0A0A0] hover:text-[#FFC799] hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
-                                title="Sửa đánh giá"
+                                title={isEnglish ? "Edit review" : "Sửa đánh giá"}
                               >
                                 <Edit2 className="w-3.5 h-3.5 stroke-[2]" />
                               </button>
@@ -976,7 +1007,7 @@ export const VehicleDetailPage: React.FC = () => {
                                 type="button"
                                 onClick={() => setReviewToDelete(review)}
                                 className="p-1.5 text-[#A0A0A0] hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                                title="Xóa đánh giá"
+                                title={isEnglish ? "Delete review" : "Xóa đánh giá"}
                               >
                                 <Trash2 className="w-3.5 h-3.5 stroke-[2]" />
                               </button>
@@ -1003,12 +1034,12 @@ export const VehicleDetailPage: React.FC = () => {
                                 e.preventDefault();
                                 setActivePhotoZoom(url);
                               }}
-                              aria-label={`Mở ảnh đánh giá ${index + 1} trong tab mới`}
+                              aria-label={isEnglish ? `Open review photo ${index + 1}` : `Mở ảnh đánh giá ${index + 1} trong tab mới`}
                               className="h-20 w-24 shrink-0 overflow-hidden rounded-xl border border-white/10"
                             >
                               <img
                                 src={url}
-                                alt={`Ảnh đánh giá ${index + 1}`}
+                                alt={isEnglish ? `Review photo ${index + 1}` : `Ảnh đánh giá ${index + 1}`}
                                 loading="lazy"
                                 className="h-full w-full object-cover"
                               />
@@ -1020,7 +1051,7 @@ export const VehicleDetailPage: React.FC = () => {
                       {review.response && (
                         <p className="mt-4 whitespace-pre-line break-words rounded-xl border-l-2 border-[#FFC799] bg-[#FFC799]/5 p-3 text-xs leading-relaxed text-[#A0A0A0]">
                           <span className="font-bold text-[#FFC799]">
-                            Motorent phản hồi:{' '}
+                            {isEnglish ? "Motorent Response:" : "Motorent phản hồi:"}{' '}
                           </span>
                           {review.response}
                         </p>
@@ -1033,12 +1064,12 @@ export const VehicleDetailPage: React.FC = () => {
 
             {reviewPagination.pages > 1 && (
               <nav
-                aria-label="Phân trang đánh giá"
+                aria-label={isEnglish ? "Review pagination" : "Phân trang đánh giá"}
                 className="mt-6 flex items-center justify-center gap-4"
               >
                 <button
                   type="button"
-                  aria-label="Trang đánh giá trước"
+                  aria-label={isEnglish ? "Previous page" : "Trang đánh giá trước"}
                   disabled={reviewsLoading || reviewPage <= 1}
                   onClick={() => setReviewPage((page) => page - 1)}
                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#A0A0A0] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1046,11 +1077,11 @@ export const VehicleDetailPage: React.FC = () => {
                   <ChevronLeft className="h-4 w-4" />
                 </button>
                 <span aria-live="polite" className="text-xs text-[#A0A0A0]">
-                  Trang {reviewPage} / {reviewPagination.pages}
+                  {isEnglish ? `Page ${reviewPage} of ${reviewPagination.pages}` : `Trang ${reviewPage} / ${reviewPagination.pages}`}
                 </span>
                 <button
                   type="button"
-                  aria-label="Trang đánh giá sau"
+                  aria-label={isEnglish ? "Next page" : "Trang đánh giá sau"}
                   disabled={reviewsLoading || reviewPage >= reviewPagination.pages}
                   onClick={() => setReviewPage((page) => page + 1)}
                   className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-[#A0A0A0] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
@@ -1068,7 +1099,7 @@ export const VehicleDetailPage: React.FC = () => {
             state={{ fleetSearch }}
             className="inline-flex items-center gap-2 text-sm font-semibold text-[#FFC799] hover:text-[#FFD9BA]"
           >
-            <CheckCircle2 className="h-4 w-4" /> Đọc điều khoản thuê xe
+            <CheckCircle2 className="h-4 w-4" /> {isEnglish ? "Read rental policy & terms" : "Đọc điều khoản thuê xe"}
           </Link>
         </div>
       </div>
@@ -1083,7 +1114,7 @@ export const VehicleDetailPage: React.FC = () => {
           onSuccess={async () => {
             setFeedbackMsg({
               type: 'success',
-              text: 'Đã cập nhật đánh giá thành công!',
+              text: isEnglish ? 'Review updated successfully!' : 'Đã cập nhật đánh giá thành công!',
             });
             setVehicleReload((v) => v + 1);
             setReviewsReload((r) => r + 1);
@@ -1101,11 +1132,12 @@ export const VehicleDetailPage: React.FC = () => {
 
             <div>
               <h3 className="text-base font-bold text-[#F5F5F5]">
-                Xác nhận xóa đánh giá?
+                {isEnglish ? "Confirm delete review?" : "Xác nhận xóa đánh giá?"}
               </h3>
               <p className="text-xs text-[#A0A0A0] mt-1.5 leading-relaxed">
-                Đánh giá này sẽ bị gỡ bỏ khỏi trang công khai. Điểm trung bình và tổng
-                số đánh giá của xe sẽ được hệ thống tự động tính toán lại.
+                {isEnglish
+                  ? 'This review will be removed from the public page. Average rating and total review count will be recalculated automatically.'
+                  : 'Đánh giá này sẽ bị gỡ bỏ khỏi trang công khai. Điểm trung bình và tổng số đánh giá của xe sẽ được hệ thống tự động tính toán lại.'}
               </p>
             </div>
 
@@ -1116,7 +1148,7 @@ export const VehicleDetailPage: React.FC = () => {
                 disabled={deleteLoading}
                 className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#A0A0A0] hover:text-[#F5F5F5] hover:bg-white/5 transition-colors cursor-pointer"
               >
-                Hủy bỏ
+                {isEnglish ? "Cancel" : "Hủy bỏ"}
               </button>
               <button
                 type="button"
@@ -1125,7 +1157,7 @@ export const VehicleDetailPage: React.FC = () => {
                 className="px-4 py-2.5 rounded-xl text-xs font-bold bg-red-500 hover:bg-red-600 text-white transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
               >
                 {deleteLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>Xác nhận xóa</span>
+                <span>{isEnglish ? "Confirm Delete" : "Xác nhận xóa"}</span>
               </button>
             </div>
           </div>
@@ -1141,7 +1173,7 @@ export const VehicleDetailPage: React.FC = () => {
           <div className="relative max-w-3xl max-h-[85vh] overflow-hidden rounded-2xl">
             <img
               src={activePhotoZoom}
-              alt="Phóng to ảnh đánh giá"
+              alt={isEnglish ? "Review photo preview" : "Phóng to ảnh đánh giá"}
               className="w-full h-full object-contain"
             />
             <button
