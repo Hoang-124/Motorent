@@ -79,21 +79,37 @@ export const rejectTransfer = async (id: string, user: IUser, rejectionReason: s
   });
 };
 
-export const listTransfers = async (user: IUser, options: { page?: number; limit?: number; status?: TransferStatus; branchId?: string }) => {
-  assertFleetRole(user, true);
+export const listTransfers = async (
+  user: IUser,
+  options: { page?: number; limit?: number; status?: TransferStatus; branchId?: string; vehicleId?: string }
+) => {
+  assertFleetRole(user);
   const scope = branchScope(user, options.branchId);
-  const filter: FilterQuery<IVehicleTransfer> = {
+  const baseScopeFilter: FilterQuery<IVehicleTransfer> = {
     ...(scope ? { $or: [{ fromBranchId: scope }, { toBranchId: scope }] } : {}),
+    ...(options.vehicleId ? { vehicleId: objectId(options.vehicleId, 'Mã xe') } : {}),
+  };
+  const filter: FilterQuery<IVehicleTransfer> = {
+    ...baseScopeFilter,
     ...(options.status ? { status: options.status } : {}),
   };
   const { page, limit, skip } = pagination(options.page, options.limit);
-  const [data, total, pending] = await Promise.all([
-    VehicleTransfer.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit)
+  const [data, total, pending, completedCount, rejectedCount] = await Promise.all([
+    VehicleTransfer.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .populate('vehicleId', 'vehicleModel brand licensePlate status odometer branchId')
       .populate('fromBranchId toBranchId', 'name code')
       .populate('requestedBy approvedBy', 'firstName lastName username'),
     VehicleTransfer.countDocuments(filter),
-    VehicleTransfer.countDocuments({ ...filter, status: 'Pending' }),
+    VehicleTransfer.countDocuments({ ...baseScopeFilter, status: 'Pending' }),
+    VehicleTransfer.countDocuments({ ...baseScopeFilter, status: { $in: ['Approved', 'Completed'] } }),
+    VehicleTransfer.countDocuments({ ...baseScopeFilter, status: 'Rejected' }),
   ]);
-  return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, summary: { pending } };
+  return {
+    data,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    summary: { pending, completedCount, rejectedCount },
+  };
 };

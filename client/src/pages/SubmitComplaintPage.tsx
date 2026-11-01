@@ -313,8 +313,15 @@ export const SubmitComplaintPage: React.FC = () => {
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
-              to="/profile?tab=bookings"
+              to="/complaints"
               className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#ffb67a] text-[#101010] text-sm font-bold transition-all shadow-md cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4" />
+              <span>Theo dõi tiến độ khiếu nại</span>
+            </Link>
+            <Link
+              to="/profile?tab=bookings"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#161616] hover:bg-white/10 text-[#F5F5F5] text-sm font-semibold border border-white/15 transition-all cursor-pointer"
             >
               <span>Về danh sách chuyến xe</span>
             </Link>

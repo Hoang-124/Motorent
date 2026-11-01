@@ -74,6 +74,48 @@ export const LoginPage: React.FC = () => {
     ? 'Email của bạn đã được xác thực thành công! Vui lòng đăng nhập.' 
     : '';
 
+  const resolvePostLoginPath = (role: string, rawReturnTo: string | null): string => {
+    const defaultHome =
+      role === 'SystemAdmin'
+        ? '/admin'
+        : role === 'BranchManager'
+        ? '/manager/dashboard'
+        : role === 'Staff'
+        ? '/counter'
+        : '/';
+
+    if (!rawReturnTo || rawReturnTo === '/' || rawReturnTo.startsWith('/login')) {
+      return defaultHome;
+    }
+
+    if (
+      (rawReturnTo.startsWith('/admin') && rawReturnTo !== '/admin/rbac') ||
+      rawReturnTo.startsWith('/audit')
+    ) {
+      return role === 'SystemAdmin' ? rawReturnTo : defaultHome;
+    }
+
+    if (
+      rawReturnTo.startsWith('/manager/dashboard') ||
+      rawReturnTo.startsWith('/manager/vehicles') ||
+      rawReturnTo.startsWith('/manager/complaints') ||
+      rawReturnTo.startsWith('/reports')
+    ) {
+      return ['SystemAdmin', 'BranchManager'].includes(role) ? rawReturnTo : defaultHome;
+    }
+
+    if (
+      rawReturnTo.startsWith('/counter') ||
+      rawReturnTo.startsWith('/manager/fleet') ||
+      rawReturnTo.startsWith('/staff') ||
+      rawReturnTo === '/admin/rbac'
+    ) {
+      return ['SystemAdmin', 'BranchManager', 'Staff'].includes(role) ? rawReturnTo : defaultHome;
+    }
+
+    return rawReturnTo;
+  };
+
   // Process Google credential from real GIS ID Token
   const processGoogleCredential = async (credential: string) => {
     setLoading(true);
@@ -87,9 +129,8 @@ export const LoginPage: React.FC = () => {
         setLoginSuccessMsg(`Đăng nhập thành công! Chào mừng bạn quay trở lại${name ? `, ${name}` : ''}.`);
         login(payload.token, u);
         const returnTo = queryParams.get('returnTo');
-        const isStaffRole = ['Staff', 'BranchManager', 'SystemAdmin'].includes(u.roles);
         setTimeout(() => {
-          navigate(returnTo || (isStaffRole ? '/counter' : '/'));
+          navigate(resolvePostLoginPath(u.roles, returnTo), { replace: true });
         }, 300);
       } else {
         setErrorMsg(res.data?.message || 'Đăng nhập Google không thành công.');
@@ -168,9 +209,8 @@ export const LoginPage: React.FC = () => {
         setLoginSuccessMsg(`Đăng nhập thành công! Chào mừng bạn quay trở lại${name ? `, ${name}` : ''}.`);
         login(res.data.data.token, res.data.data.user);
         const returnTo = queryParams.get('returnTo');
-        const isStaffRole = ['Staff', 'BranchManager', 'SystemAdmin'].includes(u.roles);
         setTimeout(() => {
-          navigate(returnTo || (isStaffRole ? '/counter' : '/'));
+          navigate(resolvePostLoginPath(u.roles, returnTo), { replace: true });
         }, 300);
       } else {
         setErrorMsg(res.data?.message || 'Đăng nhập không thành công.');

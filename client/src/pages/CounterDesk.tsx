@@ -28,18 +28,27 @@ import {
   Wrench,
   ShieldAlert,
   Image as ImageIcon,
+  Calendar,
+  Users,
+  Lock,
+  BarChart3,
+  MapPin,
 } from 'lucide-react';
 import axios from 'axios';
-import type { Booking, Vehicle, User } from '../types';
+import type { Booking, Vehicle, User, Branch } from '../types';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
-import { watermarkImageFromUrl } from '../utils/watermark';
+import { SecureEkycImage } from '../components/SecureEkycImage';
 import { StaffChatConsole } from '../components/StaffChatConsole';
 import { AuditLogViewer } from '../components/AuditLogViewer';
 import { StaffComplaintDesk } from '../components/StaffComplaintDesk';
 import { ManagerComplaintWorkspace } from '../components/ManagerComplaintWorkspace';
 import { BannerManager } from '../components/BannerManager';
+import { StaffClockWidget } from '../components/StaffClockWidget';
+import { ShiftCalendarView } from '../components/ShiftCalendarView';
+import { StaffManager } from '../components/StaffManager';
+import { ReportsCenter } from '../components/ReportsCenter';
 
 type ChecklistKey =
   | 'idCardVerified'
@@ -57,7 +66,10 @@ type MainDeskMode =
   | 'audit'
   | 'vehicles'
   | 'complaints'
-  | 'banners';
+  | 'banners'
+  | 'shifts'
+  | 'staff'
+  | 'reports';
 
 const VALID_DESK_MODES: MainDeskMode[] = [
   'bookings',
@@ -67,6 +79,9 @@ const VALID_DESK_MODES: MainDeskMode[] = [
   'vehicles',
   'complaints',
   'banners',
+  'shifts',
+  'staff',
+  'reports',
 ];
 
 interface DamageRecordItem {
@@ -117,6 +132,7 @@ interface PendingEkycUser {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  idCardNumber?: string;
   avatarUrl?: string;
   identityStatus: string;
   idCardFrontUrl?: string;
@@ -129,12 +145,60 @@ interface PendingEkycUser {
   updatedAt?: string;
 }
 
+interface MaintenanceLogEntry {
+  _id: string;
+  vehicleId: string | Vehicle;
+  branchId: string | Branch;
+  maintenanceType: 'Routine' | 'Repair' | 'Inspection';
+  description: string;
+  performedBy?: string;
+  cost: number;
+  scheduledDate?: string;
+  startDate?: string;
+  endDate?: string;
+  odometerAtMaintenance: number;
+  status: 'Scheduled' | 'InProgress' | 'Completed';
+  createdAt: string;
+}
+
+interface MaintenanceSummaryInfo {
+  totalCost: number;
+  completedCount: number;
+  pendingEstimatedCost: number;
+  pendingCount: number;
+}
+
+interface TransferLogEntry {
+  _id: string;
+  vehicleId: string | Vehicle;
+  fromBranchId: string | Branch;
+  toBranchId: string | Branch;
+  transferReason: string;
+  requestedBy?: string | { _id: string; username?: string; firstName?: string; lastName?: string };
+  approvedBy?: string | { _id: string; username?: string; firstName?: string; lastName?: string };
+  status: 'Pending' | 'Approved' | 'InTransit' | 'Completed' | 'Rejected';
+  departureTime?: string;
+  arrivalTime?: string;
+  notes?: string;
+  rejectionReason?: string;
+  createdAt: string;
+}
+
+interface TransferSummaryInfo {
+  pending: number;
+  completedCount: number;
+  rejectedCount: number;
+}
+
 export const CounterDesk: React.FC = () => {
   const { user } = useAuth();
+  const isAdmin = Boolean(user && user.roles === 'SystemAdmin');
   const isManager = Boolean(user && (user.roles === 'BranchManager' || user.roles === 'SystemAdmin'));
+  const [assignedBranch, setAssignedBranch] = useState<Branch | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const modeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
+  const rawModeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
+  const modeParam: MainDeskMode = rawModeParam === 'banners' && !isAdmin ? 'bookings' : rawModeParam;
   const initialMode: MainDeskMode = VALID_DESK_MODES.includes(modeParam) ? modeParam : 'bookings';
 
   const [deskMode, setDeskMode] = useState<MainDeskMode>(initialMode);
@@ -148,8 +212,8 @@ export const CounterDesk: React.FC = () => {
   // Notification banners (replacing alert())
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // UC-54: Branch Queue & Status Filter states
-  const [queueFilter, setQueueFilter] = useState<'today' | 'all'>('today');
+  // UC-54: Branch Queue & Status Filter states (default 'all' so upcoming bookings are visible immediately)
+  const [queueFilter, setQueueFilter] = useState<'today' | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [orderCounts, setOrderCounts] = useState({
     total: 0,
@@ -161,9 +225,10 @@ export const CounterDesk: React.FC = () => {
     cancelled: 0,
   });
 
-  // UC-61-63: Vehicle Fleet Status Management
+  // UC-61-63: Vehicle Fleet Status Management, Maintenance Log & Transfer Log
   const [branchVehicles, setBranchVehicles] = useState<Vehicle[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState<boolean>(false);
+  const [vehicleSubView, setVehicleSubView] = useState<'fleet' | 'maintenance_logs' | 'transfer_logs'>('fleet');
   const [vehicleFilterStatus, setVehicleFilterStatus] = useState<'all' | 'Available' | 'Rented' | 'Maintenance'>('all');
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState<string>('');
   const [vehicleActionModal, setVehicleActionModal] = useState<{
@@ -175,6 +240,31 @@ export const CounterDesk: React.FC = () => {
     odometer: number;
   } | null>(null);
   const [vehicleSubmitting, setVehicleSubmitting] = useState<boolean>(false);
+  const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLogEntry[]>([]);
+  const [maintenanceSummary, setMaintenanceSummary] = useState<MaintenanceSummaryInfo>({
+    totalCost: 0,
+    completedCount: 0,
+    pendingEstimatedCost: 0,
+    pendingCount: 0,
+  });
+  const [loadingMaintenanceLogs, setLoadingMaintenanceLogs] = useState<boolean>(false);
+  const [maintenanceStatusFilter, setMaintenanceStatusFilter] = useState<'' | 'Scheduled' | 'InProgress' | 'Completed'>('');
+  const [maintenanceVehicleFilter, setMaintenanceVehicleFilter] = useState<string>('');
+  const [completeMaintenanceModal, setCompleteMaintenanceModal] = useState<{
+    log: MaintenanceLogEntry;
+    cost: number;
+    performedBy: string;
+    odometer: number;
+  } | null>(null);
+  const [transferLogs, setTransferLogs] = useState<TransferLogEntry[]>([]);
+  const [transferSummary, setTransferSummary] = useState<TransferSummaryInfo>({
+    pending: 0,
+    completedCount: 0,
+    rejectedCount: 0,
+  });
+  const [loadingTransferLogs, setLoadingTransferLogs] = useState<boolean>(false);
+  const [transferStatusFilter, setTransferStatusFilter] = useState<string>('');
+  const [transferVehicleFilter, setTransferVehicleFilter] = useState<string>('');
 
   // UC-85 / UC-65: Complaint Management states
   const [complaintSubTab, setComplaintSubTab] = useState<'manager' | 'queue'>(isManager ? 'manager' : 'queue');
@@ -231,6 +321,8 @@ export const CounterDesk: React.FC = () => {
   });
   const [checkinPhotos, setCheckinPhotos] = useState<string[]>(['', '', '', '']);
   const [signatureData, setSignatureData] = useState<string>('');
+  const [receiverName, setReceiverName] = useState<string>('');
+  const [receiverPhone, setReceiverPhone] = useState<string>('');
 
   // Check-out form states (UC-57: 4 photos, ODO, fuel, damage, late fee)
   const [endOdo, setEndOdo] = useState<number>(0);
@@ -269,19 +361,47 @@ export const CounterDesk: React.FC = () => {
     return [img0, img1, img2, img3];
   };
 
+  const getEffectivePaidAmount = (b: Booking): number => {
+    if (typeof b.paidAmount === 'number' && b.paidAmount > 0) return b.paidAmount;
+    if (b.depositPaid) return b.depositAmount || 0;
+    return 0;
+  };
+
+  const getEffectivePayableBalance = (b: Booking): number => {
+    if (b.isPaid) return 0;
+    const isInitialPendingUnpaid =
+      b.status === 'Pending' && !b.depositPaid && (b.paidAmount || 0) === 0;
+    if (isInitialPendingUnpaid) return b.totalAmount || 0;
+    return b.remainingAmount || 0;
+  };
+
   const handleSelectBooking = (b: ExtendedBooking) => {
     setSelectedBooking(b);
     setStatusMessage(null);
     setSignatureData(b.eSignatureUrl || '');
 
+    const bookingOwner =
+      typeof b.userId === 'object' && b.userId !== null ? (b.userId as User) : null;
+    const defaultReceiverName = bookingOwner
+      ? [bookingOwner.lastName, bookingOwner.firstName].filter(Boolean).join(' ') ||
+        bookingOwner.username
+      : '';
+    setReceiverName(b.receiverName || defaultReceiverName);
+    setReceiverPhone(b.receiverPhone || bookingOwner?.phoneNumber || '');
+
     const bikeOdo =
       typeof b.vehicleId === 'object' && b.vehicleId !== null
-        ? (b.vehicleId as Vehicle).odometer || 0
+        ? (b.vehicleId as Vehicle).odometer ?? 0
         : 0;
 
-    setStartOdo(b.startOdometer || bikeOdo);
+    const resolvedStartOdo =
+      b.status === 'Ongoing' || b.status === 'Completed'
+        ? (b.startOdometer ?? bikeOdo)
+        : bikeOdo;
+
+    setStartOdo(resolvedStartOdo);
     setStartFuel(b.startFuelLevel ? String(b.startFuelLevel) : '100%');
-    setEndOdo(b.endOdometer || (b.startOdometer ? b.startOdometer : bikeOdo));
+    setEndOdo(b.endOdometer ?? resolvedStartOdo);
     setEndFuel(b.endFuelLevel ? String(b.endFuelLevel) : '100%');
     setDamageFee(b.damageFee || 0);
 
@@ -384,6 +504,75 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const fetchMaintenanceLogs = async (
+    customVehicleId?: string,
+    customStatus?: '' | 'Scheduled' | 'InProgress' | 'Completed'
+  ) => {
+    setLoadingMaintenanceLogs(true);
+    try {
+      const rawBranch = user?.branchId;
+      const bId =
+        rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+          ? rawBranch._id
+          : rawBranch
+          ? String(rawBranch)
+          : undefined;
+      const vId = customVehicleId !== undefined ? customVehicleId : maintenanceVehicleFilter;
+      const st = customStatus !== undefined ? customStatus : maintenanceStatusFilter;
+      const params: Record<string, string | number> = { page: 1, limit: 50 };
+      if (bId) params.branchId = bId;
+      if (vId) params.vehicleId = vId;
+      if (st) params.status = st;
+
+      const res = await api.get('/maintenance', { params });
+      if (res.data?.data) {
+        setMaintenanceLogs(res.data.data);
+      }
+      if (res.data?.summary) {
+        setMaintenanceSummary(res.data.summary);
+      }
+    } catch (err: unknown) {
+      console.error('Failed to fetch maintenance logs:', err);
+    } finally {
+      setLoadingMaintenanceLogs(false);
+    }
+  };
+
+  const fetchTransferLogs = async (customVehicleId?: string, customStatus?: string) => {
+    setLoadingTransferLogs(true);
+    try {
+      const rawBranch = user?.branchId;
+      const bId =
+        rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+          ? rawBranch._id
+          : rawBranch
+          ? String(rawBranch)
+          : undefined;
+      const vId = customVehicleId !== undefined ? customVehicleId : transferVehicleFilter;
+      const st = customStatus !== undefined ? customStatus : transferStatusFilter;
+      const params: Record<string, string | number> = { page: 1, limit: 50 };
+      if (bId) params.branchId = bId;
+      if (vId) params.vehicleId = vId;
+      if (st) params.status = st;
+
+      const res = await api.get('/transfers', { params });
+      if (res.data?.data) {
+        setTransferLogs(res.data.data);
+      }
+      if (res.data?.summary) {
+        setTransferSummary({
+          pending: res.data.summary.pending ?? 0,
+          completedCount: res.data.summary.completedCount ?? 0,
+          rejectedCount: res.data.summary.rejectedCount ?? 0,
+        });
+      }
+    } catch (err: unknown) {
+      console.error('Failed to fetch transfer logs:', err);
+    } finally {
+      setLoadingTransferLogs(false);
+    }
+  };
+
   const fetchBranchVehicles = async () => {
     setLoadingVehicles(true);
     try {
@@ -426,10 +615,13 @@ export const CounterDesk: React.FC = () => {
         odometer: details?.odometer,
       });
       setVehicleActionModal(null);
-      await fetchBranchVehicles();
+      await Promise.all([fetchBranchVehicles(), fetchMaintenanceLogs()]);
       setStatusMessage({
         type: 'success',
-        text: `Đã cập nhật trạng thái phương tiện thành "${targetStatus}" thành công!`,
+        text:
+          targetStatus === 'Maintenance'
+            ? 'Đã chuyển xe sang trạng thái Bảo dưỡng và ghi vào Nhật ký bảo dưỡng!'
+            : 'Đã hoàn tất bảo dưỡng, cập nhật Nhật ký bảo dưỡng và mở xe Sẵn sàng đón khách!',
       });
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -443,10 +635,50 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const handleCompleteMaintenanceLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!completeMaintenanceModal) return;
+    setVehicleSubmitting(true);
+    try {
+      const vObj =
+        typeof completeMaintenanceModal.log.vehicleId === 'object' &&
+        completeMaintenanceModal.log.vehicleId !== null
+          ? completeMaintenanceModal.log.vehicleId
+          : null;
+
+      if (isManager) {
+        await api.put(`/maintenance/${completeMaintenanceModal.log._id}/complete`, {
+          cost: Number(completeMaintenanceModal.cost),
+          performedBy: completeMaintenanceModal.performedBy.trim() || undefined,
+          odometer: Number(completeMaintenanceModal.odometer),
+        });
+      } else if (vObj?._id) {
+        await api.put(`/vehicles/${vObj._id}/status`, {
+          status: 'Available',
+          cost: Number(completeMaintenanceModal.cost),
+          odometer: Number(completeMaintenanceModal.odometer),
+        });
+      }
+      setCompleteMaintenanceModal(null);
+      await Promise.all([fetchBranchVehicles(), fetchMaintenanceLogs()]);
+      setStatusMessage({
+        type: 'success',
+        text: 'Đã hoàn tất phiếu bảo dưỡng! Thông tin đã lưu vào Nhật ký bảo dưỡng và xe đã Sẵn sàng.',
+      });
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        setStatusMessage({
+          type: 'error',
+          text: err.response?.data?.message || 'Không thể hoàn tất phiếu bảo dưỡng.',
+        });
+      }
+    } finally {
+      setVehicleSubmitting(false);
+    }
+  };
+
   const formatAdminDocUrl = (userId: string, docType: string) => {
-    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') as string;
-    const token = localStorage.getItem('motorent_token') || localStorage.getItem('token') || '';
-    return `${apiBase}/auth/ekyc/document/view/${userId}/${docType}?token=${encodeURIComponent(token)}`;
+    return `/auth/ekyc/document/view/${userId}/${docType}`;
   };
 
   const handleReviewEkyc = async (status: 'Verified' | 'Rejected') => {
@@ -454,43 +686,17 @@ export const CounterDesk: React.FC = () => {
     setReviewLoading(true);
     setStatusMessage(null);
     try {
-      let res;
-      if (status === 'Verified') {
-        const [sealedFront, sealedBack] = await Promise.all([
-          watermarkImageFromUrl(
-            formatAdminDocUrl(selectedEkycUser._id, 'idCardFront'),
-            'cccd_front_watermarked.webp',
-            { rentalService: 'MOTORENT VIỆT NAM' }
-          ),
-          watermarkImageFromUrl(
-            formatAdminDocUrl(selectedEkycUser._id, 'idCardBack'),
-            'cccd_back_watermarked.webp',
-            { rentalService: 'MOTORENT VIỆT NAM' }
-          ),
-        ]);
-
-        const formData = new FormData();
-        formData.append('status', 'Verified');
-        if (rejectNote.trim()) formData.append('note', rejectNote.trim());
-        if (sealedFront) formData.append('idCardFront', sealedFront);
-        if (sealedBack) formData.append('idCardBack', sealedBack);
-
-        res = await api.put(`/auth/ekyc/review/${selectedEkycUser._id}`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-      } else {
-        res = await api.put(`/auth/ekyc/review/${selectedEkycUser._id}`, {
-          status,
-          note: rejectNote.trim() || undefined,
-        });
-      }
+      const res = await api.put(`/auth/ekyc/review/${selectedEkycUser._id}`, {
+        status,
+        note: rejectNote.trim() || undefined,
+      });
 
       if (res.data?.success) {
         setStatusMessage({
           type: 'success',
           text:
             status === 'Verified'
-              ? `Đã phê duyệt eKYC cho ${selectedEkycUser.firstName || selectedEkycUser.username}! 2 mặt CCCD đã tự động chuyển sang dạng đóng dấu bảo mật, ảnh chân dung được giữ nguyên để đối chiếu nhận xe.`
+              ? `Đã phê duyệt eKYC cho ${selectedEkycUser.firstName || selectedEkycUser.username}! Hồ sơ gốc được giữ nguyên hiển thị rõ nét và mã hóa bảo mật chuẩn AES-256-GCM.`
               : `Đã từ chối và gửi yêu cầu chụp lại giấy tờ tới khách hàng ${selectedEkycUser.firstName || selectedEkycUser.username}.`,
         });
         setRejectNote('');
@@ -641,27 +847,83 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const fetchActiveComplaintCount = async () => {
+    try {
+      if (isManager) {
+        const res = await api.get('/manager/complaints/pending', {
+          params: { limit: 1, includeOpen: true },
+        });
+        setPendingComplaintCount(res.data?.pagination?.total || 0);
+      } else {
+        const [openRes, ipRes] = await Promise.all([
+          api.get('/staff/complaints', { params: { status: 'Open', limit: 1 } }),
+          api.get('/staff/complaints', { params: { status: 'InProgress', limit: 1 } }),
+        ]);
+        setPendingComplaintCount((openRes.data?.total || 0) + (ipRes.data?.total || 0));
+      }
+    } catch {
+      // Ignore background count errors silently
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
     fetchPendingEkyc();
     fetchBranchVehicles();
+    fetchMaintenanceLogs();
+    fetchTransferLogs();
   }, []);
 
   useEffect(() => {
-    const m = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
+    if (user?._id) {
+      fetchActiveComplaintCount();
+    }
+  }, [user?._id, isManager]);
+
+  useEffect(() => {
+    const rawBranch = user?.branchId;
+    const bId =
+      rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+        ? rawBranch._id
+        : rawBranch
+        ? String(rawBranch)
+        : '';
+    if (!bId) {
+      setAssignedBranch(null);
+      return;
+    }
+    api
+      .get('/branches')
+      .then((res) => {
+        const list: Branch[] = res.data?.data || [];
+        const matched = list.find((b) => b._id === bId) || null;
+        setAssignedBranch(matched);
+      })
+      .catch(() => setAssignedBranch(null));
+  }, [user?.branchId]);
+
+  useEffect(() => {
+    const rawM = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
+    const m: MainDeskMode | null = rawM === 'banners' && !isAdmin ? 'bookings' : rawM;
     if (m && VALID_DESK_MODES.includes(m)) {
       setDeskMode(m);
       if (m === 'vehicles') {
         fetchBranchVehicles();
+        fetchMaintenanceLogs();
+        fetchTransferLogs();
       }
     }
-  }, [searchParams]);
+  }, [searchParams, isAdmin]);
 
   const switchDeskMode = (mode: MainDeskMode) => {
     setDeskMode(mode);
     setSearchParams({ mode });
     if (mode === 'vehicles') {
       fetchBranchVehicles();
+      fetchMaintenanceLogs();
+      fetchTransferLogs();
+    } else if (mode === 'complaints') {
+      fetchActiveComplaintCount();
     }
   };
 
@@ -889,6 +1151,9 @@ export const CounterDesk: React.FC = () => {
         checklist,
         checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
+        verifiedAtCounter: true,
+        receiverName: receiverName.trim() || undefined,
+        receiverPhone: receiverPhone.trim() || undefined,
       });
 
       if (res.data?.data) {
@@ -969,8 +1234,14 @@ export const CounterDesk: React.FC = () => {
 
   const openCounterPayModal = () => {
     if (!selectedBooking) return;
-    const remaining = selectedBooking.remainingAmount || 0;
-    setCounterPayAmount(remaining);
+    const isInitialPendingUnpaid =
+      selectedBooking.status === 'Pending' &&
+      !selectedBooking.depositPaid &&
+      (selectedBooking.paidAmount || 0) === 0;
+    const maxPayable = getEffectivePayableBalance(selectedBooking);
+    setCounterPayAmount(
+      isInitialPendingUnpaid ? selectedBooking.depositAmount || maxPayable : maxPayable
+    );
     setCounterPayMethod('Cash');
     setCounterPayNotes('');
     setShowCounterPayModal(true);
@@ -979,14 +1250,15 @@ export const CounterDesk: React.FC = () => {
   const handleCounterPaySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBooking) return;
+    const maxPayable = getEffectivePayableBalance(selectedBooking);
     if (counterPayAmount <= 0) {
       setStatusMessage({ type: 'error', text: 'Số tiền thu phải lớn hơn 0 VNĐ.' });
       return;
     }
-    if (counterPayAmount > (selectedBooking.remainingAmount || 0)) {
+    if (counterPayAmount > maxPayable) {
       setStatusMessage({
         type: 'error',
-        text: `Số tiền thu (${counterPayAmount.toLocaleString('vi-VN')} đ) vượt quá số dư còn lại (${(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ).`,
+        text: `Số tiền thu (${counterPayAmount.toLocaleString('vi-VN')} đ) vượt quá số dư cần thanh toán (${maxPayable.toLocaleString('vi-VN')} đ).`,
       });
       return;
     }
@@ -1071,161 +1343,98 @@ export const CounterDesk: React.FC = () => {
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] pt-28 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#99FFE4] animate-pulse"></span>
-              <span className="text-xs font-semibold tracking-wider text-[#FFC799]">
-                Phân hệ Quản lý Vận hành Chi nhánh
-              </span>
+        <div className="mb-6 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center space-x-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#99FFE4] animate-pulse shrink-0"></span>
+                  <span className="text-xs font-semibold tracking-wider text-[#FFC799]">
+                    Phân hệ Quản lý Vận hành Chi nhánh
+                  </span>
+                </div>
+                {assignedBranch ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FFC799]/15 border border-[#FFC799]/40 text-[11px] font-bold text-[#FFC799]">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    <span>
+                      Trạm trực: {assignedBranch.name} ({assignedBranch.code})
+                    </span>
+                  </span>
+                ) : isAdmin ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#99FFE4]/15 border border-[#99FFE4]/40 text-[11px] font-bold text-[#99FFE4]">
+                    <MapPin className="w-3 h-3 shrink-0" />
+                    <span>Phạm vi: Toàn hệ thống (Tất cả chi nhánh)</span>
+                  </span>
+                ) : null}
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">
+                {deskMode === 'ekyc'
+                  ? 'Đối soát & Xét duyệt hồ sơ eKYC'
+                  : deskMode === 'vehicles'
+                  ? 'Đội xe chi nhánh & Trạng thái vận hành'
+                  : deskMode === 'chat'
+                  ? 'Tổng đài hỗ trợ Live Chat'
+                  : deskMode === 'complaints'
+                  ? 'Quản lý & Giải quyết Khiếu nại'
+                  : deskMode === 'shifts'
+                  ? 'Lịch phân ca & Chấm công nhân sự'
+                  : deskMode === 'staff'
+                  ? 'Quản lý nhân sự chi nhánh'
+                  : deskMode === 'reports'
+                  ? 'Báo cáo & Phân tích hiệu suất'
+                  : deskMode === 'audit'
+                  ? 'Nhật ký bảo mật Audit'
+                  : deskMode === 'banners'
+                  ? 'Quản lý Banner CMS'
+                  : 'Bàn giao nhận xe tại quầy'}
+              </h1>
+              <p className="text-xs text-[#A0A0A0] mt-1">
+                {deskMode === 'ekyc'
+                  ? 'Đối chiếu giấy tờ CCCD, GPLX và ảnh chân dung khách hàng để phê duyệt định danh điện tử.'
+                  : deskMode === 'vehicles'
+                  ? 'Theo dõi trạng thái xe tại trạm, cập nhật bảo dưỡng và tra cứu nhật ký điều chuyển.'
+                  : deskMode === 'chat'
+                  ? 'Tiếp nhận và phản hồi tin nhắn trực tuyến từ khách hàng theo thời gian thực.'
+                  : deskMode === 'complaints'
+                  ? 'Xử lý hàng đợi khiếu nại, phản hồi khách hàng và cập nhật kết luận giải quyết.'
+                  : deskMode === 'shifts'
+                  ? 'Theo dõi ca trực trong tuần, điểm danh vào/ra ca và phân bổ nhân sự trực quầy.'
+                  : deskMode === 'staff'
+                  ? 'Quản lý danh sách nhân viên trực quầy, thông tin liên hệ và trạng thái hoạt động.'
+                  : 'Xử lý quy trình Check-in giao xe eKYC và Check-out thu hồi xe, đối soát ODO và tất toán 70% còn lại.'}
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-1">
-              Bàn giao nhận xe tại quầy (Counter Desk)
-            </h1>
-            <p className="text-xs text-[#A0A0A0] mt-1">
-              Xử lý quy trình Check-in giao xe eKYC và Check-out thu hồi xe, đối soát ODO và tất toán 70% còn lại.
-            </p>
 
-            {/* Mode Switcher */}
-            <div className="flex flex-wrap items-center gap-2 mt-4">
+            {(deskMode === 'bookings' || deskMode === 'ekyc' || deskMode === 'vehicles') && (
               <button
-                type="button"
-                onClick={() => switchDeskMode('bookings')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'bookings'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <FileCheck className="w-4 h-4" />
-                <span>01. Bàn giao nhận xe ({bookings.length})</span>
-              </button>
-
-              <button
-                type="button"
                 onClick={() => {
-                  switchDeskMode('ekyc');
-                  fetchPendingEkyc();
+                  if (deskMode === 'bookings') fetchBookings();
+                  else if (deskMode === 'ekyc') fetchPendingEkyc();
+                  else fetchBranchVehicles();
                 }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'ekyc'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
+                disabled={loading || ekycLoading || loadingVehicles}
+                className="self-start inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] bg-[#161616] border border-white/10 hover:border-[#FFC799]/40 hover:text-white transition-colors cursor-pointer shrink-0 whitespace-nowrap"
               >
-                <ShieldCheck className="w-4 h-4" />
-                <span>02. Đối soát & Duyệt eKYC</span>
-                {pendingEkycList.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-[#99FFE4] text-[#101010] font-black text-[10px]">
-                    {pendingEkycList.length}
-                  </span>
-                )}
+                <RefreshCw
+                  className={`w-3.5 h-3.5 text-[#A0A0A0] shrink-0 ${
+                    loading || ekycLoading || loadingVehicles ? 'animate-spin' : ''
+                  }`}
+                />
+                <span>
+                  {deskMode === 'bookings'
+                    ? 'Đồng bộ đơn chi nhánh'
+                    : deskMode === 'ekyc'
+                    ? 'Làm mới hàng đợi eKYC'
+                    : 'Làm mới danh sách xe'}
+                </span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => switchDeskMode('chat')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'chat'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>03. Tổng đài Live Chat (UC-66)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => switchDeskMode('audit')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'audit'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <Database className="w-4 h-4" />
-                <span>04. Nhật ký Audit (UC-102)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  switchDeskMode('vehicles');
-                  fetchBranchVehicles();
-                }}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'vehicles'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <Wrench className="w-4 h-4" />
-                <span>05. Đội xe & Trạng thái (UC-61-63)</span>
-                {branchVehicles.length > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-white font-bold text-[10px]">
-                    {branchVehicles.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => switchDeskMode('complaints')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'complaints'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <AlertCircle className="w-4 h-4" />
-                <span>06. Khiếu nại {isManager ? '(UC-85)' : '(UC-65)'}</span>
-                {isManager && pendingComplaintCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-[#FF8080] text-[#101010] font-black text-[10px]">
-                    {pendingComplaintCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => switchDeskMode('banners')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                  deskMode === 'banners'
-                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-md'
-                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                }`}
-              >
-                <ImageIcon className="w-4 h-4" />
-                <span>07. Banner CMS (UC-118)</span>
-              </button>
-            </div>
+            )}
           </div>
+        </div>
 
-          {(deskMode === 'bookings' || deskMode === 'ekyc' || deskMode === 'vehicles') && (
-            <button
-              onClick={() => {
-                if (deskMode === 'bookings') fetchBookings();
-                else if (deskMode === 'ekyc') fetchPendingEkyc();
-                else fetchBranchVehicles();
-              }}
-              disabled={loading || ekycLoading || loadingVehicles}
-              className="self-start md:self-auto inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] bg-[#161616] border border-white/10 hover:border-[#FFC799]/40 hover:text-white transition-colors cursor-pointer"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 text-[#A0A0A0] ${
-                  loading || ekycLoading || loadingVehicles ? 'animate-spin' : ''
-                }`}
-              />
-              <span>
-                {deskMode === 'bookings'
-                  ? 'Đồng bộ đơn chi nhánh'
-                  : deskMode === 'ekyc'
-                  ? 'Làm mới hàng đợi eKYC'
-                  : 'Làm mới danh sách xe'}
-              </span>
-            </button>
-          )}
+        {/* UC-84: Quick Staff Attendance Bar */}
+        <div className="mb-6">
+          <StaffClockWidget />
         </div>
 
         {/* Global Alert / Toast Notification */}
@@ -1297,19 +1506,8 @@ export const CounterDesk: React.FC = () => {
                         {bookings.length}
                       </span>
                     </h3>
-                    {/* Queue Toggle: Today vs All */}
+                    {/* Queue Toggle: All vs Today */}
                     <div className="flex items-center gap-1 bg-[#101010] p-1 rounded-xl border border-white/10">
-                      <button
-                        type="button"
-                        onClick={() => handleQueueToggle('today')}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                          queueFilter === 'today'
-                            ? 'bg-[#FFC799] text-[#101010] shadow-sm'
-                            : 'text-[#A0A0A0] hover:text-white'
-                        }`}
-                      >
-                        Hôm nay ({orderCounts.today})
-                      </button>
                       <button
                         type="button"
                         onClick={() => handleQueueToggle('all')}
@@ -1320,6 +1518,17 @@ export const CounterDesk: React.FC = () => {
                         }`}
                       >
                         Tất cả ({orderCounts.total})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQueueToggle('today')}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                          queueFilter === 'today'
+                            ? 'bg-[#FFC799] text-[#101010] shadow-sm'
+                            : 'text-[#A0A0A0] hover:text-white'
+                        }`}
+                      >
+                        Hôm nay ({orderCounts.today})
                       </button>
                     </div>
                   </div>
@@ -1495,12 +1704,7 @@ export const CounterDesk: React.FC = () => {
                               Đã thanh toán
                             </span>
                             <span className="font-bold text-[#99FFE4] text-sm">
-                              {(
-                                selectedBooking.paidAmount ||
-                                selectedBooking.depositAmount ||
-                                0
-                              ).toLocaleString('vi-VN')}{' '}
-                              đ
+                              {getEffectivePaidAmount(selectedBooking).toLocaleString('vi-VN')} đ
                             </span>
                           </div>
                           <div>
@@ -1509,18 +1713,17 @@ export const CounterDesk: React.FC = () => {
                             </span>
                             <span
                               className={`font-bold text-sm ${
-                                selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0
+                                getEffectivePayableBalance(selectedBooking) <= 0
                                   ? 'text-[#99FFE4]'
                                   : 'text-[#FF8080]'
                               }`}
                             >
-                              {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
+                              {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ
                             </span>
                           </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
-                          {/* UC-73: Approve Order Button */}
                           {isManager && selectedBooking.status === 'Pending' && (
                             <button
                               type="button"
@@ -1529,11 +1732,10 @@ export const CounterDesk: React.FC = () => {
                               className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-[#101010] shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                              <span>{approving ? 'Đang duyệt...' : 'Duyệt đơn (UC-73)'}</span>
+                              <span>{approving ? 'Đang duyệt...' : 'Duyệt đơn'}</span>
                             </button>
                           )}
 
-                          {/* UC-74: Reject Order Button */}
                           {isManager &&
                             ['Pending', 'Approved', 'Confirmed'].includes(selectedBooking.status) && (
                               <button
@@ -1545,11 +1747,11 @@ export const CounterDesk: React.FC = () => {
                                 className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#FF8080]/30 hover:border-[#FF8080] text-[#FF8080] hover:bg-[#FF8080]/10 transition-colors cursor-pointer"
                               >
                                 <XCircle className="w-3.5 h-3.5 mr-1" />
-                                <span>Từ chối đơn (UC-74)</span>
+                                <span>Từ chối đơn</span>
                               </button>
                             )}
 
-                          {selectedBooking.isPaid || (selectedBooking.remainingAmount || 0) <= 0 ? (
+                          {getEffectivePayableBalance(selectedBooking) <= 0 ? (
                             <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold bg-[#99FFE4]/10 text-[#99FFE4] border border-[#99FFE4]/30">
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
                               Đã tất toán 100%
@@ -1563,7 +1765,7 @@ export const CounterDesk: React.FC = () => {
                               <Wallet className="w-3.5 h-3.5 mr-1.5" />
                               <span>
                                 Thu tiền tại quầy (
-                                {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ)
+                                {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ)
                               </span>
                             </button>
                           )}
@@ -1578,7 +1780,7 @@ export const CounterDesk: React.FC = () => {
                           <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
                           <div>
                             <p className="text-xs font-bold text-white">
-                              Yêu cầu hoàn tiền BR-06 đang chờ duyệt
+                              Yêu cầu hoàn tiền đang chờ duyệt
                             </p>
                             <p className="text-[11px] text-[#A0A0A0]">
                               Số tiền hoàn:{' '}
@@ -1599,7 +1801,7 @@ export const CounterDesk: React.FC = () => {
                               className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#FF8080]/15 hover:bg-[#FF8080]/25 text-[#FF8080] border border-[#FF8080]/30 transition-colors flex items-center space-x-1.5 cursor-pointer"
                             >
                               <XCircle className="w-3.5 h-3.5" />
-                              <span>Từ chối hoàn (UC-76)</span>
+                              <span>Từ chối hoàn</span>
                             </button>
                             <button
                               type="button"
@@ -1607,7 +1809,7 @@ export const CounterDesk: React.FC = () => {
                               className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#FFC799] text-[#101010] hover:bg-[#FFD6B3] transition-colors flex items-center space-x-1.5 shadow-md cursor-pointer"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>Duyệt hoàn tiền (UC-75)</span>
+                              <span>Duyệt hoàn tiền</span>
                             </button>
                           </div>
                         ) : (
@@ -1675,85 +1877,126 @@ export const CounterDesk: React.FC = () => {
                   {/* Tab 1: Check-in Process */}
                   {activeTab === 'checkin' && (
                     <div className="p-6 space-y-5">
-                      {/* UC-73: Manager Approval Banner for Pending Bookings */}
+                      {/* Pending Booking Activation Banner: Counter Payment (Staff/Manager) or UC-73 Approval */}
                       {selectedBooking.status === 'Pending' && (
                         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
                           <div className="flex items-center space-x-2.5 text-amber-400">
                             <AlertCircle className="w-4 h-4 flex-shrink-0" />
                             <div>
                               <span className="font-semibold block">
-                                Đơn đặt xe đang chờ Quản lý chi nhánh phê duyệt (UC-73)
+                                Đơn đặt xe đang chờ kích hoạt thanh toán cọc hoặc phê duyệt
                               </span>
                               <span className="text-[11px] text-amber-300/80">
-                                {isManager
-                                  ? 'Bạn là Quản lý chi nhánh / Admin. Nhấn nút để phê duyệt xe và cho phép nhân viên thực hiện thủ tục Check-in bàn giao.'
-                                  : 'Đơn cần được Quản lý chi nhánh phê duyệt trước khi nhân viên thực hiện thủ tục Check-in bàn giao.'}
+                                Nhân viên quầy có thể thu cọc 30% / thanh toán 100% trực tiếp tại quầy để kích hoạt đơn ngay lập tức và tiến hành bàn giao xe.
                               </span>
                             </div>
                           </div>
-                          {isManager && (
+                          <div className="flex flex-wrap items-center gap-2">
                             <button
                               type="button"
-                              onClick={handleApproveBooking}
-                              disabled={approving}
-                              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-md"
+                              onClick={openCounterPayModal}
+                              className="px-3.5 py-2 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer shadow-md"
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>{approving ? 'Đang duyệt...' : 'Phê duyệt đơn đặt xe'}</span>
+                              <Wallet className="w-3.5 h-3.5" />
+                              <span>Thu cọc / Thanh toán kích hoạt đơn</span>
                             </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Unpaid 70% Alert Banner */}
-                      {!selectedBooking.isPaid && (selectedBooking.remainingAmount || 0) > 0 && (
-                        <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
-                          <div className="flex items-center space-x-2.5 text-[#FFC799]">
-                            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                            <span>
-                              Khách hàng chưa thanh toán 70% còn lại (
-                              <strong>
-                                {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
-                              </strong>
-                              ).
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={openCounterPayModal}
-                            className="px-3 py-1 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-xs transition-colors cursor-pointer"
-                          >
-                            Thu tiền ngay
-                          </button>
-                        </div>
-                      )}
-
-                      {/* 1. Customer Identity & eKYC Verification Card (UC-56) */}
-                      <div className="p-3.5 rounded-xl border border-white/10 bg-[#101010] flex items-center justify-between gap-3">
-                        <div className="flex items-center space-x-2.5">
-                          <UserCheck className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
-                          <div>
-                            <div className="text-xs font-bold text-white flex items-center gap-2">
-                              Xác thực danh tính khách hàng (eKYC)
-                              <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  typeof selectedBooking.userId === 'object' &&
-                                  selectedBooking.userId &&
-                                  (selectedBooking.userId as User).identityStatus === 'Verified'
-                                    ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
-                                    : 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
-                                }`}
+                            {isManager && (
+                              <button
+                                type="button"
+                                onClick={handleApproveBooking}
+                                disabled={approving}
+                                className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-400 text-[#101010] font-bold rounded-lg text-xs transition-colors flex items-center space-x-1.5 cursor-pointer disabled:opacity-50 shadow-md"
                               >
-                                {typeof selectedBooking.userId === 'object' &&
-                                selectedBooking.userId &&
-                                (selectedBooking.userId as User).identityStatus === 'Verified'
-                                  ? 'Đã xác minh (Verified)'
-                                  : 'Chưa xác minh'}
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>{approving ? 'Đang duyệt...' : 'Quản lý duyệt đơn'}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Unpaid Remaining Balance Alert Banner */}
+                      {selectedBooking.status !== 'Pending' &&
+                        getEffectivePayableBalance(selectedBooking) > 0 && (
+                          <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+                            <div className="flex items-center space-x-2.5 text-[#FFC799]">
+                              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                              <span>
+                                Đơn còn số dư cần thanh toán (
+                                <strong>
+                                  {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ
+                                </strong>
+                                ).
                               </span>
                             </div>
-                            <div className="text-[11px] text-[#A0A0A0] mt-0.5">
-                              Căn cước công dân (CCCD / Passport) & Giấy phép lái xe (GPLX)
+                            <button
+                              type="button"
+                              onClick={openCounterPayModal}
+                              className="px-3 py-1 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-xs transition-colors cursor-pointer"
+                            >
+                              Thu tiền ngay
+                            </button>
+                          </div>
+                        )}
+
+                      {/* 1. Logical Counter Verification & Actual / Proxy Receiver Card (UC-56) */}
+                      <div className="p-4 rounded-xl border border-white/10 bg-[#101010] space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center space-x-2.5">
+                            <UserCheck className="w-5 h-5 text-[#FFC799] flex-shrink-0" />
+                            <div>
+                              <div className="text-xs font-bold text-white flex flex-wrap items-center gap-2">
+                                Xác thực Mã đơn & Người nhận xe thực tế tại quầy
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30">
+                                  Cho phép nhận xe hộ / đại diện
+                                </span>
+                                {typeof selectedBooking.userId === 'object' &&
+                                  selectedBooking.userId &&
+                                  (selectedBooking.userId as User).identityStatus === 'Verified' && (
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                                      Tài khoản đặt đã eKYC
+                                    </span>
+                                  )}
+                              </div>
+                              <div className="text-[11px] text-[#A0A0A0] mt-0.5">
+                                Thông tin họ tên và số điện thoại người nhận xe được tự động điền từ tài khoản đặt xe (có thể chỉnh lại nếu nhờ người nhận hộ). Không cần nhập lại số CCCD.
+                              </div>
                             </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1">
+                              Họ tên người nhận xe thực tế
+                            </label>
+                            <input
+                              type="text"
+                              value={receiverName}
+                              disabled={
+                                selectedBooking.status !== 'Confirmed' &&
+                                selectedBooking.status !== 'Approved'
+                              }
+                              onChange={(e) => setReceiverName(e.target.value)}
+                              placeholder="Họ và tên người nhận xe..."
+                              className="w-full bg-[#161616] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1">
+                              SĐT người nhận thực tế
+                            </label>
+                            <input
+                              type="text"
+                              value={receiverPhone}
+                              disabled={
+                                selectedBooking.status !== 'Confirmed' &&
+                                selectedBooking.status !== 'Approved'
+                              }
+                              onChange={(e) => setReceiverPhone(e.target.value)}
+                              placeholder="Số điện thoại liên hệ..."
+                              className="w-full bg-[#161616] border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
+                            />
                           </div>
                         </div>
                       </div>
@@ -1762,14 +2005,19 @@ export const CounterDesk: React.FC = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Odometer Input */}
                         <div>
-                          <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center">
-                            <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                            Chỉ số ODO công-tơ-mét khi giao (km)
+                          <label className="block text-xs font-semibold text-[#A0A0A0] mb-1 flex items-center justify-between">
+                            <span className="flex items-center">
+                              <Gauge className="w-4 h-4 text-[#FFC799] mr-1.5" />
+                              Chỉ số ODO công-tơ-mét khi giao (km)
+                            </span>
+                            <span className="text-[10px] font-bold text-[#99FFE4]">
+                              Tự động đồng bộ từ xe
+                            </span>
                           </label>
                           <input
                             type="number"
                             min="0"
-                            value={startOdo || ''}
+                            value={Number.isNaN(startOdo) ? 0 : startOdo}
                             onWheel={(e) => e.currentTarget.blur()}
                             onChange={(e) => setStartOdo(e.target.value === '' ? 0 : Number(e.target.value))}
                             disabled={
@@ -1778,7 +2026,7 @@ export const CounterDesk: React.FC = () => {
                             className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-sm font-bold text-white outline-none focus:border-[#FFC799] disabled:opacity-50"
                           />
                           <p className="text-[11px] text-[#A0A0A0] mt-1">
-                            Chỉ số ODO làm căn cứ đối chiếu khi khách bàn giao trả xe.
+                            Tự động lấy số ODO hiện tại của xe làm căn cứ đối chiếu khi trả xe.
                           </p>
                         </div>
 
@@ -1817,11 +2065,11 @@ export const CounterDesk: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* 3. 5-point Handover & Safety Checklist (UC-56) */}
+                      {/* 3. 5-point Handover & Safety Checklist */}
                       <div>
                         <label className="block text-xs font-semibold text-[#A0A0A0] mb-2 flex items-center">
                           <FileCheck className="w-4 h-4 text-[#FFC799] mr-1.5" />
-                          Biên bản bàn giao 5 điểm an toàn trước khi rời trạm (UC-56)
+                          Biên bản bàn giao 5 điểm an toàn trước khi rời trạm
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                           {[
@@ -2025,10 +2273,10 @@ export const CounterDesk: React.FC = () => {
                           <ShieldCheck className="w-4 h-4 text-[#FFC799] mt-0.5 flex-shrink-0" />
                           <div>
                             <p className="font-bold text-[#FFC799]">
-                              Quy chuẩn Hậu kiểm eKYC Motorent: Không giữ CCCD bản gốc
+                              Quy chuẩn Bảo mật Định danh Motorent: Không giữ giấy tờ gốc • Mã hóa AES-256-GCM
                             </p>
                             <p className="text-[#FFC799]/80 text-[11px] mt-0.5">
-                              Ảnh CCCD đã được đóng dấu bảo mật lưu hồ sơ. Ảnh chân dung thực tế được giữ nguyên bản để đối chiếu khuôn mặt khách đến nhận xe tại quầy.
+                              Hồ sơ định danh của khách đặt xe được lưu trữ mã hóa chuẩn AES-256-GCM chống xâm nhập và hiển thị nguyên bản rõ nét khi nhân viên được phân quyền đối chiếu.
                             </p>
                           </div>
                         </div>
@@ -2151,7 +2399,7 @@ export const CounterDesk: React.FC = () => {
                           <input
                             type="number"
                             min={selectedBooking.startOdometer || 0}
-                            value={endOdo || ''}
+                            value={Number.isNaN(endOdo) ? 0 : endOdo}
                             onWheel={(e) => e.currentTarget.blur()}
                             onChange={(e) => setEndOdo(e.target.value === '' ? 0 : Number(e.target.value))}
                             disabled={selectedBooking.status !== 'Ongoing'}
@@ -2389,7 +2637,7 @@ export const CounterDesk: React.FC = () => {
                             className="px-2.5 py-1 rounded-lg bg-[#FF8080]/10 hover:bg-[#FF8080]/20 border border-[#FF8080]/30 text-[11px] font-bold text-[#FF8080] transition-all flex items-center gap-1.5 cursor-pointer"
                           >
                             <AlertCircle className="w-3.5 h-3.5" />
-                            <span>Lập biên bản sự cố / Hư hại (UC-58)</span>
+                            <span>Lập biên bản sự cố / Hư hại</span>
                           </button>
                         </div>
 
@@ -2474,7 +2722,7 @@ export const CounterDesk: React.FC = () => {
                             <div className="flex items-center justify-between border-b border-white/5 pb-2">
                               <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
                                 <Receipt className="w-3.5 h-3.5 text-[#FFC799]" />
-                                Bảng kê tất toán & Phạt vi phạm (UC-59)
+                                Bảng kê tất toán & Phạt vi phạm
                               </span>
                               <span
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -2693,23 +2941,31 @@ export const CounterDesk: React.FC = () => {
                           <span>{selectedEkycUser.phoneNumber || 'Chưa cập nhật SĐT'}</span>
                           <span>•</span>
                           <span>{selectedEkycUser.email || 'Email chưa cung cấp'}</span>
+                          {selectedEkycUser.idCardNumber && (
+                            <>
+                              <span>•</span>
+                              <span className="font-mono text-[#99FFE4]">
+                                CCCD: {selectedEkycUser.idCardNumber}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#FFC799]/10 border border-[#FFC799]/20 text-[#FFC799] text-xs self-start sm:self-auto">
-                      <ShieldCheck className="w-3.5 h-3.5 text-[#FFC799]" />
-                      <span>Đã xác nhận NĐ 13/2023/NĐ-CP</span>
+                    <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-[#99FFE4]/10 border border-[#99FFE4]/25 text-[#99FFE4] text-xs self-start sm:self-auto">
+                      <Lock className="w-3.5 h-3.5 text-[#99FFE4]" />
+                      <span>Mã hóa AES-256-GCM • NĐ 13/2023/NĐ-CP</span>
                     </div>
                   </div>
 
-                  {/* 3 Documents Grid */}
+                  {/* 4 Documents Grid */}
                   <div>
                     <h3 className="text-xs font-bold text-[#A0A0A0] uppercase tracking-wider mb-3">
-                      Tài liệu định danh & Ảnh chân dung đối chiếu
+                      Tài liệu định danh nguyên bản & Ảnh đối chiếu (Truyền tải qua Bearer Stream)
                     </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {[
                         {
                           key: 'idCardFront',
@@ -2722,8 +2978,13 @@ export const CounterDesk: React.FC = () => {
                           modalTitle: 'Mặt sau Căn cước công dân',
                         },
                         {
+                          key: 'drivingLicense',
+                          label: '3. Giấy phép lái xe',
+                          modalTitle: 'Giấy phép lái xe (A1/A2)',
+                        },
+                        {
                           key: 'selfiePhoto',
-                          label: '3. Ảnh chân dung thực tế',
+                          label: '4. Ảnh chân dung thực tế',
                           modalTitle: 'Ảnh chụp chân dung thực tế',
                         },
                       ].map((docItem) => {
@@ -2736,20 +2997,14 @@ export const CounterDesk: React.FC = () => {
                           >
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-xs font-semibold text-[#F5F5F5]">{docItem.label}</span>
+                              <Eye className="w-3.5 h-3.5 text-[#6E6E6E] group-hover:text-[#FFC799] transition-colors" />
                             </div>
-                            <div className="w-full h-48 bg-[#101010] rounded-lg overflow-hidden relative border border-white/10 flex items-center justify-center p-1">
-                              <img
+                            <div className="w-full h-44 bg-[#101010] rounded-lg overflow-hidden relative border border-white/10 flex items-center justify-center p-1">
+                              <SecureEkycImage
                                 src={docUrl}
                                 alt={docItem.label}
+                                versionKey={selectedEkycUser.updatedAt || selectedEkycUser._id}
                                 className="w-full h-full object-contain rounded"
-                                onError={(e) => {
-                                  const target = e.currentTarget;
-                                  target.style.display = 'none';
-                                  if (target.parentElement) {
-                                    target.parentElement.innerHTML =
-                                      '<span class="text-xs text-[#6E6E6E]">Chưa có ảnh</span>';
-                                  }
-                                }}
                               />
                             </div>
                           </div>
@@ -2793,12 +3048,12 @@ export const CounterDesk: React.FC = () => {
                         {reviewLoading ? (
                           <>
                             <RefreshCw className="w-4 h-4 animate-spin" />
-                            <span>Đang đóng dấu CCCD & Duyệt...</span>
+                            <span>Đang phê duyệt hồ sơ...</span>
                           </>
                         ) : (
                           <>
                             <CheckCircle2 className="w-4 h-4" />
-                            <span>Phê duyệt & Tự đóng dấu CCCD (Verified)</span>
+                            <span>Phê duyệt eKYC (Giữ nguyên bản rõ nét • Mã hóa AES-256)</span>
                           </>
                         )}
                       </button>
@@ -2826,7 +3081,7 @@ export const CounterDesk: React.FC = () => {
                   }`}
                 >
                   <ShieldAlert className="w-3.5 h-3.5" />
-                  <span>01. Cần kết luận (Manager UC-85)</span>
+                  <span>01. Cần kết luận (Quản lý)</span>
                   {pendingComplaintCount > 0 && (
                     <span className="ml-1 px-1.5 py-0.2 rounded-full bg-[#FF8080] text-[#101010] font-mono text-[10px] font-black">
                       {pendingComplaintCount}
@@ -2844,7 +3099,7 @@ export const CounterDesk: React.FC = () => {
                   }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
-                  <span>02. Hàng đợi tiếp nhận &amp; xử lý (Staff UC-65)</span>
+                  <span>02. Hàng đợi tiếp nhận &amp; xử lý</span>
                 </button>
               </div>
             )}
@@ -2857,12 +3112,18 @@ export const CounterDesk: React.FC = () => {
           </div>
         ) : deskMode === 'chat' ? (
           <StaffChatConsole />
-        ) : deskMode === 'banners' ? (
+        ) : deskMode === 'banners' && isAdmin ? (
           <BannerManager />
         ) : deskMode === 'audit' ? (
           <AuditLogViewer />
+        ) : deskMode === 'shifts' ? (
+          <ShiftCalendarView />
+        ) : deskMode === 'staff' ? (
+          <StaffManager />
+        ) : deskMode === 'reports' ? (
+          <ReportsCenter />
         ) : (
-          /* UC-61-63: Vehicle Fleet & Status Management Tab */
+          /* UC-61-63: Vehicle Fleet & Status Management Tab + Dedicated Maintenance Log */
           <div className="space-y-6">
             {/* Status Metric Summary Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2895,20 +3156,6 @@ export const CounterDesk: React.FC = () => {
               <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
                 <div>
                   <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">
-                    Đang cho thuê (Tour)
-                  </p>
-                  <p className="text-2xl font-black text-blue-400 mt-1">
-                    {branchVehicles.filter((v) => v.status === 'Rented').length}
-                  </p>
-                </div>
-                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                  <Clock className="w-5 h-5" />
-                </div>
-              </div>
-
-              <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">
                     Đang bảo dưỡng / Sửa
                   </p>
                   <p className="text-2xl font-black text-amber-400 mt-1">
@@ -2919,215 +3166,893 @@ export const CounterDesk: React.FC = () => {
                   <Wrench className="w-5 h-5" />
                 </div>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setVehicleSubView('maintenance_logs');
+                  fetchMaintenanceLogs();
+                }}
+                className="bg-[#161616] hover:border-[#99FFE4]/40 p-4 rounded-2xl border border-white/10 flex items-center justify-between text-left transition-all cursor-pointer"
+              >
+                <div>
+                  <p className="text-[11px] font-bold text-[#A0A0A0] uppercase tracking-wider">
+                    Nhật ký bảo dưỡng hoàn tất
+                  </p>
+                  <p className="text-2xl font-black text-[#99FFE4] mt-1">
+                    {maintenanceSummary.completedCount} phiếu
+                  </p>
+                  <p className="text-[11px] text-[#A0A0A0] mt-0.5">
+                    Tổng chi: {(maintenanceSummary.totalCost || 0).toLocaleString('vi-VN')} đ
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-[#99FFE4]/10 border border-[#99FFE4]/20 flex items-center justify-center text-[#99FFE4]">
+                  <FileCheck className="w-5 h-5" />
+                </div>
+              </button>
             </div>
 
-            {/* Filter and Search Bar */}
-            <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="relative w-full md:w-96">
-                <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder="Tìm theo biển số, mẫu xe, hãng sản xuất..."
-                  value={vehicleSearchQuery}
-                  onChange={(e) => setVehicleSearchQuery(e.target.value)}
-                  className="w-full bg-[#101010] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
-                />
-                {vehicleSearchQuery && (
-                  <button
-                    onClick={() => setVehicleSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-white"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+            {/* Sub-navigation: Danh sách đội xe vs Nhật ký bảo dưỡng (cạnh nhau) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#161616] p-3 rounded-2xl border border-white/10">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVehicleSubView('fleet')}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    vehicleSubView === 'fleet'
+                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
+                      : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                  }`}
+                >
+                  <Gauge className="w-4 h-4" />
+                  <span>01. Danh sách đội xe &amp; Đổi trạng thái ({branchVehicles.length})</span>
+                </button>
 
-              {/* Status Filter Tabs */}
-              <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
-                {(
-                  [
-                    { id: 'all', label: 'Tất cả' },
-                    { id: 'Available', label: 'Sẵn sàng' },
-                    { id: 'Rented', label: 'Đang thuê' },
-                    { id: 'Maintenance', label: 'Bảo dưỡng' },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setVehicleFilterStatus(tab.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      vehicleFilterStatus === tab.id
-                        ? 'bg-[#FFC799] text-[#101010]'
-                        : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVehicleSubView('maintenance_logs');
+                    fetchMaintenanceLogs();
+                  }}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    vehicleSubView === 'maintenance_logs'
+                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
+                      : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                  }`}
+                >
+                  <Wrench className="w-4 h-4" />
+                  <span>02. Nhật ký bảo dưỡng xe</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                      vehicleSubView === 'maintenance_logs'
+                        ? 'bg-[#101010]/20 text-[#101010]'
+                        : 'bg-[#99FFE4]/20 text-[#99FFE4]'
                     }`}
                   >
-                    {tab.label}
-                  </button>
-                ))}
+                    {maintenanceSummary.completedCount + maintenanceSummary.pendingCount}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setVehicleSubView('transfer_logs');
+                    fetchTransferLogs();
+                  }}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
+                    vehicleSubView === 'transfer_logs'
+                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
+                      : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                  }`}
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  <span>03. Nhật ký điều chuyển xe</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                      vehicleSubView === 'transfer_logs'
+                        ? 'bg-[#101010]/20 text-[#101010]'
+                        : 'bg-[#FFC799]/20 text-[#FFC799]'
+                    }`}
+                  >
+                    {transferSummary.pending + transferSummary.completedCount + transferSummary.rejectedCount}
+                  </span>
+                </button>
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  fetchBranchVehicles();
+                  fetchMaintenanceLogs();
+                  fetchTransferLogs();
+                }}
+                disabled={loadingVehicles || loadingMaintenanceLogs || loadingTransferLogs}
+                className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-[#101010] border border-white/10 hover:border-[#FFC799]/40 transition-colors cursor-pointer"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 ${
+                    loadingVehicles || loadingMaintenanceLogs ? 'animate-spin text-[#FFC799]' : ''
+                  }`}
+                />
+                <span>Làm mới dữ liệu</span>
+              </button>
             </div>
 
-            {/* Vehicle Cards Grid */}
-            {loadingVehicles ? (
-              <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0] flex items-center justify-center space-x-2">
-                <RefreshCw className="w-4 h-4 animate-spin text-[#FFC799]" />
-                <span>Đang tải danh sách phương tiện tại chi nhánh...</span>
-              </div>
-            ) : (
-              (() => {
-                const filtered = branchVehicles.filter((v) => {
-                  if (vehicleFilterStatus !== 'all' && v.status !== vehicleFilterStatus) {
-                    return false;
-                  }
-                  if (vehicleSearchQuery.trim()) {
-                    const q = vehicleSearchQuery.toLowerCase();
-                    const plate = (v.licensePlate || '').toLowerCase();
-                    const model = (v.vehicleModel || '').toLowerCase();
-                    const brand = (v.brand || '').toLowerCase();
-                    return plate.includes(q) || model.includes(q) || brand.includes(q);
-                  }
-                  return true;
-                });
+            {vehicleSubView === 'fleet' ? (
+              <>
+                {/* Filter and Search Bar */}
+                <div className="bg-[#161616] p-4 rounded-2xl border border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="relative w-full md:w-96">
+                    <Search className="w-4 h-4 text-[#A0A0A0] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Tìm theo biển số, mẫu xe, hãng sản xuất..."
+                      value={vehicleSearchQuery}
+                      onChange={(e) => setVehicleSearchQuery(e.target.value)}
+                      className="w-full bg-[#101010] border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+                    />
+                    {vehicleSearchQuery && (
+                      <button
+                        onClick={() => setVehicleSearchQuery('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A0A0A0] hover:text-white"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
 
-                if (filtered.length === 0) {
-                  return (
-                    <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0]">
-                      Không tìm thấy phương tiện nào phù hợp với bộ lọc hiện tại.
+                  {/* Status Filter Tabs */}
+                  <div className="flex flex-wrap items-center gap-1.5 w-full md:w-auto">
+                    {(
+                      [
+                        { id: 'all', label: 'Tất cả' },
+                        { id: 'Available', label: 'Sẵn sàng' },
+                        { id: 'Rented', label: 'Đang thuê' },
+                        { id: 'Maintenance', label: 'Bảo dưỡng' },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setVehicleFilterStatus(tab.id)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          vehicleFilterStatus === tab.id
+                            ? 'bg-[#FFC799] text-[#101010]'
+                            : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Vehicle Cards Grid */}
+                {loadingVehicles ? (
+                  <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0] flex items-center justify-center space-x-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#FFC799]" />
+                    <span>Đang tải danh sách phương tiện tại chi nhánh...</span>
+                  </div>
+                ) : (
+                  (() => {
+                    const filtered = branchVehicles.filter((v) => {
+                      if (vehicleFilterStatus !== 'all' && v.status !== vehicleFilterStatus) {
+                        return false;
+                      }
+                      if (vehicleSearchQuery.trim()) {
+                        const q = vehicleSearchQuery.toLowerCase();
+                        const plate = (v.licensePlate || '').toLowerCase();
+                        const model = (v.vehicleModel || '').toLowerCase();
+                        const brand = (v.brand || '').toLowerCase();
+                        return plate.includes(q) || model.includes(q) || brand.includes(q);
+                      }
+                      return true;
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="bg-[#161616] rounded-2xl border border-white/10 p-12 text-center text-xs text-[#A0A0A0]">
+                          Không tìm thấy phương tiện nào phù hợp với bộ lọc hiện tại.
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {filtered.map((v) => {
+                          const img = getOptimizedVehicleImageUrl(v.images?.[0]);
+                          const isAvailable = v.status === 'Available';
+                          const isRented = v.status === 'Rented';
+                          const isMaintenance = v.status === 'Maintenance';
+
+                          return (
+                            <div
+                              key={v._id}
+                              className="bg-[#161616] border border-white/10 hover:border-white/20 rounded-2xl overflow-hidden transition-all shadow-lg flex flex-col justify-between"
+                            >
+                              <div>
+                                {/* Card Image and Status Badge */}
+                                <div className="relative h-44 bg-[#101010] overflow-hidden">
+                                  <img
+                                    src={img}
+                                    alt={v.vehicleModel}
+                                    className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
+                                    onError={(e) => {
+                                      e.currentTarget.src =
+                                        'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=600&auto=format&fit=crop&q=80';
+                                    }}
+                                  />
+                                  <div className="absolute top-3 left-3 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15">
+                                    <span className="font-mono font-black text-xs text-white tracking-widest uppercase">
+                                      {v.licensePlate}
+                                    </span>
+                                  </div>
+
+                                  <div className="absolute top-3 right-3">
+                                    {isAvailable && (
+                                      <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-[#99FFE4]/20 border border-[#99FFE4]/40 text-[#99FFE4] backdrop-blur-md">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4] animate-pulse"></span>
+                                        <span>SẴN SÀNG</span>
+                                      </span>
+                                    )}
+                                    {isRented && (
+                                      <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-500/20 border border-blue-500/40 text-blue-400 backdrop-blur-md">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
+                                        <span>ĐANG THUÊ</span>
+                                      </span>
+                                    )}
+                                    {isMaintenance && (
+                                      <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/20 border border-amber-500/40 text-amber-400 backdrop-blur-md">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                                        <span>BẢO DƯỠNG</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Card Body */}
+                                <div className="p-4 space-y-3">
+                                  <div>
+                                    <p className="text-[11px] font-bold text-[#FFC799] uppercase tracking-wider">
+                                      {v.brand}
+                                    </p>
+                                    <h3 className="text-base font-extrabold text-white truncate">
+                                      {v.vehicleModel}
+                                    </h3>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-2 text-[11px] text-[#A0A0A0]">
+                                    <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
+                                      <Gauge className="w-3.5 h-3.5 text-[#FFC799]" />
+                                      <span className="font-semibold text-white">
+                                        {(v.odometer || 0).toLocaleString('vi-VN')} km
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
+                                      <DollarSign className="w-3.5 h-3.5 text-[#99FFE4]" />
+                                      <span className="font-semibold text-white">
+                                        {(v.effectiveDailyPrice ?? v.dailyPrice ?? 0).toLocaleString('vi-VN')} đ/ng
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action Toolbar */}
+                              <div className="p-4 pt-0 border-t border-white/5 mt-2 space-y-2">
+                                <div className="flex items-center justify-between pt-2">
+                                  <p className="text-[10px] font-bold text-[#6E6E6E] uppercase tracking-wider">
+                                    Thao tác trạng thái
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setMaintenanceVehicleFilter(v._id);
+                                      setVehicleSubView('maintenance_logs');
+                                      fetchMaintenanceLogs(v._id, maintenanceStatusFilter);
+                                    }}
+                                    className="text-[11px] font-bold text-[#FFC799] hover:underline flex items-center space-x-1 cursor-pointer"
+                                  >
+                                    <Clock className="w-3 h-3" />
+                                    <span>Xem nhật ký bảo dưỡng</span>
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={isAvailable || vehicleSubmitting}
+                                    onClick={() => handleUpdateVehicleStatus(v._id, 'Available')}
+                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
+                                      isAvailable
+                                        ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                        : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30'
+                                    }`}
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span>{isMaintenance ? 'Hoàn tất bảo dưỡng' : 'Sẵn sàng'}</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={isMaintenance || vehicleSubmitting}
+                                    onClick={() =>
+                                      setVehicleActionModal({
+                                        vehicle: v,
+                                        targetStatus: 'Maintenance',
+                                        reason: 'Bảo dưỡng định kỳ / Kiểm tra phanh lốp dầu nhớt',
+                                        maintenanceType: 'Routine',
+                                        cost: 0,
+                                        odometer: v.odometer || 0,
+                                      })
+                                    }
+                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
+                                      isMaintenance
+                                        ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                        : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30'
+                                    }`}
+                                  >
+                                    <Wrench className="w-3.5 h-3.5" />
+                                    <span>Bảo dưỡng</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()
+                )}
+              </>
+            ) : vehicleSubView === 'maintenance_logs' ? (
+              /* Dedicated Maintenance Log Panel right beside Fleet Status */
+              <div className="bg-[#161616] rounded-2xl border border-white/10 p-5 space-y-5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <Wrench className="w-4 h-4 text-[#FFC799]" />
+                      <h3 className="text-base font-extrabold text-white">
+                        Nhật ký bảo dưỡng phương tiện (Maintenance Logs)
+                      </h3>
                     </div>
-                  );
-                }
+                    <p className="text-xs text-[#A0A0A0] mt-1">
+                      Lưu trữ riêng biệt toàn bộ lịch sử lập phiếu và hoàn tất bảo dưỡng xe tại chi nhánh (tách biệt khỏi Nhật ký Audit hệ thống).
+                    </p>
+                  </div>
 
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filtered.map((v) => {
-                      const img = getOptimizedVehicleImageUrl(v.images?.[0]);
-                      const isAvailable = v.status === 'Available';
-                      const isRented = v.status === 'Rented';
-                      const isMaintenance = v.status === 'Maintenance';
+                  {/* Filter by Vehicle & Status */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={maintenanceVehicleFilter}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setMaintenanceVehicleFilter(val);
+                        fetchMaintenanceLogs(val, maintenanceStatusFilter);
+                      }}
+                      className="bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#FFC799]"
+                    >
+                      <option value="">Tất cả xe trong trạm ({branchVehicles.length})</option>
+                      {branchVehicles.map((v) => (
+                        <option key={v._id} value={v._id}>
+                          {v.licensePlate} · {v.brand} {v.vehicleModel}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="flex items-center gap-1 bg-[#101010] p-1 rounded-xl border border-white/10">
+                      {(
+                        [
+                          { id: '', label: 'Tất cả' },
+                          { id: 'Completed', label: 'Đã hoàn tất' },
+                          { id: 'InProgress', label: 'Đang sửa' },
+                          { id: 'Scheduled', label: 'Đã lên lịch' },
+                        ] as const
+                      ).map((st) => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => {
+                            setMaintenanceStatusFilter(st.id);
+                            fetchMaintenanceLogs(maintenanceVehicleFilter, st.id);
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            maintenanceStatusFilter === st.id
+                              ? 'bg-[#FFC799] text-[#101010]'
+                              : 'text-[#A0A0A0] hover:text-white'
+                          }`}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary Strip */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-[#99FFE4]/20 bg-[#99FFE4]/5 p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#A0A0A0]">Phiếu bảo dưỡng đã hoàn tất</p>
+                      <p className="text-xl font-black text-[#99FFE4] mt-1">
+                        {maintenanceSummary.completedCount} phiếu ·{' '}
+                        {(maintenanceSummary.totalCost || 0).toLocaleString('vi-VN')} đ
+                      </p>
+                    </div>
+                    <CheckCircle2 className="w-6 h-6 text-[#99FFE4]" />
+                  </div>
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#A0A0A0]">Phiếu đang thực hiện / chờ xử lý</p>
+                      <p className="text-xl font-black text-amber-400 mt-1">
+                        {maintenanceSummary.pendingCount} phiếu · Dự kiến{' '}
+                        {(maintenanceSummary.pendingEstimatedCost || 0).toLocaleString('vi-VN')} đ
+                      </p>
+                    </div>
+                    <Wrench className="w-6 h-6 text-amber-400" />
+                  </div>
+                </div>
+
+                {/* Maintenance Log Timeline / Cards */}
+                {loadingMaintenanceLogs ? (
+                  <div className="p-12 text-center text-xs text-[#A0A0A0] flex items-center justify-center space-x-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#FFC799]" />
+                    <span>Đang tải nhật ký bảo dưỡng phương tiện...</span>
+                  </div>
+                ) : maintenanceLogs.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-[#A0A0A0] bg-[#101010] rounded-xl border border-white/5">
+                    Chưa có bản ghi nhật ký bảo dưỡng nào phù hợp với bộ lọc hiện tại.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {maintenanceLogs.map((log) => {
+                      const vObj =
+                        typeof log.vehicleId === 'object' && log.vehicleId !== null
+                          ? log.vehicleId
+                          : branchVehicles.find((bv) => bv._id === String(log.vehicleId)) || null;
+                      const bObj =
+                        typeof log.branchId === 'object' && log.branchId !== null
+                          ? log.branchId
+                          : assignedBranch;
+                      const isDone = log.status === 'Completed';
+                      const typeLabel =
+                        log.maintenanceType === 'Routine'
+                          ? 'Bảo dưỡng định kỳ'
+                          : log.maintenanceType === 'Repair'
+                          ? 'Sửa chữa / Khắc phục sự cố'
+                          : 'Kiểm định kỹ thuật';
 
                       return (
                         <div
-                          key={v._id}
-                          className="bg-[#161616] border border-white/10 hover:border-white/20 rounded-2xl overflow-hidden transition-all shadow-lg flex flex-col justify-between"
+                          key={log._id}
+                          className={`rounded-xl border p-4 transition-all ${
+                            isDone
+                              ? 'bg-[#101010] border-white/10 hover:border-[#99FFE4]/30'
+                              : 'bg-amber-500/5 border-amber-500/25'
+                          }`}
                         >
-                          <div>
-                            {/* Card Image and Status Badge */}
-                            <div className="relative h-44 bg-[#101010] overflow-hidden">
-                              <img
-                                src={img}
-                                alt={v.vehicleModel}
-                                className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
-                                onError={(e) => {
-                                  e.currentTarget.src =
-                                    'https://images.unsplash.com/photo-1558981806-ec527fa84c39?w=600&auto=format&fit=crop&q=80';
-                                }}
-                              />
-                              <div className="absolute top-3 left-3 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15">
-                                <span className="font-mono font-black text-xs text-white tracking-widest uppercase">
-                                  {v.licensePlate}
-                                </span>
-                              </div>
-
-                              <div className="absolute top-3 right-3">
-                                {isAvailable && (
-                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-[#99FFE4]/20 border border-[#99FFE4]/40 text-[#99FFE4] backdrop-blur-md">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#99FFE4] animate-pulse"></span>
-                                    <span>SẴN SÀNG</span>
-                                  </span>
-                                )}
-                                {isRented && (
-                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-500/20 border border-blue-500/40 text-blue-400 backdrop-blur-md">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span>
-                                    <span>ĐANG THUÊ</span>
-                                  </span>
-                                )}
-                                {isMaintenance && (
-                                  <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-black bg-amber-500/20 border border-amber-500/40 text-amber-400 backdrop-blur-md">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                                    <span>BẢO DƯỠNG</span>
-                                  </span>
-                                )}
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex items-center space-x-3">
+                              <span className="px-2.5 py-1 rounded-lg bg-[#161616] border border-white/15 font-mono text-xs font-black text-white uppercase">
+                                {vObj ? vObj.licensePlate : 'N/A'}
+                              </span>
+                              <div>
+                                <h4 className="text-sm font-extrabold text-white">
+                                  {vObj ? `${vObj.brand} ${vObj.vehicleModel}` : 'Phương tiện'}
+                                </h4>
+                                <p className="text-[11px] text-[#A0A0A0]">
+                                  {typeLabel} {bObj ? `· ${bObj.name}` : ''}
+                                </p>
                               </div>
                             </div>
 
-                            {/* Card Body */}
-                            <div className="p-4 space-y-3">
-                              <div>
-                                <p className="text-[11px] font-bold text-[#FFC799] uppercase tracking-wider">
-                                  {v.brand}
-                                </p>
-                                <h3 className="text-base font-extrabold text-white truncate">
-                                  {v.vehicleModel}
-                                </h3>
-                              </div>
+                            <div className="flex items-center space-x-2">
+                              {isDone ? (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-[#99FFE4]/15 border border-[#99FFE4]/30 text-[#99FFE4]">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>ĐÃ HOÀN TẤT</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-500/20 border border-amber-500/40 text-amber-400">
+                                  <Wrench className="w-3.5 h-3.5" />
+                                  <span>
+                                    {log.status === 'InProgress' ? 'ĐANG BẢO DƯỠNG' : 'ĐÃ LÊN LỊCH'}
+                                  </span>
+                                </span>
+                              )}
 
-                              <div className="grid grid-cols-2 gap-2 text-[11px] text-[#A0A0A0]">
-                                <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
-                                  <Gauge className="w-3.5 h-3.5 text-[#FFC799]" />
-                                  <span className="font-semibold text-white">
-                                    {(v.odometer || 0).toLocaleString('vi-VN')} km
-                                  </span>
-                                </div>
-                                <div className="flex items-center space-x-1.5 bg-[#101010] px-2.5 py-1.5 rounded-lg border border-white/5">
-                                  <DollarSign className="w-3.5 h-3.5 text-[#99FFE4]" />
-                                  <span className="font-semibold text-white">
-                                    {(v.dailyPrice || 0).toLocaleString('vi-VN')} đ/ng
-                                  </span>
-                                </div>
-                              </div>
+                              {!isDone && (
+                                <button
+                                  type="button"
+                                  disabled={vehicleSubmitting}
+                                  onClick={() =>
+                                    setCompleteMaintenanceModal({
+                                      log,
+                                      cost: log.cost || 0,
+                                      performedBy: log.performedBy || user?.firstName || user?.username || 'Staff',
+                                      odometer:
+                                        vObj?.odometer || log.odometerAtMaintenance || 0,
+                                    })
+                                  }
+                                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#99FFE4] text-[#101010] hover:bg-[#99FFE4]/85 transition-colors flex items-center space-x-1 cursor-pointer"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Hoàn tất bảo dưỡng</span>
+                                </button>
+                              )}
                             </div>
                           </div>
 
-                          {/* Action Toolbar */}
-                          <div className="p-4 pt-0 border-t border-white/5 mt-2 space-y-2">
-                            <p className="text-[10px] font-bold text-[#6E6E6E] uppercase tracking-wider">
-                              Thao tác đổi trạng thái (UC-61-63)
-                            </p>
-                            <div className="grid grid-cols-2 gap-2">
-                              <button
-                                type="button"
-                                disabled={isAvailable || vehicleSubmitting}
-                                onClick={() => handleUpdateVehicleStatus(v._id, 'Available')}
-                                className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
-                                  isAvailable
-                                    ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                    : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30'
-                                }`}
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Sẵn sàng</span>
-                              </button>
+                          <p className="mt-3 text-xs text-white/90 bg-[#161616] p-3 rounded-lg border border-white/5 leading-relaxed">
+                            {log.description}
+                          </p>
 
-                              <button
-                                type="button"
-                                disabled={isMaintenance || vehicleSubmitting}
-                                onClick={() =>
-                                  setVehicleActionModal({
-                                    vehicle: v,
-                                    targetStatus: 'Maintenance',
-                                    reason: 'Bảo dưỡng định kỳ / Kiểm tra phanh lốp dầu nhớt',
-                                    maintenanceType: 'Routine',
-                                    cost: 0,
-                                    odometer: v.odometer || 0,
-                                  })
-                                }
-                                className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
-                                  isMaintenance
-                                    ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                    : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30'
-                                }`}
-                              >
-                                <Wrench className="w-3.5 h-3.5" />
-                                <span>Bảo dưỡng</span>
-                              </button>
+                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">Chi phí bảo dưỡng:</span>
+                              <span className="font-bold text-[#FFC799] text-xs">
+                                {(log.cost || 0).toLocaleString('vi-VN')} đ
+                              </span>
+                            </div>
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">ODO lúc bảo dưỡng:</span>
+                              <span className="font-bold text-white text-xs">
+                                {(log.odometerAtMaintenance || 0).toLocaleString('vi-VN')} km
+                              </span>
+                            </div>
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">Người thực hiện:</span>
+                              <span className="font-bold text-white text-xs">
+                                {log.performedBy || 'Nhân viên kỹ thuật'}
+                              </span>
+                            </div>
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">
+                                {isDone ? 'Thời gian hoàn tất:' : 'Thời gian bắt đầu:'}
+                              </span>
+                              <span className="font-bold text-[#99FFE4] text-xs">
+                                {log.endDate
+                                  ? new Date(log.endDate).toLocaleString('vi-VN')
+                                  : log.startDate
+                                  ? new Date(log.startDate).toLocaleString('vi-VN')
+                                  : new Date(log.createdAt).toLocaleString('vi-VN')}
+                              </span>
                             </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
-                );
-              })()
+                )}
+              </div>
+            ) : (
+              /* Dedicated Vehicle Transfer Log Panel right beside Fleet Status & Maintenance Log */
+              <div className="bg-[#161616] rounded-2xl border border-white/10 p-5 space-y-5">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <RefreshCw className="w-4 h-4 text-[#FFC799]" />
+                      <h3 className="text-base font-extrabold text-white">
+                        Nhật ký điều chuyển phương tiện (Transfer Logs)
+                      </h3>
+                    </div>
+                    <p className="text-xs text-[#A0A0A0] mt-1">
+                      Lưu trữ toàn bộ lịch sử điều chuyển xe đi và đến tại chi nhánh (người lập lệnh, người phê duyệt, thời điểm bàn giao).
+                    </p>
+                  </div>
+
+                  {/* Filter by Vehicle & Status */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={transferVehicleFilter}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setTransferVehicleFilter(val);
+                        fetchTransferLogs(val, transferStatusFilter);
+                      }}
+                      className="bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-[#FFC799]"
+                    >
+                      <option value="">Tất cả xe ({branchVehicles.length})</option>
+                      {branchVehicles.map((v) => (
+                        <option key={v._id} value={v._id}>
+                          {v.licensePlate} · {v.brand} {v.vehicleModel}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="flex items-center gap-1 bg-[#101010] p-1 rounded-xl border border-white/10">
+                      {(
+                        [
+                          { id: '', label: 'Tất cả' },
+                          { id: 'Pending', label: 'Chờ duyệt' },
+                          { id: 'Approved', label: 'Đã chuyển' },
+                          { id: 'Rejected', label: 'Từ chối' },
+                        ] as const
+                      ).map((st) => (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => {
+                            setTransferStatusFilter(st.id);
+                            fetchTransferLogs(transferVehicleFilter, st.id);
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            transferStatusFilter === st.id
+                              ? 'bg-[#FFC799] text-[#101010]'
+                              : 'text-[#A0A0A0] hover:text-white'
+                          }`}
+                        >
+                          {st.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary Strip */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-[#FFC799]/20 bg-[#FFC799]/5 p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#A0A0A0]">Yêu cầu chờ phê duyệt</p>
+                      <p className="text-xl font-black text-[#FFC799] mt-1">
+                        {transferSummary.pending} phiếu
+                      </p>
+                    </div>
+                    <RefreshCw className="w-6 h-6 text-[#FFC799]" />
+                  </div>
+                  <div className="rounded-xl border border-[#99FFE4]/20 bg-[#99FFE4]/5 p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#A0A0A0]">Đã điều chuyển thành công</p>
+                      <p className="text-xl font-black text-[#99FFE4] mt-1">
+                        {transferSummary.completedCount} phiếu
+                      </p>
+                    </div>
+                    <CheckCircle2 className="w-6 h-6 text-[#99FFE4]" />
+                  </div>
+                  <div className="rounded-xl border border-[#FF8080]/20 bg-[#FF8080]/5 p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#A0A0A0]">Lệnh đã từ chối</p>
+                      <p className="text-xl font-black text-[#FF8080] mt-1">
+                        {transferSummary.rejectedCount} phiếu
+                      </p>
+                    </div>
+                    <AlertCircle className="w-6 h-6 text-[#FF8080]" />
+                  </div>
+                </div>
+
+                {/* Transfer Log Cards */}
+                {loadingTransferLogs ? (
+                  <div className="p-12 text-center text-xs text-[#A0A0A0] flex items-center justify-center space-x-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#FFC799]" />
+                    <span>Đang tải nhật ký điều chuyển phương tiện...</span>
+                  </div>
+                ) : transferLogs.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-[#A0A0A0] bg-[#101010] rounded-xl border border-white/5">
+                    Chưa có bản ghi nhật ký điều chuyển nào phù hợp với bộ lọc hiện tại.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {transferLogs.map((tr) => {
+                      const vObj =
+                        typeof tr.vehicleId === 'object' && tr.vehicleId !== null
+                          ? tr.vehicleId
+                          : branchVehicles.find((bv) => bv._id === String(tr.vehicleId)) || null;
+                      const fromBranchName =
+                        typeof tr.fromBranchId === 'object' && tr.fromBranchId !== null
+                          ? tr.fromBranchId.name
+                          : String(tr.fromBranchId);
+                      const toBranchName =
+                        typeof tr.toBranchId === 'object' && tr.toBranchId !== null
+                          ? tr.toBranchId.name
+                          : String(tr.toBranchId);
+                      const reqPerson =
+                        typeof tr.requestedBy === 'object' && tr.requestedBy !== null
+                          ? [tr.requestedBy.lastName, tr.requestedBy.firstName].filter(Boolean).join(' ') ||
+                            tr.requestedBy.username ||
+                            'Quản lý'
+                          : 'Quản lý';
+                      const appPerson =
+                        typeof tr.approvedBy === 'object' && tr.approvedBy !== null
+                          ? [tr.approvedBy.lastName, tr.approvedBy.firstName].filter(Boolean).join(' ') ||
+                            tr.approvedBy.username ||
+                            'Quản lý'
+                          : 'Chờ chi nhánh xuất xác nhận';
+                      const isDone = tr.status === 'Approved' || tr.status === 'Completed';
+                      const isRejected = tr.status === 'Rejected';
+
+                      return (
+                        <div
+                          key={tr._id}
+                          className={`rounded-xl border p-4 transition-all ${
+                            isDone
+                              ? 'bg-[#101010] border-white/10 hover:border-[#99FFE4]/30'
+                              : isRejected
+                              ? 'bg-[#FF8080]/5 border-[#FF8080]/25'
+                              : 'bg-[#FFC799]/5 border-[#FFC799]/25'
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex items-center space-x-3">
+                              <span className="px-2.5 py-1 rounded-lg bg-[#161616] border border-white/15 font-mono text-xs font-black text-white uppercase">
+                                {vObj ? vObj.licensePlate : 'N/A'}
+                              </span>
+                              <div>
+                                <h4 className="text-sm font-extrabold text-white">
+                                  {vObj ? `${vObj.brand} ${vObj.vehicleModel}` : 'Phương tiện'}
+                                </h4>
+                                <p className="text-[11px] text-[#A0A0A0]">
+                                  Từ <strong className="text-white">{fromBranchName}</strong> &rarr; Đến{' '}
+                                  <strong className="text-[#99FFE4]">{toBranchName}</strong>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div>
+                              {isDone ? (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-[#99FFE4]/15 border border-[#99FFE4]/30 text-[#99FFE4]">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>ĐÃ ĐIỀU CHUYỂN</span>
+                                </span>
+                              ) : isRejected ? (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-[#FF8080]/15 border border-[#FF8080]/30 text-[#FF8080]">
+                                  <AlertCircle className="w-3.5 h-3.5" />
+                                  <span>ĐÃ TỪ CHỐI</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-[#FFC799]/20 border border-[#FFC799]/40 text-[#FFC799]">
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  <span>CHỜ PHÊ DUYỆT</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <p className="mt-3 text-xs text-white/90 bg-[#161616] p-3 rounded-lg border border-white/5 leading-relaxed">
+                            {tr.transferReason}
+                          </p>
+                          {tr.rejectionReason && (
+                            <p className="mt-2 text-xs text-[#FF8080] bg-[#FF8080]/10 p-2.5 rounded-lg border border-[#FF8080]/20">
+                              Lý do từ chối: {tr.rejectionReason}
+                            </p>
+                          )}
+
+                          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">Người lập lệnh:</span>
+                              <span className="font-bold text-white text-xs">{reqPerson}</span>
+                            </div>
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">
+                                {isRejected ? 'Người từ chối:' : 'Người phê duyệt:'}
+                              </span>
+                              <span className="font-bold text-[#FFC799] text-xs">{appPerson}</span>
+                            </div>
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">Thời gian lập lệnh:</span>
+                              <span className="font-bold text-white text-xs">
+                                {new Date(tr.createdAt).toLocaleString('vi-VN')}
+                              </span>
+                            </div>
+                            <div className="bg-[#161616] px-3 py-2 rounded-lg border border-white/5">
+                              <span className="text-[#A0A0A0] block">Thời gian hoàn tất:</span>
+                              <span className="font-bold text-[#99FFE4] text-xs">
+                                {tr.arrivalTime
+                                  ? new Date(tr.arrivalTime).toLocaleString('vi-VN')
+                                  : 'Đang chờ'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Complete Maintenance Modal */}
+            {completeMaintenanceModal && (
+              <div
+                onClick={() => setCompleteMaintenanceModal(null)}
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-[#161616] border border-white/15 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
+                >
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle2 className="w-4 h-4 text-[#99FFE4]" />
+                      <span className="font-extrabold text-sm text-white">
+                        Xác nhận hoàn tất bảo dưỡng xe
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCompleteMaintenanceModal(null)}
+                      className="text-[#A0A0A0] hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleCompleteMaintenanceLog} className="p-5 space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                        Chi phí thực tế (VNĐ):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={completeMaintenanceModal.cost}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onChange={(e) =>
+                          setCompleteMaintenanceModal({
+                            ...completeMaintenanceModal,
+                            cost: Number(e.target.value),
+                          })
+                        }
+                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                        Số ODO khi hoàn tất (km):
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        required
+                        value={completeMaintenanceModal.odometer}
+                        onWheel={(e) => e.currentTarget.blur()}
+                        onChange={(e) =>
+                          setCompleteMaintenanceModal({
+                            ...completeMaintenanceModal,
+                            odometer: Number(e.target.value),
+                          })
+                        }
+                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#A0A0A0] mb-1.5">
+                        Kỹ thuật viên thực hiện:
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={completeMaintenanceModal.performedBy}
+                        onChange={(e) =>
+                          setCompleteMaintenanceModal({
+                            ...completeMaintenanceModal,
+                            performedBy: e.target.value,
+                          })
+                        }
+                        className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none focus:border-[#FFC799]"
+                      />
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-end space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setCompleteMaintenanceModal(null)}
+                        className="px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-white/5 hover:bg-white/10"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={vehicleSubmitting}
+                        className="px-5 py-2 rounded-xl text-xs font-bold bg-[#99FFE4] text-[#101010] hover:bg-[#99FFE4]/85 flex items-center space-x-1.5 cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Lưu vào Nhật ký &amp; Mở xe Sẵn sàng</span>
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             )}
 
             {/* Maintenance Action Dialog Modal */}
@@ -3336,7 +4261,7 @@ export const CounterDesk: React.FC = () => {
                 }}
                 className="p-6 bg-[#101010] flex items-center justify-center max-h-[80vh] overflow-auto cursor-zoom-in"
               >
-                <img
+                <SecureEkycImage
                   src={previewDocModal.url}
                   alt={previewDocModal.title}
                   style={{
@@ -3367,7 +4292,7 @@ export const CounterDesk: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-white">
-                      Ghi nhận thu tiền tại quầy (UC-31)
+                      Ghi nhận thu tiền tại quầy
                     </h3>
                     <p className="text-[11px] text-[#A0A0A0]">
                       Đơn đặt xe #{selectedBooking.bookingCode}
@@ -3394,18 +4319,13 @@ export const CounterDesk: React.FC = () => {
                   <div>
                     <span className="text-[#A0A0A0] block text-[10px]">Đã thanh toán trước:</span>
                     <span className="font-bold text-[#99FFE4]">
-                      {(
-                        selectedBooking.paidAmount ||
-                        selectedBooking.depositAmount ||
-                        0
-                      ).toLocaleString('vi-VN')}{' '}
-                      đ
+                      {getEffectivePaidAmount(selectedBooking).toLocaleString('vi-VN')} đ
                     </span>
                   </div>
                   <div className="col-span-2 pt-2 border-t border-white/5 flex items-center justify-between">
                     <span className="text-[#A0A0A0] text-[11px]">Còn lại cần thu:</span>
                     <span className="font-extrabold text-[#FFC799] text-base">
-                      {(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ
+                      {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ
                     </span>
                   </div>
                 </div>
@@ -3418,7 +4338,7 @@ export const CounterDesk: React.FC = () => {
                     <input
                       type="number"
                       min="1"
-                      max={selectedBooking.remainingAmount || 0}
+                      max={getEffectivePayableBalance(selectedBooking)}
                       value={counterPayAmount}
                       onWheel={(e) => e.currentTarget.blur()}
                       onChange={(e) => setCounterPayAmount(Number(e.target.value))}
@@ -3429,18 +4349,32 @@ export const CounterDesk: React.FC = () => {
                       VNĐ
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2 mt-2">
+                  <div className="flex flex-wrap items-center gap-2 mt-2">
+                    {selectedBooking.status === 'Pending' &&
+                      !selectedBooking.depositPaid &&
+                      (selectedBooking.paidAmount || 0) === 0 &&
+                      (selectedBooking.depositAmount || 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setCounterPayAmount(selectedBooking.depositAmount || 0)}
+                          className="px-2.5 py-1 bg-[#99FFE4]/10 hover:bg-[#99FFE4]/20 rounded-lg text-[11px] font-semibold text-[#99FFE4] border border-[#99FFE4]/30 cursor-pointer"
+                        >
+                          Thu cọc 30% ({(selectedBooking.depositAmount || 0).toLocaleString('vi-VN')} đ)
+                        </button>
+                      )}
                     <button
                       type="button"
-                      onClick={() => setCounterPayAmount(selectedBooking.remainingAmount || 0)}
+                      onClick={() => setCounterPayAmount(getEffectivePayableBalance(selectedBooking))}
                       className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[#FFC799] border border-white/10 cursor-pointer"
                     >
-                      Thu đủ 100% ({(selectedBooking.remainingAmount || 0).toLocaleString('vi-VN')} đ)
+                      Thu đủ 100% ({getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ)
                     </button>
                     <button
                       type="button"
                       onClick={() =>
-                        setCounterPayAmount(Math.round((selectedBooking.remainingAmount || 0) / 2))
+                        setCounterPayAmount(
+                          Math.round(getEffectivePayableBalance(selectedBooking) / 2)
+                        )
                       }
                       className="px-2.5 py-1 bg-white/5 hover:bg-white/10 rounded-lg text-[11px] font-medium text-[#A0A0A0] hover:text-white border border-white/10 cursor-pointer"
                     >
@@ -3554,7 +4488,7 @@ export const CounterDesk: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-white">
-                      Lập biên bản sự cố / Hư hại xe (UC-58)
+                      Lập biên bản sự cố / Hư hại xe
                     </h3>
                     <p className="text-[11px] text-[#A0A0A0]">
                       Đơn đặt xe #{selectedBooking.bookingCode}
@@ -3681,7 +4615,7 @@ export const CounterDesk: React.FC = () => {
                     <XCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-white">Từ chối đơn đặt xe (UC-74)</h3>
+                    <h3 className="text-base font-bold text-white">Từ chối đơn đặt xe</h3>
                     <p className="text-xs text-[#A0A0A0]">Mã đơn: {selectedBooking.bookingCode}</p>
                   </div>
                 </div>
@@ -3841,7 +4775,7 @@ export const CounterDesk: React.FC = () => {
                   </label>
                   <textarea
                     rows={2}
-                    placeholder="VD: Đã duyệt hoàn tiền 100% theo chính sách BR-06 hủy trước 24h..."
+                    placeholder="VD: Đã duyệt hoàn tiền 100% theo chính sách hủy trước 24h..."
                     value={refundNote}
                     onChange={(e) => setRefundNote(e.target.value)}
                     className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"

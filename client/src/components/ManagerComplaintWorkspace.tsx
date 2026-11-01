@@ -26,6 +26,7 @@ import type { StaffComplaint, ComplaintStatus } from '../types';
 import {
   getPendingComplaints,
   getStaffComplaintById,
+  updateComplaintStatus,
   resolveComplaint,
   closeComplaint,
   addStaffComplaintResponse
@@ -58,7 +59,7 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
 
   // Filter & Search states
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'InProgress' | 'Resolved'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'Open' | 'InProgress' | 'Resolved'>('ALL');
   const [page, setPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [totalCount, setTotalCount] = useState<number>(0);
@@ -77,7 +78,7 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
   const fetchPendingQueue = useCallback(async (targetPage = 1, selectFirst = false) => {
     setLoadingList(true);
     try {
-      const res = await getPendingComplaints({ page: targetPage, limit: 15 });
+      const res = await getPendingComplaints({ page: targetPage, limit: 15, includeOpen: true });
       if (res && res.success) {
         setComplaints(res.data);
         setPage(res.pagination.page);
@@ -163,6 +164,13 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
 
     setSubmittingResolve(true);
     try {
+      if (selectedComplaint.status === 'Open') {
+        await updateComplaintStatus(
+          selectedComplaint._id,
+          'InProgress',
+          'Quản lý trực tiếp tiếp nhận và phê duyệt kết luận khiếu nại'
+        );
+      }
       const res = await resolveComplaint(selectedComplaint._id, trimmed);
       if (res && res.success) {
         showNotification(
@@ -221,6 +229,7 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
         setReplyMessage('');
         showNotification('success', 'Đã thêm phản hồi trao đổi vào timeline.');
         await fetchDetail(selectedComplaint._id);
+        await fetchPendingQueue(page, false);
       }
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
@@ -321,7 +330,7 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
                 </span>
               </div>
               <p className="text-[11px] text-[#A0A0A0] mt-0.5">
-                Các khiếu nại đang xử lý hoặc cần Manager phê duyệt
+                Các khiếu nại mới tiếp nhận, đang xử lý hoặc chờ đóng hồ sơ
               </p>
             </div>
             <button
@@ -357,7 +366,7 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
               )}
             </div>
 
-            <div className="flex items-center space-x-1.5 text-[11px]">
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
@@ -368,6 +377,17 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
                 }`}
               >
                 Tất cả
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('Open')}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-all ${
+                  statusFilter === 'Open'
+                    ? 'bg-[#FFD166] text-[#101010]'
+                    : 'bg-white/5 text-[#A0A0A0] hover:text-white border border-white/10'
+                }`}
+              >
+                Mới tiếp nhận
               </button>
               <button
                 type="button"
@@ -761,7 +781,11 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
                 {!isClosed && (
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                     <div className="text-[11px] text-[#A0A0A0]">
-                      {selectedComplaint.status === 'InProgress' ? (
+                      {selectedComplaint.status === 'Open' ? (
+                        <span>
+                          Lưu kết luận sẽ tự động tiếp nhận (<b>Open</b> &rarr; <b>InProgress</b>) và chuyển sang <b>Resolved</b>.
+                        </span>
+                      ) : selectedComplaint.status === 'InProgress' ? (
                         <span>
                           Lưu kết luận sẽ chuyển trạng thái từ <b>InProgress</b> sang <b>Resolved</b>.
                         </span>

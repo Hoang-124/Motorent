@@ -91,7 +91,7 @@ export const reconcilePayments = async (from?: Date, to?: Date): Promise<Reconci
   let totalPaymentsSuccessAmountVND = 0;
 
   for (const p of payments) {
-    if (p.status === 'SUCCESS') {
+    if (p.status === 'SUCCESS' && p.type !== 'REFUND') {
       totalPaymentsSuccessAmountVND += Math.round(p.amount);
     }
   }
@@ -102,7 +102,9 @@ export const reconcilePayments = async (from?: Date, to?: Date): Promise<Reconci
     totalBookingsPaidAmountVND += bPaid;
 
     const relatedPayments = paymentsByBooking.get(booking._id.toString()) || [];
-    const successfulPayments = relatedPayments.filter((p) => p.status === 'SUCCESS');
+    const successfulPayments = relatedPayments.filter(
+      (p) => p.status === 'SUCCESS' && p.type !== 'REFUND'
+    );
     const paymentSum = successfulPayments.reduce((sum, p) => sum + Math.round(p.amount), 0);
 
     // Paid booking with no payment record

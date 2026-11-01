@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { emitUserRealtimeEvent } from '../core/socketRegistry';
 
 export type NotificationType =
   | 'SYSTEM'
@@ -22,7 +23,7 @@ export interface INotification extends Document {
 
 const NotificationSchema = new Schema<INotification>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     title: { type: String, required: true, trim: true },
     body: { type: String, required: true, trim: true },
     type: {
@@ -30,7 +31,7 @@ const NotificationSchema = new Schema<INotification>(
       enum: ['SYSTEM', 'BOOKING', 'REMINDER', 'PROMO', 'MAINTENANCE', 'TRANSFER'],
       default: 'SYSTEM',
     },
-    relatedId: { type: String },
+    relatedId: { type: String, trim: true },
     isRead: { type: Boolean, default: false },
     data: { type: Schema.Types.Mixed },
   },
@@ -54,13 +55,19 @@ NotificationSchema.pre('validate', function (next) {
   next();
 });
 
-NotificationSchema.post('save', function (doc) {
-  try {
-    // Dynamic emission to prevent circular import issues during module initialization
-    const { emitNotificationNew } = require('../modules/notifications/notificationEvents');
-    emitNotificationNew(doc);
-  } catch {
-    // Socket emission failure should never break database save
+NotificationSchema.post('save', (doc: INotification) => {
+  if (doc && doc.userId) {
+    emitUserRealtimeEvent(doc.userId.toString(), 'notification:new', {
+      _id: doc._id.toString(),
+      userId: doc.userId.toString(),
+      title: doc.title,
+      body: doc.body,
+      type: doc.type,
+      relatedId: doc.relatedId,
+      isRead: doc.isRead,
+      data: doc.data,
+      createdAt: doc.createdAt || new Date(),
+    });
   }
 });
 

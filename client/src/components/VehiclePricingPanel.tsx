@@ -15,6 +15,10 @@ const errorMessage = (error: unknown) => axios.isAxiosError(error)
   ? error.response?.data?.message || 'Không thể lưu biểu giá. Vui lòng thử lại.'
   : 'Không thể kết nối máy chủ. Vui lòng thử lại.';
 
+const getTodayVietnamDate = (): string => {
+  return new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().slice(0, 10);
+};
+
 export const VehiclePricingPanel: React.FC<Props> = ({ vehicle, onUpdated }) => {
   const [daily, setDaily] = useState(String(vehicle.dailyPrice));
   const [hourly, setHourly] = useState(vehicle.hourlyPrice == null ? '' : String(vehicle.hourlyPrice));
@@ -70,7 +74,7 @@ export const VehiclePricingPanel: React.FC<Props> = ({ vehicle, onUpdated }) => 
       else await api.post(path, payload);
       const response = await api.get(path);
       setRules(response.data.data); setForm(emptyRule); setEditingId(null);
-      setMessage('Đã lưu quy tắc giá mùa vụ.'); onUpdated();
+      setMessage('Đã lưu quy tắc giá mùa vụ và cập nhật biểu giá áp dụng.'); onUpdated();
     } catch (failure) { setError(errorMessage(failure)); }
     finally { setBusy(false); }
   };
@@ -86,6 +90,20 @@ export const VehiclePricingPanel: React.FC<Props> = ({ vehicle, onUpdated }) => 
     finally { setBusy(false); }
   };
 
+  const todayVn = getTodayVietnamDate();
+  const baseDailyNum = Number(daily) > 0 ? Number(daily) : vehicle.dailyPrice;
+  const baseHourlyNum = hourly.trim() && Number(hourly) > 0 ? Number(hourly) : vehicle.hourlyPrice;
+  const activeRuleToday = rules.find((r) => r.startDate <= todayVn && r.endDate >= todayVn) ?? null;
+  const effectiveDailyToday = activeRuleToday
+    ? Math.round(baseDailyNum * activeRuleToday.multiplier)
+    : baseDailyNum;
+  const effectiveHourlyToday =
+    baseHourlyNum !== undefined
+      ? activeRuleToday
+        ? Math.round(baseHourlyNum * activeRuleToday.multiplier)
+        : baseHourlyNum
+      : undefined;
+
   return <section className="space-y-5 text-[#F5F5F5]" aria-label={`Biểu giá ${vehicle.vehicleModel}`}>
     <div>
       <h3 className="text-lg font-bold">Biểu giá thuê · {vehicle.vehicleModel}</h3>
@@ -93,24 +111,81 @@ export const VehiclePricingPanel: React.FC<Props> = ({ vehicle, onUpdated }) => 
     </div>
     {error && <p role="alert" className="rounded-xl border border-red-400/30 bg-red-400/10 p-3 text-sm text-red-200">{error}</p>}
     {message && <p role="status" className="rounded-xl border border-[#FFC799]/25 bg-[#FFC799]/10 p-3 text-sm text-[#FFC799]">{message}</p>}
+
+    {/* Live Effective Price Summary Banner */}
+    <div className="rounded-2xl border border-white/10 bg-[#121212] p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-1">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-[#A0A0A0] block">
+          Giá đang hiển thị hôm nay ({todayVn} · GMT+7)
+        </span>
+        <div className="flex flex-wrap items-baseline gap-2.5">
+          <span className="text-xl font-black font-mono text-[#FFC799]">
+            {effectiveDailyToday.toLocaleString('vi-VN')} đ/ngày
+          </span>
+          {effectiveHourlyToday !== undefined && (
+            <span className="text-sm font-bold font-mono text-[#99FFE4]">
+              · {effectiveHourlyToday.toLocaleString('vi-VN')} đ/giờ
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+
     <form onSubmit={savePrices} className="space-y-3 rounded-2xl border border-white/10 bg-[#161616] p-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1.5 text-xs text-[#B0B0B0]"><span>Giá ngày (VNĐ)</span><input required type="number" min="1" max="1000000000" step="1" value={daily} onChange={(event) => setDaily(event.target.value)} className={inputClass} /></label>
-        <label className="space-y-1.5 text-xs text-[#B0B0B0]"><span>Giá giờ (VNĐ, để trống để tính ngày)</span><input type="number" min="1" max="1000000000" step="1" value={hourly} onChange={(event) => setHourly(event.target.value)} className={inputClass} /></label>
+        <label className="space-y-1.5 text-xs text-[#B0B0B0]"><span>Giá cơ bản theo ngày (VNĐ)</span><input required type="number" min="1" max="1000000000" step="1" value={daily} onChange={(event) => setDaily(event.target.value)} className={inputClass} /></label>
+        <label className="space-y-1.5 text-xs text-[#B0B0B0]"><span>Giá cơ bản theo giờ (VNĐ, để trống để tính ngày)</span><input type="number" min="1" max="1000000000" step="1" value={hourly} onChange={(event) => setHourly(event.target.value)} className={inputClass} /></label>
       </div>
-      <button disabled={busy} type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#FFC799] px-4 py-2.5 text-xs font-bold text-[#101010] disabled:opacity-50"><Save size={15} />Lưu giá thuê</button>
+      <button disabled={busy} type="submit" className="inline-flex items-center gap-2 rounded-xl bg-[#FFC799] px-4 py-2.5 text-xs font-bold text-[#101010] disabled:opacity-50"><Save size={15} />Lưu giá thuê cơ bản</button>
     </form>
     <div className="space-y-3 rounded-2xl border border-white/10 bg-[#161616] p-4">
       <div className="flex items-center gap-2"><CalendarDays size={18} className="text-[#FFC799]" /><h4 className="font-bold">Giá mùa vụ</h4></div>
       <p className="text-xs leading-relaxed text-[#8F8F8F]">Ngày bắt đầu và kết thúc đều được tính theo giờ Việt Nam. Các quy tắc không được trùng ngày. Hệ số 1,2 tăng 20%; hệ số 0,9 giảm 10%. Phần thời gian giao nhau được phân bổ theo từng ngày.</p>
       {loading ? <p className="text-sm text-[#8F8F8F]">Đang tải quy tắc giá...</p> : rules.length === 0 ? <p className="text-sm text-[#8F8F8F]">Chưa có quy tắc mùa vụ. Áp dụng giá thuê cơ bản.</p> : <ul className="space-y-2">
-        {rules.map((rule) => <li key={rule._id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#101010] p-3">
-          <div><p className="text-sm font-semibold">{rule.name} <span className="ml-2 text-[#FFC799]">×{rule.multiplier}</span></p><p className="mt-1 text-xs text-[#8F8F8F]">{rule.startDate} → {rule.endDate} (GMT+7)</p></div>
-          <div className="flex gap-2">
-            <button type="button" disabled={busy} aria-label={`Sửa ${rule.name}`} onClick={() => { setEditingId(rule._id); setForm({ name: rule.name, startDate: rule.startDate, endDate: rule.endDate, multiplier: String(rule.multiplier) }); setError(''); }} className="rounded-lg border border-white/10 p-2 hover:text-[#FFC799] disabled:opacity-50"><Pencil size={15} /></button>
-            <button type="button" disabled={busy} aria-label={`Xóa ${rule.name}`} onClick={() => void deleteRule(rule)} className="rounded-lg border border-white/10 p-2 text-red-300 disabled:opacity-50"><Trash2 size={15} /></button>
-          </div>
-        </li>)}
+        {rules.map((rule) => {
+          const isCurrent = rule.startDate <= todayVn && rule.endDate >= todayVn;
+          const isUpcoming = rule.startDate > todayVn;
+          const ruleDaily = Math.round(baseDailyNum * rule.multiplier);
+          const ruleHourly = baseHourlyNum !== undefined ? Math.round(baseHourlyNum * rule.multiplier) : undefined;
+          return (
+            <li key={rule._id} className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 ${
+              isCurrent
+                ? 'border-[#99FFE4]/40 bg-[#99FFE4]/[0.06]'
+                : 'border-white/10 bg-[#101010]'
+            }`}>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold">{rule.name}</p>
+                  <span className="px-2 py-0.5 rounded-md bg-[#FFC799]/15 border border-[#FFC799]/30 text-xs font-bold font-mono text-[#FFC799]">
+                    ×{rule.multiplier}
+                  </span>
+                  {isCurrent && (
+                    <span className="px-2 py-0.5 rounded-full bg-[#99FFE4]/20 border border-[#99FFE4]/40 text-[10px] font-bold text-[#99FFE4]">
+                      Đang áp dụng hôm nay
+                    </span>
+                  )}
+                  {isUpcoming && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-400/15 border border-amber-400/30 text-[10px] font-bold text-amber-300">
+                      Sắp áp dụng
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-mono font-bold text-[#99FFE4]">
+                  Giá sau điều chỉnh: {ruleDaily.toLocaleString('vi-VN')} đ/ngày
+                  {ruleHourly !== undefined ? ` · ${ruleHourly.toLocaleString('vi-VN')} đ/giờ` : ''}
+                  <span className="ml-2 text-[#8F8F8F] font-normal">
+                    (Gốc: {baseDailyNum.toLocaleString('vi-VN')} đ/ngày)
+                  </span>
+                </p>
+                <p className="text-xs text-[#8F8F8F]">{rule.startDate} → {rule.endDate} (GMT+7)</p>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" disabled={busy} aria-label={`Sửa ${rule.name}`} onClick={() => { setEditingId(rule._id); setForm({ name: rule.name, startDate: rule.startDate, endDate: rule.endDate, multiplier: String(rule.multiplier) }); setError(''); }} className="rounded-lg border border-white/10 p-2 hover:text-[#FFC799] disabled:opacity-50"><Pencil size={15} /></button>
+                <button type="button" disabled={busy} aria-label={`Xóa ${rule.name}`} onClick={() => void deleteRule(rule)} className="rounded-lg border border-white/10 p-2 text-red-300 disabled:opacity-50"><Trash2 size={15} /></button>
+              </div>
+            </li>
+          );
+        })}
       </ul>}
       <form onSubmit={saveRule} className="space-y-3 border-t border-white/10 pt-4">
         <h5 className="text-sm font-semibold">{editingId ? 'Chỉnh sửa quy tắc' : 'Thêm quy tắc mùa vụ'}</h5>

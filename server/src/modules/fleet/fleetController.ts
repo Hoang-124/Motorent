@@ -44,7 +44,10 @@ export const rejectTransfer = action(async (req, res) => {
   res.json({ success: true, data });
 });
 export const listTransfers = action(async (req, res) => {
-  const options = pageQuery.extend({ status: z.enum(['Pending', 'Approved', 'InTransit', 'Completed', 'Rejected']).optional() }).parse(req.query);
+  const options = pageQuery.extend({
+    status: z.enum(['Pending', 'Approved', 'InTransit', 'Completed', 'Rejected']).optional(),
+    vehicleId: id.optional(),
+  }).parse(req.query);
   res.json({ success: true, ...await transfers.listTransfers(actor(req), options) });
 });
 export const scheduleMaintenance = action(async (req, res) => {

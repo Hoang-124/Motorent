@@ -150,6 +150,7 @@ export const updateComplaintStatus = async (
 export interface GetPendingComplaintsParams {
   page?: number;
   limit?: number;
+  includeOpen?: boolean;
 }
 
 /**

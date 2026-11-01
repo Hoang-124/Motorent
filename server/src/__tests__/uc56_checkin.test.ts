@@ -293,4 +293,70 @@ describe('UC-56: Vehicle Handover (Check-in 5-Point Verification)', () => {
     expect(audits[0].details).toHaveProperty('startOdometer', validOdo);
     expect(audits[0].details).toHaveProperty('photosCount', 4);
   });
+
+  it('TC-56-09: Should allow Staff to activate Pending order at counter and hand over bike to a proxy receiver even when booking account is Unverified, encrypting receiverIdCard at rest', async () => {
+    const secondVehicle =
+      (await Vehicle.findOne({ branchId: branchDADId, _id: { $ne: vehicleId } })) ||
+      (await Vehicle.findByIdAndUpdate(vehicleId, { status: 'Available' }, { new: true }));
+    expect(secondVehicle).toBeTruthy();
+
+    const now = new Date();
+    const proxyBooking = await Booking.create({
+      bookingCode: `MV-56PRX${Date.now().toString().slice(-4)}`,
+      userId: unverifiedCustomerId,
+      vehicleId: secondVehicle!._id,
+      pickupBranchId: branchDADId,
+      returnBranchId: branchDADId,
+      pickupDateTime: new Date(now.getTime() + 7200000),
+      returnDateTime: new Date(now.getTime() + 172800000),
+      totalAmount: 500000,
+      depositAmount: 150000,
+      remainingAmount: 350000,
+      paidAmount: 0,
+      depositPaid: false,
+      status: 'Pending',
+    });
+
+    // 1. Staff collects 30% deposit at counter -> Pending transitions immediately to Confirmed
+    const payRes = await request(app)
+      .put(`/api/bookings/${proxyBooking._id}/counter-pay`)
+      .set('Authorization', `Bearer ${staffTokenDAD}`)
+      .send({
+        amount: 150000,
+        notes: '[Tiền mặt] Khách đóng cọc tại quầy',
+      });
+
+    expect(payRes.status).toBe(200);
+    expect(payRes.body.data.status).toBe('Confirmed');
+    expect(payRes.body.data.depositPaid).toBe(true);
+    expect(payRes.body.data.paidAmount).toBe(150000);
+    expect(payRes.body.data.remainingAmount).toBe(350000);
+
+    // 2. Staff hands over bike to proxy receiver at counter (Unverified online account allowed!)
+    const validOdo = (secondVehicle?.odometer || 2000) + 15;
+    const checkinRes = await request(app)
+      .put(`/api/bookings/${proxyBooking._id}/checkin`)
+      .set('Authorization', `Bearer ${staffTokenDAD}`)
+      .send({
+        startOdometer: validOdo,
+        startFuelLevel: '100%',
+        checkinImages: validFourPhotos,
+        verifiedAtCounter: true,
+        receiverName: 'Trần Người Nhận Hộ',
+        receiverPhone: '0911222333',
+        receiverIdCard: '048099123456',
+      });
+
+    expect(checkinRes.status).toBe(200);
+    expect(checkinRes.body.data.status).toBe('Ongoing');
+    expect(checkinRes.body.data.verifiedAtCounter).toBe(true);
+    expect(checkinRes.body.data.receiverName).toBe('Trần Người Nhận Hộ');
+    expect(checkinRes.body.data.receiverPhone).toBe('0911222333');
+    expect(checkinRes.body.data.receiverIdCard).toBe('048099123456');
+
+    // 3. Raw MongoDB document must store AES-256-GCM encrypted ciphertext for receiverIdCard
+    const rawBookingDoc = await Booking.collection.findOne({ _id: proxyBooking._id });
+    expect(String(rawBookingDoc?.receiverIdCard)).toMatch(/^enc:v1:/);
+    expect(rawBookingDoc?.receiverIdCard).not.toBe('048099123456');
+  });
 });

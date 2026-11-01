@@ -7,7 +7,8 @@ import {
   ComplaintStatus,
 } from '../../models/Complaint';
 import { Booking } from '../../models/Booking';
-import { IUser } from '../../models/User';
+import { User, IUser } from '../../models/User';
+import { Notification } from '../../models/Notification';
 import { AppError } from '../../core/errorHandler';
 import {
   canTransition,
@@ -404,6 +405,52 @@ export interface SubmitComplaintInput {
   customerId?: unknown;
 }
 
+const notifyNewComplaint = async (
+  complaint: IComplaint,
+  booking: { _id: mongoose.Types.ObjectId; bookingCode?: string; pickupBranchId?: mongoose.Types.ObjectId | null }
+): Promise<void> => {
+  try {
+    const bookingLabel = booking.bookingCode || String(booking._id);
+    await Notification.create({
+      userId: complaint.customerId,
+      title: `Đã tiếp nhận khiếu nại ${complaint.code}`,
+      body: `Hồ sơ khiếu nại cho chuyến xe ${bookingLabel} đã được ghi nhận và chuyển đến bộ phận xử lý chi nhánh.`,
+      type: 'SYSTEM',
+      relatedId: String(complaint._id),
+      data: { complaintId: String(complaint._id), code: complaint.code },
+    });
+
+    const recipientFilter: Record<string, unknown> = complaint.branchId
+      ? {
+          isActive: true,
+          $or: [
+            { roles: 'SystemAdmin' },
+            { roles: { $in: ['BranchManager', 'Staff'] }, branchId: complaint.branchId },
+          ],
+        }
+      : {
+          isActive: true,
+          roles: { $in: ['SystemAdmin', 'BranchManager', 'Staff'] },
+        };
+
+    const staffRecipients = await User.find(recipientFilter).select('_id').lean();
+    await Promise.all(
+      staffRecipients.map((recipient) =>
+        Notification.create({
+          userId: recipient._id,
+          title: `Khiếu nại mới ${complaint.code} cần xử lý`,
+          body: `Khách hàng vừa gửi khiếu nại [${complaint.category}] cho đơn ${bookingLabel}: "${complaint.title || complaint.description.slice(0, 60)}"`,
+          type: 'SYSTEM',
+          relatedId: String(complaint._id),
+          data: { complaintId: String(complaint._id), code: complaint.code },
+        })
+      )
+    );
+  } catch {
+    // Non-blocking notification dispatch
+  }
+};
+
 /**
  * UC-42: Customer submits complaint
  */
@@ -510,6 +557,7 @@ export const submitComplaint = async (
 
         await session.commitTransaction();
         session.endSession();
+        await notifyNewComplaint(complaint, booking);
         return complaint;
       } catch (txErr: any) {
         try {
@@ -537,6 +585,7 @@ export const submitComplaint = async (
       createdAt: complaint.createdAt,
     });
 
+    await notifyNewComplaint(complaint, booking);
     return complaint;
   } catch (error) {
     if (session) {
@@ -685,7 +734,10 @@ export interface GetStaffComplaintsQuery {
 /**
  * UC-65: GET /staff/complaints?status&category&q&page&limit - Staff, Manager
  */
-export const getStaffComplaints = async (query: GetStaffComplaintsQuery = {}) => {
+export const getStaffComplaints = async (
+  query: GetStaffComplaintsQuery = {},
+  user?: IUser
+) => {
   if (query.status !== undefined && query.status !== null && String(query.status).trim() !== '') {
     const rawStatus = String(query.status).trim();
     if (!VALID_COMPLAINT_STATUSES.includes(rawStatus as ComplaintStatus)) {
@@ -709,6 +761,18 @@ export const getStaffComplaints = async (query: GetStaffComplaintsQuery = {}) =>
   }
   if (query.q && String(query.q).trim() !== '') {
     matchStage.code = { $regex: String(query.q).trim(), $options: 'i' };
+  }
+  if (
+    user &&
+    (user.roles === 'Staff' || user.roles === 'BranchManager') &&
+    user.branchId &&
+    mongoose.isValidObjectId(String(user.branchId))
+  ) {
+    matchStage.$or = [
+      { branchId: new mongoose.Types.ObjectId(String(user.branchId)) },
+      { branchId: null },
+      { branchId: { $exists: false } },
+    ];
   }
 
   const aggregateResult = await Complaint.aggregate([
@@ -1023,11 +1087,12 @@ export interface GetPendingComplaintsQuery {
   limit?: number | string;
   status?: string;
   branchId?: string;
+  includeOpen?: string | boolean;
 }
 
 /**
  * UC-85: GET /manager/complaints/pending
- * Manager retrieves pending complaints (InProgress or Resolved, not Closed)
+ * Manager retrieves pending complaints (InProgress or Resolved, plus Open when includeOpen=true)
  */
 export const getPendingComplaintsForManager = async (
   user: IUser,
@@ -1041,9 +1106,9 @@ export const getPendingComplaintsForManager = async (
   const limit = Math.max(1, Math.min(100, parseInt(String(query.limit || 10), 10)));
   const skip = (page - 1) * limit;
 
-  // Filter: status InProgress hoặc Resolved, chưa Closed
+  const includeOpen = query.includeOpen === true || query.includeOpen === 'true';
   const filter: Record<string, unknown> = {
-    status: { $in: ['InProgress', 'Resolved'] },
+    status: { $in: includeOpen ? ['Open', 'InProgress', 'Resolved'] : ['InProgress', 'Resolved'] },
   };
 
   // Branch isolation: BranchManager only views complaints for their assigned branch

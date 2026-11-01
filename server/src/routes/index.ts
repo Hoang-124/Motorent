@@ -17,6 +17,10 @@ import maintenanceRoutes from '../modules/fleet/maintenanceRoutes';
 import dashboardRoutes from '../modules/fleet/dashboardRoutes';
 import wishlistRoutes from '../modules/wishlist/wishlistRoutes';
 import reviewRoutes from '../modules/review/reviewRoutes';
+import staffRoutes from '../modules/hr/staffRoutes';
+import scheduleRoutes from '../modules/hr/scheduleRoutes';
+import discountRoutes from '../modules/discount/discountRoutes';
+import reportRoutes from '../modules/report/reportRoutes';
 import notificationRoutes from '../modules/notifications/notificationRoutes';
 import loyaltyRoutes from '../modules/loyalty/loyaltyRoutes';
 import * as reviewController from '../modules/review/reviewController';
@@ -40,6 +44,27 @@ router.use(autoCrudAuditMiddleware);
 // Direct Categories endpoint
 router.use('/categories', categoryRoutes);
 
+// CMS Banners & Static Pages (mount specific /admin/* sub-routers BEFORE generic /admin)
+router.use('/admin/banners', adminBannerRouter);
+router.use('/banners', publicBannerRouter);
+router.use('/cms/banners', adminBannerRouter);
+router.use('/admin/pages', adminPageRouter);
+router.use('/pages', publicPageRouter);
+
+// Complaints Management (mount /staff/complaints & /me/complaints BEFORE generic /staff)
+router.use('/me/complaints', customerComplaintRouter);
+router.use('/complaints', complaintRouter);
+router.use('/manager/complaints', managerComplaintRouter);
+router.use('/staff/complaints', staffComplaintRouter);
+
+// Customer Review profile route: GET /api/me/reviews
+router.get(
+  '/me/reviews',
+  authenticateJWT,
+  authorize('Customer', 'BranchManager', 'Staff', 'SystemAdmin'),
+  reviewController.getMyReviews
+);
+
 // System telemetry & RBAC matrix
 router.use('/', systemRoutes);
 
@@ -60,30 +85,11 @@ router.use('/payments', paymentRoutes);
 router.use('/audit', auditRoutes);
 router.use('/chat', chatRoutes);
 router.use('/finance', financeRoutes);
+router.use('/staff', staffRoutes);
+router.use('/schedules', scheduleRoutes);
+router.use('/discounts', discountRoutes);
+router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/loyalty', loyaltyRoutes);
-
-// Customer Review profile route: GET /api/me/reviews
-router.get(
-  '/me/reviews',
-  authenticateJWT,
-  authorize('Customer', 'BranchManager', 'Staff', 'SystemAdmin'),
-  reviewController.getMyReviews
-);
-
-// CMS Banners (UC-116, UC-117, UC-118)
-router.use('/admin/banners', adminBannerRouter);
-router.use('/banners', publicBannerRouter);
-router.use('/cms/banners', adminBannerRouter);
-
-// CMS Static Pages (UC-119)
-router.use('/admin/pages', adminPageRouter);
-router.use('/pages', publicPageRouter);
-
-// Complaints Management (UC-42, UC-43, UC-65, UC-85)
-router.use('/me/complaints', customerComplaintRouter);
-router.use('/complaints', complaintRouter);
-router.use('/manager/complaints', managerComplaintRouter);
-router.use('/staff/complaints', staffComplaintRouter);
 
 export default router;

@@ -11,6 +11,11 @@ const safeVehicleImageUrl = (value: string | undefined): string => {
   if (!value || typeof value !== 'string') return '';
   const url = value.trim();
   if (!url || /[\u0000-\u001f\u007f\\]/.test(url)) return '';
+  if (url.startsWith('/uploads/')) {
+    const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api') as string;
+    const baseUrl = apiBase.replace(/\/api\/?$/, '');
+    return `${baseUrl}${url}`;
+  }
   if (url.startsWith('/') && !url.startsWith('//')) return url;
   try {
     const parsed = new URL(url);

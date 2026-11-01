@@ -14,6 +14,7 @@ export { withResourceLock as acquireVehicleLock } from '../../core/resourceLock'
 import { assertBranchAccess } from '../../core/permissions';
 import { emitBookingStatus } from './bookingEvents';
 import { isCloudinaryConfigured, uploadDataUriToCloudinary } from '../../config/cloudinary';
+import { sendBookingStatusEmail } from '../../config/mailer';
 import { quoteVehicleRental } from '../pricing/pricingService';
 import { schedulePickupReminders } from '../../core/jobs/bookingReminderJob';
 import { rewardReferralOnFirstCompletedBooking } from '../loyalty/loyaltyService';
@@ -45,6 +46,10 @@ export interface CheckinDto {
   checkinImages?: string[];
   eSignatureUrl?: string;
   checklist?: Record<string, boolean>;
+  verifiedAtCounter?: boolean;
+  receiverName?: string;
+  receiverPhone?: string;
+  receiverIdCard?: string;
 }
 
 export interface CheckoutDto {
@@ -168,17 +173,6 @@ export const createBooking = async (
       throw new AppError(400, 'Phương tiện hiện đang bảo dưỡng định kỳ hoặc đang điều chuyển và chưa sẵn sàng bàn giao.');
     }
 
-    const activeDepositedOrRented = await Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    });
-    if (activeDepositedOrRented || vehicle.status === 'Rented') {
-      throw new AppError(
-        409,
-        'Phương tiện này hiện đã được đặt cọc hoặc đang trong kỳ cho thuê. Vui lòng chọn phương tiện khác.'
-      );
-    }
-
     const [pickupBranch, returnBranch] = await Promise.all([
       Branch.findOne({ _id: data.pickupBranchId, isActive: true }),
       Branch.findOne({ _id: data.returnBranchId, isActive: true }),
@@ -238,13 +232,15 @@ export const createBooking = async (
       }
     }
 
-    // Auto-cancel any stale unpaid online banking draft on this vehicle so retries or abandoned gateway tabs never conflict
+    // Auto-cancel any stale unpaid online banking draft (>15 mins old) on this vehicle so abandoned gateway tabs do not lock vehicles indefinitely
+    const staleCutoff = new Date(Date.now() - 15 * 60 * 1000);
     const staleUserDrafts = await Booking.find({
       vehicleId: vehicle._id,
       status: 'Pending',
       depositPaid: false,
       isPaid: false,
       paymentMethod: 'Banking',
+      createdAt: { $lt: staleCutoff },
     });
     for (const draft of staleUserDrafts) {
       draft.status = 'Cancelled';
@@ -436,28 +432,8 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
     }
   }
 
-  // Conflict check
-  const cashHoldCutoff = new Date(Date.now() - 30 * 60 * 1000);
-  const [conflictingBooking, activeDepositedOrRented] = await Promise.all([
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      $or: [
-        { status: { $in: ['Approved', 'Confirmed', 'Ongoing'] } },
-        { status: 'Pending', paymentMethod: 'Cash', createdAt: { $gte: cashHoldCutoff } },
-      ],
-      pickupDateTime: { $lt: returnDate },
-      returnDateTime: { $gt: pickupDate },
-    }),
-    Booking.findOne({
-      vehicleId: vehicle._id,
-      status: { $in: ['Approved', 'Confirmed', 'Ongoing'] },
-    }),
-  ]);
-
-  const isAvailable =
-    !conflictingBooking &&
-    !activeDepositedOrRented &&
-    vehicle.status === 'Available';
+  // Conflict check using atomic date-range overlap checker (Rule BR-02)
+  const { available: isAvailable } = await checkVehicleAvailability(vehicle._id, pickupDate, returnDate);
 
   const rentalQuote = await quoteVehicleRental(vehicle, pickupDate, returnDate);
   const basePrice = rentalQuote.rentalAmount;
@@ -536,6 +512,7 @@ export interface GetMyBookingsResult {
   };
   counts: {
     all: number;
+    trips: number;
     active: number;
     completed: number;
     cancelled: number;
@@ -617,6 +594,7 @@ export const getMyBookings = async (
     },
     counts: {
       all: allCount,
+      trips: activeCount + completedCount,
       active: activeCount,
       completed: completedCount,
       cancelled: cancelledCount,
@@ -1044,7 +1022,12 @@ export const checkinBooking = async (
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
 
-  // Reject Pending status: must be Confirmed (or Approved)
+  // Auto-promote Pending -> Confirmed if deposit or full payment was already settled
+  if (booking.status === 'Pending' && (booking.depositPaid || booking.isPaid)) {
+    booking.status = 'Confirmed';
+  }
+
+  // Reject unpaid Pending status: must be Confirmed (or Approved)
   if (booking.status !== 'Confirmed' && booking.status !== 'Approved') {
     throw new AppError(
       409,
@@ -1055,18 +1038,22 @@ export const checkinBooking = async (
   // Verify staff branch assignment
   assertBranchAccess(staffUser, booking.pickupBranchId);
 
-  // 5-Point Handover Verification (UC-56: ID, license, 4 photos, ODO, fuel)
-  // Point 1: Verify customer eKYC identity status (CCCD/Passport)
+  // Handover Verification (UC-56):
+  // Once booking is valid/paid, ANY legitimate presenter at the counter (the booking creator OR a proxy receiver)
+  // can receive the vehicle as long as either online eKYC is Verified OR Staff verifies physical ID/license at the counter.
   const customer = await User.findById(booking.userId);
-  if (!customer || customer.identityStatus !== 'Verified') {
-    throw new AppError(403, 'Khách hàng chưa hoàn tất xác minh danh tính eKYC (CCCD/GPLX). Không thể tiến hành bàn giao xe.');
-  }
+  const isVerifiedAtCounter = Boolean(
+    input.verifiedAtCounter ||
+      input.checklist?.idCardVerified ||
+      input.receiverName?.trim() ||
+      input.receiverIdCard?.trim()
+  );
 
-  // Point 2: Verify driving license (GPLX)
-  if (!customer.drivingLicenseUrl && (!input.checklist || input.checklist.drivingLicenseVerified === false)) {
-    if (customer.identityStatus !== 'Verified' && !input.checklist?.drivingLicenseVerified) {
-      throw new AppError(403, 'Khách hàng chưa xác minh giấy phép lái xe hợp lệ.');
-    }
+  if ((!customer || customer.identityStatus !== 'Verified') && !isVerifiedAtCounter) {
+    throw new AppError(
+      403,
+      'Khách hàng chưa hoàn tất xác minh danh tính eKYC (CCCD/GPLX) và nhân viên chưa xác nhận đối chiếu người nhận trực tiếp tại quầy.'
+    );
   }
 
   // Point 3: 4 photos handover check (if checkinImages is provided, require at least 4 photos)
@@ -1102,6 +1089,15 @@ export const checkinBooking = async (
   if (input.checkinImages) booking.checkinImages = input.checkinImages;
   booking.checkinAt = new Date();
   booking.checkinBy = staffUser._id as mongoose.Types.ObjectId;
+  booking.verifiedAtCounter = isVerifiedAtCounter || customer?.identityStatus === 'Verified';
+  const defaultReceiverName = customer
+    ? [customer.lastName, customer.firstName].filter(Boolean).join(' ').trim() || customer.username
+    : '';
+  booking.receiverName = input.receiverName?.trim() || defaultReceiverName;
+  booking.receiverPhone = input.receiverPhone?.trim() || customer?.phoneNumber || '';
+  if (input.receiverIdCard?.trim()) {
+    booking.receiverIdCard = input.receiverIdCard.trim().toUpperCase();
+  }
   if (input.checklist) {
     booking.checkinChecklist = input.checklist;
   }
@@ -1152,12 +1148,33 @@ export const checkinBooking = async (
       startOdometer: input.startOdometer,
       startFuelLevel: fuelLevel,
       photosCount: input.checkinImages ? input.checkinImages.length : 0,
+      verifiedAtCounter: booking.verifiedAtCounter,
+      receiverName: booking.receiverName,
+      receiverPhone: booking.receiverPhone,
+      hasReceiverIdCard: Boolean(input.receiverIdCard?.trim()),
       staffId: staffUser._id.toString(),
       branchId: booking.pickupBranchId.toString(),
     },
     ipAddress: '127.0.0.1',
     userAgent: 'Motorent-CounterDesk/1.0',
   }).catch(() => {});
+
+  if (customer?.email) {
+    sendBookingStatusEmail({
+      toEmail: customer.email,
+      customerName: defaultReceiverName || customer.username,
+      bookingCode: booking.bookingCode,
+      event: 'CHECKIN',
+      vehicleName: `${vehicle.brand} ${vehicle.vehicleModel}`,
+      licensePlate: vehicle.licensePlate,
+      totalAmount: booking.totalAmount,
+      paidAmount: booking.paidAmount,
+      remainingAmount: booking.remainingAmount,
+      note: booking.receiverName && booking.receiverName !== defaultReceiverName
+        ? `Người nhận xe thực tế tại quầy: ${booking.receiverName} (${booking.receiverPhone || 'Đã đối chiếu giấy tờ'})`
+        : undefined,
+    }).catch(() => {});
+  }
 
   emitBookingStatus(booking);
   const populated = await populateBookingDetails(booking._id);
@@ -1262,6 +1279,16 @@ export const checkoutBooking = async (
     data: { bookingId: booking._id.toString(), status: booking.status },
   }).catch((error: unknown) => console.error('[Notification] Could not create checkout notification:', error));
 
+  if (finalDue > 0) {
+    await Payment.create({
+      bookingId: booking._id,
+      txnRef: `CHECKOUT-${booking.bookingCode}-${Date.now()}`,
+      amount: Math.round(finalDue),
+      type: 'COUNTER',
+      status: 'SUCCESS',
+    }).catch((err: unknown) => console.error('[Checkout Payment Record Error]', err));
+  }
+
   // Update Vehicle: move to return branch, update ODO, set Available (or Maintenance if severely damaged)
   const vehicle = await Vehicle.findById(booking.vehicleId);
   if (vehicle) {
@@ -1305,6 +1332,25 @@ export const checkoutBooking = async (
   }).catch(() => {});
 
   emitBookingStatus(booking);
+  User.findById(booking.userId)
+    .select('email firstName lastName username')
+    .then((cust) => {
+      if (cust?.email) {
+        const custName = [cust.lastName, cust.firstName].filter(Boolean).join(' ').trim() || cust.username;
+        sendBookingStatusEmail({
+          toEmail: cust.email,
+          customerName: custName,
+          bookingCode: booking.bookingCode,
+          event: 'COMPLETED',
+          vehicleName: vehicle ? `${vehicle.brand} ${vehicle.vehicleModel}` : undefined,
+          licensePlate: vehicle?.licensePlate,
+          totalAmount: booking.totalAmount,
+          paidAmount: booking.paidAmount,
+          remainingAmount: 0,
+        }).catch(() => {});
+      }
+    })
+    .catch(() => {});
   const populated = await populateBookingDetails(booking._id);
   return populated || booking;
 };
@@ -1344,20 +1390,35 @@ export const recordCounterPayment = async (
     throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0 VNĐ.');
   }
 
-  if (amount > (booking.remainingAmount || 0)) {
+  const isInitialPendingUnpaid =
+    booking.status === 'Pending' && !booking.depositPaid && (booking.paidAmount || 0) === 0;
+  const maxPayableBalance = isInitialPendingUnpaid
+    ? booking.totalAmount
+    : booking.remainingAmount || 0;
+
+  if (amount > maxPayableBalance) {
     throw new AppError(
       400,
-      `Số tiền thu (${amount.toLocaleString('vi-VN')} đ) vượt quá số dư còn lại cần thanh toán (${(booking.remainingAmount || 0).toLocaleString('vi-VN')} đ).`
+      `Số tiền thu (${amount.toLocaleString('vi-VN')} đ) vượt quá số dư còn lại cần thanh toán (${maxPayableBalance.toLocaleString('vi-VN')} đ).`
     );
   }
 
+  const wasPending = booking.status === 'Pending';
   booking.paidAmount = (booking.paidAmount || 0) + amount;
-  booking.remainingAmount = Math.max(0, (booking.remainingAmount || 0) - amount);
+  if (isInitialPendingUnpaid) {
+    booking.remainingAmount = Math.max(0, booking.totalAmount - booking.paidAmount);
+  } else {
+    booking.remainingAmount = Math.max(0, (booking.remainingAmount || 0) - amount);
+  }
   if (booking.remainingAmount === 0) {
     booking.isPaid = true;
   }
+
   const previousStatus = booking.status;
-  if (booking.status === 'Pending') {
+
+
+  if (wasPending) {
+
     booking.status = 'Confirmed';
   }
   booking.depositPaid = true;
@@ -2212,6 +2273,19 @@ export const approveBooking = async (
 
   // Socket real-time status update
   emitBookingStatus(booking);
+  const approvedUser = booking.userId as unknown as { email?: string; firstName?: string; lastName?: string; username?: string };
+  if (approvedUser?.email) {
+    sendBookingStatusEmail({
+      toEmail: approvedUser.email,
+      customerName: [approvedUser.lastName, approvedUser.firstName].filter(Boolean).join(' ').trim() || approvedUser.username || 'Quý khách',
+      bookingCode: booking.bookingCode,
+      event: 'APPROVED',
+      totalAmount: booking.totalAmount,
+      paidAmount: booking.paidAmount,
+      remainingAmount: booking.remainingAmount,
+      note: notes,
+    }).catch(() => {});
+  }
 
   return booking;
 };
@@ -2332,6 +2406,19 @@ export const rejectBooking = async (
 
   // Socket status event
   emitBookingStatus(booking);
+  const rejectedUser = booking.userId as unknown as { email?: string; firstName?: string; lastName?: string; username?: string };
+  if (rejectedUser?.email) {
+    sendBookingStatusEmail({
+      toEmail: rejectedUser.email,
+      customerName: [rejectedUser.lastName, rejectedUser.firstName].filter(Boolean).join(' ').trim() || rejectedUser.username || 'Quý khách',
+      bookingCode: booking.bookingCode,
+      event: 'REJECTED',
+      totalAmount: booking.totalAmount,
+      paidAmount: booking.paidAmount,
+      remainingAmount: 0,
+      note: cleanReason,
+    }).catch(() => {});
+  }
 
   return booking;
 };

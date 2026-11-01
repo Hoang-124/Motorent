@@ -9,22 +9,58 @@ import type { Branch, Vehicle } from '../types';
 type MaintenanceStatus = 'Scheduled' | 'InProgress' | 'Completed';
 type TransferStatus = 'Pending' | 'Approved' | 'InTransit' | 'Completed' | 'Rejected';
 type Person = string | { _id: string; username?: string; firstName?: string; lastName?: string };
-interface Transfer { _id: string; vehicleId: string | Vehicle; fromBranchId: string | Branch; toBranchId: string | Branch;
-  requestedBy: Person; status: TransferStatus; transferReason: string; rejectionReason?: string; notes?: string; createdAt: string }
-interface Maintenance { _id: string; vehicleId: string | Vehicle; branchId: string | Branch; maintenanceType: string;
-  description: string; performedBy?: string; cost: number; scheduledDate?: string; startDate?: string; endDate?: string;
-  odometerAtMaintenance: number; status: MaintenanceStatus; createdAt: string }
+interface Transfer {
+  _id: string;
+  vehicleId: string | Vehicle;
+  fromBranchId: string | Branch;
+  toBranchId: string | Branch;
+  requestedBy: Person;
+  approvedBy?: Person;
+  status: TransferStatus;
+  transferReason: string;
+  rejectionReason?: string;
+  notes?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+interface Maintenance {
+  _id: string;
+  vehicleId: string | Vehicle;
+  branchId: string | Branch;
+  maintenanceType: string;
+  description: string;
+  performedBy?: string;
+  cost: number;
+  scheduledDate?: string;
+  startDate?: string;
+  endDate?: string;
+  odometerAtMaintenance: number;
+  status: MaintenanceStatus;
+  createdAt: string;
+}
 interface Pagination { page: number; limit: number; total: number; totalPages: number }
 interface MaintenanceSummary { totalCost: number; completedCount: number; pendingEstimatedCost: number; pendingCount: number }
+interface TransferSummary { pending: number; completedCount: number; rejectedCount: number }
 interface ListResponse<T, S> { success: boolean; data: T[]; pagination: Pagination; summary: S }
 interface Notice { type: 'success' | 'error'; text: string }
+
 const emptyPage: Pagination = { page: 1, limit: 8, total: 0, totalPages: 0 };
 const emptySummary: MaintenanceSummary = { totalCost: 0, completedCount: 0, pendingEstimatedCost: 0, pendingCount: 0 };
+const emptyTransferSummary: TransferSummary = { pending: 0, completedCount: 0, rejectedCount: 0 };
 const maintenanceLabels: Record<MaintenanceStatus, string> = { Scheduled: 'Đã lên lịch', InProgress: 'Đang thực hiện', Completed: 'Hoàn tất' };
-const transferLabels: Record<TransferStatus, string> = { Pending: 'Chờ phê duyệt', Approved: 'Đã điều chuyển', InTransit: 'Đang vận chuyển', Completed: 'Hoàn tất', Rejected: 'Từ chối' };
+const transferLabels: Record<TransferStatus, string> = { Pending: 'Chờ phê duyệt', Approved: 'Đã điều chuyển', InTransit: 'Đang vận chuyển', Completed: 'Hoàn tất', Rejected: 'Đã từ chối' };
+
 const idOf = (value?: string | { _id: string }): string => typeof value === 'string' ? value : value?._id ?? '';
 const branchName = (value: string | Branch): string => typeof value === 'string' ? value : value.name;
 const vehicleName = (value: string | Vehicle): string => typeof value === 'string' ? 'Xe không còn trong danh mục' : `${value.brand} ${value.vehicleModel} · ${value.licensePlate}`;
+const personName = (value?: Person): string => {
+  if (!value) return 'Chưa ghi nhận';
+  if (typeof value === 'string') return value;
+  const fullName = [value.lastName, value.firstName].filter(Boolean).join(' ').trim();
+  return fullName || value.username || 'Quản lý chi nhánh';
+};
 const date = (value?: string): string => value ? new Date(value).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' }) : 'Chưa ghi nhận';
 const money = (value: number): string => `${value.toLocaleString('vi-VN')} đ`;
 const errorMessage = (error: unknown): string => axios.isAxiosError<{ message?: string }>(error)
@@ -43,8 +79,13 @@ function Icon({ kind }: { kind: 'transfer' | 'maintenance' | 'alert' }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block min-w-0 space-y-2 text-xs font-medium text-[#A0A0A0]"><span>{label}</span>{children}</label>;
 }
-function Status({ children, done = false }: { children: ReactNode; done?: boolean }) {
-  return <span className={`inline-flex max-w-full rounded-full border px-2.5 py-1 text-[11px] font-semibold ${done ? 'border-[#99FFE4]/20 bg-[#99FFE4]/5 text-[#99FFE4]' : 'border-[#FFC799]/20 bg-[#FFC799]/5 text-[#FFC799]'}`}>{children}</span>;
+function Status({ children, done = false, rejected = false }: { children: ReactNode; done?: boolean; rejected?: boolean }) {
+  const tone = rejected
+    ? 'border-[#FF8080]/30 bg-[#FF8080]/10 text-[#FFB3B3]'
+    : done
+      ? 'border-[#99FFE4]/20 bg-[#99FFE4]/5 text-[#99FFE4]'
+      : 'border-[#FFC799]/20 bg-[#FFC799]/5 text-[#FFC799]';
+  return <span className={`inline-flex max-w-full rounded-full border px-2.5 py-1 text-[11px] font-semibold ${tone}`}>{children}</span>;
 }
 function Pages({ page, onChange, disabled }: { page: Pagination; onChange: (page: number) => void; disabled: boolean }) {
   return <nav aria-label="Phân trang danh sách" className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4 text-xs text-[#A0A0A0]">
@@ -60,7 +101,8 @@ export function FleetOperationsPage() {
   const isAdmin = user?.roles === 'SystemAdmin';
   const canManage = isAdmin || user?.roles === 'BranchManager';
   const ownBranch = idOf(user?.branchId);
-  const [tab, setTab] = useState<'maintenance' | 'transfers'>(searchParams.get('tab') === 'transfers' && canManage ? 'transfers' : 'maintenance');
+  const [tab, setTab] = useState<'maintenance' | 'transfers'>(searchParams.get('tab') === 'transfers' ? 'transfers' : 'maintenance');
+  const [transferSubView, setTransferSubView] = useState<'active' | 'history'>('active');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [branchFilter, setBranchFilter] = useState('');
@@ -73,8 +115,9 @@ export function FleetOperationsPage() {
   const [historyVehicle, setHistoryVehicle] = useState(searchParams.get('vehicle') ?? '');
   const [transfers, setTransfers] = useState<Transfer[]>([]);
   const [transferPage, setTransferPage] = useState<Pagination>(emptyPage);
-  const [pendingTransfers, setPendingTransfers] = useState(0);
+  const [transferSummary, setTransferSummary] = useState<TransferSummary>(emptyTransferSummary);
   const [transferStatus, setTransferStatus] = useState('');
+  const [transferVehicleFilter, setTransferVehicleFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -94,8 +137,8 @@ export function FleetOperationsPage() {
     const requestedVehicle = searchParams.get('vehicle');
     if (requestedVehicle) {
       setTab('maintenance'); setBranchFilter(''); setHistoryVehicle(requestedVehicle); setMaintenancePage(emptyPage);
-    } else if (searchParams.get('tab') === 'transfers' && canManage) setTab('transfers');
-  }, [searchParams, canManage]);
+    } else if (searchParams.get('tab') === 'transfers') setTab('transfers');
+  }, [searchParams]);
 
   const loadLookups = useCallback(async () => {
     const [branchResponse, vehicleResponse, alertResponse] = await Promise.all([
@@ -128,15 +171,23 @@ export function FleetOperationsPage() {
   }, [maintenancePage.page, branchFilter, statusFilter, historyVehicle, refreshKey]);
 
   useEffect(() => {
-    if (!canManage) return;
     const request = ++transferRequest.current;
-    api.get<ListResponse<Transfer, { pending: number }>>('/transfers', { params: {
-      page: transferPage.page, limit: 8, ...(branchFilter ? { branchId: branchFilter } : {}), ...(transferStatus ? { status: transferStatus } : {}),
+    api.get<ListResponse<Transfer, TransferSummary>>('/transfers', { params: {
+      page: transferPage.page, limit: 8,
+      ...(branchFilter ? { branchId: branchFilter } : {}),
+      ...(transferStatus ? { status: transferStatus } : {}),
+      ...(transferVehicleFilter ? { vehicleId: transferVehicleFilter } : {}),
     } }).then((response) => {
       if (request !== transferRequest.current) return;
-      setTransfers(response.data.data); setTransferPage(response.data.pagination); setPendingTransfers(response.data.summary.pending);
+      setTransfers(response.data.data);
+      setTransferPage(response.data.pagination);
+      setTransferSummary({
+        pending: response.data.summary?.pending ?? 0,
+        completedCount: response.data.summary?.completedCount ?? 0,
+        rejectedCount: response.data.summary?.rejectedCount ?? 0,
+      });
     }).catch((error: unknown) => { if (request === transferRequest.current) setNotice({ type: 'error', text: errorMessage(error) }); });
-  }, [canManage, transferPage.page, branchFilter, transferStatus, refreshKey]);
+  }, [transferPage.page, branchFilter, transferStatus, transferVehicleFilter, refreshKey]);
 
   const mutate = async (request: () => Promise<unknown>, success: string, after?: () => void) => {
     setBusy(true); setNotice(null);
@@ -158,15 +209,15 @@ export function FleetOperationsPage() {
   const openCompletion = (log: Maintenance) => setCompletion({ id: log._id, vehicle: vehicleName(log.vehicleId), cost: String(log.cost),
     performedBy: log.performedBy ?? '', odometer: String(typeof log.vehicleId === 'string' ? log.odometerAtMaintenance : log.vehicleId.odometer) });
   const selectBranch = (value: string) => {
-    setBranchFilter(value); setAlertPage(emptyPage); setMaintenancePage(emptyPage); setTransferPage(emptyPage); setHistoryVehicle('');
+    setBranchFilter(value); setAlertPage(emptyPage); setMaintenancePage(emptyPage); setTransferPage(emptyPage); setHistoryVehicle(''); setTransferVehicleFilter('');
     setMaintenanceForm((form) => ({ ...form, vehicleId: '' }));
   };
 
-  return <div className="mx-auto max-w-7xl px-4 pb-20 pt-28 text-[#F5F5F5] sm:px-6 lg:px-8">
+  return <div className="mx-auto max-w-7xl px-4 pb-20 pt-10 text-[#F5F5F5] sm:px-6 lg:px-8">
     <div className="mb-8 flex flex-wrap items-end justify-between gap-5">
       <div><p className="mb-3 text-[10px] font-semibold uppercase tracking-[.3em] text-[#FFC799]">Motorent / Vận hành</p>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Điều phối đội xe</h1>
-        <p className="mt-3 max-w-2xl text-sm text-[#A0A0A0]">Theo dõi bảo trì, xử lý điều chuyển và giữ đội xe sẵn sàng cho hành trình tiếp theo.</p></div>
+        <p className="mt-3 max-w-2xl text-sm text-[#A0A0A0]">Theo dõi nhật ký bảo trì, nhật ký điều chuyển xe liên chi nhánh và giữ đội xe sẵn sàng phục vụ.</p></div>
       <div className="flex w-full min-w-0 gap-3 sm:w-auto">{isAdmin && <select aria-label="Lọc chi nhánh" className={`${inputClass} sm:max-w-[240px]`} value={branchFilter} onChange={(event) => selectBranch(event.target.value)}>
         <option value="">Tất cả chi nhánh</option>{branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.name}</option>)}</select>}
         <button className={`${subtleButton} shrink-0`} disabled={busy || loading} onClick={() => setRefreshKey((value) => value + 1)}>Làm mới</button></div>
@@ -174,8 +225,8 @@ export function FleetOperationsPage() {
     {notice && <div role={notice.type === 'error' ? 'alert' : 'status'} className={`mb-6 rounded-xl border px-4 py-3 text-sm ${notice.type === 'error' ? 'border-[#FF8080]/30 bg-[#FF8080]/5 text-[#FFB3B3]' : 'border-[#99FFE4]/25 bg-[#99FFE4]/5 text-[#99FFE4]'}`}>{notice.text}</div>}
     <div className="mb-8 grid gap-3 sm:grid-cols-3">
       {[{ label: 'Xe cần bảo trì', value: alertPage.total, detail: 'Chu kỳ ODO 1.500 km', icon: 'alert' as const },
-        { label: 'Phiếu chưa hoàn tất', value: summary.pendingCount, detail: `Dự kiến ${money(summary.pendingEstimatedCost)}`, icon: 'maintenance' as const },
-        { label: canManage ? 'Yêu cầu điều chuyển chờ xử lý' : 'Phiếu đã hoàn tất', value: canManage ? pendingTransfers : summary.completedCount, detail: canManage ? 'Chi nhánh xuất phê duyệt' : `Đã chi ${money(summary.totalCost)}`, icon: 'transfer' as const }].map((item) =>
+        { label: 'Phiếu bảo trì chưa hoàn tất', value: summary.pendingCount, detail: `Hoàn tất: ${summary.completedCount} phiếu · ${money(summary.totalCost)}`, icon: 'maintenance' as const },
+        { label: 'Lệnh & Nhật ký điều chuyển', value: transferSummary.pending + transferSummary.completedCount + transferSummary.rejectedCount, detail: `${transferSummary.pending} chờ duyệt · ${transferSummary.completedCount} đã chuyển · ${transferSummary.rejectedCount} từ chối`, icon: 'transfer' as const }].map((item) =>
         <div key={item.label} className="min-w-0 rounded-2xl border border-white/10 bg-[#161616] p-5"><div className="flex justify-between gap-3 text-[#A0A0A0]"><span className="text-xs leading-relaxed">{item.label}</span><span className="shrink-0 text-[#FFC799]"><Icon kind={item.icon} /></span></div>
           <p className="my-3 text-3xl font-semibold tabular-nums">{item.value}</p><p className="text-xs leading-relaxed text-[#A0A0A0]">{item.detail}</p></div>)}
     </div>
@@ -196,9 +247,13 @@ export function FleetOperationsPage() {
       </button>)}</div> : <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-sm text-[#A0A0A0]">{loading ? 'Đang kiểm tra cảnh báo bảo trì…' : 'Không có xe đến hạn bảo trì trong phạm vi đang xem.'}</p>}
       {alertPage.totalPages > 1 && <Pages page={alertPage} disabled={busy || loading} onChange={(page) => setAlertPage((current) => ({ ...current, page }))} />}
     </section>
-    <div role="tablist" aria-label="Nghiệp vụ đội xe" className="mb-6 flex gap-4 border-b border-white/10 sm:gap-6">
-      <button role="tab" aria-selected={tab === 'maintenance'} onClick={() => setTab('maintenance')} className={`min-h-12 border-b-2 pb-3 text-left text-xs sm:text-sm ${tab === 'maintenance' ? 'border-[#FFC799] text-[#FFC799]' : 'border-transparent text-[#A0A0A0]'}`}>Phiếu bảo trì</button>
-      {canManage && <button role="tab" aria-selected={tab === 'transfers'} onClick={() => setTab('transfers')} className={`flex min-h-12 items-center gap-2 border-b-2 pb-3 text-left text-xs sm:text-sm ${tab === 'transfers' ? 'border-[#FFC799] text-[#FFC799]' : 'border-transparent text-[#A0A0A0]'}`}>Điều chuyển chi nhánh{pendingTransfers > 0 && <span className="rounded-full bg-[#FFC799]/10 px-2 py-0.5 text-[10px] text-[#FFC799]">{pendingTransfers}</span>}</button>}
+    <div role="tablist" aria-label="Nghiệp vụ đội xe" className="mb-6 flex flex-wrap gap-4 border-b border-white/10 sm:gap-6">
+      <button role="tab" aria-selected={tab === 'maintenance'} onClick={() => setTab('maintenance')} className={`min-h-12 border-b-2 pb-3 text-left text-xs font-semibold sm:text-sm ${tab === 'maintenance' ? 'border-[#FFC799] text-[#FFC799]' : 'border-transparent text-[#A0A0A0]'}`}>01. Phiếu &amp; Nhật ký bảo trì</button>
+      <button role="tab" aria-selected={tab === 'transfers'} onClick={() => setTab('transfers')} className={`flex min-h-12 items-center gap-2 border-b-2 pb-3 text-left text-xs font-semibold sm:text-sm ${tab === 'transfers' ? 'border-[#FFC799] text-[#FFC799]' : 'border-transparent text-[#A0A0A0]'}`}>
+        <span>02. Điều chuyển &amp; Nhật ký điều chuyển</span>
+        {transferSummary.pending > 0 && <span className="rounded-full bg-[#FFC799]/15 px-2 py-0.5 text-[10px] font-bold text-[#FFC799]">{transferSummary.pending} chờ duyệt</span>}
+        <span className="rounded-full bg-[#99FFE4]/15 px-2 py-0.5 text-[10px] font-bold text-[#99FFE4]">{transferSummary.completedCount} hoàn tất</span>
+      </button>
     </div>
 
     {tab === 'maintenance' ? <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
@@ -215,7 +270,7 @@ export function FleetOperationsPage() {
         <button disabled={busy || loading || !maintenanceForm.vehicleId} className={`${buttonClass} w-full`}>{busy ? 'Đang lưu…' : 'Tạo phiếu bảo trì'}</button>
       </form>
       <section aria-labelledby="maintenance-history-title" className="min-w-0 rounded-2xl border border-white/10 bg-[#161616] p-4 sm:p-5">
-        <div className="mb-5 flex flex-wrap justify-between gap-4"><div><h2 id="maintenance-history-title" className="text-lg font-semibold">Dòng thời gian bảo trì</h2><p className="mt-1 text-xs leading-relaxed text-[#A0A0A0]">Theo dõi từng phiếu từ khi lập đến khi hoàn tất.</p></div>
+        <div className="mb-5 flex flex-wrap justify-between gap-4"><div><h2 id="maintenance-history-title" className="text-lg font-semibold">Nhật ký bảo trì phương tiện</h2><p className="mt-1 text-xs leading-relaxed text-[#A0A0A0]">Theo dõi từng phiếu từ khi lập đến khi hoàn tất.</p></div>
           <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto"><select aria-label="Xem lịch sử theo xe" className={`${inputClass} sm:max-w-[210px]`} value={historyVehicle} onChange={(event) => { setHistoryVehicle(event.target.value); setMaintenancePage(emptyPage); }}>
             <option value="">Tất cả xe</option>{visibleVehicles.map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.licensePlate}</option>)}</select>
             {!historyVehicle && <select aria-label="Lọc trạng thái bảo trì" className={`${inputClass} sm:max-w-[180px]`} value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setMaintenancePage(emptyPage); }}>
@@ -245,31 +300,278 @@ export function FleetOperationsPage() {
         {maintenance.length === 0 && <p className="py-12 text-center text-sm text-[#6E6E6E]">Chưa có phiếu bảo trì phù hợp.</p>}
         <Pages page={maintenancePage} disabled={busy} onChange={(page) => setMaintenancePage((current) => ({ ...current, page }))} />
       </section>
-    </div> : <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
-      <form onSubmit={requestTransfer} className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-[#161616] p-4 sm:p-5"><h2 className="text-lg font-semibold">Yêu cầu nhận xe</h2>
-        <p className="text-xs leading-relaxed text-[#A0A0A0]">Đề nghị nhận xe sẵn sàng từ chi nhánh khác. Xe chuyển chi nhánh khi quản lý chi nhánh xuất phê duyệt.</p>
-        <Field label="Chi nhánh nhận">{isAdmin ? <select required className={inputClass} value={transferForm.toBranchId} onChange={(event) => setTransferForm({ ...transferForm, toBranchId: event.target.value, vehicleId: '' })}>
-          <option value="">Chọn chi nhánh nhận</option>{branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.name}</option>)}</select>
-          : <div className="break-words rounded-xl border border-white/10 bg-[#0A0A0A] px-3 py-2.5 text-sm text-[#F5F5F5]">{branches.find((branch) => branch._id === ownBranch)?.name || 'Chưa được phân bổ chi nhánh'}</div>}</Field>
-        <Field label="Xe cần điều chuyển"><select required className={inputClass} value={transferForm.vehicleId} onChange={(event) => setTransferForm({ ...transferForm, vehicleId: event.target.value })}>
-          <option value="">Chọn xe ở chi nhánh khác</option>{transferVehicles.map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.licensePlate} · {vehicle.vehicleModel} · {branchName(vehicle.branchId)}</option>)}</select></Field>
-        <Field label="Lý do điều chuyển"><textarea required minLength={5} maxLength={2000} rows={3} className={inputClass} value={transferForm.transferReason} onChange={(event) => setTransferForm({ ...transferForm, transferReason: event.target.value })} /></Field>
-        <Field label="Ghi chú"><textarea maxLength={2000} rows={2} className={inputClass} value={transferForm.notes} onChange={(event) => setTransferForm({ ...transferForm, notes: event.target.value })} /></Field>
-        <button className={`${buttonClass} w-full`} disabled={busy || loading || !destination || !transferForm.vehicleId}>{busy ? 'Đang gửi…' : 'Gửi yêu cầu nhận xe'}</button>
-      </form>
-      <section aria-labelledby="transfer-list-title" className="min-w-0 rounded-2xl border border-white/10 bg-[#161616] p-4 sm:p-5"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h2 id="transfer-list-title" className="text-lg font-semibold">Yêu cầu đi & đến</h2><p className="mt-1 text-xs text-[#A0A0A0]">Quản lý chi nhánh xuất xác nhận điều chuyển.</p></div>
-        <select aria-label="Lọc trạng thái điều chuyển" className={`${inputClass} sm:max-w-[190px]`} value={transferStatus} onChange={(event) => { setTransferStatus(event.target.value); setTransferPage(emptyPage); }}><option value="">Mọi trạng thái</option>{Object.entries(transferLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
-        <div className="space-y-3">{transfers.map((transfer) => {
-          const canReview = transfer.status === 'Pending' && idOf(transfer.requestedBy) !== user?._id && (isAdmin || idOf(transfer.fromBranchId) === ownBranch);
-          return <article key={transfer._id} className="min-w-0 rounded-xl border border-white/10 bg-[#101010] p-4"><div className="flex flex-wrap items-start justify-between gap-3"><h3 className="min-w-0 break-words text-sm font-semibold">{vehicleName(transfer.vehicleId)}</h3>
-            <Status done={transfer.status === 'Approved' || transfer.status === 'Completed'}>{transferLabels[transfer.status]}</Status></div>
-            <div className="mt-4 grid grid-cols-[minmax(0,1fr)_16px_minmax(0,1fr)] items-center gap-3 rounded-xl border border-white/[.06] bg-white/[.02] p-3 text-xs"><div className="min-w-0"><p className="text-[10px] text-[#A0A0A0]">Chi nhánh xuất</p><p className="mt-1 break-words leading-relaxed">{branchName(transfer.fromBranchId)}</p></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-label="đến"><path d="M4 12h16m-5-5 5 5-5 5" /></svg><div className="min-w-0"><p className="text-[10px] text-[#A0A0A0]">Chi nhánh nhận</p><p className="mt-1 break-words leading-relaxed">{branchName(transfer.toBranchId)}</p></div></div>
-            <p className="my-3 whitespace-pre-wrap break-words text-sm text-[#A0A0A0]">{transfer.transferReason}</p>{transfer.notes && <p className="mb-3 whitespace-pre-wrap break-words text-xs text-[#6E6E6E]">{transfer.notes}</p>}
-            <p className="text-xs text-[#A0A0A0]">Tạo lúc <time dateTime={transfer.createdAt}>{date(transfer.createdAt)}</time></p>{transfer.rejectionReason && <p className="mt-3 whitespace-pre-wrap break-words rounded-lg border border-[#FF8080]/20 bg-[#FF8080]/5 p-3 text-xs leading-relaxed text-[#FFB3B3]">Lý do từ chối: {transfer.rejectionReason}</p>}
-            {canReview && <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-3"><button disabled={busy} className={buttonClass} onClick={() => void mutate(() => api.put(`/transfers/${transfer._id}/approve`), 'Đã phê duyệt và chuyển xe sang chi nhánh nhận.')}>Phê duyệt điều chuyển</button>
-              <button disabled={busy} className={subtleButton} onClick={() => setReview({ id: transfer._id, reason: '' })}>Từ chối</button></div>}
-            {transfer.status === 'Pending' && !canReview && <p className="mt-3 text-xs text-[#6E6E6E]">Chờ quản lý chi nhánh xuất xử lý.</p>}</article>;
-        })}</div>{transfers.length === 0 && <p className="py-12 text-center text-sm text-[#6E6E6E]">Chưa có yêu cầu điều chuyển phù hợp.</p>}
+    </div> : <div className={`grid items-start gap-6 ${canManage ? 'lg:grid-cols-[340px_minmax(0,1fr)]' : 'grid-cols-1'}`}>
+      {canManage && (
+        <form onSubmit={requestTransfer} className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-[#161616] p-4 sm:p-5">
+          <h2 className="text-lg font-semibold">Yêu cầu điều chuyển xe</h2>
+          <p className="text-xs leading-relaxed text-[#A0A0A0]">Đề nghị nhận xe sẵn sàng từ chi nhánh khác. Mọi lệnh tạo mới, duyệt hoặc từ chối đều được ghi tự động vào Nhật ký điều chuyển bên phải.</p>
+          <Field label="Chi nhánh nhận">{isAdmin ? <select required className={inputClass} value={transferForm.toBranchId} onChange={(event) => setTransferForm({ ...transferForm, toBranchId: event.target.value, vehicleId: '' })}>
+            <option value="">Chọn chi nhánh nhận</option>{branches.map((branch) => <option key={branch._id} value={branch._id}>{branch.name}</option>)}</select>
+            : <div className="break-words rounded-xl border border-white/10 bg-[#0A0A0A] px-3 py-2.5 text-sm text-[#F5F5F5]">{branches.find((branch) => branch._id === ownBranch)?.name || 'Chưa được phân bổ chi nhánh'}</div>}</Field>
+          <Field label="Xe cần điều chuyển"><select required className={inputClass} value={transferForm.vehicleId} onChange={(event) => setTransferForm({ ...transferForm, vehicleId: event.target.value })}>
+            <option value="">Chọn xe ở chi nhánh khác</option>{transferVehicles.map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.licensePlate} · {vehicle.vehicleModel} · {branchName(vehicle.branchId)}</option>)}</select></Field>
+          <Field label="Lý do điều chuyển"><textarea required minLength={5} maxLength={2000} rows={3} className={inputClass} value={transferForm.transferReason} onChange={(event) => setTransferForm({ ...transferForm, transferReason: event.target.value })} placeholder="VD: Bổ sung xe tay ga phục vụ nhu cầu cuối tuần tại trạm..." /></Field>
+          <Field label="Ghi chú bàn giao"><textarea maxLength={2000} rows={2} className={inputClass} value={transferForm.notes} onChange={(event) => setTransferForm({ ...transferForm, notes: event.target.value })} placeholder="Ghi chú tình trạng xe hoặc người nhận..." /></Field>
+          <button className={`${buttonClass} w-full`} disabled={busy || loading || !destination || !transferForm.vehicleId}>{busy ? 'Đang gửi…' : 'Gửi yêu cầu điều chuyển'}</button>
+        </form>
+      )}
+
+      <section aria-labelledby="transfer-list-title" className="min-w-0 rounded-2xl border border-white/10 bg-[#161616] p-4 sm:p-5">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 id="transfer-list-title" className="text-lg font-semibold">Nhật ký điều chuyển phương tiện</h2>
+            <p className="mt-1 text-xs text-[#A0A0A0]">Lưu trữ toàn bộ lịch sử điều chuyển xe giữa các chi nhánh (người yêu cầu, người phê duyệt, thời điểm chuyển giao).</p>
+          </div>
+          <div className="flex w-full min-w-0 flex-wrap gap-2 sm:w-auto">
+            <select
+              aria-label="Lọc nhật ký điều chuyển theo xe"
+              className={`${inputClass} sm:max-w-[210px]`}
+              value={transferVehicleFilter}
+              onChange={(event) => {
+                setTransferVehicleFilter(event.target.value);
+                setTransferPage(emptyPage);
+              }}
+            >
+              <option value="">Tất cả phương tiện</option>
+              {vehicles.map((vehicle) => (
+                <option key={vehicle._id} value={vehicle._id}>
+                  {vehicle.licensePlate} · {vehicle.vehicleModel}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Lọc trạng thái điều chuyển"
+              className={`${inputClass} sm:max-w-[180px]`}
+              value={transferStatus}
+              onChange={(event) => {
+                setTransferStatus(event.target.value);
+                setTransferPage(emptyPage);
+              }}
+            >
+              <option value="">Mọi trạng thái</option>
+              {Object.entries(transferLabels).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Sub-view filter pills + KPI Summary */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#101010] p-2.5">
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setTransferSubView('active');
+                setTransferStatus('');
+                setTransferPage(emptyPage);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                transferSubView === 'active' && !transferStatus
+                  ? 'bg-[#FFC799] text-[#101010]'
+                  : 'text-[#A0A0A0] hover:text-white'
+              }`}
+            >
+              Tất cả nhật ký ({transferSummary.pending + transferSummary.completedCount + transferSummary.rejectedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTransferSubView('active');
+                setTransferStatus('Pending');
+                setTransferPage(emptyPage);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                transferStatus === 'Pending'
+                  ? 'bg-[#FFC799] text-[#101010]'
+                  : 'text-[#A0A0A0] hover:text-white'
+              }`}
+            >
+              Đang chờ duyệt ({transferSummary.pending})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTransferSubView('history');
+                setTransferStatus('Approved');
+                setTransferPage(emptyPage);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                transferStatus === 'Approved'
+                  ? 'bg-[#99FFE4] text-[#101010]'
+                  : 'text-[#A0A0A0] hover:text-white'
+              }`}
+            >
+              Đã điều chuyển ({transferSummary.completedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTransferSubView('history');
+                setTransferStatus('Rejected');
+                setTransferPage(emptyPage);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                transferStatus === 'Rejected'
+                  ? 'bg-[#FF8080] text-[#101010]'
+                  : 'text-[#A0A0A0] hover:text-white'
+              }`}
+            >
+              Đã từ chối ({transferSummary.rejectedCount})
+            </button>
+          </div>
+        </div>
+
+        <dl className="mb-6 grid gap-3 sm:grid-cols-3">
+          <div className="min-w-0 rounded-xl border border-[#FFC799]/20 bg-[#FFC799]/[.04] p-4">
+            <dt className="text-xs text-[#A0A0A0]">Yêu cầu chờ phê duyệt</dt>
+            <dd className="mt-2 text-2xl font-semibold tabular-nums text-[#FFC799]">{transferSummary.pending}</dd>
+            <dd className="mt-1 text-[11px] text-[#A0A0A0]">Chờ chi nhánh xuất xác nhận</dd>
+          </div>
+          <div className="min-w-0 rounded-xl border border-[#99FFE4]/20 bg-[#99FFE4]/[.04] p-4">
+            <dt className="text-xs text-[#A0A0A0]">Đã điều chuyển thành công</dt>
+            <dd className="mt-2 text-2xl font-semibold tabular-nums text-[#99FFE4]">{transferSummary.completedCount}</dd>
+            <dd className="mt-1 text-[11px] text-[#A0A0A0]">Xe đã cập nhật sang chi nhánh nhận</dd>
+          </div>
+          <div className="min-w-0 rounded-xl border border-white/10 bg-[#101010] p-4">
+            <dt className="text-xs text-[#A0A0A0]">Yêu cầu từ chối</dt>
+            <dd className="mt-2 text-2xl font-semibold tabular-nums text-[#FFB3B3]">{transferSummary.rejectedCount}</dd>
+            <dd className="mt-1 text-[11px] text-[#A0A0A0]">Lưu lý do từ chối trong nhật ký</dd>
+          </div>
+        </dl>
+
+        <ol aria-label="Dòng thời gian nhật ký điều chuyển" className="ml-1 border-l border-white/15 pl-5 sm:pl-6">
+          {transfers.map((transfer) => {
+            const isDone = transfer.status === 'Approved' || transfer.status === 'Completed';
+            const isRejected = transfer.status === 'Rejected';
+            const canReview =
+              canManage &&
+              transfer.status === 'Pending' &&
+              idOf(transfer.requestedBy) !== user?._id &&
+              (isAdmin || idOf(transfer.fromBranchId) === ownBranch);
+
+            return (
+              <li key={transfer._id} className="relative min-w-0 pb-6 last:pb-0">
+                <span
+                  aria-hidden="true"
+                  className={`absolute -left-[26px] top-1 h-[11px] w-[11px] rounded-full border-2 border-[#161616] ring-4 ring-[#161616] sm:-left-[30px] ${
+                    isDone ? 'bg-[#99FFE4]' : isRejected ? 'bg-[#FF8080]' : 'bg-[#FFC799]'
+                  }`}
+                />
+                <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-[#A0A0A0]">
+                  <span>Lập lệnh điều chuyển</span>
+                  <time dateTime={transfer.createdAt} className="tabular-nums font-mono text-[#F5F5F5]">
+                    {date(transfer.createdAt)}
+                  </time>
+                  {transfer.arrivalTime && (
+                    <>
+                      <span>· Hoàn tất bàn giao</span>
+                      <time dateTime={transfer.arrivalTime} className="tabular-nums font-mono text-[#99FFE4]">
+                        {date(transfer.arrivalTime)}
+                      </time>
+                    </>
+                  )}
+                </p>
+
+                <article className="min-w-0 rounded-xl border border-white/10 bg-[#101010] p-3.5 sm:p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="break-words text-sm font-semibold text-white">
+                        {vehicleName(transfer.vehicleId)}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-[#A0A0A0]">
+                        Mã phiếu: <span className="font-mono text-[#C8C2B8]">#{transfer._id.slice(-6).toUpperCase()}</span>
+                      </p>
+                    </div>
+                    <Status done={isDone} rejected={isRejected}>
+                      {transferLabels[transfer.status]}
+                    </Status>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-[minmax(0,1fr)_20px_minmax(0,1fr)] items-center gap-3 rounded-xl border border-white/[.06] bg-white/[.02] p-3 text-xs">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider text-[#A0A0A0]">Chi nhánh xuất</p>
+                      <p className="mt-1 break-words font-semibold text-[#F5F5F5] leading-relaxed">
+                        {branchName(transfer.fromBranchId)}
+                      </p>
+                    </div>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="text-[#FFC799]" aria-label="đến">
+                      <path d="M4 12h16m-5-5 5 5-5 5" />
+                    </svg>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider text-[#A0A0A0]">Chi nhánh nhận</p>
+                      <p className="mt-1 break-words font-semibold text-[#99FFE4] leading-relaxed">
+                        {branchName(transfer.toBranchId)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="my-3 whitespace-pre-wrap break-words text-sm text-[#E5E5E5] bg-[#161616] rounded-lg border border-white/5 p-3">
+                    {transfer.transferReason}
+                  </p>
+                  {transfer.notes && (
+                    <p className="mb-3 whitespace-pre-wrap break-words text-xs text-[#A0A0A0]">
+                      Ghi chú: {transfer.notes}
+                    </p>
+                  )}
+
+                  <dl className="grid gap-3 text-xs min-[420px]:grid-cols-2 border-t border-white/5 pt-3">
+                    <div className="min-w-0">
+                      <dt className="text-[#A0A0A0]">Người lập yêu cầu</dt>
+                      <dd className="mt-1 font-medium text-[#F5F5F5] break-words">
+                        {personName(transfer.requestedBy)}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-[#A0A0A0]">
+                        {isRejected ? 'Người từ chối' : isDone ? 'Người phê duyệt' : 'Trạng thái duyệt'}
+                      </dt>
+                      <dd className="mt-1 font-medium text-[#F5F5F5] break-words">
+                        {transfer.approvedBy ? personName(transfer.approvedBy) : 'Đang chờ quản lý chi nhánh xuất'}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {transfer.rejectionReason && (
+                    <p className="mt-3 whitespace-pre-wrap break-words rounded-lg border border-[#FF8080]/20 bg-[#FF8080]/5 p-3 text-xs leading-relaxed text-[#FFB3B3]">
+                      Lý do từ chối: {transfer.rejectionReason}
+                    </p>
+                  )}
+
+                  {canReview && (
+                    <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-3">
+                      <button
+                        disabled={busy}
+                        className={buttonClass}
+                        onClick={() =>
+                          void mutate(
+                            () => api.put(`/transfers/${transfer._id}/approve`),
+                            'Đã phê duyệt và lưu vào nhật ký điều chuyển.'
+                          )
+                        }
+                      >
+                        Phê duyệt điều chuyển
+                      </button>
+                      <button
+                        disabled={busy}
+                        className={subtleButton}
+                        onClick={() => setReview({ id: transfer._id, reason: '' })}
+                      >
+                        Từ chối
+                      </button>
+                    </div>
+                  )}
+                </article>
+              </li>
+            );
+          })}
+        </ol>
+
+        {transfers.length === 0 && (
+          <p className="py-12 text-center text-sm text-[#6E6E6E]">
+            Chưa có bản ghi nhật ký điều chuyển nào phù hợp với bộ lọc.
+          </p>
+        )}
         <Pages page={transferPage} disabled={busy} onChange={(page) => setTransferPage((current) => ({ ...current, page }))} />
       </section>
     </div>}

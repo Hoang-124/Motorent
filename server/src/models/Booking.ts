@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
+import { encryptPiiText, decryptPiiText } from '../core/cryptoVault';
 
 export type BookingStatus =
   | 'Pending'
@@ -74,6 +75,10 @@ export interface IBooking extends Document {
   checkinAt?: Date;
   checkinBy?: mongoose.Types.ObjectId;
   checkinChecklist?: Record<string, boolean>;
+  receiverName?: string;
+  receiverPhone?: string;
+  receiverIdCard?: string;
+  verifiedAtCounter?: boolean;
   checkoutAt?: Date;
   checkoutBy?: mongoose.Types.ObjectId;
   returnNotes?: string;
@@ -155,6 +160,10 @@ const BookingSchema = new Schema<IBooking>(
     checkinAt: { type: Date },
     checkinBy: { type: Schema.Types.ObjectId, ref: 'User' },
     checkinChecklist: { type: Schema.Types.Mixed },
+    receiverName: { type: String, trim: true, default: '' },
+    receiverPhone: { type: String, trim: true, default: '' },
+    receiverIdCard: { type: String, trim: true, default: '' },
+    verifiedAtCounter: { type: Boolean, default: false },
     checkoutAt: { type: Date },
     checkoutBy: { type: Schema.Types.ObjectId, ref: 'User' },
     returnNotes: { type: String, default: '' },
@@ -186,5 +195,22 @@ const BookingSchema = new Schema<IBooking>(
 
 BookingSchema.index({ userId: 1, status: 1 });
 BookingSchema.index({ vehicleId: 1, pickupDateTime: 1, returnDateTime: 1, status: 1 });
+
+BookingSchema.pre('save', function (next) {
+  if (this.isModified('receiverIdCard') && this.receiverIdCard) {
+    this.receiverIdCard = encryptPiiText(this.receiverIdCard);
+  }
+  next();
+});
+
+const decryptBookingRet = (_doc: unknown, ret: { receiverIdCard?: string }) => {
+  if (typeof ret.receiverIdCard === 'string' && ret.receiverIdCard) {
+    ret.receiverIdCard = decryptPiiText(ret.receiverIdCard);
+  }
+  return ret;
+};
+
+BookingSchema.set('toObject', { transform: decryptBookingRet });
+BookingSchema.set('toJSON', { transform: decryptBookingRet });
 
 export const Booking = mongoose.model<IBooking>('Booking', BookingSchema);

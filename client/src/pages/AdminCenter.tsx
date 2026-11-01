@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2,
   Users,
@@ -28,13 +29,27 @@ import {
   UserCheck,
   UserX,
   Layers,
-  Sparkles
+  Sparkles,
+  Calendar,
+  Tag,
+  Settings,
+  UserPlus,
+  FileSpreadsheet,
+  Languages,
+  BarChart3
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Branch, User } from '../types';
 import { BranchInteractiveMap } from '../components/BranchInteractiveMap';
+import { StaffManager } from '../components/StaffManager';
+import { ShiftCalendarView } from '../components/ShiftCalendarView';
+import { DiscountsManager } from '../components/DiscountsManager';
+import { SystemConfigManager } from '../components/SystemConfigManager';
+import { FinanceManager } from '../components/FinanceManager';
+import { ReportsCenter } from '../components/ReportsCenter';
+import { I18nManager } from '../components/I18nManager';
 
-type AdminTab = 'branches' | 'users' | 'map';
+type AdminTab = 'branches' | 'users' | 'staff' | 'schedules' | 'discounts' | 'config' | 'finance' | 'reports' | 'i18n' | 'map';
 
 interface BranchFormData {
   name: string;
@@ -71,7 +86,20 @@ const DA_NANG_PRESETS = [
 ];
 
 export const AdminCenter: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('branches');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const requested = searchParams.get('tab');
+    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'reports', 'i18n', 'map'];
+    return validTabs.includes(requested as AdminTab) ? (requested as AdminTab) : 'branches';
+  });
+
+  useEffect(() => {
+    const requested = searchParams.get('tab');
+    const validTabs: AdminTab[] = ['branches', 'users', 'staff', 'schedules', 'discounts', 'config', 'finance', 'reports', 'i18n', 'map'];
+    if (requested && validTabs.includes(requested as AdminTab)) {
+      setActiveTab(requested as AdminTab);
+    }
+  }, [searchParams]);
 
   // Branch states
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -591,8 +619,8 @@ export const AdminCenter: React.FC = () => {
         {/* =====================================================================
             1. HEADER & SYSTEM ADMIN HERO
             ===================================================================== */}
-        <div className="pb-6 border-b border-white/[0.08] flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
+        <div className="pb-6 border-b border-white/[0.08] flex flex-col gap-5">
+          <div className="max-w-3xl">
             <div className="inline-flex items-center space-x-2 text-[11px] uppercase tracking-[0.16em] text-[#FFC799] font-semibold mb-2">
               <span className="w-1.5 h-1.5 rounded-full bg-[#FFC799]" />
               <span>Hệ Thống Quản Trị Hệ Thống • System Admin</span>
@@ -600,50 +628,115 @@ export const AdminCenter: React.FC = () => {
             <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-[#F5F5F5]">
               Trung Tâm Điều Hành <span className="font-serif-display italic text-[#FFC799]">Motorent</span>
             </h1>
-            <p className="text-xs sm:text-sm text-[#A0A0A0] mt-1.5">
+            <p className="text-xs sm:text-sm text-[#A0A0A0] mt-1.5 leading-relaxed">
               Quản lý toàn bộ danh mục chi nhánh trạm nhận/trả xe và phân quyền tài khoản Quản lý chi nhánh (BranchManager), Nhân viên &amp; Khách hàng.
             </p>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex items-center bg-[#181818] border border-white/10 rounded-xl p-1 shrink-0">
+          <div className="w-full flex flex-wrap items-center bg-[#181818] border border-white/10 rounded-2xl p-1.5 gap-1.5">
             <button
               type="button"
               onClick={() => setActiveTab('branches')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                 activeTab === 'branches'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              <Building2 className="w-4 h-4" />
-              <span>Quản lý Chi nhánh</span>
+              <Building2 className="w-3.5 h-3.5 shrink-0" />
+              <span>Chi nhánh</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('users')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                 activeTab === 'users'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              <Users className="w-4 h-4" />
-              <span>Quản lý &amp; Nhân sự</span>
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>Người dùng</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('discounts')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                activeTab === 'discounts'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5 shrink-0" />
+              <span>Khuyến mãi</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('config')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                activeTab === 'config'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5 shrink-0" />
+              <span>Chính sách & Cấu hình</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('finance')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                activeTab === 'finance'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+              <span>Đối soát & Thuế</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('reports')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                activeTab === 'reports'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+              <span>Báo cáo & Phân tích</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('i18n')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                activeTab === 'i18n'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Languages className="w-3.5 h-3.5 shrink-0" />
+              <span>Đa ngôn ngữ</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('map')}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center space-x-2 transition-all ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                 activeTab === 'map'
                   ? 'bg-[#FFC799] text-[#101010] shadow'
                   : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
               }`}
             >
-              <MapPin className="w-4 h-4" />
-              <span>Bản đồ GPS Trạm</span>
+              <MapPin className="w-3.5 h-3.5 shrink-0" />
+              <span>Bản đồ GPS</span>
             </button>
           </div>
         </div>
@@ -765,11 +858,11 @@ export const AdminCenter: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 shrink-0">
                 <button
                   type="button"
                   onClick={fetchBranches}
-                  className="p-2.5 bg-[#101010] border border-white/10 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors"
+                  className="p-2.5 bg-[#101010] border border-white/10 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors shrink-0"
                   title="Làm mới"
                 >
                   <RefreshCw className={`w-4 h-4 ${branchLoading ? 'animate-spin' : ''}`} />
@@ -782,9 +875,9 @@ export const AdminCenter: React.FC = () => {
                     setBranchForm(initialBranchForm);
                     setShowAddBranchModal(true);
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] text-xs font-semibold hover:bg-[#ffe2cc] transition-all flex items-center space-x-2 shadow-md active:scale-95"
+                  className="px-4 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] text-xs font-semibold hover:bg-[#ffe2cc] transition-all flex items-center space-x-2 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
                   <span>Thêm Chi Nhánh Mới</span>
                 </button>
               </div>
@@ -1092,11 +1185,11 @@ export const AdminCenter: React.FC = () => {
                 </select>
               </div>
 
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 shrink-0">
                 <button
                   type="button"
                   onClick={fetchUsers}
-                  className="p-2.5 bg-[#101010] border border-white/10 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors"
+                  className="p-2.5 bg-[#101010] border border-white/10 rounded-xl text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors shrink-0"
                   title="Tìm kiếm"
                 >
                   <Search className="w-4 h-4" />
@@ -1108,9 +1201,9 @@ export const AdminCenter: React.FC = () => {
                     setUserForm(initialUserForm);
                     setShowAddUserModal(true);
                   }}
-                  className="px-4 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] text-xs font-semibold hover:bg-[#ffe2cc] transition-all flex items-center space-x-2 shadow-md active:scale-95"
+                  className="px-4 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] text-xs font-semibold hover:bg-[#ffe2cc] transition-all flex items-center space-x-2 shadow-md active:scale-95 shrink-0 whitespace-nowrap"
                 >
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
                   <span>Tạo Quản Lý / Nhân Sự</span>
                 </button>
               </div>
@@ -1319,6 +1412,33 @@ export const AdminCenter: React.FC = () => {
             <BranchInteractiveMap branches={branches} />
           </div>
         )}
+
+        {/* =====================================================================
+            TAB 4: QUẢN LÝ NHÂN SỰ & QUẦY (UC-81, UC-82, UC-83)
+            ===================================================================== */}
+        {activeTab === 'staff' && <StaffManager />}
+
+        {/* =====================================================================
+            TAB 5: LỊCH PHÂN CA & CHẤM CÔNG (UC-84)
+            ===================================================================== */}
+        {activeTab === 'schedules' && <ShiftCalendarView />}
+
+        {/* =====================================================================
+            TAB 6: KHUYẾN MÃI & VOUCHER GIẢM GIÁ (UC-110, UC-111, UC-112)
+            ===================================================================== */}
+        {activeTab === 'discounts' && <DiscountsManager />}
+
+        {/* =====================================================================
+            TAB 7: CHÍNH SÁCH & CẤU HÌNH HỆ THỐNG (UC-113, UC-114, UC-115)
+            ===================================================================== */}
+        {activeTab === 'config' && <SystemConfigManager />}
+        {activeTab === 'finance' && <FinanceManager />}
+        {activeTab === 'reports' && (
+          <div className="animate-fade-up">
+            <ReportsCenter />
+          </div>
+        )}
+        {activeTab === 'i18n' && <I18nManager />}
 
         {/* =====================================================================
             MODALS

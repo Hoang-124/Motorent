@@ -106,14 +106,14 @@ S3	13/10	Audit	UC-102: Audit Log Viewer	As admin, audit trail	Admin	Hoàng	Must	
 S3	14/10	Audit	Audit Middleware	As system, auto-log CRUD	System	Hoàng	Must	BE	M	none	userId, action, entity, changes, auto-redacted	core/auditMiddleware.ts	Hoàn thành
 S3	15/10	Finance	UC-120: Reconcile	As admin, VNPay reconciliation	Admin	Hoàng	Must	FE/BE	L	UC-29	Match transactions, flag issues	GET /api/finance/reconcile	
 S3	16/10	Finance	UC-121: Tax Report	As admin, financial export	Admin	Hoàng	Should	FE/BE	M	UC-120	Monthly/quarterly Excel	GET /api/finance/tax-report	
-S3	11/10	Reports	UC-86: Daily Revenue	As manager, daily revenue	Manager	Cả	Must	FE/BE	M	UC-57	Today's bookings, total, breakdown	GET /api/reports/revenue/daily	
-S3	12/10	Reports	UC-87-88: Monthly Revenue	As manager, monthly reports	Manager	Cả	Must	FE/BE	M	UC-86	Monthly chart, comparison	GET /api/reports/revenue/monthly	
-S3	13/10	Reports	UC-89: Export Excel/PDF	As manager, export reports	Manager	Cả	Must	FE/BE	M	UC-86	ExcelJS + PDFKit with logo	GET /api/reports/export	
-S3	14/10	Reports	UC-90-92: Fleet Stats	As manager, fleet analytics	Manager	Cả	Should	FE/BE	M	UC-57	Utilization, avg rating	GET /api/reports/fleet	
-S3	15/10	Reports	UC-103: Chain Revenue	As admin, chain-wide reports	Admin	Cả	Must	FE/BE	M	UC-87	All branches combined	GET /api/reports/chain	
-S3	15/10	Reports	UC-104: Compare Branches	As admin, branch comparison	Admin	Cả	Should	FE/BE	M	UC-103	Side-by-side KPIs	GET /api/reports/compare	
-S3	16/10	Reports	UC-105: KPI Dashboard	As admin, executive dashboard	Admin	Cả	Must	FE/BE	L	UC-103	Revenue trend, top vehicles, funnel	Dashboard page	
-S3	17/10	Reports	UC-106: Demand Forecast	As admin, forecasting	Admin	Cả	Could	FE/BE	L	UC-103	Seasonal trends	Analytics service	
+S3	11/10	Reports	UC-86: Daily Revenue	As manager, daily revenue	Manager	Cả	Must	FE/BE	M	UC-57	Today's bookings, total, breakdown	GET /api/reports/revenue/daily	Hoàn thành
+S3	12/10	Reports	UC-87-88: Monthly Revenue	As manager, monthly reports	Manager	Cả	Must	FE/BE	M	UC-86	Monthly chart, comparison	GET /api/reports/revenue/monthly	Hoàn thành
+S3	13/10	Reports	UC-89: Export Excel/PDF	As manager, export reports	Manager	Cả	Must	FE/BE	M	UC-86	ExcelJS + PDFKit with logo	GET /api/reports/export	Hoàn thành
+S3	14/10	Reports	UC-90-92: Fleet Stats	As manager, fleet analytics	Manager	Cả	Should	FE/BE	M	UC-57	Utilization, avg rating	GET /api/reports/fleet	Hoàn thành
+S3	15/10	Reports	UC-103: Chain Revenue	As admin, chain-wide reports	Admin	Cả	Must	FE/BE	M	UC-87	All branches combined	GET /api/reports/chain	Hoàn thành
+S3	15/10	Reports	UC-104: Compare Branches	As admin, branch comparison	Admin	Cả	Should	FE/BE	M	UC-103	Side-by-side KPIs	GET /api/reports/compare	Hoàn thành
+S3	16/10	Reports	UC-105: KPI Dashboard	As admin, executive dashboard	Admin	Cả	Must	FE/BE	L	UC-103	Revenue trend, top vehicles, funnel	Dashboard page	Hoàn thành
+S3	17/10	Reports	UC-106: Demand Forecast	As admin, forecasting	Admin	Cả	Could	FE/BE	L	UC-103	Seasonal trends	Analytics service	Hoàn thành
 S3	11/10	Fleet UI	Vehicle Search Optimization	As system, fast search	System	Tài	Must	BE	M	UC-03	Text index, response <200ms	DB optimization	
 S3	12/10	Fleet UI	Fleet Dashboard UI	As manager, fleet overview	Manager	Tài	Must	FE	M	UC-67	Vehicle count by status, charts	Dashboard component	
 S3	13/10	Fleet UI	Availability Calendar	As user, vehicle calendar	Guest	Tài	Must	FE	M	UC-12	Color-coded dates, blocked periods	Calendar component	

@@ -7,8 +7,14 @@ export type Permission =
   | 'USER_MANAGE'
   | 'BRANCH_VIEW'
   | 'BRANCH_MANAGE'
+  | 'CATEGORY_MANAGE'
+  | 'DISCOUNT_MANAGE'
+  | 'SYSTEM_CONFIG'
+  | 'CMS_MANAGE'
+  | 'BRANCH_COMPARE'
   | 'VEHICLE_VIEW'
   | 'VEHICLE_MANAGE'
+  | 'VEHICLE_TRANSFER'
   | 'BOOKING_VIEW'
   | 'BOOKING_CREATE'
   | 'BOOKING_CHECKIN'
@@ -24,36 +30,46 @@ export type Permission =
   | 'FINANCE_TAX_REPORT'
   | 'MAINTENANCE_VIEW'
   | 'MAINTENANCE_LOG'
+  | 'STAFF_MANAGE'
   | 'STAFF_SCHEDULE'
+  | 'COMPLAINT_RESOLVE'
   | 'CHAT_STAFF_CONSOLE';
 
 /**
  * Single source of truth for Role-Based Access Control matrix
  */
 export const PERMISSION_MATRIX: Record<Permission, readonly UserRole[]> = {
-  USER_VIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
+  USER_VIEW: ['SystemAdmin', 'BranchManager'],
   USER_MANAGE: ['SystemAdmin'],
   BRANCH_VIEW: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
   BRANCH_MANAGE: ['SystemAdmin'],
+  CATEGORY_MANAGE: ['SystemAdmin'],
+  DISCOUNT_MANAGE: ['SystemAdmin'],
+  SYSTEM_CONFIG: ['SystemAdmin'],
+  CMS_MANAGE: ['SystemAdmin'],
+  BRANCH_COMPARE: ['SystemAdmin'],
   VEHICLE_VIEW: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
-  VEHICLE_MANAGE: ['SystemAdmin', 'BranchManager'],
+  VEHICLE_MANAGE: ['BranchManager'],
+  VEHICLE_TRANSFER: ['BranchManager'],
   BOOKING_VIEW: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
-  BOOKING_CREATE: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
-  BOOKING_CHECKIN: ['SystemAdmin', 'BranchManager', 'Staff'],
-  BOOKING_CHECKOUT: ['SystemAdmin', 'BranchManager', 'Staff'],
-  BOOKING_CANCEL: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
-  BOOKING_COUNTER_PAY: ['SystemAdmin', 'BranchManager', 'Staff'],
-  BOOKING_APPROVE: ['SystemAdmin', 'BranchManager'],
-  BOOKING_REJECT: ['SystemAdmin', 'BranchManager'],
-  EKYC_VIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
-  EKYC_REVIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
+  BOOKING_CREATE: ['Customer'],
+  BOOKING_CHECKIN: ['BranchManager', 'Staff'],
+  BOOKING_CHECKOUT: ['BranchManager', 'Staff'],
+  BOOKING_CANCEL: ['BranchManager', 'Staff', 'Customer'],
+  BOOKING_COUNTER_PAY: ['BranchManager', 'Staff'],
+  BOOKING_APPROVE: ['BranchManager'],
+  BOOKING_REJECT: ['BranchManager'],
+  EKYC_VIEW: ['BranchManager', 'Staff'],
+  EKYC_REVIEW: ['BranchManager', 'Staff'],
   AUDIT_VIEW: ['SystemAdmin'],
   FINANCE_RECONCILE: ['SystemAdmin', 'BranchManager'],
   FINANCE_TAX_REPORT: ['SystemAdmin'],
-  MAINTENANCE_VIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
-  MAINTENANCE_LOG: ['SystemAdmin', 'BranchManager', 'Staff'],
-  STAFF_SCHEDULE: ['SystemAdmin', 'BranchManager'],
-  CHAT_STAFF_CONSOLE: ['SystemAdmin', 'BranchManager', 'Staff'],
+  MAINTENANCE_VIEW: ['BranchManager', 'Staff'],
+  MAINTENANCE_LOG: ['BranchManager', 'Staff'],
+  STAFF_MANAGE: ['BranchManager'],
+  STAFF_SCHEDULE: ['BranchManager'],
+  COMPLAINT_RESOLVE: ['BranchManager'],
+  CHAT_STAFF_CONSOLE: ['BranchManager', 'Staff'],
 } as const;
 
 /**

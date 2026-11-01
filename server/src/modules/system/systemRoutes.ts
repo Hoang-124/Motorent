@@ -80,7 +80,15 @@ const PERMISSION_METADATA: Record<Permission, { label: string; module: string; d
   EKYC_REVIEW: { label: 'Duyệt hồ sơ eKYC', module: 'Người dùng & Định danh', description: 'Phê duyệt hoặc từ chối hồ sơ định danh điện tử của khách' },
 
   BRANCH_VIEW: { label: 'Xem thông tin chi nhánh', module: 'Chi nhánh & Trạm xe', description: 'Xem vị trí, giờ hoạt động, số hotline các trạm' },
-  BRANCH_MANAGE: { label: 'Quản lý chi nhánh', module: 'Chi nhánh & Trạm xe', description: 'Thêm mới, sửa đổi thông tin hoặc mở rộng chi nhánh' },
+  BRANCH_MANAGE: { label: 'Quản lý chi nhánh toàn chuỗi', module: 'Chi nhánh & Trạm xe', description: 'Thêm mới, sửa đổi thông tin, bổ nhiệm Quản lý trạm hoặc tạm ngưng chi nhánh' },
+  BRANCH_COMPARE: { label: 'So sánh KPI liên chi nhánh', module: 'Chi nhánh & Trạm xe', description: 'Phân tích và đối chiếu hiệu suất doanh thu giữa các chi nhánh toàn hệ thống' },
+  CATEGORY_MANAGE: { label: 'Quản lý danh mục dòng xe', module: 'Phương tiện & Kho bãi', description: 'Thiết lập danh mục phân khúc xe chuẩn toàn hệ thống' },
+  VEHICLE_TRANSFER: { label: 'Điều chuyển xe liên trạm', module: 'Phương tiện & Kho bãi', description: 'Tạo lệnh và phê duyệt điều chuyển phương tiện giữa các chi nhánh' },
+  DISCOUNT_MANAGE: { label: 'Quản lý Khuyến mãi & Voucher', module: 'Cấu hình & CMS Hệ thống', description: 'Tạo và phát hành mã giảm giá, chương trình ưu đãi toàn hệ thống' },
+  SYSTEM_CONFIG: { label: 'Cấu hình chính sách hệ thống', module: 'Cấu hình & CMS Hệ thống', description: 'Thiết lập tỷ lệ cọc, phí phạt trễ giờ, ngưỡng cảnh báo ODO' },
+  CMS_MANAGE: { label: 'Quản lý Banner, Trang tĩnh & i18n', module: 'Cấu hình & CMS Hệ thống', description: 'Quản trị nội dung trang chủ, điều khoản chính sách và từ điển đa ngôn ngữ' },
+  STAFF_MANAGE: { label: 'Quản lý nhân viên chi nhánh', module: 'Nhân sự & Hỗ trợ', description: 'Thêm, cập nhật và quản lý hồ sơ nhân viên trực quầy tại chi nhánh' },
+  COMPLAINT_RESOLVE: { label: 'Kết luận & Giải quyết khiếu nại', module: 'Nhân sự & Hỗ trợ', description: 'Xử lý dứt điểm và đưa ra phương án đền bù khiếu nại tại chi nhánh' },
 
   VEHICLE_VIEW: { label: 'Xem đội xe & Tình trạng', module: 'Phương tiện & Kho bãi', description: 'Tra cứu danh mục xe, giá thuê, biển số và tính khả dụng' },
   VEHICLE_MANAGE: { label: 'Quản trị danh mục xe', module: 'Phương tiện & Kho bãi', description: 'Thêm xe mới, điều chỉnh giá thuê, cập nhật thông số xe' },
@@ -91,10 +99,10 @@ const PERMISSION_METADATA: Record<Permission, { label: string; module: string; d
   BOOKING_CREATE: { label: 'Khởi tạo đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Tạo đơn thuê xe mới trên hệ thống' },
   BOOKING_CHECKIN: { label: 'Thực hiện Check-in', module: 'Vận hành đơn hàng', description: 'Bàn giao xe, kiểm tra ODO/xăng, thu chữ ký điện tử' },
   BOOKING_CHECKOUT: { label: 'Thực hiện Check-out', module: 'Vận hành đơn hàng', description: 'Thu hồi xe, kiểm tra hư tổn, tính phụ phí và tất toán' },
-  BOOKING_CANCEL: { label: 'Hủy đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Hủy đơn theo chính sách hủy hoàn BR-06' },
+  BOOKING_CANCEL: { label: 'Hủy đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Hủy đơn theo chính sách hủy hoàn của hệ thống' },
   BOOKING_COUNTER_PAY: { label: 'Thu tiền tại quầy', module: 'Vận hành đơn hàng', description: 'Ghi nhận thanh toán tiền mặt / POS tại quầy chi nhánh' },
-  BOOKING_APPROVE: { label: 'Phê duyệt đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Quản lý phê duyệt đơn đặt xe tại chi nhánh (UC-73)' },
-  BOOKING_REJECT: { label: 'Từ chối đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Quản lý từ chối đơn đặt xe kèm lý do và hoàn tiền 100% (UC-74)' },
+  BOOKING_APPROVE: { label: 'Phê duyệt đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Quản lý phê duyệt đơn đặt xe tại chi nhánh' },
+  BOOKING_REJECT: { label: 'Từ chối đơn đặt xe', module: 'Vận hành đơn hàng', description: 'Quản lý từ chối đơn đặt xe kèm lý do và hoàn tiền 100%' },
 
   FINANCE_RECONCILE: { label: 'Đối soát tài chính trạm', module: 'Tài chính & Kế toán', description: 'Đối chiếu doanh thu tiền mặt, POS và ngân hàng theo ca' },
   FINANCE_TAX_REPORT: { label: 'Báo cáo thuế & Lợi nhuận', module: 'Tài chính & Kế toán', description: 'Xuất dữ liệu hóa đơn, thuế GTGT và tổng quan tài chính' },
@@ -274,6 +282,79 @@ router.put(
       next(error);
     }
   }
+);
+
+/**
+ * System Policies & Configuration (UC-113, UC-114, UC-115)
+ */
+router.delete(
+  '/notifications/clear-read',
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
+        return;
+      }
+
+      const result = await Notification.deleteMany({
+        userId: req.user._id,
+        isRead: true,
+      });
+
+      res.json({
+        success: true,
+        message: 'Đã xóa các thông báo đã đọc.',
+        deletedCount: result.deletedCount,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.delete(
+  '/notifications/:id',
+  authenticateJWT,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      if (!req.user?._id) {
+        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
+        return;
+      }
+
+      if (mongoose.isValidObjectId(req.params.id)) {
+        await Notification.deleteOne({
+          _id: req.params.id,
+          userId: req.user._id,
+        });
+      }
+
+      res.json({ success: true, message: 'Đã xóa thông báo.' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+import { csrfTokenHandler } from '../../core/securityMiddleware';
+import * as systemConfigController from './systemConfigController';
+
+router.get('/security/csrf-token', csrfTokenHandler);
+router.get('/system/i18n', systemConfigController.getI18nTranslations);
+router.put(
+  '/system/i18n',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  systemConfigController.updateI18nTranslations
+);
+
+router.get('/system/config', systemConfigController.getSystemConfig);
+router.put(
+  '/system/config',
+  authenticateJWT,
+  authorize('SystemAdmin'),
+  systemConfigController.updateSystemConfig
 );
 
 export default router;

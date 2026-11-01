@@ -227,3 +227,24 @@ export const complaintUpload = multer({
     }
   },
 });
+
+/**
+ * Upload middleware for Vehicle Photos (UC-67, UC-69: Max 10 photos, Max 5MB each, JPEG/PNG/WebP)
+ */
+export const vehicleImagesUpload = multer({
+  storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB per photo
+    files: 10, // Max 10 photos per vehicle
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const ext = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowedTypes.test(file.mimetype);
+    if (ext && mime) {
+      cb(null, true);
+    } else {
+      cb(new AppError(400, 'Chỉ chấp nhận file ảnh xe định dạng JPEG, PNG hoặc WebP có dung lượng tối đa 5MB/ảnh.'));
+    }
+  },
+});

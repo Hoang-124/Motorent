@@ -7,6 +7,8 @@ import { Review } from '../../models/Review';
 import { Branch } from '../../models/Branch';
 import { MaintenanceLog } from '../../models/MaintenanceLog';
 import { VehicleTransfer } from '../../models/VehicleTransfer';
+import { SeasonalPricingRule } from '../../models/SeasonalPricingRule';
+import { vietnamDate } from '../pricing/pricingCalculator';
 import { withResourceLock as acquireVehicleLock } from '../../core/resourceLock';
 import { IUser } from '../../models/User';
 import { assertBranchAccess } from '../../core/permissions';
@@ -40,10 +42,89 @@ const parseVehicleId = (id: string): mongoose.Types.ObjectId => {
 interface CatalogVehicle {
   _id: mongoose.Types.ObjectId;
   dailyPrice: number;
+  hourlyPrice?: number;
   averageRating?: number;
   ratingAverage?: number;
   reviewCount?: number;
 }
+
+export interface SeasonalPricingRuleSummary {
+  _id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  multiplier: number;
+}
+
+export const attachSeasonalPricing = async <
+  T extends { _id: mongoose.Types.ObjectId | string; dailyPrice: number; hourlyPrice?: number }
+>(
+  vehicles: T[]
+): Promise<
+  (T & {
+    baseDailyPrice: number;
+    baseHourlyPrice?: number;
+    effectiveDailyPrice: number;
+    effectiveHourlyPrice?: number;
+    activeSeasonalRule: SeasonalPricingRuleSummary | null;
+    seasonalRules: SeasonalPricingRuleSummary[];
+  })[]
+> => {
+  if (vehicles.length === 0) return [];
+  const todayVn = vietnamDate(new Date());
+  const vehicleIds = vehicles.map((v) =>
+    v._id instanceof mongoose.Types.ObjectId ? v._id : new mongoose.Types.ObjectId(String(v._id))
+  );
+  const rules = await SeasonalPricingRule.find({
+    vehicleId: { $in: vehicleIds },
+    endDate: { $gte: todayVn },
+  })
+    .sort({ startDate: 1 })
+    .lean();
+
+  const rulesByVehicle = new Map<string, SeasonalPricingRuleSummary[]>();
+  for (const r of rules) {
+    const vid = r.vehicleId.toString();
+    const list = rulesByVehicle.get(vid) ?? [];
+    list.push({
+      _id: r._id.toString(),
+      name: r.name,
+      startDate: r.startDate,
+      endDate: r.endDate,
+      multiplier: r.multiplier,
+    });
+    rulesByVehicle.set(vid, list);
+  }
+
+  return vehicles.map((v) => {
+    const vid = v._id.toString();
+    const vRules = rulesByVehicle.get(vid) ?? [];
+    const activeRule =
+      vRules.find((r) => r.startDate <= todayVn && r.endDate >= todayVn) ?? null;
+    const multiplier = activeRule ? activeRule.multiplier : 1;
+    const baseDailyPrice = v.dailyPrice;
+    const baseHourlyPrice = v.hourlyPrice;
+    const effectiveDailyPrice = activeRule
+      ? Math.round(baseDailyPrice * multiplier)
+      : baseDailyPrice;
+    const effectiveHourlyPrice =
+      baseHourlyPrice !== undefined
+        ? activeRule
+          ? Math.round(baseHourlyPrice * multiplier)
+          : baseHourlyPrice
+        : undefined;
+
+    return {
+      ...v,
+      baseDailyPrice,
+      baseHourlyPrice,
+      effectiveDailyPrice,
+      effectiveHourlyPrice,
+      activeSeasonalRule: activeRule,
+      seasonalRules: vRules,
+    };
+  });
+};
 
 interface VehicleRatingSummary {
   _id: mongoose.Types.ObjectId;
@@ -223,10 +304,11 @@ export const getAllVehicles = async (options: VehicleFilterOptions) => {
     total = count ?? rows.length;
   }
 
-  const vehicles = await Vehicle.populate(rows, [
+  const populated = await Vehicle.populate(rows, [
     { path: 'branchId', select: 'name code address phone hours_open hours_close' },
     { path: 'category', select: 'name slug description' },
   ]);
+  const vehicles = await attachSeasonalPricing(populated);
   const responseLimit = paginated ? limit : Math.max(total, 1);
   return {
     vehicles,
@@ -601,6 +683,7 @@ export const updateVehicleStatus = async (
     });
   } else if (data.status === 'Available') {
     vehicle.requiresMaintenance = false;
+    vehicle.lastMaintenanceBucket = Math.floor((vehicle.odometer || 0) / 1500);
     await MaintenanceLog.updateMany(
       { vehicleId: vehicle._id, status: { $in: ['InProgress', 'Scheduled'] } },
       { $set: { status: 'Completed', endDate: new Date() } }
