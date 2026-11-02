@@ -1182,7 +1182,11 @@ export const ProfilePage: React.FC = () => {
                           ? getOptimizedVehicleImageUrl(v.images[1] || v.images[0])
                           : '';
 
-                      const canCancel = b.status === 'Pending' || b.status === 'Approved' || b.status === 'Confirmed';
+                      const canCancel =
+                        b.status === 'Pending' ||
+                        b.status === 'Approved' ||
+                        b.status === 'Confirmed' ||
+                        b.status === 'Ongoing';
                       const canExtend = b.status === 'Confirmed' || b.status === 'Ongoing';
                       const needsDepositPayment = b.status === 'Pending' && !b.depositPaid && !b.isPaid;
 
@@ -1586,7 +1590,7 @@ export const ProfilePage: React.FC = () => {
                                   onClick={() => setSelectedBookingForCancel(b)}
                                   className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#FF8080]/30 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-colors cursor-pointer"
                                 >
-                                  Hủy đơn
+                                  {b.status === 'Ongoing' ? 'Hủy chuyến / Trả xe sớm' : 'Hủy đơn'}
                                 </button>
                               )}
 

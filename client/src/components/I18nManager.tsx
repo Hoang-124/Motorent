@@ -190,22 +190,20 @@ export const I18nManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setLocale('vi')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
-                locale === 'vi'
-                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
-              }`}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${locale === 'vi'
+                ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
+                }`}
             >
               Tiếng Việt (VI)
             </button>
             <button
               type="button"
               onClick={() => setLocale('en')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
-                locale === 'en'
-                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
-              }`}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${locale === 'en'
+                ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
+                }`}
             >
               English (EN)
             </button>
@@ -223,22 +221,20 @@ export const I18nManager: React.FC = () => {
             <button
               type="button"
               onClick={() => setDraftDefaultLocale('vi')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
-                draftDefaultLocale === 'vi'
-                  ? 'bg-[#F5F5F5] text-[#101010] border-[#F5F5F5]'
-                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
-              }`}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${draftDefaultLocale === 'vi'
+                ? 'bg-[#F5F5F5] text-[#101010] border-[#F5F5F5]'
+                : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
+                }`}
             >
               Mặc định: VI
             </button>
             <button
               type="button"
               onClick={() => setDraftDefaultLocale('en')}
-              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${
-                draftDefaultLocale === 'en'
-                  ? 'bg-[#F5F5F5] text-[#101010] border-[#F5F5F5]'
-                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
-              }`}
+              className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer border ${draftDefaultLocale === 'en'
+                ? 'bg-[#F5F5F5] text-[#101010] border-[#F5F5F5]'
+                : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:text-[#F5F5F5]'
+                }`}
             >
               Mặc định: EN
             </button>
@@ -275,11 +271,10 @@ export const I18nManager: React.FC = () => {
       {/* Feedback Banner */}
       {feedback && (
         <div
-          className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-medium ${
-            feedback.type === 'success'
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              : 'bg-[#FF8080]/10 border-[#FF8080]/30 text-[#FF8080]'
-          }`}
+          className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-medium ${feedback.type === 'success'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+            : 'bg-[#FF8080]/10 border-[#FF8080]/30 text-[#FF8080]'
+            }`}
         >
           {feedback.type === 'success' ? (
             <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -299,11 +294,10 @@ export const I18nManager: React.FC = () => {
                 key={ns.id}
                 type="button"
                 onClick={() => setSelectedNamespace(ns.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  selectedNamespace === ns.id
-                    ? 'bg-[#FFC799] text-[#101010]'
-                    : 'bg-[#101010] text-[#A0A0A0] hover:text-[#F5F5F5] border border-white/10'
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${selectedNamespace === ns.id
+                  ? 'bg-[#FFC799] text-[#101010]'
+                  : 'bg-[#101010] text-[#A0A0A0] hover:text-[#F5F5F5] border border-white/10'
+                  }`}
               >
                 {ns.label}
               </button>
@@ -347,11 +341,10 @@ export const I18nManager: React.FC = () => {
           <button
             type="button"
             onClick={() => setOnlyCustomized((prev) => !prev)}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
-              onlyCustomized
-                ? 'bg-[#FFC799]/15 border-[#FFC799]/40 text-[#FFC799]'
-                : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:text-[#F5F5F5]'
-            }`}
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${onlyCustomized
+              ? 'bg-[#FFC799]/15 border-[#FFC799]/40 text-[#FFC799]'
+              : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             <span>Chỉ hiện mục đã tùy chỉnh ({customizedCount})</span>
@@ -393,9 +386,8 @@ export const I18nManager: React.FC = () => {
               return (
                 <div
                   key={entry.key}
-                  className={`p-4 sm:px-5 grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start transition-colors ${
-                    isAnyModified ? 'bg-[#FFC799]/[0.04]' : 'hover:bg-white/[0.02]'
-                  }`}
+                  className={`p-4 sm:px-5 grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start transition-colors ${isAnyModified ? 'bg-[#FFC799]/[0.04]' : 'hover:bg-white/[0.02]'
+                    }`}
                 >
                   <div className="lg:col-span-3 space-y-1.5">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -422,18 +414,16 @@ export const I18nManager: React.FC = () => {
                         rows={3}
                         value={currentVi}
                         onChange={(e) => handleFieldChange('vi', entry.key, e.target.value)}
-                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] resize-y ${
-                          isViModified ? 'border-[#FFC799]/50' : 'border-white/10'
-                        }`}
+                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] resize-y ${isViModified ? 'border-[#FFC799]/50' : 'border-white/10'
+                          }`}
                       />
                     ) : (
                       <input
                         type="text"
                         value={currentVi}
                         onChange={(e) => handleFieldChange('vi', entry.key, e.target.value)}
-                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] ${
-                          isViModified ? 'border-[#FFC799]/50' : 'border-white/10'
-                        }`}
+                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] ${isViModified ? 'border-[#FFC799]/50' : 'border-white/10'
+                          }`}
                       />
                     )}
                   </div>
@@ -447,18 +437,16 @@ export const I18nManager: React.FC = () => {
                         rows={3}
                         value={currentEn}
                         onChange={(e) => handleFieldChange('en', entry.key, e.target.value)}
-                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] resize-y ${
-                          isEnModified ? 'border-[#FFC799]/50' : 'border-white/10'
-                        }`}
+                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] resize-y ${isEnModified ? 'border-[#FFC799]/50' : 'border-white/10'
+                          }`}
                       />
                     ) : (
                       <input
                         type="text"
                         value={currentEn}
                         onChange={(e) => handleFieldChange('en', entry.key, e.target.value)}
-                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] ${
-                          isEnModified ? 'border-[#FFC799]/50' : 'border-white/10'
-                        }`}
+                        className={`w-full px-3 py-2 rounded-xl bg-[#101010] border text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799] ${isEnModified ? 'border-[#FFC799]/50' : 'border-white/10'
+                          }`}
                       />
                     )}
                   </div>

@@ -41,9 +41,11 @@ import {
   Wrench,
   Calendar,
   Users,
+  ShoppingCart,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
+import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from '../context/I18nContext';
 import { getUserAvatarUrl } from '../utils/imageHelper';
@@ -119,6 +121,7 @@ export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const { wishlistCount } = useWishlist();
+  const { cartCount } = useCart();
   const { isLight, toggleTheme } = useTheme();
   const { locale, toggleLocale, t } = useTranslation();
 
@@ -822,9 +825,27 @@ export const Navbar: React.FC = () => {
 
             {/* Unified Utility Capsule: Wishlist + Live Chat + Notifications */}
             <div className="h-[38px] p-1 rounded-full bg-[#161616] border border-white/[0.09] flex items-center gap-0.5 shrink-0">
-              {/* Wishlist Quick Button */}
+              {/* Wishlist & Cart Quick Buttons */}
               {!isStaffOrAdmin && (
                 <>
+                  <Link
+                    to="/cart"
+                    className={`relative w-[30px] h-[30px] rounded-full flex items-center justify-center transition-all cursor-pointer shrink-0 ${
+                      isActive('/cart')
+                        ? 'bg-[#FFC799] text-[#101010]'
+                        : 'text-[#A0A0A0] hover:bg-white/[0.06] hover:text-[#FFC799]'
+                    }`}
+                    title="Giỏ xe (Đặt nhiều xe cùng lúc)"
+                    aria-label="Giỏ xe"
+                  >
+                    <ShoppingCart className={`w-3.5 h-3.5 ${isActive('/cart') ? 'text-[#101010]' : 'text-[#FFC799]'}`} />
+                    {cartCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-[#99FFE4] text-[#101010] font-mono text-[9px] font-black flex items-center justify-center">
+                        {cartCount}
+                      </span>
+                    )}
+                  </Link>
+                  <span className="w-px h-3.5 bg-white/[0.08]" />
                   <Link
                     to="/wishlist"
                     className="relative w-[30px] h-[30px] rounded-full flex items-center justify-center text-[#A0A0A0] hover:bg-white/[0.06] hover:text-[#FFC799] transition-all cursor-pointer shrink-0"
@@ -1483,6 +1504,26 @@ export const Navbar: React.FC = () => {
                     ) : (
                       <>
                         {/* Customer Menu */}
+                        <Link
+                          to="/cart"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className={getDropdownItemClass('/cart', 'justify-between')}
+                        >
+                          <div className="flex items-center space-x-2.5 min-w-0">
+                            <ShoppingCart className={getDropdownIconClass('/cart')} />
+                            <span className="truncate">Giỏ xe đặt theo đoàn</span>
+                          </div>
+                          {cartCount > 0 && (
+                            <span
+                              className={`text-[10px] font-mono-tabular shrink-0 ml-2 ${
+                                isActive('/cart') ? 'text-[#101010] font-bold' : 'text-[#99FFE4]'
+                              }`}
+                            >
+                              {cartCount} xe
+                            </span>
+                          )}
+                        </Link>
+
                         <Link
                           to="/wishlist"
                           onClick={() => setUserDropdownOpen(false)}

@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { CartProvider } from './context/CartContext';
+import { CartPage } from './pages/CartPage';
 import { ThemeProvider } from './context/ThemeContext';
 import { I18nProvider } from './context/I18nContext';
 import { Navbar } from './components/Navbar';
@@ -91,6 +93,7 @@ export function App() {
         <AuthProvider>
         <BrowserRouter>
           <WishlistProvider>
+          <CartProvider>
           <ScrollToTop />
           <div className="min-h-screen flex flex-col bg-[#101010] font-sans text-[#F5F5F5] antialiased selection:bg-[#FFC799] selection:text-[#101010]">
             <Navbar />
@@ -108,6 +111,7 @@ export function App() {
                   <Route path="/" element={<RoleBasedHome />} />
                   <Route path="/bikes" element={<FleetPage />} />
                   <Route path="/bikes/:vehicleId" element={<VehicleDetailPage />} />
+                  <Route path="/cart" element={<CartPage />} />
                   <Route path="/wishlist" element={<WishlistPage />} />
                   <Route path="/rental-policy" element={<RentalPolicyPage />} />
                   <Route path="/branches" element={<BranchesPage />} />
@@ -332,6 +336,7 @@ export function App() {
             {/* UC-44 & UC-66: Real-Time Live Chat Popover */}
             <LiveChatWidget />
           </div>
+          </CartProvider>
         </WishlistProvider>
       </BrowserRouter>
     </AuthProvider>

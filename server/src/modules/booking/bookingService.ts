@@ -900,7 +900,7 @@ export const buildOrderDetails = (booking: IBooking) => {
   const actions: OrderAvailableActions = {
     canPayDeposit: isPending && !booking.depositPaid && !booking.isPaid,
     canPayFull: !booking.isPaid && (booking.remainingAmount || 0) > 0 && !isCancelled,
-    canCancel: (isPending || isApproved || isConfirmed) && !isCancelled,
+    canCancel: (isPending || isApproved || isConfirmed || isOngoing) && !isCancelled,
     canExtend: (isConfirmed || isOngoing) && !isCancelled,
     canRefund: isCancelled && (booking.refundAmount || 0) > 0 && booking.refundStatus === 'Pending',
     canCheckin: (isConfirmed || isApproved) && !isCancelled,
@@ -1184,8 +1184,10 @@ export const checkoutBooking = async (
     throw new AppError(409, `Không thể Check-out đơn xe chưa ở trạng thái "Ongoing" (Đang lưu hành). Trạng thái hiện tại: "${booking.status}".`);
   }
 
-  // Verify branch ownership
-  assertBranchAccess(staffUser, booking.returnBranchId);
+  // Allow customer to return the vehicle at ANY branch (if staff belongs to a branch, update returnBranchId to actual return station)
+  if (staffUser.roles !== 'SystemAdmin' && staffUser.branchId) {
+    booking.returnBranchId = new mongoose.Types.ObjectId(staffUser.branchId.toString());
+  }
 
   // Acceptance requirement UC-57: 4 photos, ODO, fuel, damage, late fee
   if (input.checkoutImages !== undefined && input.checkoutImages.length < 4) {
@@ -1611,11 +1613,11 @@ export const cancelBooking = async (
     }
   }
 
-  // 32.0.E1: Disallow cancellation if already Ongoing, Completed, Cancelled, or Rejected
-  if (booking.status === 'Ongoing' || booking.status === 'Completed') {
+  // Disallow cancellation only if already Completed, Cancelled, or Rejected
+  if (booking.status === 'Completed') {
     throw new AppError(
       409,
-      `Không thể hủy đơn đặt xe đang trong hành trình hoặc đã hoàn tất (Trạng thái hiện tại: "${booking.status}").`
+      `Không thể hủy đơn đặt xe đã hoàn tất (Trạng thái hiện tại: "${booking.status}").`
     );
   }
 
@@ -1627,14 +1629,29 @@ export const cancelBooking = async (
   }
 
   const now = new Date();
+  const wasOngoing = booking.status === 'Ongoing';
   const hoursUntilPickup = (booking.pickupDateTime.getTime() - now.getTime()) / (1000 * 3600);
 
   let forfeitAmount = 0;
   let refundAmount = 0;
   let policyNotice = '';
 
-  // BR-06 policy calculation
-  if ((booking.paidAmount || 0) > 0) {
+  if (wasOngoing) {
+    const usedHours = Math.max(1, (now.getTime() - booking.pickupDateTime.getTime()) / (1000 * 3600));
+    const usedDays = Math.max(1, Math.ceil(usedHours / 24));
+    const totalContractDays = Math.max(
+      1,
+      Math.ceil((booking.returnDateTime.getTime() - booking.pickupDateTime.getTime()) / (1000 * 3600 * 24))
+    );
+    const dailyRate = Math.round(booking.totalAmount / totalContractDays);
+    const usedRentalCost = Math.min(booking.totalAmount, usedDays * dailyRate);
+    const earlyTerminationFee = Math.round((booking.depositAmount || 0) * 0.5);
+
+    forfeitAmount = Math.min(booking.paidAmount || booking.totalAmount, usedRentalCost + earlyTerminationFee);
+    refundAmount = Math.max(0, (booking.paidAmount || 0) - forfeitAmount);
+    booking.actualReturnDateTime = now;
+    policyNotice = `Hủy / Kết thúc chuyến đột xuất khi đang thuê (đã sử dụng ${usedDays}/${totalContractDays} ngày). Chi phí thời gian thực tế & phí chấm dứt sớm: ${forfeitAmount.toLocaleString('vi-VN')} đ. Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
+  } else if ((booking.paidAmount || 0) > 0) {
     if (hoursUntilPickup > 24) {
       // Free cancellation > 24h before pickup
       forfeitAmount = 0;
@@ -1644,7 +1661,7 @@ export const cancelBooking = async (
       // Within 24h of pickup: 50% deposit forfeited
       forfeitAmount = Math.round((booking.depositAmount || 0) * 0.5);
       refundAmount = Math.max(0, (booking.paidAmount || 0) - forfeitAmount);
-      policyNotice = `Hủy trong vòng 24 giờ trước giờ nhận (${Math.max(0, Math.round(hoursUntilPickup))} giờ). Khấu trừ 50% tiền cọc (${forfeitAmount.toLocaleString('vi-VN')} đ) theo chính sách BR-06. Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
+      policyNotice = `Hủy trong vòng 24 giờ trước giờ nhận (${Math.max(0, Math.round(hoursUntilPickup))} giờ). Khấu trừ 50% tiền cọc (${forfeitAmount.toLocaleString('vi-VN')} đ). Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
     }
   } else {
     policyNotice = 'Đơn đặt giữ chưa phát sinh tiền thanh toán, hủy đơn không mất phí.';

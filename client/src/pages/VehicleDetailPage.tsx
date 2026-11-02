@@ -20,9 +20,11 @@ import {
   Trash2,
   X,
   Zap,
+  ShoppingCart,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import type { Vehicle, Review, VehicleReview, VehicleReviewsResponse } from '../types';
 import {
   getOptimizedVehicleImageUrl,
@@ -98,6 +100,7 @@ export const VehicleDetailPage: React.FC = () => {
   const bookingSearch = bookingParams.toString();
 
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const { isInCart, toggleCart, cartCount } = useCart();
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [vehicleReload, setVehicleReload] = useState(0);
@@ -616,19 +619,46 @@ export const VehicleDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              <button
-                type="button"
-                disabled={!canBook}
-                onClick={() =>
-                  navigate(
-                    `/booking/${vehicle._id}${bookingSearch ? `?${bookingSearch}` : ''}`
-                  )
-                }
-                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFC799] px-5 py-3.5 text-sm font-semibold text-[#101010] transition hover:bg-[#FFD9BA] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-[#6E6E6E]"
-              >
-                {canBook ? 'Chọn thời gian và đặt xe' : 'Xe hiện chưa nhận đặt'}
-                {canBook && <ChevronRight className="h-4 w-4" />}
-              </button>
+              <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  disabled={!canBook}
+                  onClick={() =>
+                    navigate(
+                      `/booking/${vehicle._id}${bookingSearch ? `?${bookingSearch}` : ''}`
+                    )
+                  }
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FFC799] px-5 py-3.5 text-sm font-semibold text-[#101010] transition hover:bg-[#FFD9BA] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-[#6E6E6E]"
+                >
+                  {canBook ? 'Chọn thời gian và đặt xe' : 'Xe hiện chưa nhận đặt'}
+                  {canBook && <ChevronRight className="h-4 w-4" />}
+                </button>
+
+                {canBook && (
+                  <button
+                    type="button"
+                    onClick={() => toggleCart(vehicle)}
+                    className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3.5 text-sm font-semibold transition cursor-pointer ${
+                      isInCart(vehicle._id)
+                        ? 'border-[#FFC799] bg-[#FFC799]/15 text-[#FFC799]'
+                        : 'border-white/15 bg-[#101010] text-[#F5F5F5] hover:border-white/30'
+                    }`}
+                  >
+                    <ShoppingCart className="h-4 w-4" />
+                    <span>{isInCart(vehicle._id) ? 'Đã có trong giỏ xe' : 'Thêm vào giỏ xe'}</span>
+                  </button>
+                )}
+              </div>
+
+              {cartCount > 0 && (
+                <Link
+                  to="/cart"
+                  className="mt-2.5 flex items-center justify-between rounded-xl bg-white/5 px-4 py-2.5 text-xs text-[#A0A0A0] hover:bg-white/10 hover:text-white transition"
+                >
+                  <span>Giỏ xe của bạn đang có <strong className="text-[#FFC799]">{cartCount} xe</strong></span>
+                  <span className="font-semibold text-[#FFC799]">Mở giỏ &amp; Đặt cùng lúc &rarr;</span>
+                </Link>
+              )}
             </div>
 
             <section

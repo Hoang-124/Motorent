@@ -788,7 +788,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-2.5 px-4 rounded-xl bg-transparent border border-white/10 hover:border-[#FF8080]/40 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-all flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
-                    <span>Hủy đơn đặt xe này</span>
+                    <span>{booking.status === 'Ongoing' ? 'Hủy chuyến / Kết thúc thuê sớm' : 'Hủy đơn đặt xe này'}</span>
                   </button>
                 )}
 

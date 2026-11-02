@@ -9,12 +9,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Heart,
-  Star
+  Star,
+  ShoppingCart,
+  Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
 import { getOptimizedVehicleImageUrl, getVehicleImageProps } from '../utils/imageHelper';
 import { useWishlist } from '../context/WishlistContext';
+import { useCart } from '../context/CartContext';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -37,6 +40,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
 }) => {
   const navigate = useNavigate();
   const { isInWishlist, toggleWishlist, isToggling } = useWishlist();
+  const { isInCart, toggleCart } = useCart();
+  const inCart = isInCart(vehicle._id);
   const [activeAngle, setActiveAngle] = useState<number>(vehicle.images?.[1] ? 1 : 0);
   const [imgError, setImgError] = useState<boolean>(false);
 
@@ -375,26 +380,47 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             </span>
           </div>
 
-          <button
-            type="button"
-            disabled={!isAvailable}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleBookClick();
-            }}
-            className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 shrink-0 ${
-              isAvailable
-                ? 'bg-[#F5F5F5] group-hover:bg-[#FFC799] text-[#101010] active:scale-95 cursor-pointer shadow-sm'
-                : 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-            }`}
-          >
-            <span>
-              {isAvailable ? 'Đặt xe' : vehicle.status === 'Rented' ? 'Đang thuê' : 'Chưa sẵn sàng'}
-            </span>
+          <div className="flex items-center space-x-2 shrink-0">
             {isAvailable && (
-              <ArrowRight className="w-3.5 h-3.5 stroke-[2.2] transition-transform group-hover:translate-x-0.5" />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleCart(vehicle);
+                }}
+                title={inCart ? 'Đã có trong giỏ xe (Bấm để bỏ)' : 'Thêm vào giỏ để thuê nhiều xe'}
+                className={`px-3 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 cursor-pointer border ${
+                  inCart
+                    ? 'bg-[#FFC799]/20 border-[#FFC799] text-[#FFC799]'
+                    : 'bg-[#101010] hover:bg-white/10 border-white/15 text-[#F5F5F5]'
+                }`}
+              >
+                {inCart ? <Check className="w-3.5 h-3.5" /> : <ShoppingCart className="w-3.5 h-3.5" />}
+                <span>{inCart ? 'Đã vào giỏ' : '+ Giỏ xe'}</span>
+              </button>
             )}
-          </button>
+
+            <button
+              type="button"
+              disabled={!isAvailable}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleBookClick();
+              }}
+              className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 shrink-0 ${
+                isAvailable
+                  ? 'bg-[#F5F5F5] group-hover:bg-[#FFC799] text-[#101010] active:scale-95 cursor-pointer shadow-sm'
+                  : 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+              }`}
+            >
+              <span>
+                {isAvailable ? 'Đặt xe' : vehicle.status === 'Rented' ? 'Đang thuê' : 'Chưa sẵn sàng'}
+              </span>
+              {isAvailable && (
+                <ArrowRight className="w-3.5 h-3.5 stroke-[2.2] transition-transform group-hover:translate-x-0.5" />
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
