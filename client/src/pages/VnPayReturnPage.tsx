@@ -133,7 +133,9 @@ export const VnPayReturnPage: React.FC = () => {
         } else {
           setVerifySuccess(false);
           const errorMsg =
-            VNPAY_ERROR_MESSAGES[respCode] || 'Xác thực chữ ký số giao dịch VNPay không hợp lệ.';
+            respCode !== '00' && VNPAY_ERROR_MESSAGES[respCode]
+              ? VNPAY_ERROR_MESSAGES[respCode]
+              : res.data?.data?.message || 'Xác thực chữ ký số giao dịch VNPay không hợp lệ.';
           setStatusMessage(errorMsg);
         }
       } catch {

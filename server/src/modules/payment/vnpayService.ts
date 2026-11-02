@@ -65,11 +65,12 @@ export const formatVnPayDate = (date: Date): string => {
 };
 
 /**
- * Sorts object properties alphabetically and encodes them according to VNPay requirements
+ * Sorts object properties alphabetically and encodes them according to VNPay requirements (RFC 1738 urlencode)
  */
 export const sortAndSignParams = (
   params: VnpParams,
-  secretKey: string = getVnpSecretKey()
+  secretKey: string = getVnpSecretKey(),
+  rfc1738Strict: boolean = true
 ): { sortedParams: Record<string, string>; signData: string; secureHash: string } => {
   const sortedKeys = Object.keys(params)
     .filter(
@@ -88,9 +89,14 @@ export const sortAndSignParams = (
   for (const key of sortedKeys) {
     const val = String(params[key]);
     sortedParams[key] = val;
-    // VNPay standard encoding: spaces converted to "+"
     const encodedKey = encodeURIComponent(key);
-    const encodedVal = encodeURIComponent(val).replace(/%20/g, '+');
+    let encodedVal = encodeURIComponent(val).replace(/%20/g, '+');
+    if (rfc1738Strict) {
+      encodedVal = encodedVal.replace(
+        /[!'()*]/g,
+        (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`
+      );
+    }
     signParts.push(`${encodedKey}=${encodedVal}`);
   }
 
@@ -105,6 +111,7 @@ export const sortAndSignParams = (
 
 /**
  * Verify checksum for VNPay query parameters (IPN or ReturnUrl)
+ * Supports both strict RFC 1738 urlencode (PHP/Java VNPay standard) and standard JS encodeURIComponent
  */
 export const verifyVnPayChecksum = (
   queryParams: VnpParams,
@@ -115,8 +122,14 @@ export const verifyVnPayChecksum = (
     return false;
   }
 
-  const { secureHash: calculatedHash } = sortAndSignParams(queryParams, secretKey);
-  return calculatedHash.toLowerCase() === receivedHash.toLowerCase();
+  const target = receivedHash.toLowerCase();
+  const { secureHash: strictHash } = sortAndSignParams(queryParams, secretKey, true);
+  if (strictHash.toLowerCase() === target) {
+    return true;
+  }
+
+  const { secureHash: compatHash } = sortAndSignParams(queryParams, secretKey, false);
+  return compatHash.toLowerCase() === target;
 };
 
 /**
@@ -219,7 +232,7 @@ export const createPaymentUrl = async (
   const orderInfoText =
     bookings.length === 1
       ? `Thanh toan ${paymentType === 'Full100' ? '100%' : 'coc 30%'} don thue ${bookings[0].bookingCode}`
-      : `Thanh toan gop ${bookings.length} xe (${paymentType === 'Full100' ? '100%' : 'coc 30%'}) - ${combinedCodeLabel}`;
+      : `Thanh toan ${paymentType === 'Full100' ? '100%' : 'coc 30%'} gop ${bookings.length} xe ${bookingCodes.join(' ')}`;
 
   const vnpParams: VnpParams = {
     vnp_Version: '2.1.0',
