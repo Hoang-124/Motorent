@@ -196,6 +196,25 @@ export const CartPage: React.FC = () => {
             discountCode: discountCode.trim() || undefined,
           });
           const d = res.data?.data;
+          let conflictMsg: string | undefined;
+          if (!d?.isAvailable && d?.conflictingBooking) {
+            const cb = d.conflictingBooking;
+            const pStr = new Date(cb.pickupDateTime).toLocaleString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            });
+            const rStr = new Date(cb.returnDateTime).toLocaleString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            });
+            conflictMsg = `Đã có khách đặt trước (${cb.bookingCode}: từ ${pStr} đến ${rStr})`;
+          }
           return {
             vehicleId: v._id,
             isAvailable: Boolean(d?.isAvailable),
@@ -203,6 +222,7 @@ export const CartPage: React.FC = () => {
             depositAmount: Number(d?.depositAmount ?? Math.round(fallbackDaily * 0.3)),
             remainingAmount: Number(d?.remainingAmount ?? Math.round(fallbackDaily * 0.7)),
             discountAmount: Number(d?.discountAmount ?? 0),
+            error: conflictMsg,
           } as VehicleEstimateItem;
         } catch (err: unknown) {
           const msg =

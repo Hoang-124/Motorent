@@ -62,6 +62,12 @@ interface PaymentReceiptInfo {
 interface BookingEstimateResult {
   isAvailable: boolean;
   conflicting: boolean;
+  conflictingBooking?: {
+    bookingCode: string;
+    pickupDateTime: string;
+    returnDateTime: string;
+    status: string;
+  } | null;
   basePrice: number;
   baseRentalBeforeSeasonal?: number;
   seasonalSurcharge?: number;
@@ -483,9 +489,34 @@ export const BookingPage: React.FC = () => {
         return;
       }
       if (isScheduleConflicting) {
-        setErrorMsg(
-          'Phương tiện đã có lịch đặt hoặc đang bảo dưỡng trong khung giờ bạn chọn. Vui lòng chọn khung giờ khác hoặc xe khác.'
-        );
+        if (vehicle?.status === 'Maintenance' || vehicle?.requiresMaintenance) {
+          setErrorMsg('Phương tiện hiện đang trong trạng thái bảo dưỡng kỹ thuật tại trạm.');
+        } else if (vehicle?.status === 'Transferring') {
+          setErrorMsg('Phương tiện hiện đang được điều chuyển giữa các chi nhánh.');
+        } else if (estimateData?.conflictingBooking) {
+          const cb = estimateData.conflictingBooking;
+          const pStr = new Date(cb.pickupDateTime).toLocaleString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          });
+          const rStr = new Date(cb.returnDateTime).toLocaleString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          });
+          setErrorMsg(
+            `Phương tiện đã có đơn đặt trước (${cb.bookingCode}: từ ${pStr} đến ${rStr}). Vui lòng chọn khung giờ khác hoặc chọn xe khác.`
+          );
+        } else {
+          setErrorMsg(
+            'Phương tiện đã có lịch đặt trước trong khung giờ bạn chọn. Vui lòng chọn khung giờ khác hoặc xe khác.'
+          );
+        }
         return;
       }
       setCurrentStep(2);
@@ -939,7 +970,49 @@ export const BookingPage: React.FC = () => {
                     <div className="flex items-center space-x-2.5 text-[#FF8080]">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span className="font-semibold">
-                        Xe biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> đã có lịch đặt hoặc đang bảo dưỡng trong khung giờ này. Vui lòng đổi thời gian nhận/trả hoặc chọn xe khác.
+                        {vehicle.status === 'Maintenance' || vehicle.requiresMaintenance ? (
+                          <>
+                            Xe biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> hiện đang trong trạng thái bảo dưỡng kỹ thuật tại trạm.
+                          </>
+                        ) : vehicle.status === 'Transferring' ? (
+                          <>
+                            Xe biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> hiện đang được điều chuyển giữa các chi nhánh.
+                          </>
+                        ) : estimateData?.conflictingBooking ? (
+                          <>
+                            Xe biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> đã có khách đặt giữ chỗ trong khung giờ này (Mã đơn:{' '}
+                            <strong className="font-mono text-[#FFC799]">
+                              {estimateData.conflictingBooking.bookingCode}
+                            </strong>{' '}
+                            từ{' '}
+                            {new Date(estimateData.conflictingBooking.pickupDateTime).toLocaleString(
+                              'vi-VN',
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              }
+                            )}{' '}
+                            đến{' '}
+                            {new Date(estimateData.conflictingBooking.returnDateTime).toLocaleString(
+                              'vi-VN',
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              }
+                            )}
+                            ). Vui lòng đổi thời gian nhận/trả hoặc chọn xe khác.
+                          </>
+                        ) : (
+                          <>
+                            Xe biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> đã có lịch đặt trước trong khung giờ này. Vui lòng đổi thời gian nhận/trả hoặc chọn xe khác.
+                          </>
+                        )}
                       </span>
                     </div>
                   </div>

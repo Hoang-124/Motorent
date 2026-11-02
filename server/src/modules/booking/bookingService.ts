@@ -428,7 +428,11 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   }
 
   // Conflict check using atomic date-range overlap checker (Rule BR-02)
-  const { available: isAvailable } = await checkVehicleAvailability(vehicle._id, pickupDate, returnDate);
+  const { available: isAvailable, conflictingBooking } = await checkVehicleAvailability(
+    vehicle._id,
+    pickupDate,
+    returnDate
+  );
 
   const rentalQuote = await quoteVehicleRental(vehicle, pickupDate, returnDate);
   const basePrice = rentalQuote.rentalAmount;
@@ -472,6 +476,14 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
     ...rentalQuote,
     isAvailable,
     conflicting: !isAvailable,
+    conflictingBooking: conflictingBooking
+      ? {
+          bookingCode: conflictingBooking.bookingCode,
+          pickupDateTime: conflictingBooking.pickupDateTime,
+          returnDateTime: conflictingBooking.returnDateTime,
+          status: conflictingBooking.status,
+        }
+      : null,
     durationHours: Math.round(diffHours * 10) / 10,
     rentalDays: Math.ceil(diffHours / 24),
     dailyPrice: vehicle.dailyPrice,
