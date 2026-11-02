@@ -51,6 +51,7 @@ export const ALL_TIME_SLOTS = [...MORNING_SLOTS, ...AFTERNOON_SLOTS, ...EVENING_
 export const MIN_SAME_DAY_GAP_MINUTES = 120;
 
 export const timeToMinutes = (timeStr: string): number => {
+  if (!timeStr || typeof timeStr !== 'string') return 8 * 60 + 30;
   const [h, m] = timeStr.split(':').map(Number);
   return (h || 0) * 60 + (m || 0);
 };
@@ -63,6 +64,7 @@ export const formatLocalDateStr = (d: Date): string => {
 };
 
 export const parseLocalDateStr = (dateStr: string): Date => {
+  if (!dateStr || typeof dateStr !== 'string') return new Date();
   const [y, m, d] = dateStr.split('-').map(Number);
   if (!y || !m || !d) return new Date();
   return new Date(y, m - 1, d);
@@ -75,6 +77,7 @@ export const addDaysToDateStr = (dateStr: string, days: number): string => {
 };
 
 export const formatDisplayDateVN = (dateStr: string): string => {
+  if (!dateStr || typeof dateStr !== 'string') return '';
   const [y, m, d] = dateStr.split('-');
   if (!y || !m || !d) return dateStr;
   return `${d}/${m}/${y}`;
@@ -103,6 +106,7 @@ export const getVietnameseDayLabel = (dateStr: string): { dayName: string; badge
 };
 
 export const getTimePeriodLabel = (timeStr: string): string => {
+  if (!timeStr || typeof timeStr !== 'string') return 'Buổi sáng';
   const hour = parseInt(timeStr.split(':')[0] || '8', 10);
   if (hour < 12) return 'Buổi sáng';
   if (hour < 18) return 'Buổi chiều';

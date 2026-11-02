@@ -139,12 +139,13 @@ export const CartPage: React.FC = () => {
             discountCode: discountCode.trim() || undefined,
           });
           const d = res.data?.data;
+          const fallbackDaily = Number(v.dailyPrice || 150000);
           return {
             vehicleId: v._id,
             isAvailable: Boolean(d?.isAvailable),
-            totalAmount: Number(d?.totalAmount ?? v.dailyPrice),
-            depositAmount: Number(d?.depositAmount ?? Math.round(v.dailyPrice * 0.3)),
-            remainingAmount: Number(d?.remainingAmount ?? Math.round(v.dailyPrice * 0.7)),
+            totalAmount: Number(d?.totalAmount ?? fallbackDaily),
+            depositAmount: Number(d?.depositAmount ?? Math.round(fallbackDaily * 0.3)),
+            remainingAmount: Number(d?.remainingAmount ?? Math.round(fallbackDaily * 0.7)),
             discountAmount: Number(d?.discountAmount ?? 0),
           } as VehicleEstimateItem;
         } catch (err: unknown) {
@@ -152,12 +153,13 @@ export const CartPage: React.FC = () => {
             axios.isAxiosError(err) && err.response?.data?.message
               ? err.response.data.message
               : 'Không thể báo giá cho khung giờ này';
+          const fallbackDaily = Number(v.dailyPrice || 150000);
           return {
             vehicleId: v._id,
             isAvailable: false,
-            totalAmount: v.dailyPrice,
-            depositAmount: Math.round(v.dailyPrice * 0.3),
-            remainingAmount: Math.round(v.dailyPrice * 0.7),
+            totalAmount: fallbackDaily,
+            depositAmount: Math.round(fallbackDaily * 0.3),
+            remainingAmount: Math.round(fallbackDaily * 0.7),
             discountAmount: 0,
             error: msg,
           } as VehicleEstimateItem;
@@ -187,16 +189,17 @@ export const CartPage: React.FC = () => {
 
     for (const v of cartItems) {
       const est = estimates[v._id];
+      const fallbackDaily = Number(v.dailyPrice || 150000);
       if (est) {
-        totalAmount += est.totalAmount;
-        depositAmount += est.depositAmount;
-        remainingAmount += est.remainingAmount;
-        discountAmount += est.discountAmount;
+        totalAmount += Number(est.totalAmount || fallbackDaily);
+        depositAmount += Number(est.depositAmount || Math.round(fallbackDaily * 0.3));
+        remainingAmount += Number(est.remainingAmount || Math.round(fallbackDaily * 0.7));
+        discountAmount += Number(est.discountAmount || 0);
         if (!est.isAvailable) unavailableCount++;
       } else {
-        totalAmount += v.dailyPrice;
-        depositAmount += Math.round(v.dailyPrice * 0.3);
-        remainingAmount += Math.round(v.dailyPrice * 0.7);
+        totalAmount += fallbackDaily;
+        depositAmount += Math.round(fallbackDaily * 0.3);
+        remainingAmount += Math.round(fallbackDaily * 0.7);
       }
     }
 
@@ -508,14 +511,18 @@ export const CartPage: React.FC = () => {
             <div className="lg:col-span-7 space-y-4">
               {cartItems.map((vehicle) => {
                 const rawImg = vehicle.images?.[1] || vehicle.images?.[0] || '';
-                const imgUrl = rawImg ? getOptimizedVehicleImageUrl(rawImg, { width: 320 }) : '';
+                const imgUrl = rawImg ? getOptimizedVehicleImageUrl(rawImg, 320) : '';
                 const est = estimates[vehicle._id];
+                const fallbackPrice = Number(vehicle.dailyPrice || 150000);
+                const itemTotal = Number(est ? est.totalAmount : fallbackPrice);
+                const itemDeposit = Number(est ? est.depositAmount : Math.round(fallbackPrice * 0.3));
 
                 return (
                   <div
                     key={vehicle._id}
-                    className={`p-4 sm:p-5 rounded-2xl bg-[#161616] border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${est && !est.isAvailable ? 'border-[#FF8080]/50' : 'border-white/10'
-                      }`}
+                    className={`p-4 sm:p-5 rounded-2xl bg-[#161616] border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
+                      est && !est.isAvailable ? 'border-[#FF8080]/50' : 'border-white/10'
+                    }`}
                   >
                     <div className="flex items-center space-x-4 min-w-0">
                       <div className="w-24 h-20 rounded-xl studio-paper-backdrop overflow-hidden flex items-center justify-center shrink-0 p-2">
@@ -561,10 +568,10 @@ export const CartPage: React.FC = () => {
                       <div className="text-left sm:text-right">
                         <span className="text-xs text-[#A0A0A0] block">Tạm tính chuyến</span>
                         <span className="text-base font-bold font-mono-tabular text-[#F5F5F5]">
-                          {(est ? est.totalAmount : vehicle.dailyPrice).toLocaleString('vi-VN')} đ
+                          {itemTotal.toLocaleString('vi-VN')} đ
                         </span>
                         <span className="text-[11px] text-[#FFC799] font-mono-tabular block">
-                          Cọc 30%: {(est ? est.depositAmount : Math.round(vehicle.dailyPrice * 0.3)).toLocaleString('vi-VN')} đ
+                          Cọc 30%: {itemDeposit.toLocaleString('vi-VN')} đ
                         </span>
                       </div>
 
@@ -589,26 +596,36 @@ export const CartPage: React.FC = () => {
                 <span>Lịch trình &amp; Trạm trả xe chung</span>
               </h2>
 
-              <DateTimePicker
-                pickupDate={pickupDate}
-                pickupTime={pickupTime}
-                returnDate={returnDate}
-                returnTime={returnTime}
-                onPickupDateChange={(val) => {
-                  setPickupDate(val);
-                  const norm = normalizeReturnSchedule(val, pickupTime, returnDate, returnTime);
-                  setReturnDate(norm.returnDate);
-                  setReturnTime(norm.returnTime);
-                }}
-                onPickupTimeChange={(val) => {
-                  setPickupTime(val);
-                  const norm = normalizeReturnSchedule(pickupDate, val, returnDate, returnTime);
-                  setReturnDate(norm.returnDate);
-                  setReturnTime(norm.returnTime);
-                }}
-                onReturnDateChange={setReturnDate}
-                onReturnTimeChange={setReturnTime}
-              />
+              <div className="space-y-3">
+                <DateTimePicker
+                  label="Thời gian nhận xe"
+                  mode="pickup"
+                  dateValue={pickupDate}
+                  timeValue={pickupTime}
+                  onDateChange={(val) => {
+                    setPickupDate(val);
+                    const norm = normalizeReturnSchedule(val, pickupTime, returnDate, returnTime);
+                    setReturnDate(norm.returnDate);
+                    setReturnTime(norm.returnTime);
+                  }}
+                  onTimeChange={(val) => {
+                    setPickupTime(val);
+                    const norm = normalizeReturnSchedule(pickupDate, val, returnDate, returnTime);
+                    setReturnDate(norm.returnDate);
+                    setReturnTime(norm.returnTime);
+                  }}
+                />
+                <DateTimePicker
+                  label="Thời gian trả xe"
+                  mode="return"
+                  dateValue={returnDate}
+                  timeValue={returnTime}
+                  referenceDate={pickupDate}
+                  referenceTime={pickupTime}
+                  onDateChange={setReturnDate}
+                  onTimeChange={setReturnTime}
+                />
+              </div>
 
               {/* Flexible Cross-Branch Return Selector */}
               <div className="space-y-1.5">
