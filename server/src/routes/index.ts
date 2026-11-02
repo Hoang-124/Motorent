@@ -21,6 +21,8 @@ import staffRoutes from '../modules/hr/staffRoutes';
 import scheduleRoutes from '../modules/hr/scheduleRoutes';
 import discountRoutes from '../modules/discount/discountRoutes';
 import reportRoutes from '../modules/report/reportRoutes';
+import notificationRoutes from '../modules/notifications/notificationRoutes';
+import loyaltyRoutes from '../modules/loyalty/loyaltyRoutes';
 import * as reviewController from '../modules/review/reviewController';
 import { adminBannerRouter, publicBannerRouter } from '../modules/cms/bannerRoutes';
 import { adminPageRouter, publicPageRouter } from '../modules/cms/pageRoutes';
@@ -87,5 +89,7 @@ router.use('/staff', staffRoutes);
 router.use('/schedules', scheduleRoutes);
 router.use('/discounts', discountRoutes);
 router.use('/reports', reportRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/loyalty', loyaltyRoutes);
 
 export default router;

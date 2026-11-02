@@ -32,7 +32,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Star,
-  Edit2
+  Edit2,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -44,8 +45,9 @@ import { compressEkycImage } from '../utils/watermark';
 import type { Booking, Vehicle, Branch, Review, Complaint } from '../types';
 import { ReviewModal } from '../components/ReviewModal';
 import { SecureEkycImage } from '../components/SecureEkycImage';
+import { LoyaltyCenter } from '../components/LoyaltyCenter';
 
-export type ProfileTab = 'bookings' | 'info' | 'avatar' | 'ekyc' | 'password';
+export type ProfileTab = 'bookings' | 'loyalty' | 'info' | 'avatar' | 'ekyc' | 'password';
 
 export const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuth();
@@ -126,7 +128,12 @@ export const ProfilePage: React.FC = () => {
     addedHours: number;
     addedDays: number;
     addedAmount: number;
+    addedBaseAmount: number;
+    addedSeasonalSurcharge: number;
     newTotalAmount: number;
+    extensionDepositAmount: number;
+    newDepositAmount: number;
+    depositTopUpAmount: number;
     newRemainingAmount: number;
     isAvailable: boolean;
   } | null>(null);
@@ -139,6 +146,8 @@ export const ProfilePage: React.FC = () => {
   const [myComplaints, setMyComplaints] = useState<Complaint[]>([]);
   const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
   const [selectedReviewForEdit, setSelectedReviewForEdit] = useState<Review | null>(null);
+  const [selectedReviewForDelete, setSelectedReviewForDelete] = useState<Review | null>(null);
+  const [deleteReviewLoading, setDeleteReviewLoading] = useState(false);
 
   // Form states - Info
   const [firstName, setFirstName] = useState(user?.firstName || '');
@@ -255,6 +264,26 @@ export const ProfilePage: React.FC = () => {
       }
     } catch (err) {
       console.error('Lỗi khi tải đánh giá của tôi:', err);
+    }
+  };
+
+  const handleDeleteMyReview = async () => {
+    if (!selectedReviewForDelete) return;
+    setDeleteReviewLoading(true);
+    setErrorMsg('');
+    try {
+      await api.delete(`/reviews/${selectedReviewForDelete._id}`);
+      setSelectedReviewForDelete(null);
+      setSuccessMsg('Đã xóa đánh giá; điểm trung bình của xe đã được cập nhật.');
+      await Promise.all([fetchBookings(), fetchMyReviews()]);
+    } catch (error: unknown) {
+      const message =
+        error && typeof error === 'object' && 'response' in error
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      setErrorMsg(message || 'Không thể xóa đánh giá. Vui lòng thử lại.');
+    } finally {
+      setDeleteReviewLoading(false);
     }
   };
 
@@ -488,11 +517,41 @@ export const ProfilePage: React.FC = () => {
         setBookings((prev) =>
           prev.map((b) => (b._id === updated._id ? { ...b, ...updated } : b))
         );
-        const addedText = updated.extensionSummary?.addedAmount
-          ? ` Phí phát sinh: ${Number(updated.extensionSummary.addedAmount).toLocaleString('vi-VN')} đ.`
-          : '';
-        setSuccessMsg(`Gia hạn chuyến xe thành công!${addedText}`);
         setSelectedBookingForExtend(null);
+
+        const depositTopUpAmount = Number(updated.extensionSummary?.depositTopUpAmount || 0);
+        if (depositTopUpAmount > 0) {
+          setSuccessMsg(
+            `Gia hạn đã được ghi nhận. Đang chuyển sang VNPay để bù cọc ${depositTopUpAmount.toLocaleString('vi-VN')} đ.`
+          );
+          try {
+            const paymentRes = await api.post('/payments/vnpay/create', {
+              bookingId: updated._id,
+              paymentType: 'Deposit30',
+            });
+            if (paymentRes.data?.success && paymentRes.data?.data?.paymentUrl) {
+              window.location.href = paymentRes.data.data.paymentUrl;
+              return;
+            }
+            setErrorMsg(
+              paymentRes.data?.message ||
+                'Gia hạn đã lưu nhưng chưa tạo được thanh toán cọc bổ sung. Mở chi tiết đơn để thử lại.'
+            );
+          } catch (paymentError: unknown) {
+            const message = axios.isAxiosError(paymentError)
+              ? paymentError.response?.data?.message
+              : undefined;
+            setErrorMsg(
+              message ||
+                'Gia hạn đã lưu nhưng chưa tạo được thanh toán cọc bổ sung. Mở chi tiết đơn để thử lại.'
+            );
+          }
+        } else {
+          const addedText = updated.extensionSummary?.addedAmount
+            ? ` Phí phát sinh: ${Number(updated.extensionSummary.addedAmount).toLocaleString('vi-VN')} đ.`
+            : '';
+          setSuccessMsg(`Gia hạn chuyến xe thành công!${addedText} Không phát sinh cọc gia hạn cần thanh toán.`);
+        }
       } else {
         setExtendError(res.data?.message || 'Gia hạn thất bại.');
       }
@@ -833,15 +892,16 @@ export const ProfilePage: React.FC = () => {
 
   const TABS: { id: ProfileTab; num: string; label: string; count?: number; statusTag?: string }[] = [
     { id: 'bookings', num: '01', label: 'Chuyến xe của tôi', count: allOrdersCount },
-    { id: 'info', num: '02', label: 'Thông tin cá nhân' },
+    { id: 'loyalty', num: '02', label: 'Ưu đãi & Điểm thưởng', count: user.loyaltyPoints || 0 },
+    { id: 'info', num: '03', label: 'Thông tin cá nhân' },
     {
       id: 'ekyc',
-      num: '03',
+      num: '04',
       label: 'Định danh eKYC',
       statusTag: user.identityStatus === 'Verified' ? 'Đã duyệt' : user.identityStatus === 'Pending' ? 'Chờ duyệt' : 'Cần làm',
     },
-    { id: 'avatar', num: '04', label: 'Ảnh đại diện' },
-    { id: 'password', num: '05', label: 'Đổi mật khẩu' },
+    { id: 'avatar', num: '05', label: 'Ảnh đại diện' },
+    { id: 'password', num: '06', label: 'Đổi mật khẩu' },
   ];
 
   return (
@@ -1562,6 +1622,14 @@ export const ProfilePage: React.FC = () => {
                                       >
                                         <Edit2 className="w-3.5 h-3.5 stroke-[2]" />
                                       </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedReviewForDelete(existingReview)}
+                                        className="p-1.5 text-[#A0A0A0] hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                                        title="Xóa đánh giá"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 stroke-[2]" />
+                                      </button>
                                     </div>
                                   );
                                 }
@@ -2262,6 +2330,11 @@ export const ProfilePage: React.FC = () => {
             </form>
           </div>
         )}
+
+        {/* =====================================================================
+            TAB 02: LOYALTY, VOUCHERS, REFERRALS & PROMO SUBSCRIPTION (UC-46..51)
+            ===================================================================== */}
+        {activeTab === 'loyalty' && <LoyaltyCenter />}
       </div>
 
       {/* =====================================================================
@@ -2757,10 +2830,31 @@ export const ProfilePage: React.FC = () => {
                     +{extendEstimate.addedAmount.toLocaleString('vi-VN')} đ
                   </span>
                 </div>
+                {extendEstimate.addedSeasonalSurcharge !== 0 && (
+                  <div className="flex justify-between items-center text-[#A0A0A0]">
+                    <span>Điều chỉnh giá theo mùa:</span>
+                    <span className="text-[#FFC799] font-mono-tabular font-semibold">
+                      {extendEstimate.addedSeasonalSurcharge > 0 ? '+' : ''}
+                      {extendEstimate.addedSeasonalSurcharge.toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                )}
                 <div className="pt-2 border-t border-white/[0.06] flex justify-between items-center">
                   <span className="text-[#A0A0A0]">Tổng tiền thuê mới:</span>
                   <span className="text-white font-mono-tabular font-bold">
                     {extendEstimate.newTotalAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-[#A0A0A0]">
+                  <span>Cọc cho phí gia hạn (30%):</span>
+                  <span className="text-[#F5F5F5] font-mono-tabular font-semibold">
+                    {extendEstimate.extensionDepositAmount.toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[11px] text-[#A0A0A0]">
+                  <span>Cần thanh toán bù cọc ngay:</span>
+                  <span className="text-[#99FFE4] font-mono-tabular font-semibold">
+                    {extendEstimate.depositTopUpAmount.toLocaleString('vi-VN')} đ
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-[11px] text-[#A0A0A0]">
@@ -2793,7 +2887,9 @@ export const ProfilePage: React.FC = () => {
                   {extendLoading
                     ? 'Đang xử lý...'
                     : extendEstimate
-                    ? `Xác nhận gia hạn (+${extendEstimate.addedAmount.toLocaleString('vi-VN')} đ)`
+                    ? extendEstimate.depositTopUpAmount > 0
+                      ? `Gia hạn & bù cọc ${extendEstimate.depositTopUpAmount.toLocaleString('vi-VN')} đ`
+                      : `Xác nhận gia hạn (+${extendEstimate.addedAmount.toLocaleString('vi-VN')} đ)`
                     : 'Xác nhận gia hạn'}
                 </span>
               </button>
@@ -2836,6 +2932,43 @@ export const ProfilePage: React.FC = () => {
             await Promise.all([fetchBookings(), fetchMyReviews()]);
           }}
         />
+      )}
+
+      {selectedReviewForDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#161616] p-6 shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300">
+                <Trash2 className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[#F5F5F5]">Xóa đánh giá này?</h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-[#A0A0A0]">
+                  Đánh giá sẽ được gỡ khỏi trang xe và điểm sao trung bình sẽ được tính lại.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={deleteReviewLoading}
+                onClick={() => setSelectedReviewForDelete(null)}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-semibold text-[#A0A0A0] hover:bg-white/5 hover:text-white disabled:opacity-50"
+              >
+                Giữ đánh giá
+              </button>
+              <button
+                type="button"
+                disabled={deleteReviewLoading}
+                onClick={handleDeleteMyReview}
+                className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-4 py-2.5 text-xs font-bold text-white hover:bg-rose-400 disabled:opacity-50"
+              >
+                {deleteReviewLoading && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
+                Xác nhận xóa
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Secure Owner eKYC Lightbox Modal */}

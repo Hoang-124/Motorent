@@ -38,6 +38,8 @@ export interface IBooking extends Document {
   returnDateTime: Date;
   actualReturnDateTime?: Date;
   totalAmount: number;
+  baseRentalAmount?: number;
+  seasonalSurcharge?: number;
   depositAmount: number;
   remainingAmount: number;
   discountId?: mongoose.Types.ObjectId;
@@ -109,6 +111,8 @@ const BookingSchema = new Schema<IBooking>(
     returnDateTime: { type: Date, required: true },
     actualReturnDateTime: { type: Date },
     totalAmount: { type: Number, required: true },
+    baseRentalAmount: { type: Number },
+    seasonalSurcharge: { type: Number },
     depositAmount: { type: Number, default: 0 },
     remainingAmount: { type: Number, default: 0 },
     discountId: { type: Schema.Types.ObjectId, ref: 'Discount' },

@@ -165,7 +165,7 @@ export const OrderDetailPage: React.FC = () => {
       setPaymentError(null);
       const res = await api.post('/payments/vnpay/create', {
         bookingId: booking._id,
-        amountType,
+        paymentType: amountType,
       });
 
       if (res.data?.success && res.data?.data?.paymentUrl) {
@@ -241,9 +241,11 @@ export const OrderDetailPage: React.FC = () => {
     depositPaid: Boolean(booking.depositPaid),
   };
   const actions = booking.actions || {
-    canPayDeposit: booking.status === 'Pending' && !booking.depositPaid && !booking.isPaid,
+    canPayDeposit:
+      (booking.paidAmount || 0) < booking.depositAmount &&
+      !['Cancelled', 'Rejected', 'Completed'].includes(booking.status),
     canPayFull: !booking.isPaid && (booking.remainingAmount || 0) > 0,
-    canCancel: ['Pending', 'Approved', 'Confirmed'].includes(booking.status),
+    canCancel: ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(booking.status),
     canExtend: ['Confirmed', 'Ongoing'].includes(booking.status),
     canRefund: false,
     canCheckin: false,
@@ -691,7 +693,9 @@ export const OrderDetailPage: React.FC = () => {
               {/* Payment Status Segment */}
               <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-[#A0A0A0]">Tiền cọc giữ xe (30%):</span>
+                  <span className="text-[#A0A0A0]">
+                    {booking.extensionCount ? 'Mức cọc yêu cầu (gồm gia hạn):' : 'Tiền cọc giữ xe (30%):'}
+                  </span>
                   <div className="text-right">
                     <span className="font-mono-tabular font-bold text-[#F5F5F5]">
                       {pricing.depositAmount.toLocaleString('vi-VN')} đ
@@ -752,7 +756,10 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-3 px-4 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] text-xs font-bold transition-all flex items-center justify-center space-x-2 shadow-lg shadow-black/40 cursor-pointer disabled:opacity-50"
                   >
                     <CreditCard className="w-4 h-4" />
-                    <span>Thanh toán cọc 30% qua VNPay ({pricing.depositAmount.toLocaleString('vi-VN')} đ)</span>
+                    <span>
+                      {(pricing.paidAmount || 0) > 0 ? 'Thanh toán phần cọc còn thiếu' : 'Thanh toán cọc 30%'} qua VNPay (
+                      {Math.max(0, pricing.depositAmount - pricing.paidAmount).toLocaleString('vi-VN')} đ)
+                    </span>
                   </button>
                 )}
 

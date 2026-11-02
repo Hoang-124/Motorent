@@ -20,7 +20,7 @@
 
 ### 1. Code Packages
 
-![Package Diagram](./sds_images/image16.jpeg)
+![Package Diagram](./sds_images/package_architecture.png)
 
 | No | Package | Description |
 |---|---|---|

@@ -146,10 +146,28 @@ describe('UC-57: Vehicle Return & Settlement (Check-out)', () => {
     expect(res.body.message).toContain('Ongoing');
   });
 
-  it('TC-57-04: Should reject staff from different branch than return branch with 403', async () => {
-    // booking return branch is CN-DAD, but staffTokenMK belongs to CN-MK
+  it('TC-57-04: Should allow cross-branch return at any branch (staffTokenMK updates returnBranchId to actual return station)', async () => {
+    const crossBranchBooking = await Booking.create({
+      bookingCode: `MV-CO-CROSS-${Date.now().toString().slice(-4)}`,
+      userId: customerId,
+      vehicleId,
+      pickupBranchId: branchDADId,
+      returnBranchId: branchDADId,
+      pickupDateTime: new Date(Date.now() - 24 * 3600 * 1000),
+      returnDateTime: new Date(Date.now() + 2 * 3600 * 1000),
+      totalAmount: 300000,
+      depositAmount: 90000,
+      paidAmount: 90000,
+      remainingAmount: 210000,
+      depositPaid: true,
+      isPaid: false,
+      status: 'Ongoing',
+      startOdometer: startOdo,
+      startFuelLevel: '100%',
+    });
+
     const res = await request(app)
-      .put(`/api/bookings/${ongoingBookingId}/checkout`)
+      .put(`/api/bookings/${crossBranchBooking._id}/checkout`)
       .set('Authorization', `Bearer ${staffTokenMK}`)
       .send({
         endOdometer: 3600,
@@ -157,7 +175,8 @@ describe('UC-57: Vehicle Return & Settlement (Check-out)', () => {
         checkoutImages: validFourPhotos,
       });
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('Completed');
   });
 
   it('TC-57-05: Should reject endOdometer lower than startOdometer with 400', async () => {

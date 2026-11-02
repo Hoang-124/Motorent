@@ -93,6 +93,7 @@ export interface User {
   ekycRejectionReason?: string;
   loyaltyPoints: number;
   referralCode?: string;
+  promoSubscribed?: boolean;
   drivingLicenseUrl?: string;
   idCardFrontUrl?: string;
   idCardBackUrl?: string;
@@ -572,6 +573,7 @@ export interface DailyRevenueReport {
     returnsCount: number;
     cancelledCount: number;
   };
+  transactions: PaymentLedgerRow[];
   paymentMethods: {
     vnpay: number;
     counter: number;
@@ -579,10 +581,23 @@ export interface DailyRevenueReport {
   bookings: DailyReportBooking[];
 }
 
+export interface PaymentLedgerRow {
+  txnRef: string;
+  bookingCode: string;
+  type: 'DEPOSIT' | 'FULL' | 'COUNTER' | 'REFUND';
+  typeLabel: string;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING';
+  amount: number;
+  direction: 'IN' | 'OUT';
+  createdAt: string;
+}
+
 export interface DailyBreakdownItem {
   day: number;
   date: string;
   revenue: number;
+  refunds: number;
+  netRevenue: number;
   bookingsCount: number;
   deposits: number;
   counterCash: number;
@@ -600,12 +615,16 @@ export interface MonthlyRevenueReport {
   branch: Branch | null;
   summary: {
     totalRevenue: number;
+    grossRevenue: number;
+    totalRefunds: number;
+    netCashflow: number;
     totalBookings: number;
     averageOrderValue: number;
     previousMonthRevenue: number;
     growthPercent: number;
   };
   dailyBreakdown: DailyBreakdownItem[];
+  transactions: PaymentLedgerRow[];
   categoryBreakdown: CategoryBreakdownItem[];
 }
 

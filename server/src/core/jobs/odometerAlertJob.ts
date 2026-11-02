@@ -37,15 +37,26 @@ export const runOdometerAlertSweep = async (): Promise<number> => {
       ] }).select('_id');
       const relatedId = `odo:${vehicle._id.toString()}:${bucket}`;
       for (const recipient of recipients) {
-        // The same bucket is updated with $setOnInsert on every sweep, including
-        // vehicles already flagged at checkout. Repeated runs create no new alert.
-        await Notification.updateOne({ userId: recipient._id, type: 'MAINTENANCE', relatedId }, {
-          $setOnInsert: { userId: recipient._id, type: 'MAINTENANCE', relatedId,
-            title: `Đến hạn bảo trì: ${vehicle.licensePlate}`,
-            body: `${vehicle.brand} ${vehicle.vehicleModel} đã đạt ${vehicle.odometer.toLocaleString('vi-VN')} km. Kiểm tra và lập phiếu bảo trì.`,
-            isRead: false, data: { vehicleId: vehicle._id.toString(), branchId: vehicle.branchId.toString(),
-              odometer: vehicle.odometer, bucket, intervalKm: ODOMETER_MAINTENANCE_INTERVAL } },
-        }, { upsert: true });
+        const alreadyNotified = await Notification.exists({ userId: recipient._id, type: 'MAINTENANCE', relatedId });
+        if (alreadyNotified) continue;
+
+        // Save through the model so the notification:new Socket.IO event reaches
+        // the recipient's notification bell as soon as the alert is created.
+        await Notification.create({
+          userId: recipient._id,
+          type: 'MAINTENANCE',
+          relatedId,
+          title: `Đến hạn bảo trì: ${vehicle.licensePlate}`,
+          body: `${vehicle.brand} ${vehicle.vehicleModel} đã đạt ${vehicle.odometer.toLocaleString('vi-VN')} km. Kiểm tra và lập phiếu bảo trì.`,
+          isRead: false,
+          data: {
+            vehicleId: vehicle._id.toString(),
+            branchId: vehicle.branchId.toString(),
+            odometer: vehicle.odometer,
+            bucket,
+            intervalKm: ODOMETER_MAINTENANCE_INTERVAL,
+          },
+        });
       }
     }
     return dueCount;

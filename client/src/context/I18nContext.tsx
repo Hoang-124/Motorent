@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../services/api';
+import { setupAutoTranslator, translateVietnameseString } from '../i18n/autoTranslator';
 import {
   DEFAULT_TRANSLATIONS,
   type SupportedLocale,
@@ -21,6 +22,7 @@ interface I18nContextValue {
   setLocale: (next: SupportedLocale) => void;
   toggleLocale: () => void;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  translate: (text: string) => string;
   refreshTranslations: () => Promise<void>;
   saveAdminTranslations: (payload: {
     defaultLocale?: SupportedLocale;
@@ -46,6 +48,8 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    const cleanup = setupAutoTranslator(locale === 'en');
+    return cleanup;
   }, [locale]);
 
   const setLocale = useCallback((next: SupportedLocale) => {
@@ -105,6 +109,11 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     []
   );
 
+  const translate = useCallback(
+    (text: string): string => (locale === 'en' ? translateVietnameseString(text) : text),
+    [locale]
+  );
+
   const t = useCallback(
     (key: TranslationKey, params?: Record<string, string | number>): string => {
       const customText = overrides[locale]?.[key];
@@ -131,6 +140,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLocale,
       toggleLocale,
       t,
+      translate,
       refreshTranslations,
       saveAdminTranslations,
     }),
@@ -141,6 +151,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLocale,
       toggleLocale,
       t,
+      translate,
       refreshTranslations,
       saveAdminTranslations,
     ]

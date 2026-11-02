@@ -11,6 +11,7 @@ export interface IPayment extends Document {
   type: PaymentType;
   status: PaymentStatus;
   rawIpn?: Record<string, unknown>;
+  processedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +33,7 @@ const PaymentSchema = new Schema<IPayment>(
       required: true,
     },
     rawIpn: { type: Schema.Types.Mixed },
+    processedAt: { type: Date },
   },
   { timestamps: true }
 );

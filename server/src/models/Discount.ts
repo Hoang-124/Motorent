@@ -5,6 +5,10 @@ export interface IDiscount extends Document {
   description?: string;
   discountPercent: number;
   maxDiscountAmount?: number;
+  fixedDiscountAmount?: number;
+  ownerUserId?: mongoose.Types.ObjectId;
+  isLoyaltyVoucher?: boolean;
+  redemptionPoints?: number;
   minBookingAmount?: number;
   startDate: Date;
   endDate: Date;
@@ -21,6 +25,10 @@ const DiscountSchema = new Schema<IDiscount>(
     description: { type: String, default: '' },
     discountPercent: { type: Number, required: true, min: 1, max: 100 },
     maxDiscountAmount: { type: Number, default: 0 },
+    fixedDiscountAmount: { type: Number, min: 1 },
+    ownerUserId: { type: Schema.Types.ObjectId, ref: 'User' },
+    isLoyaltyVoucher: { type: Boolean, default: false },
+    redemptionPoints: { type: Number, min: 0 },
     minBookingAmount: { type: Number, default: 0 },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
@@ -30,5 +38,7 @@ const DiscountSchema = new Schema<IDiscount>(
   },
   { timestamps: true }
 );
+
+DiscountSchema.index({ ownerUserId: 1, isLoyaltyVoucher: 1, isActive: 1 });
 
 export const Discount = mongoose.model<IDiscount>('Discount', DiscountSchema);

@@ -18,9 +18,11 @@ import {
 import { setSocketServer } from './core/socketRegistry';
 import { startBookingExpiryJob } from './core/jobs/bookingExpiryJob';
 import { startOdometerAlertJob } from './core/jobs/odometerAlertJob';
+import { startBookingReminderJob } from './core/jobs/bookingReminderJob';
 import { User } from './models/User';
 import { Booking } from './models/Booking';
 import { Conversation } from './models/Conversation';
+import { Notification } from './models/Notification';
 import * as chatService from './modules/chat/chatService';
 import { adminBannerRouter, publicBannerRouter } from './modules/cms/bannerRoutes';
 import { adminPageRouter, publicPageRouter } from './modules/cms/pageRoutes';
@@ -156,6 +158,15 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       if (['Staff', 'BranchManager'].includes(user.roles) && user.branchId) {
         socket.join(`staff:branch:${user.branchId.toString()}`);
       }
+
+      // UC-45: Push live badge count immediately on connect so client badge syncs without full list fetch
+      Notification.countDocuments({ userId: user._id, isRead: false })
+        .then((count) => {
+          socket.emit('notification:badge', { unreadCount: count });
+        })
+        .catch(() => {
+          // Non-fatal: badge will sync on next REST poll
+        });
     }
 
     socket.on('join_staff_console', (branchId?: string) => {
@@ -331,6 +342,7 @@ export const startServer = async () => {
   });
   startBookingExpiryJob();
   startOdometerAlertJob();
+  startBookingReminderJob();
   console.log(`[SERVER] MOTORENT Server running on http://localhost:${PORT}`);
   console.log(`[SECURITY] Active: Helmet, Rate Limiter, CORS whitelist, Trust Proxy: ${env.TRUST_PROXY || 1}`);
   console.log(`[HEALTH] Health check endpoint: http://localhost:${PORT}/api/health`);

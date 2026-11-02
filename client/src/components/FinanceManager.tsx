@@ -322,7 +322,7 @@ export const FinanceManager: React.FC = () => {
               {summary ? `${summary.netCashflow.toLocaleString('vi-VN')} đ` : '--'}
             </p>
             <span className="text-[11px] text-[#6E6E6E] mt-0.5 block">
-              Hoàn tiền: {summary ? `${summary.totalRefundsRecorded.toLocaleString('vi-VN')} đ` : '0 đ'}
+              Tiền vào {summary ? `${summary.totalRevenueRecorded.toLocaleString('vi-VN')} đ` : '--'} · Hoàn ra {summary ? `${summary.totalRefundsRecorded.toLocaleString('vi-VN')} đ` : '--'}
             </span>
           </div>
 

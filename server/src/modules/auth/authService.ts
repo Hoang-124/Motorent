@@ -12,7 +12,11 @@ import { env } from '../../config/env';
 import { deleteFromCloudinary, getSignedCloudinaryEkycUrl } from '../../config/cloudinary';
 import { AppError } from '../../core/errorHandler';
 import { uploadDir, privateEkycDir } from '../../core/uploadMiddleware';
+
+import { generateReferralCode } from '../loyalty/loyaltyService';
+
 import { decryptPiiText } from '../../core/cryptoVault';
+
 
 /**
  * Generate JWT token for user including tokenVersion
@@ -83,6 +87,7 @@ export const register = async (data: {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  referralCode?: string;
 }) => {
   const { username, email, password, firstName, lastName, phoneNumber } = data;
 
@@ -114,6 +119,23 @@ export const register = async (data: {
     }
   }
 
+  const referrerCode = data.referralCode?.trim().toUpperCase();
+  const referrer = referrerCode
+    ? await User.findOne({ referralCode: referrerCode, roles: 'Customer', status: 'Active' }).select('_id')
+    : null;
+  if (referrerCode && !referrer) {
+    throw new AppError(400, 'Mã giới thiệu không hợp lệ hoặc tài khoản giới thiệu không còn hoạt động.');
+  }
+
+  let newReferralCode = generateReferralCode();
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    if (!(await User.exists({ referralCode: newReferralCode }))) break;
+    newReferralCode = generateReferralCode();
+  }
+  if (await User.exists({ referralCode: newReferralCode })) {
+    throw new AppError(503, 'Không thể tạo mã giới thiệu lúc này. Vui lòng thử lại.');
+  }
+
   if (password.length < 8) {
     throw new AppError(400, 'Mật khẩu phải có độ dài tối thiểu từ 8 ký tự.');
   }
@@ -133,6 +155,10 @@ export const register = async (data: {
     firstName: firstName?.trim(),
     lastName: lastName?.trim(),
     phoneNumber: phoneNumber?.trim(),
+    referralCode: newReferralCode,
+    referredBy: referrer?._id,
+    referralRewarded: false,
+    promoSubscribed: false,
     roles: 'Customer',
     status: 'Unverified',
     isEmailVerified: false,
@@ -402,17 +428,60 @@ export const loginWithGoogle = async (googleIdToken: string) => {
   }
 
   const client = new OAuth2Client(env.GOOGLE_CLIENT_ID);
-  let ticket;
+  let payload: {
+    email?: string;
+    email_verified?: boolean;
+    sub?: string;
+    name?: string;
+    given_name?: string;
+    family_name?: string;
+    picture?: string;
+    aud?: string;
+    iss?: string;
+    exp?: number;
+  } | undefined;
+
   try {
-    ticket = await client.verifyIdToken({
+    const ticket = await client.verifyIdToken({
       idToken: googleIdToken.trim(),
       audience: env.GOOGLE_CLIENT_ID,
     });
-  } catch (error) {
-    throw new AppError(401, 'Xác thực Google ID Token không thành công. Chữ ký hoặc token không hợp lệ.');
+    payload = ticket.getPayload();
+  } catch (verifyErr) {
+    // Fallback for local Windows clock skew ("Token used too early" / "used too late")
+    // or transient Google cert endpoint fetch issues by verifying via Google's tokeninfo endpoint
+    try {
+      const response = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(googleIdToken.trim())}`
+      );
+      if (response.ok) {
+        const info = (await response.json()) as Record<string, unknown>;
+        const aud = String(info.aud || '');
+        const iss = String(info.iss || '');
+        const validIssuer = iss === 'accounts.google.com' || iss === 'https://accounts.google.com';
+        if (aud === env.GOOGLE_CLIENT_ID && validIssuer && info.email && info.sub) {
+          payload = {
+            email: String(info.email),
+            email_verified: info.email_verified === true || info.email_verified === 'true',
+            sub: String(info.sub),
+            name: info.name ? String(info.name) : undefined,
+            given_name: info.given_name ? String(info.given_name) : undefined,
+            family_name: info.family_name ? String(info.family_name) : undefined,
+            picture: info.picture ? String(info.picture) : undefined,
+            aud,
+            iss,
+          };
+        }
+      }
+    } catch {
+      // Ignore fallback error and throw standard 401 below
+    }
+
+    if (!payload) {
+      throw new AppError(401, 'Xác thực Google ID Token không thành công. Chữ ký hoặc token không hợp lệ.');
+    }
   }
 
-  const payload = ticket.getPayload();
   if (!payload || !payload.email) {
     throw new AppError(401, 'Không thể đọc thông tin email từ tài khoản Google.');
   }
@@ -422,7 +491,7 @@ export const loginWithGoogle = async (googleIdToken: string) => {
   }
 
   const { email, sub, name, given_name, family_name, picture } = payload;
-  const googleId = sub;
+  const googleId = sub || '';
   const normalizedEmail = email.toLowerCase();
 
   let user = await User.findOne({
@@ -434,7 +503,8 @@ export const loginWithGoogle = async (googleIdToken: string) => {
       throw new AppError(403, 'Tài khoản của bạn hiện đang bị tạm khóa.');
     }
 
-    if (!user.googleId) user.googleId = googleId;
+    if (!user.googleId && googleId) user.googleId = googleId;
+    if (user.status === 'Unverified') user.status = 'Active';
     user.isEmailVerified = true;
     if (!user.avatarUrl && picture) user.avatarUrl = picture;
     user.failedLoginAttempts = 0;
@@ -675,6 +745,16 @@ export const updateProfile = async (
   return sanitizeUser(user);
 };
 
+export const updatePreferences = async (userId: string, data: { promoSubscribed: boolean }) => {
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { promoSubscribed: data.promoSubscribed } },
+    { new: true, runValidators: true }
+  );
+  if (!user) throw new AppError(404, 'Tài khoản không tồn tại.');
+  return sanitizeUser(user);
+};
+
 /**
  * Update user avatar
  */
@@ -881,12 +961,17 @@ export const getEkycDocumentFile = async (
   // Check private uploads directory first
   let targetPath = path.join(privateEkycDir, safeFilename);
   if (!fs.existsSync(targetPath)) {
+    const cwdPath = path.join(process.cwd(), 'private_uploads', 'ekyc', safeFilename);
+    if (fs.existsSync(cwdPath)) {
+      targetPath = cwdPath;
+    } else {
     // Fallback to legacy uploads directory if uploaded previously
     const fallbackPath = path.join(uploadDir, safeFilename);
     if (fs.existsSync(fallbackPath)) {
       targetPath = fallbackPath;
     } else {
       throw new AppError(404, 'Tập tin giấy tờ không tồn tại trên hệ thống lưu trữ.');
+    }
     }
   }
 
@@ -987,5 +1072,4 @@ export const reviewEkyc = async (
 
   return sanitizeUser(targetUser);
 };
-
 

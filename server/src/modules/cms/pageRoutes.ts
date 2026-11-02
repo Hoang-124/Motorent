@@ -8,6 +8,7 @@ import {
   updateAdminPage,
   deleteAdminPage,
   getPublicPageBySlug,
+  getPublicPages,
 } from './pageController';
 
 // Admin Pages Router: /admin/pages
@@ -24,6 +25,7 @@ adminPageRouter.delete('/:id', deleteAdminPage);
 // Public Pages Router: /pages
 export const publicPageRouter = Router();
 
+publicPageRouter.get('/', getPublicPages);
 publicPageRouter.get('/:slug', getPublicPageBySlug);
 
 export default {

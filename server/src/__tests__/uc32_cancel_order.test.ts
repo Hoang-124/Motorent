@@ -188,7 +188,7 @@ describe('UC-32: Cancel Rental Order (BR-06 Policy)', () => {
     expect(updatedBooking?.refundStatus).toBe('None');
   });
 
-  it('4. Exception 32.0.E1: Disallow cancellation if booking is already Ongoing', async () => {
+  it('4. Allows mid-rental early cancellation when booking is Ongoing and calculates used days + termination fee', async () => {
     const booking = await Booking.create({
       bookingCode: `MV-CANC4-${Date.now().toString().slice(-4)}`,
       userId: customerId,
@@ -198,16 +198,18 @@ describe('UC-32: Cancel Rental Order (BR-06 Policy)', () => {
       pickupDateTime: new Date(Date.now() - 3600 * 1000),
       returnDateTime: new Date(Date.now() + 24 * 3600 * 1000),
       totalAmount: 500000,
+      depositAmount: 150000,
+      paidAmount: 500000,
       status: 'Ongoing',
     });
 
     const res = await request(app)
       .put(`/api/bookings/${booking._id}/cancel`)
       .set('Authorization', `Bearer ${customerToken}`)
-      .send();
+      .send({ cancelReason: 'Khách có việc đột xuất cần kết thúc chuyến sớm' });
 
-    expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/Không thể hủy đơn đặt xe đang trong hành trình/);
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toBe('Cancelled');
   });
 
   it('5. Exception 32.0.E1: Disallow cancellation if already Cancelled', async () => {

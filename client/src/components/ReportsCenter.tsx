@@ -511,6 +511,60 @@ export const ReportsCenter: React.FC = () => {
                   </table>
                 </div>
               </div>
+
+              <div className="bg-[#161616] border border-white/10 rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <DollarSign size={16} className="text-[#FFC799]" />
+                    Sổ giao dịch tiền vào và tiền hoàn ({dailyData.transactions.length})
+                  </h3>
+                  <span className="text-[11px] text-[#A0A0A0]">Chỉ giao dịch SUCCESS được tính vào dòng tiền</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#101010] border-b border-white/10 text-[11px] text-[#A0A0A0] uppercase font-semibold">
+                      <tr>
+                        <th className="py-3 px-4">Thời gian</th>
+                        <th className="py-3 px-4">Mã giao dịch</th>
+                        <th className="py-3 px-4">Mã đơn</th>
+                        <th className="py-3 px-4">Loại giao dịch</th>
+                        <th className="py-3 px-4">Trạng thái</th>
+                        <th className="py-3 px-4">Tiền vào / ra</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {dailyData.transactions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-8 text-center text-[#606060]">
+                            Không có giao dịch thanh toán hoặc hoàn tiền trong ngày.
+                          </td>
+                        </tr>
+                      ) : dailyData.transactions.map((transaction) => (
+                        <tr key={transaction.txnRef} className="hover:bg-white/[0.02]">
+                          <td className="py-3 px-4 text-[#A0A0A0]">{new Date(transaction.createdAt).toLocaleString('vi-VN')}</td>
+                          <td className="py-3 px-4 font-mono text-white">{transaction.txnRef}</td>
+                          <td className="py-3 px-4 font-mono text-[#FFC799]">{transaction.bookingCode}</td>
+                          <td className="py-3 px-4 text-[#D0D0D0]">{transaction.typeLabel}</td>
+                          <td className="py-3 px-4">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              transaction.status === 'SUCCESS'
+                                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
+                                : transaction.status === 'PENDING'
+                                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+                                  : 'bg-rose-500/10 border-rose-500/30 text-rose-300'
+                            }`}>
+                              {transaction.status}
+                            </span>
+                          </td>
+                          <td className={`py-3 px-4 font-bold ${transaction.direction === 'OUT' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                            {transaction.direction === 'OUT' ? '−' : '+'}{transaction.amount.toLocaleString('vi-VN')} đ
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -569,11 +623,11 @@ export const ReportsCenter: React.FC = () => {
               </div>
 
               {/* Monthly KPI Overview */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
                 <div className="bg-[#161616] border border-white/10 rounded-2xl p-5">
-                  <div className="text-xs font-bold text-[#A0A0A0] uppercase">Tổng doanh thu tháng</div>
+                  <div className="text-xs font-bold text-[#A0A0A0] uppercase">Dòng tiền thuần</div>
                   <div className="text-3xl font-black text-[#FFC799] mt-1.5">
-                    {monthlyData.summary.totalRevenue.toLocaleString('vi-VN')} đ
+                    {monthlyData.summary.netCashflow.toLocaleString('vi-VN')} đ
                   </div>
                   <div className="text-xs text-[#A0A0A0] mt-1">
                     Tháng trước: {monthlyData.summary.previousMonthRevenue.toLocaleString('vi-VN')} đ
@@ -581,11 +635,27 @@ export const ReportsCenter: React.FC = () => {
                 </div>
 
                 <div className="bg-[#161616] border border-white/10 rounded-2xl p-5">
-                  <div className="text-xs font-bold text-[#A0A0A0] uppercase">Tổng số chuyến xe</div>
+                  <div className="text-xs font-bold text-[#A0A0A0] uppercase">Tổng tiền vào</div>
+                  <div className="text-3xl font-black text-emerald-300 mt-1.5">
+                    {monthlyData.summary.grossRevenue.toLocaleString('vi-VN')} đ
+                  </div>
+                  <div className="text-xs text-[#A0A0A0] mt-1">Giao dịch thu thành công</div>
+                </div>
+
+                <div className="bg-[#161616] border border-white/10 rounded-2xl p-5">
+                  <div className="text-xs font-bold text-[#A0A0A0] uppercase">Tiền hoàn ra</div>
+                  <div className="text-3xl font-black text-rose-300 mt-1.5">
+                    {monthlyData.summary.totalRefunds.toLocaleString('vi-VN')} đ
+                  </div>
+                  <div className="text-xs text-[#A0A0A0] mt-1">Hoàn tiền đã thành công</div>
+                </div>
+
+                <div className="bg-[#161616] border border-white/10 rounded-2xl p-5">
+                  <div className="text-xs font-bold text-[#A0A0A0] uppercase">Đơn phát sinh</div>
                   <div className="text-3xl font-black text-white mt-1.5">
                     {monthlyData.summary.totalBookings} đơn
                   </div>
-                  <div className="text-xs text-emerald-400 mt-1">Đã hoàn tất thanh toán</div>
+                  <div className="text-xs text-[#A0A0A0] mt-1">Tạo trong tháng được chọn</div>
                 </div>
 
                 <div className="bg-[#161616] border border-white/10 rounded-2xl p-5">
@@ -593,7 +663,7 @@ export const ReportsCenter: React.FC = () => {
                   <div className="text-3xl font-black text-sky-400 mt-1.5">
                     {monthlyData.summary.averageOrderValue.toLocaleString('vi-VN')} đ
                   </div>
-                  <div className="text-xs text-[#A0A0A0] mt-1">Bao gồm cọc & phụ phí</div>
+                  <div className="text-xs text-[#A0A0A0] mt-1">Dòng tiền thuần / số đơn tạo mới</div>
                 </div>
               </div>
 
@@ -602,7 +672,7 @@ export const ReportsCenter: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <BarChart3 size={16} className="text-[#FFC799]" />
-                    Biểu đồ doanh thu từng ngày trong tháng
+                    Biểu đồ tiền vào từng ngày trong tháng
                   </h3>
                   <span className="text-xs text-[#A0A0A0]">Đơn vị: VNĐ</span>
                 </div>
@@ -622,7 +692,8 @@ export const ReportsCenter: React.FC = () => {
                             >
                               {/* Hover Tooltip */}
                               <div className="absolute -top-12 bg-[#101010] border border-white/15 px-2.5 py-1 rounded-lg text-[10px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl">
-                                <div className="font-bold">Ngày {item.day}: {item.revenue.toLocaleString('vi-VN')} đ</div>
+                                <div className="font-bold">Ngày {item.day}: Tiền vào {item.revenue.toLocaleString('vi-VN')} đ</div>
+                                <div className="text-rose-300">Hoàn ra {item.refunds.toLocaleString('vi-VN')} đ · Thuần {item.netRevenue.toLocaleString('vi-VN')} đ</div>
                                 <div className="text-[#A0A0A0]">{item.bookingsCount} đơn</div>
                               </div>
 
@@ -639,6 +710,50 @@ export const ReportsCenter: React.FC = () => {
                       </div>
                     );
                   })()}
+                </div>
+              </div>
+
+              <div className="bg-[#161616] border border-white/10 rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <DollarSign size={16} className="text-[#FFC799]" />
+                    Sổ giao dịch trong tháng ({monthlyData.transactions.length})
+                  </h3>
+                  <span className="text-[11px] text-[#A0A0A0]">Gồm cả giao dịch chờ, thất bại và hoàn tiền</span>
+                </div>
+                <div className="max-h-[28rem] overflow-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-[#101010] border-b border-white/10 text-[11px] text-[#A0A0A0] uppercase font-semibold">
+                      <tr>
+                        <th className="py-3 px-4">Thời gian</th>
+                        <th className="py-3 px-4">Mã giao dịch</th>
+                        <th className="py-3 px-4">Mã đơn</th>
+                        <th className="py-3 px-4">Loại</th>
+                        <th className="py-3 px-4">Trạng thái</th>
+                        <th className="py-3 px-4">Hướng</th>
+                        <th className="py-3 px-4 text-right">Số tiền (VND)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {monthlyData.transactions.length === 0 ? (
+                        <tr><td colSpan={7} className="py-8 text-center text-[#606060]">Không có giao dịch trong tháng.</td></tr>
+                      ) : monthlyData.transactions.map((transaction) => (
+                        <tr key={transaction.txnRef} className="hover:bg-white/[0.02]">
+                          <td className="py-3 px-4 whitespace-nowrap text-[#A0A0A0]">{new Date(transaction.createdAt).toLocaleString('vi-VN')}</td>
+                          <td className="py-3 px-4 font-mono text-white">{transaction.txnRef}</td>
+                          <td className="py-3 px-4 font-mono text-[#FFC799]">{transaction.bookingCode}</td>
+                          <td className="py-3 px-4 text-[#D0D0D0]">{transaction.typeLabel}</td>
+                          <td className="py-3 px-4 text-[#D0D0D0]">{transaction.status}</td>
+                          <td className={`py-3 px-4 font-semibold ${transaction.direction === 'OUT' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                            {transaction.direction === 'OUT' ? 'Tiền ra' : 'Tiền vào'}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-bold ${transaction.direction === 'OUT' ? 'text-rose-300' : 'text-emerald-300'}`}>
+                            {transaction.amount.toLocaleString('vi-VN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

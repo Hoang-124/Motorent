@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { 
@@ -64,7 +64,9 @@ export const LoginPage: React.FC = () => {
   const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
   const [gisReady, setGisReady] = useState(false);
 
-  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const googleClientId =
+    import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+    '956847251739-0rsphvuagch0sqhkkqb9lpf2afisoei7.apps.googleusercontent.com';
 
   // Check if redirected with a message
   const queryParams = new URLSearchParams(location.search);
@@ -146,40 +148,82 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  // Initialize official Google Identity Services (GIS)
+  const processGoogleCredentialRef = useRef(processGoogleCredential);
+  processGoogleCredentialRef.current = processGoogleCredential;
+
+  // Initialize official Google Identity Services (GIS) with script load retry
   useEffect(() => {
-    if (googleClientId && window.google?.accounts?.id) {
+    if (!googleClientId) return;
+
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    const initGisButton = (): boolean => {
+      if (cancelled || !window.google?.accounts?.id) return false;
+      const btnContainer = document.getElementById('google-official-btn');
+      if (!btnContainer) return false;
+
       try {
         window.google.accounts.id.initialize({
           client_id: googleClientId,
           callback: (response: GoogleCredentialResponse) => {
             if (response.credential) {
-              processGoogleCredential(response.credential);
+              processGoogleCredentialRef.current(response.credential);
             }
           },
           auto_select: false,
         });
 
-        const btnContainer = document.getElementById('google-official-btn');
-        if (btnContainer) {
-          const parentWidth = btnContainer.parentElement?.clientWidth || 380;
-          const targetWidth = Math.min(Math.max(parentWidth, 240), 400);
+        const parentWidth = btnContainer.parentElement?.clientWidth || 380;
+        const targetWidth = Math.min(Math.max(parentWidth, 240), 400);
 
-          window.google.accounts.id.renderButton(btnContainer, {
-            theme: 'outline',
-            size: 'large',
-            width: targetWidth,
-            text: 'signin_with',
-            shape: 'rectangular',
-            logo_alignment: 'center',
-            locale: 'vi',
-          });
-          setGisReady(true);
-        }
+        btnContainer.innerHTML = '';
+        window.google.accounts.id.renderButton(btnContainer, {
+          theme: 'outline',
+          size: 'large',
+          width: targetWidth,
+          text: 'signin_with',
+          shape: 'rectangular',
+          logo_alignment: 'center',
+          locale: 'vi',
+        });
+        setGisReady(true);
+        return true;
       } catch (e) {
         console.warn('Google Identity Services initialization error:', e);
+        return false;
       }
+    };
+
+    if (!initGisButton()) {
+      // Ensure script tag exists in document head if missing
+      const existingScript = document.querySelector('script[src*="accounts.google.com/gsi/client"]') as HTMLScriptElement | null;
+      if (!existingScript) {
+        const script = document.createElement('script');
+        script.src = 'https://accounts.google.com/gsi/client';
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          initGisButton();
+        };
+        document.head.appendChild(script);
+      } else {
+        existingScript.addEventListener('load', initGisButton);
+      }
+
+      let attempts = 0;
+      pollTimer = setInterval(() => {
+        attempts += 1;
+        if (initGisButton() || attempts > 80) {
+          if (pollTimer) clearInterval(pollTimer);
+        }
+      }, 150);
     }
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearInterval(pollTimer);
+    };
   }, [googleClientId]);
 
   const isGmail = /@(gmail\.com|googlemail\.com)$/i.test(identifier.trim());

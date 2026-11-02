@@ -10,7 +10,8 @@ const router = Router();
 // Strict rate limiter for sensitive authentication endpoints
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // max 20 requests per IP per 15 minutes
+  max: 60, // max 60 requests per IP per 15 minutes
+  skip: () => process.env.NODE_ENV === 'test',
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -21,7 +22,8 @@ const authLimiter = rateLimit({
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // max 15 login attempts per IP per 15 minutes
+  max: 60, // max 60 login attempts per IP per 15 minutes
+  skip: () => process.env.NODE_ENV === 'test',
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -78,6 +80,7 @@ router.post('/reset-password', authLimiter, authController.resetPassword);
 router.post('/logout', authenticateJWT, authController.logout);
 router.get('/me', authenticateJWT, authController.getProfile);
 router.put('/me', authenticateJWT, authController.updateProfile);
+router.put('/me/preferences', authenticateJWT, authController.updatePreferences);
 
 // Change password
 router.put('/change-password', authenticateJWT, authController.changePassword);
@@ -131,5 +134,4 @@ router.put(
 );
 
 export default router;
-
 

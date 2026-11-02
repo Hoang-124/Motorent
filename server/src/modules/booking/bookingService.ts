@@ -17,6 +17,11 @@ import { emitBookingStatus } from './bookingEvents';
 import { isCloudinaryConfigured, uploadDataUriToCloudinary } from '../../config/cloudinary';
 import { sendBookingStatusEmail } from '../../config/mailer';
 import { quoteVehicleRental } from '../pricing/pricingService';
+import { schedulePickupReminders } from '../../core/jobs/bookingReminderJob';
+import { rewardReferralOnFirstCompletedBooking } from '../loyalty/loyaltyService';
+import { sendBookingStatusUpdateEmail } from './bookingEmailService';
+import { createUserNotification } from '../notifications/notificationService';
+import { notifyBranchOperations } from '../../core/notificationDispatch';
 
 export interface CreateBookingDto {
   vehicleId: string;
@@ -279,6 +284,11 @@ export const createBooking = async (
           isActive: true,
           startDate: { $lte: currentDate },
           endDate: { $gte: currentDate },
+          $or: [
+            { ownerUserId: { $exists: false } },
+            { ownerUserId: null },
+            { ownerUserId: user._id },
+          ],
           $expr: { $lt: ['$usedCount', '$usageLimit'] },
         },
         { $inc: { usedCount: 1 } },
@@ -287,10 +297,14 @@ export const createBooking = async (
 
       if (appliedDiscount) {
         if (!appliedDiscount.minBookingAmount || basePrice >= appliedDiscount.minBookingAmount) {
-          const rawDiscount = Math.round(basePrice * (appliedDiscount.discountPercent / 100));
-          discountAmount = appliedDiscount.maxDiscountAmount
-            ? Math.min(appliedDiscount.maxDiscountAmount, rawDiscount)
-            : rawDiscount;
+          if (appliedDiscount.fixedDiscountAmount) {
+            discountAmount = Math.min(basePrice, appliedDiscount.fixedDiscountAmount);
+          } else {
+            const rawDiscount = Math.round(basePrice * (appliedDiscount.discountPercent / 100));
+            discountAmount = appliedDiscount.maxDiscountAmount
+              ? Math.min(appliedDiscount.maxDiscountAmount, rawDiscount)
+              : rawDiscount;
+          }
           discountDoc = appliedDiscount;
         } else {
           // Revert usage count if min booking amount not met
@@ -315,6 +329,8 @@ export const createBooking = async (
         pickupDateTime: pickupDate,
         returnDateTime: returnDate,
         totalAmount,
+        baseRentalAmount: rentalQuote.baseRentalAmount,
+        seasonalSurcharge: rentalQuote.seasonalSurcharge,
         depositAmount,
         remainingAmount,
         discountId: discountDoc?._id,
@@ -328,6 +344,21 @@ export const createBooking = async (
       });
 
       // Only send immediate notification for Cash hold at counter; online Banking notifications are sent after VNPay/VietQR payment succeeds
+      await notifyBranchOperations({
+        branchIds: [pickupBranch._id, returnBranch._id],
+        title: `Đơn thuê mới ${bookingCode}`,
+        body: `Có đơn thuê xe ${vehicle.vehicleModel} cần theo dõi tại chi nhánh nhận xe. Trạng thái thanh toán: ${newBooking.depositPaid ? 'đã thanh toán cọc' : 'đang chờ thanh toán'}.`,
+        type: 'BOOKING',
+        relatedId: newBooking._id.toString(),
+        data: {
+          bookingId: newBooking._id.toString(),
+          bookingCode,
+          pickupBranchId: pickupBranch._id.toString(),
+          returnBranchId: returnBranch._id.toString(),
+          status: newBooking.status,
+        },
+      }).catch((err: unknown) => console.error('[Branch notification error]', err));
+
       if (data.paymentMethod === 'Cash') {
         Notification.create({
           userId: user._id,
@@ -339,17 +370,10 @@ export const createBooking = async (
         }).catch((err: unknown) => console.error('[Notification error]', err));
       }
 
-      // Schedule pickup reminder
-      const reminderTime = new Date(pickupDate.getTime() - 2 * 3600 * 1000);
-      if (reminderTime > new Date()) {
-        BookingReminder.create({
-          bookingId: newBooking._id,
-          reminderType: 'PICKUP_UPCOMING',
-          scheduledTime: reminderTime,
-          status: 'Pending',
-          channel: 'SMS',
-        }).catch((err: unknown) => console.error('[Reminder error]', err));
-      }
+      void schedulePickupReminders(newBooking).catch((error: unknown) =>
+        console.error(`[Reminder error] Failed to schedule booking ${bookingCode}:`, error)
+      );
+      await sendBookingStatusUpdateEmail(newBooking);
 
       return newBooking;
     } catch (createErr) {
@@ -454,10 +478,14 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
 
       if (!isExpired && !isNotStarted && !isUsageExceeded) {
         if (!discount.minBookingAmount || basePrice >= discount.minBookingAmount) {
-          const rawDiscount = Math.round(basePrice * (discount.discountPercent / 100));
-          discountAmount = discount.maxDiscountAmount
-            ? Math.min(discount.maxDiscountAmount, rawDiscount)
-            : rawDiscount;
+          if (discount.fixedDiscountAmount) {
+            discountAmount = Math.min(basePrice, discount.fixedDiscountAmount);
+          } else {
+            const rawDiscount = Math.round(basePrice * (discount.discountPercent / 100));
+            discountAmount = discount.maxDiscountAmount
+              ? Math.min(discount.maxDiscountAmount, rawDiscount)
+              : rawDiscount;
+          }
           appliedDiscount = {
             code: discount.code,
             discountPercent: discount.discountPercent,
@@ -899,7 +927,7 @@ export const buildOrderDetails = (booking: IBooking) => {
     discountAmount: booking.discountAmount || 0,
     totalAmount: booking.totalAmount,
     depositAmount: booking.depositAmount,
-    paidAmount: booking.paidAmount || 0,
+    paidAmount: booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0),
     remainingAmount: booking.remainingAmount || 0,
     lateFee: booking.lateFee || 0,
     damageFee: booking.damageFee || 0,
@@ -910,7 +938,11 @@ export const buildOrderDetails = (booking: IBooking) => {
   };
 
   const actions: OrderAvailableActions = {
-    canPayDeposit: isPending && !booking.depositPaid && !booking.isPaid,
+    canPayDeposit:
+      (booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0)) <
+        booking.depositAmount &&
+      !isCancelled &&
+      !isCompleted,
     canPayFull: !booking.isPaid && (booking.remainingAmount || 0) > 0 && !isCancelled,
     canCancel: (isPending || isApproved || isConfirmed || isOngoing) && !isCancelled,
     canExtend: (isConfirmed || isOngoing) && !isCancelled,
@@ -1248,14 +1280,32 @@ export const checkoutBooking = async (
 
   // Award loyalty points once: 1 point per 10,000 VND
   if (!booking.loyaltyAwarded) {
-    const actualPaid = booking.totalAmount - (booking.discountAmount || 0);
-    const pointsEarned = Math.floor(actualPaid / 10000);
+    const pointsEarned = Math.floor(Math.max(0, booking.totalAmount) / 10000);
     booking.loyaltyPointsEarned = pointsEarned;
     booking.loyaltyAwarded = true;
-    await User.findByIdAndUpdate(booking.userId, { $inc: { loyaltyPoints: pointsEarned } }).catch(() => {});
+    if (pointsEarned > 0) {
+      const rewardedCustomer = await User.findByIdAndUpdate(
+        booking.userId,
+        { $inc: { loyaltyPoints: pointsEarned } },
+        { new: true }
+      ).select('_id');
+      if (!rewardedCustomer) {
+        throw new AppError(404, 'Không tìm thấy khách hàng để cộng điểm thành viên.');
+      }
+    }
   }
 
   await booking.save();
+  await rewardReferralOnFirstCompletedBooking(booking.userId);
+  await sendBookingStatusUpdateEmail(booking);
+  await createUserNotification({
+    userId: booking.userId,
+    title: `Đơn ${booking.bookingCode} đã hoàn tất`,
+    body: `Đơn thuê xe đã hoàn tất. Bạn được cộng ${booking.loyaltyPointsEarned} điểm thành viên.`,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
+    data: { bookingId: booking._id.toString(), status: booking.status },
+  }).catch((error: unknown) => console.error('[Notification] Could not create checkout notification:', error));
 
   if (finalDue > 0) {
     await Payment.create({
@@ -1368,8 +1418,9 @@ export const recordCounterPayment = async (
     throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0 VNĐ.');
   }
 
+  const currentPaidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
   const isInitialPendingUnpaid =
-    booking.status === 'Pending' && !booking.depositPaid && (booking.paidAmount || 0) === 0;
+    booking.status === 'Pending' && !booking.depositPaid && currentPaidAmount === 0;
   const maxPayableBalance = isInitialPendingUnpaid
     ? booking.totalAmount
     : booking.remainingAmount || 0;
@@ -1382,7 +1433,7 @@ export const recordCounterPayment = async (
   }
 
   const wasPending = booking.status === 'Pending';
-  booking.paidAmount = (booking.paidAmount || 0) + amount;
+  booking.paidAmount = currentPaidAmount + amount;
   if (isInitialPendingUnpaid) {
     booking.remainingAmount = Math.max(0, booking.totalAmount - booking.paidAmount);
   } else {
@@ -1391,15 +1442,17 @@ export const recordCounterPayment = async (
   if (booking.remainingAmount === 0) {
     booking.isPaid = true;
   }
-  if (wasPending) {
+  booking.depositPaid = booking.paidAmount >= booking.depositAmount;
+  if (wasPending && (booking.depositPaid || booking.isPaid)) {
     booking.status = 'Confirmed';
   }
-  booking.depositPaid = true;
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
   booking.counterPaidAt = new Date();
   await booking.save();
 
-  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
+  if (booking.status !== 'Pending') {
+    await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
+  }
 
   await AuditLog.create({
     userId: staffUser._id,
@@ -1708,11 +1761,12 @@ export const cancelBooking = async (
   }
 
   // Send customer notification
-  await Notification.create({
+  await createUserNotification({
     userId: booking.userId,
     title: `Đơn đặt xe ${booking.bookingCode} đã được hủy`,
-    message: policyNotice,
-    type: 'BOOKING_CANCELLED',
+    body: policyNotice,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
     data: {
       bookingId: booking._id,
       bookingCode: booking.bookingCode,
@@ -1839,17 +1893,20 @@ export const requestRefund = async (
   await Payment.findOneAndUpdate(
     { bookingId: booking._id, type: 'REFUND' },
     {
-      bookingId: booking._id,
-      txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
-      amount: booking.refundAmount,
-      type: 'REFUND',
-      status: 'PENDING',
-      rawIpn: {
-        bankName: data.bankName,
-        bankAccountNumber: data.bankAccountNumber,
-        bankAccountName: data.bankAccountName,
-        reason: data.reason,
+      $set: {
+        bookingId: booking._id,
+        txnRef: `REFUND-${booking.bookingCode}-${Date.now()}`,
+        amount: booking.refundAmount,
+        type: 'REFUND',
+        status: 'PENDING',
+        rawIpn: {
+          bankName: data.bankName,
+          bankAccountNumber: data.bankAccountNumber,
+          bankAccountName: data.bankAccountName,
+          reason: data.reason,
+        },
       },
+      $unset: { processedAt: 1 },
     },
     { upsert: true, new: true }
   ).catch((err: unknown) => console.error('[Refund Payment Error]', err));
@@ -1858,8 +1915,9 @@ export const requestRefund = async (
   await Notification.create({
     userId: booking.userId,
     title: `Đã tiếp nhận thông tin hoàn tiền đơn ${booking.bookingCode}`,
-    message: `Yêu cầu hoàn số tiền ${(booking.refundAmount || 0).toLocaleString('vi-VN')} đ về tài khoản ${data.bankAccountNumber} (${data.bankName}) đang được kế toán/quản lý phê duyệt.`,
-    type: 'BOOKING_REFUND_REQUESTED',
+    body: `Yêu cầu hoàn số tiền ${(booking.refundAmount || 0).toLocaleString('vi-VN')} đ về tài khoản ${data.bankAccountNumber} (${data.bankName}) đang được kế toán/quản lý phê duyệt.`,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
     data: {
       bookingId: booking._id,
       bookingCode: booking.bookingCode,
@@ -1867,6 +1925,20 @@ export const requestRefund = async (
       bankName: data.bankName,
     },
   }).catch(() => {});
+
+  await notifyBranchOperations({
+    branchIds: [booking.pickupBranchId],
+    title: `Yêu cầu hoàn tiền ${booking.bookingCode} cần duyệt`,
+    body: `Khách hàng đã gửi thông tin hoàn tiền ${(booking.refundAmount || 0).toLocaleString('vi-VN')} đ. Vui lòng xem và xử lý yêu cầu tại trang đơn đặt xe.`,
+    type: 'BOOKING',
+    relatedId: booking._id.toString(),
+    data: {
+      bookingId: booking._id.toString(),
+      bookingCode: booking.bookingCode,
+      refundAmount: booking.refundAmount || 0,
+      refundStatus: booking.refundStatus,
+    },
+  }).catch((err: unknown) => console.error('[Branch notification error]', err));
 
   // AuditLog
   await AuditLog.create({
@@ -1906,11 +1978,59 @@ export interface ExtensionEstimateResult {
   addedDays: number;
   oldTotalAmount: number;
   addedAmount: number;
+  addedBaseAmount: number;
+  addedSeasonalSurcharge: number;
   newTotalAmount: number;
+  extensionDepositAmount: number;
+  newDepositAmount: number;
+  depositTopUpAmount: number;
   newRemainingAmount: number;
   isAvailable: boolean;
   requiresPayment: boolean;
 }
+
+const quoteBookingExtension = async (booking: IBooking, newReturnDate: Date) => {
+  const vehicle = await Vehicle.findById(booking.vehicleId);
+  if (!vehicle) {
+    throw new AppError(404, 'Không tìm thấy thông tin phương tiện.');
+  }
+
+  const [currentQuote, extendedQuote] = await Promise.all([
+    quoteVehicleRental(vehicle, booking.pickupDateTime, booking.returnDateTime),
+    quoteVehicleRental(vehicle, booking.pickupDateTime, newReturnDate),
+  ]);
+  const baselineGrossAmount = booking.totalAmount + (booking.discountAmount || 0);
+  const baselineBaseAmount = booking.baseRentalAmount ?? currentQuote.baseRentalAmount;
+  const baselineSeasonalSurcharge =
+    booking.seasonalSurcharge ?? (baselineGrossAmount - baselineBaseAmount);
+  const quoteDelta =
+    extendedQuote.rentalAmount - (baselineBaseAmount + baselineSeasonalSurcharge);
+  const addedBaseAmount = quoteDelta > 0
+    ? extendedQuote.baseRentalAmount - baselineBaseAmount
+    : 0;
+  const addedSeasonalSurcharge = quoteDelta > 0
+    ? extendedQuote.seasonalSurcharge - baselineSeasonalSurcharge
+    : 0;
+  const addedAmount = Math.max(0, quoteDelta);
+  const newTotalAmount = booking.totalAmount + addedAmount;
+  const paidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
+  const extensionDepositAmount = Math.round(addedAmount * 0.3);
+  const newDepositAmount = Math.max(booking.depositAmount || 0, paidAmount) + extensionDepositAmount;
+
+  return {
+    vehicle,
+    addedBaseAmount,
+    addedSeasonalSurcharge,
+    addedAmount,
+    newTotalAmount,
+    extensionDepositAmount,
+    newDepositAmount,
+    depositTopUpAmount: Math.max(0, newDepositAmount - paidAmount),
+    newRemainingAmount: Math.max(0, newTotalAmount - paidAmount),
+    baseRentalAmount: baselineBaseAmount + addedBaseAmount,
+    seasonalSurcharge: baselineSeasonalSurcharge + addedSeasonalSurcharge,
+  };
+};
 
 /**
  * Preview / estimate rental extension costs and verify availability (UC-34)
@@ -1985,25 +2105,9 @@ export const estimateBookingExtension = async (
     );
   }
 
-  const vehicle = await Vehicle.findById(booking.vehicleId);
-  if (!vehicle) {
-    throw new AppError(404, 'Không tìm thấy thông tin phương tiện.');
-  }
-
-  let basePrice = 0;
-  if (totalHours < 24 && vehicle.hourlyPrice) {
-    basePrice = Math.ceil(totalHours) * vehicle.hourlyPrice;
-  } else {
-    const diffDays = Math.max(1, Math.ceil(totalHours / 24));
-    basePrice = diffDays * vehicle.dailyPrice;
-  }
-
-  const discountAmount = booking.discountAmount || 0;
-  const newTotalAmount = Math.max(0, basePrice - discountAmount);
-  const addedAmount = Math.max(0, newTotalAmount - booking.totalAmount);
+  const extensionQuote = await quoteBookingExtension(booking, newReturnDate);
   const addedHours = (newReturnDate.getTime() - booking.returnDateTime.getTime()) / (1000 * 3600);
   const addedDays = Math.ceil(addedHours / 24);
-  const newRemainingAmount = (booking.remainingAmount || 0) + addedAmount;
 
   return {
     bookingId: booking._id.toString(),
@@ -2013,11 +2117,16 @@ export const estimateBookingExtension = async (
     addedHours: Math.round(addedHours * 10) / 10,
     addedDays,
     oldTotalAmount: booking.totalAmount,
-    addedAmount,
-    newTotalAmount,
-    newRemainingAmount,
+    addedAmount: extensionQuote.addedAmount,
+    addedBaseAmount: extensionQuote.addedBaseAmount,
+    addedSeasonalSurcharge: extensionQuote.addedSeasonalSurcharge,
+    newTotalAmount: extensionQuote.newTotalAmount,
+    extensionDepositAmount: extensionQuote.extensionDepositAmount,
+    newDepositAmount: extensionQuote.newDepositAmount,
+    depositTopUpAmount: extensionQuote.depositTopUpAmount,
+    newRemainingAmount: extensionQuote.newRemainingAmount,
     isAvailable: true,
-    requiresPayment: addedAmount > 0,
+    requiresPayment: extensionQuote.depositTopUpAmount > 0,
   };
 };
 
@@ -2095,22 +2204,7 @@ export const extendBooking = async (
       );
     }
 
-    const vehicle = await Vehicle.findById(booking.vehicleId);
-    if (!vehicle) {
-      throw new AppError(404, 'Không tìm thấy thông tin phương tiện.');
-    }
-
-    let basePrice = 0;
-    if (totalHours < 24 && vehicle.hourlyPrice) {
-      basePrice = Math.ceil(totalHours) * vehicle.hourlyPrice;
-    } else {
-      const diffDays = Math.max(1, Math.ceil(totalHours / 24));
-      basePrice = diffDays * vehicle.dailyPrice;
-    }
-
-    const discountAmount = booking.discountAmount || 0;
-    const newTotalAmount = Math.max(0, basePrice - discountAmount);
-    const addedAmount = Math.max(0, newTotalAmount - booking.totalAmount);
+    const extensionQuote = await quoteBookingExtension(booking, newReturnDate);
     const oldReturnDateTime = booking.returnDateTime;
 
     if (!booking.originalReturnDateTime) {
@@ -2118,11 +2212,13 @@ export const extendBooking = async (
     }
 
     booking.returnDateTime = newReturnDate;
-    booking.totalAmount = newTotalAmount;
-    booking.remainingAmount = (booking.remainingAmount || 0) + addedAmount;
-    if (addedAmount > 0) {
-      booking.isPaid = false;
-    }
+    booking.totalAmount = extensionQuote.newTotalAmount;
+    booking.baseRentalAmount = extensionQuote.baseRentalAmount;
+    booking.seasonalSurcharge = extensionQuote.seasonalSurcharge;
+    booking.depositAmount = extensionQuote.newDepositAmount;
+    booking.depositPaid = extensionQuote.depositTopUpAmount === 0;
+    booking.remainingAmount = extensionQuote.newRemainingAmount;
+    booking.isPaid = booking.remainingAmount === 0;
     booking.extensionCount = (booking.extensionCount || 0) + 1;
     booking.lastExtendedAt = new Date();
 
@@ -2137,8 +2233,13 @@ export const extendBooking = async (
         bookingCode: booking.bookingCode,
         oldReturnDateTime,
         newReturnDateTime: newReturnDate,
-        addedAmount,
-        newTotalAmount,
+        addedAmount: extensionQuote.addedAmount,
+        addedBaseAmount: extensionQuote.addedBaseAmount,
+        addedSeasonalSurcharge: extensionQuote.addedSeasonalSurcharge,
+        newTotalAmount: booking.totalAmount,
+        extensionDepositAmount: extensionQuote.extensionDepositAmount,
+        newDepositAmount: booking.depositAmount,
+        depositTopUpAmount: extensionQuote.depositTopUpAmount,
         remainingAmount: booking.remainingAmount,
       },
       timestamp: new Date(),
@@ -2147,8 +2248,9 @@ export const extendBooking = async (
     await Notification.create({
       userId: booking.userId,
       title: 'Gia hạn chuyến xe thành công',
-      message: `Đơn thuê xe ${booking.bookingCode} đã được gia hạn đến ${newReturnDate.toLocaleString('vi-VN')}. Phí phát sinh: ${addedAmount.toLocaleString('vi-VN')} đ.`,
-      type: 'BOOKING_UPDATE',
+      body: `Đơn thuê xe ${booking.bookingCode} đã được gia hạn đến ${newReturnDate.toLocaleString('vi-VN')}. Phí phát sinh: ${extensionQuote.addedAmount.toLocaleString('vi-VN')} đ. Cần bù cọc: ${extensionQuote.depositTopUpAmount.toLocaleString('vi-VN')} đ.`,
+      type: 'BOOKING',
+      relatedId: booking._id.toString(),
     }).catch(() => {});
 
     emitBookingStatus(booking);
@@ -2164,8 +2266,13 @@ export const extendBooking = async (
     (result as unknown as Record<string, unknown>).extensionSummary = {
       oldReturnDateTime,
       newReturnDateTime: newReturnDate,
-      addedAmount,
-      newTotalAmount,
+      addedAmount: extensionQuote.addedAmount,
+      addedBaseAmount: extensionQuote.addedBaseAmount,
+      addedSeasonalSurcharge: extensionQuote.addedSeasonalSurcharge,
+      newTotalAmount: booking.totalAmount,
+      extensionDepositAmount: extensionQuote.extensionDepositAmount,
+      newDepositAmount: booking.depositAmount,
+      depositTopUpAmount: extensionQuote.depositTopUpAmount,
       remainingAmount: booking.remainingAmount,
       extensionCount: booking.extensionCount,
     };
@@ -2456,6 +2563,7 @@ export const approveRefund = async (
   if (refundPayment) {
     refundPayment.status = 'SUCCESS';
     refundPayment.amount = booking.refundAmount || 0;
+    refundPayment.processedAt = new Date();
     await refundPayment.save();
   } else {
     await Payment.create({
@@ -2464,6 +2572,7 @@ export const approveRefund = async (
       amount: booking.refundAmount || 0,
       type: 'REFUND',
       status: 'SUCCESS',
+      processedAt: new Date(),
     });
   }
 
@@ -2552,6 +2661,7 @@ export const rejectRefund = async (
 
   if (refundPayment) {
     refundPayment.status = 'FAILED';
+    refundPayment.processedAt = new Date();
     await refundPayment.save();
   } else {
     await Payment.create({
@@ -2560,6 +2670,7 @@ export const rejectRefund = async (
       amount: booking.refundAmount || 0,
       type: 'REFUND',
       status: 'FAILED',
+      processedAt: new Date(),
     });
   }
 

@@ -23,7 +23,7 @@ export interface INotification extends Document {
 
 const NotificationSchema = new Schema<INotification>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     title: { type: String, required: true, trim: true },
     body: { type: String, required: true, trim: true },
     type: {
@@ -31,7 +31,7 @@ const NotificationSchema = new Schema<INotification>(
       enum: ['SYSTEM', 'BOOKING', 'REMINDER', 'PROMO', 'MAINTENANCE', 'TRANSFER'],
       default: 'SYSTEM',
     },
-    relatedId: { type: String },
+    relatedId: { type: String, trim: true },
     isRead: { type: Boolean, default: false },
     data: { type: Schema.Types.Mixed },
   },
@@ -39,6 +39,21 @@ const NotificationSchema = new Schema<INotification>(
 );
 
 NotificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
+
+NotificationSchema.pre('validate', function (next) {
+  if (!this.body && (this as unknown as { message?: string }).message) {
+    this.body = (this as unknown as { message: string }).message;
+  }
+  const validTypes = ['SYSTEM', 'BOOKING', 'REMINDER', 'PROMO', 'MAINTENANCE', 'TRANSFER'];
+  if (this.type && !validTypes.includes(this.type)) {
+    if (this.type.startsWith('BOOKING')) {
+      this.type = 'BOOKING';
+    } else {
+      this.type = 'SYSTEM';
+    }
+  }
+  next();
+});
 
 NotificationSchema.post('save', (doc: INotification) => {
   if (doc && doc.userId) {

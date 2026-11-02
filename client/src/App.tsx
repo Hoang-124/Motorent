@@ -37,6 +37,7 @@ import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
 import { ManagementNav } from './components/ManagementNav';
 import { ReportsCenter } from './components/ReportsCenter';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const VehicleDetailPage = lazy(() =>
   import('./pages/VehicleDetailPage').then((module) => ({ default: module.VehicleDetailPage }))
@@ -88,6 +89,7 @@ function RoleBasedHome() {
 
 export function App() {
   return (
+    <ErrorBoundary>
     <ThemeProvider>
       <I18nProvider>
         <AuthProvider>
@@ -342,6 +344,7 @@ export function App() {
     </AuthProvider>
       </I18nProvider>
     </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
