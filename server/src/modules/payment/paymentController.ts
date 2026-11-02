@@ -17,9 +17,10 @@ export const createPaymentUrl = async (
       throw new AppError(401, 'Yêu cầu đăng nhập để thanh toán.');
     }
 
-    const { bookingId, paymentType, bankCode, locale } = req.body;
-    if (!bookingId) {
-      throw new AppError(400, 'Thiếu thông tin bookingId để thanh toán.');
+    const { bookingId, bookingIds, paymentType, bankCode, locale } = req.body;
+    const hasIds = Array.isArray(bookingIds) && bookingIds.length > 0;
+    if (!bookingId && !hasIds) {
+      throw new AppError(400, 'Thiếu thông tin bookingId hoặc bookingIds để thanh toán.');
     }
 
     const ipAddr =
@@ -27,6 +28,7 @@ export const createPaymentUrl = async (
 
     const result = await vnpayService.createPaymentUrl({
       bookingId,
+      bookingIds,
       userId: req.user._id.toString(),
       ipAddr,
       paymentType: paymentType === 'Full100' ? 'Full100' : 'Deposit30',

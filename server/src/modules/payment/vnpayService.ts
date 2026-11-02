@@ -14,7 +14,8 @@ import { emitBookingStatus } from '../booking/bookingEvents';
 export type VnpParams = Record<string, string | number | undefined>;
 
 export interface CreatePaymentUrlOptions {
-  bookingId: string;
+  bookingId?: string;
+  bookingIds?: string[];
   userId: string;
   ipAddr: string;
   paymentType?: 'Deposit30' | 'Full100';
@@ -119,42 +120,69 @@ export const verifyVnPayChecksum = (
 };
 
 /**
- * Create VNPay payment URL for Booking (30% deposit or 100% full payment)
+ * Create VNPay payment URL for 1 or multiple Bookings (30% deposit or 100% full payment)
  */
 export const createPaymentUrl = async (
   options: CreatePaymentUrlOptions
-): Promise<{ paymentUrl: string; bookingCode: string; amount: number; paymentType: string }> => {
-  const { bookingId, userId, ipAddr, paymentType = 'Deposit30', bankCode, locale = 'vn' } = options;
+): Promise<{
+  paymentUrl: string;
+  bookingCode: string;
+  bookingCodes: string[];
+  amount: number;
+  paymentType: string;
+}> => {
+  const {
+    bookingId,
+    bookingIds,
+    userId,
+    ipAddr,
+    paymentType = 'Deposit30',
+    bankCode,
+    locale = 'vn',
+  } = options;
 
-  const booking = await Booking.findById(bookingId);
-  if (!booking) {
+  const targetIds =
+    Array.isArray(bookingIds) && bookingIds.length > 0
+      ? bookingIds
+      : bookingId
+        ? [bookingId]
+        : [];
+
+  if (targetIds.length === 0) {
+    throw new AppError(400, 'Thiếu thông tin đơn đặt xe để thanh toán.');
+  }
+
+  const bookings = await Booking.find({ _id: { $in: targetIds } });
+  if (bookings.length === 0) {
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
 
-  // Ensure caller is the owner of the booking
-  if (booking.userId.toString() !== userId) {
-    throw new AppError(403, 'Bạn không có quyền thanh toán cho đơn đặt xe này.');
+  for (const booking of bookings) {
+    if (booking.userId.toString() !== userId) {
+      throw new AppError(403, `Bạn không có quyền thanh toán cho đơn ${booking.bookingCode}.`);
+    }
+    if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
+      throw new AppError(400, `Đơn đặt xe ${booking.bookingCode} đã bị hủy hoặc từ chối.`);
+    }
+    if (booking.isPaid) {
+      throw new AppError(400, `Đơn đặt xe ${booking.bookingCode} đã được thanh toán hoàn tất.`);
+    }
+    if (paymentType === 'Deposit30' && booking.depositPaid) {
+      throw new AppError(
+        400,
+        `Đơn đặt xe ${booking.bookingCode} đã hoàn tất cọc 30%. Vui lòng chọn thanh toán đầy đủ 100%.`
+      );
+    }
   }
 
-  if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
-    throw new AppError(400, 'Đơn đặt xe đã bị hủy hoặc từ chối.');
-  }
-
-  if (booking.isPaid) {
-    throw new AppError(400, 'Đơn đặt xe này đã được thanh toán hoàn tất.');
-  }
-
-  if (paymentType === 'Deposit30' && booking.depositPaid) {
-    throw new AppError(400, 'Đơn đặt xe này đã hoàn tất cọc 30%. Vui lòng tất toán tại quầy hoặc chọn thanh toán đầy đủ.');
-  }
-
-  // Calculate amount to pay: Deposit 30% vs Full 100%
-  const amountToPay =
+  const calcSingleBookingAmount = (b: IBooking): number =>
     paymentType === 'Full100'
-      ? booking.depositPaid && booking.remainingAmount
-        ? booking.remainingAmount
-        : booking.totalAmount
-      : booking.depositAmount;
+      ? b.depositPaid && b.remainingAmount
+        ? b.remainingAmount
+        : b.totalAmount
+      : b.depositAmount;
+
+  const amountToPay = bookings.reduce((sum, b) => sum + calcSingleBookingAmount(b), 0);
 
   if (amountToPay <= 0) {
     throw new AppError(400, 'Số tiền thanh toán phải lớn hơn 0 VNĐ.');
@@ -170,8 +198,14 @@ export const createPaymentUrl = async (
   const vnpUrl = env.VNP_URL || 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html';
   const returnUrl = env.VNP_RETURNURL || 'http://localhost:5173/vnpay-return';
 
+  const bookingCodes = bookings.map((b) => b.bookingCode);
+  const combinedCodeLabel = bookingCodes.join(', ');
+
   // Suffix with timestamp to prevent duplicate TxnRef collisions on VNPay retry
-  const txnRef = `${booking.bookingCode}__${Date.now()}`;
+  const txnRef =
+    bookings.length === 1
+      ? `${bookings[0].bookingCode}__${Date.now()}`
+      : `CART-${bookings.length}XE-${bookings[0].bookingCode}__${Date.now()}`;
 
   // Sanitize IP address
   let clientIp = ipAddr || '127.0.0.1';
@@ -182,6 +216,11 @@ export const createPaymentUrl = async (
     clientIp = '127.0.0.1';
   }
 
+  const orderInfoText =
+    bookings.length === 1
+      ? `Thanh toan ${paymentType === 'Full100' ? '100%' : 'coc 30%'} don thue ${bookings[0].bookingCode}`
+      : `Thanh toan gop ${bookings.length} xe (${paymentType === 'Full100' ? '100%' : 'coc 30%'}) - ${combinedCodeLabel}`;
+
   const vnpParams: VnpParams = {
     vnp_Version: '2.1.0',
     vnp_Command: 'pay',
@@ -189,7 +228,7 @@ export const createPaymentUrl = async (
     vnp_Locale: locale,
     vnp_CurrCode: 'VND',
     vnp_TxnRef: txnRef,
-    vnp_OrderInfo: `Thanh toan ${paymentType === 'Full100' ? '100%' : 'coc 30%'} don thue ${booking.bookingCode}`,
+    vnp_OrderInfo: orderInfoText,
     vnp_OrderType: 'other',
     vnp_Amount: Math.round(amountToPay * 100), // VNPay standard: amount in VND * 100
     vnp_ReturnUrl: returnUrl,
@@ -205,24 +244,28 @@ export const createPaymentUrl = async (
   const { signData, secureHash } = sortAndSignParams(vnpParams, secretKey);
   const paymentUrl = `${vnpUrl}?${signData}&vnp_SecureHash=${secureHash}`;
 
-  // Update booking with payment metadata
-  booking.paymentType = paymentType;
-  booking.lastTxnRef = txnRef;
-  booking.paymentExpiresAt = expireDateObj;
-  await booking.save();
+  // Update all bookings in the batch with payment metadata
+  await Promise.all(
+    bookings.map(async (b) => {
+      b.paymentType = paymentType;
+      b.lastTxnRef = txnRef;
+      b.paymentExpiresAt = expireDateObj;
+      await b.save();
+    })
+  );
 
   // Audit log payment creation
   AuditLog.create({
-    userId: booking.userId,
+    userId: bookings[0].userId,
     action: 'CREATE_PAYMENT_URL',
     entity: 'Booking',
-    entityId: booking._id.toString(),
+    entityId: bookings[0]._id.toString(),
     details: {
-      bookingCode: booking.bookingCode,
+      bookingCodes,
       txnRef,
       amountToPay,
       paymentType,
-      expiresAt: booking.paymentExpiresAt,
+      expiresAt: expireDateObj,
     },
     ipAddress: clientIp,
     timestamp: now,
@@ -230,7 +273,8 @@ export const createPaymentUrl = async (
 
   return {
     paymentUrl,
-    bookingCode: booking.bookingCode,
+    bookingCode: combinedCodeLabel,
+    bookingCodes,
     amount: amountToPay,
     paymentType,
   };
@@ -239,6 +283,7 @@ export const createPaymentUrl = async (
 /**
  * Handle VNPay IPN Webhook (Server-to-Server callback)
  * Conforms to VNPay Merchant specification with standard RspCode
+ * Supports both single-booking and multi-booking Cart batch transactions
  */
 export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnResult> => {
   const secretKey = getVnpSecretKey();
@@ -254,24 +299,32 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
     return { RspCode: '01', Message: 'Order not found' };
   }
 
-  // Extract bookingCode from txnRef (handles "MV-XXXXXX__timestamp" format)
-  const bookingCode = txnRef.includes('__') ? txnRef.split('__')[0] : txnRef;
+  // Find all bookings sharing this batch txnRef, or fallback to single bookingCode
+  let bookings = await Booking.find({ lastTxnRef: txnRef });
+  if (bookings.length === 0) {
+    const rawCode = txnRef.includes('__') ? txnRef.split('__')[0] : txnRef;
+    const singleBooking = await Booking.findOne({ bookingCode: rawCode });
+    if (singleBooking) {
+      bookings = [singleBooking];
+    }
+  }
 
-  const booking = await Booking.findOne({ bookingCode });
-  if (!booking) {
+  if (bookings.length === 0) {
     return { RspCode: '01', Message: 'Order not found' };
   }
 
-  // 2. Validate Amount
-  const vnpAmount = Number(queryParams['vnp_Amount']);
-  const expectedAmount =
-    booking.paymentType === 'Full100'
-      ? booking.depositPaid && booking.remainingAmount
-        ? booking.remainingAmount
-        : booking.totalAmount
-      : booking.depositAmount;
+  const getExpectedForBooking = (b: IBooking): number =>
+    b.paymentType === 'Full100'
+      ? b.depositPaid && b.remainingAmount
+        ? b.remainingAmount
+        : b.totalAmount
+      : b.depositAmount;
 
-  if (isNaN(vnpAmount) || Math.round(expectedAmount * 100) !== vnpAmount) {
+  // 2. Validate Total Amount across all bookings in this transaction
+  const vnpAmount = Number(queryParams['vnp_Amount']);
+  const totalExpectedAmount = bookings.reduce((sum, b) => sum + getExpectedForBooking(b), 0);
+
+  if (isNaN(vnpAmount) || Math.round(totalExpectedAmount * 100) !== vnpAmount) {
     return { RspCode: '04', Message: 'Invalid amount' };
   }
 
@@ -292,199 +345,189 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
     vnpayPayDate = new Date(Date.UTC(yyyy, MM, dd, HH - 7, mm, ss));
   }
 
-  // 3. Handle Edge Case: Booking was cancelled by timeout job, but payment arrived
-  if (booking.status === 'Cancelled') {
-    if (responseCode === '00' && transactionStatus === '00') {
-      await Booking.findByIdAndUpdate(booking._id, {
+  // 3. Idempotency Check: All bookings in batch already confirmed
+  const allAlreadyConfirmed = bookings.every(
+    (b) =>
+      b.isPaid ||
+      b.depositPaid ||
+      b.status === 'Confirmed' ||
+      b.status === 'Ongoing' ||
+      b.status === 'Completed'
+  );
+  if (allAlreadyConfirmed) {
+    return { RspCode: '02', Message: 'Order already confirmed' };
+  }
+
+  // 4. Process each booking in the transaction batch
+  if (responseCode === '00' && transactionStatus === '00') {
+    for (const booking of bookings) {
+      const expectedAmount = getExpectedForBooking(booking);
+      const isFullPay = booking.paymentType === 'Full100';
+
+      if (booking.status === 'Cancelled') {
+        await Booking.findByIdAndUpdate(booking._id, {
+          vnpayTransactionNo: String(vnpTransactionNo),
+          vnpayBankCode: String(vnpBankCode),
+          vnpayPayDate,
+          paidAmount: expectedAmount,
+        });
+
+        await Payment.create({
+          bookingId: booking._id,
+          txnRef: `${txnRef}__${booking.bookingCode}`,
+          vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+          amount: expectedAmount,
+          type: isFullPay ? 'FULL' : 'DEPOSIT',
+          status: 'SUCCESS',
+          rawIpn: queryParams,
+        }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+        continue;
+      }
+
+      const updatePayload: Record<string, unknown> = {
         vnpayTransactionNo: String(vnpTransactionNo),
         vnpayBankCode: String(vnpBankCode),
         vnpayPayDate,
         paidAmount: expectedAmount,
-      });
+        depositPaid: true,
+        isPaid: isFullPay,
+        status: 'Confirmed',
+        remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - expectedAmount),
+      };
 
-      // Record transaction row in Payment collection
+      const updatedBooking = await Booking.findOneAndUpdate(
+        { _id: booking._id, status: { $in: ['Pending', 'Confirmed'] } },
+        { $set: updatePayload },
+        { new: true }
+      );
+
+      if (!updatedBooking) continue;
+
+      const paymentRefKey = bookings.length === 1 ? String(txnRef) : `${txnRef}__${booking.bookingCode}`;
+
       await Payment.create({
         bookingId: booking._id,
-        txnRef: String(txnRef),
+        txnRef: paymentRefKey,
         vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
         amount: expectedAmount,
-        type: booking.paymentType === 'Full100' ? 'FULL' : 'DEPOSIT',
+        type: isFullPay ? 'FULL' : 'DEPOSIT',
         status: 'SUCCESS',
         rawIpn: queryParams,
       }).catch((err: unknown) => console.error('[Payment Record Error]', err));
 
+      emitBookingStatus(updatedBooking);
+
+      Promise.all([
+        User.findById(booking.userId).select('email firstName lastName username'),
+        Vehicle.findById(booking.vehicleId).select('brand vehicleModel licensePlate'),
+      ])
+        .then(([cust, veh]) => {
+          if (cust?.email) {
+            sendBookingStatusEmail({
+              toEmail: cust.email,
+              customerName: [cust.lastName, cust.firstName].filter(Boolean).join(' ').trim() || cust.username,
+              bookingCode: booking.bookingCode,
+              event: 'CONFIRMED',
+              vehicleName: veh ? `${veh.brand} ${veh.vehicleModel}` : undefined,
+              licensePlate: veh?.licensePlate,
+              totalAmount: updatedBooking.totalAmount,
+              paidAmount: updatedBooking.paidAmount,
+              remainingAmount: updatedBooking.remainingAmount,
+            }).catch(() => {});
+          }
+        })
+        .catch(() => {});
+
+      await Notification.create({
+        userId: booking.userId,
+        title: isFullPay ? 'Thanh toán 100% thành công qua VNPay' : 'Xác nhận cọc 30% thành công qua VNPay',
+        body: `Đơn thuê ${booking.bookingCode} đã nhận thanh toán số tiền ${expectedAmount.toLocaleString('vi-VN')} đ. Xe đã được khóa giữ cho bạn!`,
+        type: 'BOOKING',
+        relatedId: booking._id.toString(),
+        isRead: false,
+      }).catch((err: unknown) => console.error('[Notification Error]', err));
+
       await AuditLog.create({
         userId: booking.userId,
-        action: 'VNPAY_PAID_AFTER_CANCEL_REFUND_NEEDED',
+        action: 'VNPAY_PAYMENT_SUCCESS',
         entity: 'Booking',
         entityId: booking._id.toString(),
         details: {
           bookingCode: booking.bookingCode,
           vnpTransactionNo,
+          vnpBankCode,
           amount: expectedAmount,
-          note: 'Khách hàng thanh toán sau khi đơn bị quá hạn tự hủy. Cần hoàn tiền!',
+          paymentType: booking.paymentType,
+          responseCode,
+          transactionStatus,
+          batchSize: bookings.length,
         },
         timestamp: new Date(),
       }).catch((err: unknown) => console.error('[AuditLog Error]', err));
-
-      return { RspCode: '00', Message: 'Confirm Success' };
     }
-    return { RspCode: '00', Message: 'Confirm Success' };
-  }
-
-  // 4. Idempotency Check: Already confirmed
-  if (booking.isPaid || booking.depositPaid || booking.status === 'Confirmed' || booking.status === 'Ongoing' || booking.status === 'Completed') {
-    return { RspCode: '02', Message: 'Order already confirmed' };
-  }
-
-  // 5. Check if transaction was successful on gateway
-  if (responseCode === '00' && transactionStatus === '00') {
-    const isFullPay = booking.paymentType === 'Full100';
-    const updatePayload: Record<string, unknown> = {
-      vnpayTransactionNo: String(vnpTransactionNo),
-      vnpayBankCode: String(vnpBankCode),
-      vnpayPayDate,
-      paidAmount: expectedAmount,
-      depositPaid: true,
-      isPaid: isFullPay,
-      status: 'Confirmed',
-      remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - expectedAmount),
-    };
-
-    // Atomic compare-and-swap: transition if status is 'Pending' or 'Confirmed'
-    const updatedBooking = await Booking.findOneAndUpdate(
-      { _id: booking._id, status: { $in: ['Pending', 'Confirmed'] } },
-      { $set: updatePayload },
-      { new: true }
-    );
-
-    if (!updatedBooking) {
-      return { RspCode: '02', Message: 'Order already confirmed' };
-    }
-
-    // Record transaction row in Payment collection
-    await Payment.create({
-      bookingId: booking._id,
-      txnRef: String(txnRef),
-      vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
-      amount: expectedAmount,
-      type: isFullPay ? 'FULL' : 'DEPOSIT',
-      status: 'SUCCESS',
-      rawIpn: queryParams,
-    }).catch((err: unknown) => console.error('[Payment Record Error]', err));
-
-    // Emit real-time status update to socket rooms (UC-37)
-    emitBookingStatus(updatedBooking);
-
-    // Send booking confirmation email asynchronously (UC-46)
-    Promise.all([
-      User.findById(booking.userId).select('email firstName lastName username'),
-      Vehicle.findById(booking.vehicleId).select('brand vehicleModel licensePlate'),
-    ])
-      .then(([cust, veh]) => {
-        if (cust?.email) {
-          sendBookingStatusEmail({
-            toEmail: cust.email,
-            customerName: [cust.lastName, cust.firstName].filter(Boolean).join(' ').trim() || cust.username,
-            bookingCode: booking.bookingCode,
-            event: 'CONFIRMED',
-            vehicleName: veh ? `${veh.brand} ${veh.vehicleModel}` : undefined,
-            licensePlate: veh?.licensePlate,
-            totalAmount: updatedBooking.totalAmount,
-            paidAmount: updatedBooking.paidAmount,
-            remainingAmount: updatedBooking.remainingAmount,
-          }).catch(() => {});
-        }
-      })
-      .catch(() => {});
-
-    // Notify user
-    await Notification.create({
-      userId: booking.userId,
-      title: isFullPay ? 'Thanh toán 100% thành công qua VNPay' : 'Xác nhận cọc 30% thành công qua VNPay',
-      body: `Đơn thuê ${booking.bookingCode} đã nhận thanh toán số tiền ${expectedAmount.toLocaleString('vi-VN')} đ. Xe đã được khóa giữ cho bạn!`,
-      type: 'BOOKING',
-      relatedId: booking._id.toString(),
-      isRead: false,
-    }).catch((err: unknown) => console.error('[Notification Error]', err));
-
-    // Audit log
-    await AuditLog.create({
-      userId: booking.userId,
-      action: 'VNPAY_PAYMENT_SUCCESS',
-      entity: 'Booking',
-      entityId: booking._id.toString(),
-      details: {
-        bookingCode: booking.bookingCode,
-        vnpTransactionNo,
-        vnpBankCode,
-        amount: expectedAmount,
-        paymentType: booking.paymentType,
-        responseCode,
-        transactionStatus,
-      },
-      timestamp: new Date(),
-    }).catch((err: unknown) => console.error('[AuditLog Error]', err));
 
     return { RspCode: '00', Message: 'Confirm Success' };
   } else {
     // Payment Failed or Cancelled by customer on gateway
-    const existingFailedPayment = await Payment.findOne({ txnRef: String(txnRef), status: 'FAILED' });
-    if (!existingFailedPayment) {
-      await Payment.create({
-        bookingId: booking._id,
-        txnRef: String(txnRef),
-        vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
-        amount: expectedAmount,
-        type: booking.paymentType === 'Full100' ? 'FULL' : 'DEPOSIT',
-        status: 'FAILED',
-        rawIpn: queryParams,
-      }).catch((err: unknown) => console.error('[Payment Record Error]', err));
-    }
+    for (const booking of bookings) {
+      const expectedAmount = getExpectedForBooking(booking);
+      const paymentRefKey = bookings.length === 1 ? String(txnRef) : `${txnRef}__${booking.bookingCode}`;
 
-    // Automatically cancel unpaid Pending booking so vehicle is unlocked and not shown as active/successful
-    if (booking.status === 'Pending' && !booking.depositPaid && !booking.isPaid) {
-      const cancelReasonText =
-        responseCode === '24'
-          ? 'Khách hàng đã chủ động hủy thanh toán trên cổng VNPay Sandbox.'
-          : `Giao dịch thanh toán VNPay không thành công (Mã lỗi: ${responseCode}).`;
+      const existingFailedPayment = await Payment.findOne({ txnRef: paymentRefKey, status: 'FAILED' });
+      if (!existingFailedPayment) {
+        await Payment.create({
+          bookingId: booking._id,
+          txnRef: paymentRefKey,
+          vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+          amount: expectedAmount,
+          type: booking.paymentType === 'Full100' ? 'FULL' : 'DEPOSIT',
+          status: 'FAILED',
+          rawIpn: queryParams,
+        }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+      }
 
-      const cancelledBooking = await Booking.findByIdAndUpdate(
-        booking._id,
-        {
-          $set: {
-            status: 'Cancelled',
-            cancelReason: cancelReasonText,
+      if (booking.status === 'Pending' && !booking.depositPaid && !booking.isPaid) {
+        const cancelReasonText =
+          responseCode === '24'
+            ? 'Khách hàng đã chủ động hủy thanh toán trên cổng VNPay Sandbox.'
+            : `Giao dịch thanh toán VNPay không thành công (Mã lỗi: ${responseCode}).`;
+
+        const cancelledBooking = await Booking.findByIdAndUpdate(
+          booking._id,
+          {
+            $set: {
+              status: 'Cancelled',
+              cancelReason: cancelReasonText,
+            },
           },
+          { new: true }
+        );
+
+        if (booking.discountId) {
+          await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
+        }
+
+        await Notification.deleteMany({ relatedId: booking._id.toString() }).catch(() => {});
+
+        if (cancelledBooking) {
+          emitBookingStatus(cancelledBooking);
+        }
+      }
+
+      await AuditLog.create({
+        userId: booking.userId,
+        action: 'VNPAY_PAYMENT_FAILED',
+        entity: 'Booking',
+        entityId: booking._id.toString(),
+        details: {
+          bookingCode: booking.bookingCode,
+          vnpTransactionNo,
+          responseCode,
+          transactionStatus,
         },
-        { new: true }
-      );
-
-      if (booking.discountId) {
-        await Discount.findByIdAndUpdate(booking.discountId, { $inc: { usedCount: -1 } }).catch(() => {});
-      }
-
-      // Remove any premature hold notification for this booking
-      await Notification.deleteMany({ relatedId: booking._id.toString() }).catch(() => {});
-
-      if (cancelledBooking) {
-        emitBookingStatus(cancelledBooking);
-      }
+        timestamp: new Date(),
+      }).catch((err: unknown) => console.error('[AuditLog Error]', err));
     }
-
-    await AuditLog.create({
-      userId: booking.userId,
-      action: 'VNPAY_PAYMENT_FAILED',
-      entity: 'Booking',
-      entityId: booking._id.toString(),
-      details: {
-        bookingCode: booking.bookingCode,
-        vnpTransactionNo,
-        responseCode,
-        transactionStatus,
-      },
-      timestamp: new Date(),
-    }).catch((err: unknown) => console.error('[AuditLog Error]', err));
 
     return { RspCode: '00', Message: 'Confirm Success' };
   }
@@ -492,7 +535,6 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
 
 /**
  * Handle VNPay Return URL (Customer Browser Redirect)
- * STRICT READ-ONLY: Never update database state on browser redirect!
  */
 export const verifyReturnUrlData = async (
   queryParams: VnpParams
@@ -500,15 +542,17 @@ export const verifyReturnUrlData = async (
   isValid: boolean;
   isSuccess: boolean;
   bookingCode: string;
+  bookingCodes: string[];
   amount: number;
   message: string;
   booking?: IBooking | null;
+  bookings?: IBooking[];
 }> => {
   const secretKey = getVnpSecretKey();
   const isValid = verifyVnPayChecksum(queryParams, secretKey);
 
   const txnRef = String(queryParams['vnp_TxnRef'] || '');
-  const bookingCode = txnRef.includes('__') ? txnRef.split('__')[0] : txnRef;
+  const rawCode = txnRef.includes('__') ? txnRef.split('__')[0] : txnRef;
   const responseCode = queryParams['vnp_ResponseCode'];
   const amount = Number(queryParams['vnp_Amount']) / 100 || 0;
 
@@ -516,7 +560,8 @@ export const verifyReturnUrlData = async (
     return {
       isValid: false,
       isSuccess: false,
-      bookingCode,
+      bookingCode: rawCode,
+      bookingCodes: [rawCode],
       amount,
       message: 'Chữ ký xác thực thanh toán không hợp lệ.',
     };
@@ -527,18 +572,37 @@ export const verifyReturnUrlData = async (
     console.error('[VNPay Return Sync Error]:', err)
   );
 
-  const booking = await Booking.findOne({ bookingCode })
+  let bookings = await Booking.find({ lastTxnRef: txnRef })
     .populate('pickupBranchId')
-    .populate('returnBranchId');
+    .populate('returnBranchId')
+    .populate('vehicleId');
+
+  if (bookings.length === 0) {
+    const single = await Booking.findOne({ bookingCode: rawCode })
+      .populate('pickupBranchId')
+      .populate('returnBranchId')
+      .populate('vehicleId');
+    if (single) {
+      bookings = [single];
+    }
+  }
+
+  const bookingCodes = bookings.length > 0 ? bookings.map((b) => b.bookingCode) : [rawCode];
+  const bookingCode = bookingCodes.join(', ');
 
   if (responseCode === '00') {
     return {
       isValid: true,
       isSuccess: true,
       bookingCode,
+      bookingCodes,
       amount,
-      message: 'Giao dịch thanh toán thành công.',
-      booking,
+      message:
+        bookings.length > 1
+          ? `Đã thanh toán gộp thành công cho ${bookings.length} xe (${bookingCode}).`
+          : 'Giao dịch thanh toán thành công.',
+      booking: bookings[0] || null,
+      bookings,
     };
   }
 
@@ -546,9 +610,11 @@ export const verifyReturnUrlData = async (
     isValid: true,
     isSuccess: false,
     bookingCode,
+    bookingCodes,
     amount,
     message: 'Giao dịch thanh toán không thành công hoặc đã bị hủy.',
-    booking,
+    booking: bookings[0] || null,
+    bookings,
   };
 };
 

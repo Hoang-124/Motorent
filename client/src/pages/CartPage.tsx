@@ -68,11 +68,14 @@ export const CartPage: React.FC = () => {
   const [returnTime, setReturnTime] = useState<string>('18:00');
 
   const [discountCode, setDiscountCode] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<'Banking' | 'Cash'>('Cash');
+  const [paymentMethod, setPaymentMethod] = useState<'Banking' | 'Cash'>('Banking');
+  const [paymentType, setPaymentType] = useState<'Deposit30' | 'Full100'>('Deposit30');
+  const [copiedCard, setCopiedCard] = useState<boolean>(false);
 
   const [estimates, setEstimates] = useState<Record<string, VehicleEstimateItem>>({});
   const [estimating, setEstimating] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [redirectingVnPay, setRedirectingVnPay] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [createdOrders, setCreatedOrders] = useState<CreatedOrderSummary[]>([]);
 
@@ -85,7 +88,7 @@ export const CartPage: React.FC = () => {
           setBranches(list.filter((b: Branch) => b.isActive !== false));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const getVehicleBranchId = (v: Vehicle): string => {
@@ -200,6 +203,35 @@ export const CartPage: React.FC = () => {
     return { totalAmount, depositAmount, remainingAmount, discountAmount, unavailableCount };
   }, [cartItems, estimates]);
 
+  const handleBatchVnPayRedirect = async (
+    bookingIds: string[],
+    selectedType: 'Deposit30' | 'Full100' = paymentType
+  ) => {
+    if (bookingIds.length === 0) return;
+    setRedirectingVnPay(true);
+    setErrorMsg('');
+    try {
+      const vnpRes = await api.post('/payments/vnpay/create', {
+        bookingIds,
+        paymentType: selectedType,
+      });
+      const paymentUrl = vnpRes.data?.data?.paymentUrl;
+      if (paymentUrl) {
+        window.location.href = paymentUrl;
+        return;
+      }
+      setErrorMsg('Không nhận được đường dẫn thanh toán VNPay Sandbox từ máy chủ.');
+    } catch (err: unknown) {
+      const msg =
+        axios.isAxiosError(err) && err.response?.data?.message
+          ? err.response.data.message
+          : 'Không thể khởi tạo giao dịch VNPay Sandbox gộp cho giỏ xe.';
+      setErrorMsg(msg);
+    } finally {
+      setRedirectingVnPay(false);
+    }
+  };
+
   const handleCheckoutAll = async () => {
     if (!isAuthenticated || !user) {
       navigate('/login?returnTo=/cart');
@@ -261,7 +293,17 @@ export const CartPage: React.FC = () => {
     setSubmitting(false);
 
     if (successList.length > 0) {
-      setCreatedOrders((prev) => [...prev, ...successList]);
+      const allCreated = [...createdOrders, ...successList];
+      setCreatedOrders(allCreated);
+
+      // If user selected VNPay Sandbox, immediately redirect to pay for ALL vehicles in 1 single transaction!
+      if (paymentMethod === 'Banking' && failedMessages.length === 0) {
+        await handleBatchVnPayRedirect(
+          allCreated.map((o) => o.bookingId),
+          paymentType
+        );
+        return;
+      }
     }
 
     if (failedMessages.length > 0) {
@@ -270,6 +312,9 @@ export const CartPage: React.FC = () => {
   };
 
   if (createdOrders.length > 0 && cartItems.length === 0) {
+    const combinedTotal = createdOrders.reduce((s, o) => s + o.totalAmount, 0);
+    const combinedDeposit = createdOrders.reduce((s, o) => s + o.depositAmount, 0);
+
     return (
       <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto bg-[#161616] border border-white/10 rounded-3xl p-6 sm:p-10 space-y-6 shadow-2xl">
@@ -280,8 +325,69 @@ export const CartPage: React.FC = () => {
                 Đã khởi tạo thành công {createdOrders.length} đơn thuê xe!
               </h1>
               <p className="text-xs text-[#A0A0A0] mt-0.5">
-                Tất cả phương tiện trong giỏ xe đã được tạo hợp đồng giữ chỗ riêng biệt để dễ dàng nhận/trả từng xe.
+                Bạn có thể thanh toán gộp tất cả {createdOrders.length} xe trong 1 lần duy nhất qua cổng VNPay Sandbox bên dưới.
               </p>
+            </div>
+          </div>
+
+          {errorMsg && (
+            <div className="p-4 rounded-2xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-[#FF8080] text-xs flex items-start space-x-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {/* Batch VNPay Sandbox Action Card */}
+          <div className="p-5 rounded-2xl bg-[#101010] border border-[#FFC799]/35 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#FFC799] block">
+                  Thanh toán gộp 1 lần cho tất cả {createdOrders.length} xe (VNPay Sandbox)
+                </span>
+                <p className="text-xs text-[#A0A0A0] mt-0.5">
+                  Tổng cọc 30%: <strong className="text-[#FFC799] font-mono-tabular">{combinedDeposit.toLocaleString('vi-VN')} đ</strong> · Tổng 100%: <strong className="text-[#F5F5F5] font-mono-tabular">{combinedTotal.toLocaleString('vi-VN')} đ</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={redirectingVnPay}
+                onClick={() =>
+                  handleBatchVnPayRedirect(
+                    createdOrders.map((o) => o.bookingId),
+                    'Deposit30'
+                  )
+                }
+                className="py-3 px-4 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] disabled:opacity-50 text-[#101010] text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>
+                  {redirectingVnPay
+                    ? 'Đang chuyển tới VNPay Sandbox...'
+                    : `Cọc 30% tất cả ${createdOrders.length} xe (${combinedDeposit.toLocaleString('vi-VN')} đ)`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                disabled={redirectingVnPay}
+                onClick={() =>
+                  handleBatchVnPayRedirect(
+                    createdOrders.map((o) => o.bookingId),
+                    'Full100'
+                  )
+                }
+                className="py-3 px-4 rounded-xl bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 border border-[#99FFE4]/40 disabled:opacity-50 text-[#99FFE4] text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>
+                  {redirectingVnPay
+                    ? 'Đang chuyển tới VNPay Sandbox...'
+                    : `Thanh toán 100% tất cả ${createdOrders.length} xe (${combinedTotal.toLocaleString('vi-VN')} đ)`}
+                </span>
+              </button>
             </div>
           </div>
 
@@ -313,9 +419,9 @@ export const CartPage: React.FC = () => {
 
                 <Link
                   to={`/orders/${ord.bookingId}`}
-                  className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-[#FFC799] text-[#F5F5F5] hover:text-[#101010] text-xs font-semibold transition-colors shrink-0"
+                  className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-[#F5F5F5] text-xs font-semibold transition-colors shrink-0"
                 >
-                  <span>Chi tiết &amp; Thanh toán</span>
+                  <span>Xem hợp đồng</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -402,15 +508,14 @@ export const CartPage: React.FC = () => {
             <div className="lg:col-span-7 space-y-4">
               {cartItems.map((vehicle) => {
                 const rawImg = vehicle.images?.[1] || vehicle.images?.[0] || '';
-                const imgUrl = rawImg ? getOptimizedVehicleImageUrl(rawImg, 320) : '';
+                const imgUrl = rawImg ? getOptimizedVehicleImageUrl(rawImg, { width: 320 }) : '';
                 const est = estimates[vehicle._id];
 
                 return (
                   <div
                     key={vehicle._id}
-                    className={`p-4 sm:p-5 rounded-2xl bg-[#161616] border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-                      est && !est.isAvailable ? 'border-[#FF8080]/50' : 'border-white/10'
-                    }`}
+                    className={`p-4 sm:p-5 rounded-2xl bg-[#161616] border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${est && !est.isAvailable ? 'border-[#FF8080]/50' : 'border-white/10'
+                      }`}
                   >
                     <div className="flex items-center space-x-4 min-w-0">
                       <div className="w-24 h-20 rounded-xl studio-paper-backdrop overflow-hidden flex items-center justify-center shrink-0 p-2">
@@ -484,36 +589,26 @@ export const CartPage: React.FC = () => {
                 <span>Lịch trình &amp; Trạm trả xe chung</span>
               </h2>
 
-              <div className="space-y-3">
-                <DateTimePicker
-                  label="Thời gian nhận xe"
-                  mode="pickup"
-                  dateValue={pickupDate}
-                  timeValue={pickupTime}
-                  onDateChange={(val) => {
-                    setPickupDate(val);
-                    const norm = normalizeReturnSchedule(val, pickupTime, returnDate, returnTime);
-                    setReturnDate(norm.returnDate);
-                    setReturnTime(norm.returnTime);
-                  }}
-                  onTimeChange={(val) => {
-                    setPickupTime(val);
-                    const norm = normalizeReturnSchedule(pickupDate, val, returnDate, returnTime);
-                    setReturnDate(norm.returnDate);
-                    setReturnTime(norm.returnTime);
-                  }}
-                />
-                <DateTimePicker
-                  label="Thời gian trả xe"
-                  mode="return"
-                  dateValue={returnDate}
-                  timeValue={returnTime}
-                  referenceDate={pickupDate}
-                  referenceTime={pickupTime}
-                  onDateChange={setReturnDate}
-                  onTimeChange={setReturnTime}
-                />
-              </div>
+              <DateTimePicker
+                pickupDate={pickupDate}
+                pickupTime={pickupTime}
+                returnDate={returnDate}
+                returnTime={returnTime}
+                onPickupDateChange={(val) => {
+                  setPickupDate(val);
+                  const norm = normalizeReturnSchedule(val, pickupTime, returnDate, returnTime);
+                  setReturnDate(norm.returnDate);
+                  setReturnTime(norm.returnTime);
+                }}
+                onPickupTimeChange={(val) => {
+                  setPickupTime(val);
+                  const norm = normalizeReturnSchedule(pickupDate, val, returnDate, returnTime);
+                  setReturnDate(norm.returnDate);
+                  setReturnTime(norm.returnTime);
+                }}
+                onReturnDateChange={setReturnDate}
+                onReturnTimeChange={setReturnTime}
+              />
 
               {/* Flexible Cross-Branch Return Selector */}
               <div className="space-y-1.5">
@@ -551,24 +646,13 @@ export const CartPage: React.FC = () => {
               </div>
 
               {/* Payment Method */}
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <label className="text-xs font-semibold text-[#A0A0A0] flex items-center space-x-1.5">
                   <CreditCard className="w-3.5 h-3.5 text-[#FFC799]" />
-                  <span>Phương thức đặt cọc</span>
+                  <span>Phương thức thanh toán gộp cho tất cả xe</span>
                 </label>
+
                 <div className="grid grid-cols-2 gap-2.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('Cash')}
-                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                      paymentMethod === 'Cash'
-                        ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5] font-semibold'
-                        : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
-                    }`}
-                  >
-                    <span className="block font-bold text-[#F5F5F5]">Thanh toán tại quầy</span>
-                    <span className="text-[10px] text-[#A0A0A0]">Giữ chỗ 30 phút tại trạm</span>
-                  </button>
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('Banking')}
@@ -576,12 +660,89 @@ export const CartPage: React.FC = () => {
                       paymentMethod === 'Banking'
                         ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5] font-semibold'
                         : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
-                    }`}
+                      }`}
                   >
-                    <span className="block font-bold text-[#F5F5F5]">Cọc Online VNPay</span>
-                    <span className="text-[10px] text-[#A0A0A0]">Thanh toán cọc 30%</span>
+                    <span className="block font-bold text-[#F5F5F5]">VNPay Sandbox</span>
+                    <span className="text-[10px] text-[#99FFE4]">Thanh toán gộp 1 lần</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod('Cash')}
+                    className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      paymentMethod === 'Cash'
+                        ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5] font-semibold'
+                        : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
+                      }`}
+                  >
+                    <span className="block font-bold text-[#F5F5F5]">Thanh toán tại quầy</span>
+                    <span className="text-[10px] text-[#A0A0A0]">Giữ chỗ 30 phút tại trạm</span>
                   </button>
                 </div>
+
+                {paymentMethod === 'Banking' && (
+                  <div className="space-y-2.5 pt-1">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentType('Deposit30')}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          paymentType === 'Deposit30'
+                            ? 'bg-[#99FFE4]/10 border-[#99FFE4] text-[#F5F5F5]'
+                            : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
+                        }`}
+                      >
+                        <span className="block font-bold text-[#FFC799]">Cọc 30% cả giỏ</span>
+                        <span className="font-mono-tabular text-[11px] text-[#F5F5F5]">
+                          {totals.depositAmount.toLocaleString('vi-VN')} đ
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPaymentType('Full100')}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          paymentType === 'Full100'
+                            ? 'bg-[#99FFE4]/10 border-[#99FFE4] text-[#F5F5F5]'
+                            : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
+                        }`}
+                      >
+                        <span className="block font-bold text-[#99FFE4]">Trả 100% cả giỏ</span>
+                        <span className="font-mono-tabular text-[11px] text-[#F5F5F5]">
+                          {totals.totalAmount.toLocaleString('vi-VN')} đ
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* VNPay Sandbox Test Card Box */}
+                    <div className="p-3 rounded-xl bg-[#101010] border border-[#FFC799]/25 text-[11px] space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[#FFC799]">
+                          Thẻ Test VNPay Sandbox (Môi trường thử nghiệm)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard?.writeText('9704198526191432198');
+                            setCopiedCard(true);
+                            setTimeout(() => setCopiedCard(false), 2000);
+                          }}
+                          className="px-2 py-0.5 rounded bg-[#FFC799]/15 hover:bg-[#FFC799]/30 text-[#FFC799] font-semibold text-[10px] transition-colors cursor-pointer"
+                        >
+                          {copiedCard ? 'Đã chép số thẻ!' : 'Copy số thẻ NCB'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[#A0A0A0] font-mono text-[10px]">
+                        <span>Ngân hàng: <strong className="text-[#F5F5F5]">NCB</strong></span>
+                        <span>Ngày PH: <strong className="text-[#F5F5F5]">07/15</strong></span>
+                        <span className="col-span-2">
+                          Số thẻ: <strong className="text-[#99FFE4]">9704198526191432198</strong>
+                        </span>
+                        <span>Chủ thẻ: <strong className="text-[#F5F5F5]">NGUYEN VAN A</strong></span>
+                        <span>Mã OTP: <strong className="text-[#FFC799]">123456</strong></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Price Summary */}
@@ -603,28 +764,48 @@ export const CartPage: React.FC = () => {
                   </span>
                 </div>
                 <div className="flex items-center justify-between text-xs text-[#FFC799]">
-                  <span>Tổng tiền cọc 30% cần đặt</span>
+                  <span>
+                    {paymentMethod === 'Banking' && paymentType === 'Full100'
+                      ? 'Số tiền thanh toán gộp 100% qua VNPay'
+                      : 'Tổng tiền cọc 30% cần thanh toán'}
+                  </span>
                   <strong className="font-mono-tabular text-sm">
-                    {estimating ? '...' : `${totals.depositAmount.toLocaleString('vi-VN')} đ`}
+                    {estimating
+                      ? '...'
+                      : `${(paymentMethod === 'Banking' && paymentType === 'Full100'
+                          ? totals.totalAmount
+                          : totals.depositAmount
+                        ).toLocaleString('vi-VN')} đ`}
                   </strong>
                 </div>
               </div>
 
               <button
                 type="button"
-                disabled={submitting || estimating || totals.unavailableCount > 0}
+                disabled={submitting || redirectingVnPay || estimating || totals.unavailableCount > 0}
                 onClick={handleCheckoutAll}
                 className="w-full py-3.5 px-5 rounded-2xl bg-[#FFC799] hover:bg-[#FFD6B3] disabled:opacity-50 text-[#101010] font-bold text-xs sm:text-sm transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-lg"
               >
-                {submitting ? (
+                {submitting || redirectingVnPay ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Đang khởi tạo {cartItems.length} đơn thuê xe...</span>
+                    <span>
+                      {redirectingVnPay
+                        ? 'Đang chuyển sang cổng VNPay Sandbox...'
+                        : `Đang khởi tạo ${cartItems.length} đơn thuê xe...`}
+                    </span>
                   </>
                 ) : (
                   <>
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Xác nhận đặt cả {cartItems.length} xe ngay</span>
+                    <span>
+                      {paymentMethod === 'Banking'
+                        ? `Thanh toán gộp cả ${cartItems.length} xe qua VNPay (${(paymentType === 'Full100'
+                            ? totals.totalAmount
+                            : totals.depositAmount
+                          ).toLocaleString('vi-VN')} đ)`
+                        : `Xác nhận giữ chỗ cả ${cartItems.length} xe tại quầy`}
+                    </span>
                   </>
                 )}
               </button>
@@ -635,4 +816,3 @@ export const CartPage: React.FC = () => {
     </div>
   );
 };
-

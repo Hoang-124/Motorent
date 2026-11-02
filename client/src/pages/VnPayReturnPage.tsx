@@ -47,6 +47,15 @@ export const VnPayReturnPage: React.FC = () => {
   const [retryVehicleId, setRetryVehicleId] = useState<string>('');
   const [pickupBranchName, setPickupBranchName] = useState<string>('');
   const [returnBranchName, setReturnBranchName] = useState<string>('');
+  const [batchBookings, setBatchBookings] = useState<
+    Array<{
+      _id: string;
+      bookingCode: string;
+      totalAmount: number;
+      paidAmount: number;
+      vehicleId?: { brand?: string; vehicleModel?: string; licensePlate?: string };
+    }>
+  >([]);
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -89,6 +98,13 @@ export const VnPayReturnPage: React.FC = () => {
       try {
         const res = await api.get('/payments/vnpay/return', { params: vnpParams });
         const bookingData = res.data?.data?.booking;
+        const bookingsList = res.data?.data?.bookings;
+        if (res.data?.data?.bookingCode) {
+          setBookingCode(res.data.data.bookingCode);
+        }
+        if (Array.isArray(bookingsList) && bookingsList.length > 0) {
+          setBatchBookings(bookingsList);
+        }
         if (bookingData?.vehicleId) {
           const vId =
             typeof bookingData.vehicleId === 'object'
@@ -106,10 +122,13 @@ export const VnPayReturnPage: React.FC = () => {
           setVerifySuccess(true);
           const isFull = bookingData?.paymentType === 'Full100' || bookingData?.isPaid || rawOrderInfo.includes('100%');
           if (isFull) setIsFullPayment(true);
+          const count = Array.isArray(bookingsList) ? bookingsList.length : 1;
           setStatusMessage(
-            isFull
-              ? 'Giao dịch thanh toán 100% toàn bộ tiền thuê qua cổng VNPay đã được xác thực thành công!'
-              : 'Giao dịch đặt cọc 30% qua cổng VNPay đã được xác thực thành công.'
+            count > 1
+              ? `Đã xác thực thanh toán gộp ${isFull ? '100% toàn bộ' : 'cọc 30%'} qua VNPay Sandbox cho tất cả ${count} xe thành công!`
+              : isFull
+                ? 'Giao dịch thanh toán 100% toàn bộ tiền thuê qua cổng VNPay đã được xác thực thành công!'
+                : 'Giao dịch đặt cọc 30% qua cổng VNPay đã được xác thực thành công.'
           );
         } else {
           setVerifySuccess(false);
@@ -184,11 +203,45 @@ export const VnPayReturnPage: React.FC = () => {
         <div className="p-6 md:p-8 space-y-5">
           <div className="bg-[#101010] border border-white/10 rounded-2xl p-5 space-y-3.5">
             <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
-              <span className="text-[#A0A0A0]">Mã hợp đồng thuê xe:</span>
-              <span className="font-mono font-bold text-[#FFC799] text-sm">
+              <span className="text-[#A0A0A0]">
+                {batchBookings.length > 1 ? `Mã hợp đồng (${batchBookings.length} xe):` : 'Mã hợp đồng thuê xe:'}
+              </span>
+              <span className="font-mono font-bold text-[#FFC799] text-sm text-right">
                 {bookingCode || '—'}
               </span>
             </div>
+
+            {batchBookings.length > 1 && (
+              <div className="pb-3 border-b border-white/10 space-y-2">
+                <span className="text-[11px] font-semibold text-[#A0A0A0] block">
+                  Danh sách xe đã thanh toán gộp ({batchBookings.length} xe):
+                </span>
+                {batchBookings.map((b) => (
+                  <div
+                    key={b._id}
+                    className="flex items-center justify-between text-xs px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5"
+                  >
+                    <div>
+                      <span className="font-mono font-bold text-[#FFC799] mr-2">{b.bookingCode}</span>
+                      <span className="text-[#F5F5F5] font-medium">
+                        {b.vehicleId?.brand} {b.vehicleId?.vehicleModel}
+                      </span>
+                      {b.vehicleId?.licensePlate && (
+                        <span className="text-[#A0A0A0] font-mono ml-1.5">
+                          ({b.vehicleId.licensePlate})
+                        </span>
+                      )}
+                    </div>
+                    <Link
+                      to={`/orders/${b._id}`}
+                      className="text-[11px] font-bold text-[#99FFE4] hover:underline"
+                    >
+                      Xem đơn
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {pickupBranchName && (
               <div className="flex items-center justify-between text-xs pb-3 border-b border-white/10">
