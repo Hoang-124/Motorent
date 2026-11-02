@@ -120,7 +120,7 @@ export const createStaff = async (req: AuthenticatedRequest, res: Response, next
     await AuditLog.create({
       userId: req.user?._id,
       action: 'CREATE_STAFF',
-      entityType: 'User',
+      entity: 'User',
       entityId: newStaff._id,
       details: {
         staffName: `${newStaff.firstName} ${newStaff.lastName}`,
@@ -184,7 +184,7 @@ export const updateStaff = async (req: AuthenticatedRequest, res: Response, next
     await AuditLog.create({
       userId: req.user?._id,
       action: 'UPDATE_STAFF',
-      entityType: 'User',
+      entity: 'User',
       entityId: staff._id,
       details: {
         staffName: `${staff.firstName} ${staff.lastName}`,
@@ -232,7 +232,7 @@ export const deactivateStaff = async (req: AuthenticatedRequest, res: Response, 
     await AuditLog.create({
       userId: req.user?._id,
       action: 'DEACTIVATE_STAFF',
-      entityType: 'User',
+      entity: 'User',
       entityId: staff._id,
       details: {
         staffEmail: staff.email,
@@ -279,7 +279,7 @@ export const activateStaff = async (req: AuthenticatedRequest, res: Response, ne
     await AuditLog.create({
       userId: req.user?._id,
       action: 'ACTIVATE_STAFF',
-      entityType: 'User',
+      entity: 'User',
       entityId: staff._id,
       details: { staffEmail: staff.email },
       ipAddress: req.ip,

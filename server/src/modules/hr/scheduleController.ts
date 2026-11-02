@@ -137,7 +137,7 @@ export const createSchedule = async (req: AuthenticatedRequest, res: Response, n
     await AuditLog.create({
       userId: req.user?._id,
       action: 'ASSIGN_SHIFT',
-      entityType: 'StaffSchedule',
+      entity: 'StaffSchedule',
       entityId: newSchedule._id,
       details: {
         staffName: `${staff.firstName} ${staff.lastName}`,

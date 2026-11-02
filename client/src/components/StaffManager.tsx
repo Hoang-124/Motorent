@@ -16,6 +16,9 @@ import {
   CheckCircle2,
   X,
   Lock,
+  Copy,
+  Check,
+  Key,
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { User, Branch } from '../types';
@@ -29,6 +32,15 @@ interface StaffFormData {
   lastName: string;
   phoneNumber: string;
   branchId: string;
+}
+
+interface CreatedStaffSuccessInfo {
+  username: string;
+  email: string;
+  password?: string;
+  fullName: string;
+  phoneNumber: string;
+  branchName: string;
 }
 
 export const StaffManager: React.FC = () => {
@@ -49,6 +61,8 @@ export const StaffManager: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [createdStaffSuccess, setCreatedStaffSuccess] = useState<CreatedStaffSuccessInfo | null>(null);
+  const [copiedSuccess, setCopiedSuccess] = useState<boolean>(false);
 
   // Form State
   const [formData, setFormData] = useState<StaffFormData>({
@@ -159,6 +173,11 @@ export const StaffManager: React.FC = () => {
         if (res.data?.success) {
           showToast('success', res.data.message || 'Cập nhật nhân viên thành công.');
           setShowAddModal(false);
+          setEditingStaff(null);
+          resetForm();
+          fetchStaff();
+          return;
+          setShowAddModal(false);
           fetchStaff();
         }
       } else {
@@ -174,7 +193,24 @@ export const StaffManager: React.FC = () => {
         });
 
         if (res.data?.success) {
-          showToast('success', res.data.message || 'Thêm nhân viên mới thành công.');
+          setShowAddModal(false);
+          const effectiveBranchId =
+            formData.branchId ||
+            (isManager && currentUser?.branchId
+              ? String((currentUser.branchId as any)._id || currentUser.branchId)
+              : '');
+          const branchObj = branches.find((b) => String(b._id) === String(effectiveBranchId));
+          setCreatedStaffSuccess({
+            username: formData.username,
+            email: formData.email,
+            password: formData.password || '',
+            fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+            phoneNumber: formData.phoneNumber,
+            branchName: branchObj ? `${branchObj.name} (${branchObj.code})` : 'Chi nhánh trực thuộc',
+          });
+          resetForm();
+          fetchStaff();
+          return;
           setShowAddModal(false);
           fetchStaff();
         }
@@ -184,6 +220,27 @@ export const StaffManager: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCopyCredentials = () => {
+    if (!createdStaffSuccess) return;
+    const text = [
+      'THÔNG TIN TÀI KHOẢN NHÂN VIÊN TRỰC QUẦY MOTORENT',
+      '----------------------------------------',
+      `Họ và tên: ${createdStaffSuccess.fullName}`,
+      `Tên đăng nhập: @${createdStaffSuccess.username}`,
+      `Email đăng nhập: ${createdStaffSuccess.email}`,
+      `Mật khẩu khởi tạo: ${createdStaffSuccess.password || '(Không thay đổi)'}`,
+      `Số điện thoại: ${createdStaffSuccess.phoneNumber || '---'}`,
+      `Chi nhánh công tác: ${createdStaffSuccess.branchName}`,
+      'Vai trò: Nhân viên quầy (Staff)',
+      '----------------------------------------',
+      `Đường dẫn đăng nhập: ${window.location.origin}/login`,
+    ].join('\n');
+
+    navigator.clipboard.writeText(text);
+    setCopiedSuccess(true);
+    setTimeout(() => setCopiedSuccess(false), 3000);
   };
 
   // UC-83: Deactivate Staff (status=Suspended)
@@ -619,7 +676,7 @@ export const StaffManager: React.FC = () => {
                     type="text"
                     disabled
                     value={
-                      branches.find((b) => String(b._id) === String(currentUser?.branchId))?.name ||
+                      branches.find((b) => String(b._id) === String(typeof currentUser?.branchId === 'object' ? (currentUser.branchId as any)._id : currentUser?.branchId))?.name || (typeof currentUser?.branchId === 'object' ? (currentUser.branchId as any).name : '') ||
                       'Chi nhánh quản lý của bạn'
                     }
                     className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-sm text-[#A0A0A0] opacity-60"
@@ -647,6 +704,117 @@ export const StaffManager: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal Cua so tao tai khoan thanh cong */}
+      {createdStaffSuccess && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#161616] border border-[#FFC799]/40 rounded-2xl w-full max-w-lg p-6 space-y-6 shadow-2xl my-8 text-white relative">
+            <button
+              type="button"
+              onClick={() => setCreatedStaffSuccess(null)}
+              className="absolute top-5 right-5 text-[#A0A0A0] hover:text-white p-1 rounded-lg transition-colors"
+              title="Đóng"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="text-center space-y-2 pt-2">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto">
+                <CheckCircle2 size={32} />
+              </div>
+              <h3 className="text-xl font-bold tracking-tight text-white">
+                Tạo tài khoản nhân viên thành công!
+              </h3>
+              <p className="text-xs text-[#A0A0A0] max-w-sm mx-auto">
+                Tài khoản nhân viên trực quầy đã được kích hoạt thành công trên hệ thống. Dưới đây là thông tin đăng nhập để bàn giao cho nhân sự.
+              </p>
+            </div>
+
+            <div className="bg-[#101010] border border-white/10 rounded-xl p-4 space-y-3 text-xs">
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <span className="text-[#A0A0A0] flex items-center gap-1.5">
+                  <Users size={14} className="text-[#FFC799]" />
+                  Họ và tên
+                </span>
+                <span className="font-semibold text-white">{createdStaffSuccess.fullName}</span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <span className="text-[#A0A0A0] flex items-center gap-1.5">
+                  <Shield size={14} className="text-[#FFC799]" />
+                  Tên đăng nhập
+                </span>
+                <span className="font-mono font-bold text-[#FFC799]">@{createdStaffSuccess.username}</span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <span className="text-[#A0A0A0] flex items-center gap-1.5">
+                  <Mail size={14} className="text-[#FFC799]" />
+                  Email đăng nhập
+                </span>
+                <span className="font-mono text-white">{createdStaffSuccess.email}</span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-white/5 bg-[#FFC799]/5 -mx-2 px-2 py-1.5 rounded-lg border border-[#FFC799]/20">
+                <span className="text-[#D0D0D0] font-medium flex items-center gap-1.5">
+                  <Key size={14} className="text-[#FFC799]" />
+                  Mật khẩu khởi tạo
+                </span>
+                <span className="font-mono font-bold text-[#FFC799] tracking-wider text-sm">
+                  {createdStaffSuccess.password || '******'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <span className="text-[#A0A0A0] flex items-center gap-1.5">
+                  <Phone size={14} className="text-[#FFC799]" />
+                  Số điện thoại
+                </span>
+                <span className="font-mono text-white">{createdStaffSuccess.phoneNumber || '---'}</span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-[#A0A0A0] flex items-center gap-1.5">
+                  <Building2 size={14} className="text-[#FFC799]" />
+                  Chi nhánh công tác
+                </span>
+                <span className="font-medium text-white text-right max-w-[220px] truncate" title={createdStaffSuccess.branchName}>
+                  {createdStaffSuccess.branchName}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleCopyCredentials}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 text-xs font-semibold text-white flex items-center justify-center gap-2 transition-colors"
+              >
+                {copiedSuccess ? (
+                  <>
+                    <Check size={15} className="text-emerald-400" />
+                    <span className="text-emerald-400">Đã sao chép!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={15} className="text-[#FFC799]" />
+                    <span>Sao chép thông tin</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCreatedStaffSuccess(null)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] text-xs font-bold hover:bg-[#ffb77d] transition-colors"
+              >
+                Hoàn tất & Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

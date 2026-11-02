@@ -43,4 +43,13 @@ AuditLogSchema.index({ timestamp: -1 });
 // Configurable TTL index: Automatically expire and purge audit logs after 365 days (1 year)
 AuditLogSchema.index({ timestamp: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });
 
+// Fallback compatibility if entityType was passed instead of entity
+AuditLogSchema.pre('validate', function (next) {
+  const doc = this as any;
+  if (!doc.entity && doc.entityType) {
+    doc.entity = doc.entityType;
+  }
+  next();
+});
+
 export const AuditLog = mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);

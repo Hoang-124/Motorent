@@ -116,7 +116,7 @@ export const createDiscount = async (req: AuthenticatedRequest, res: Response, n
     await AuditLog.create({
       userId: req.user?._id,
       action: 'CREATE_DISCOUNT',
-      entityType: 'Discount',
+      entity: 'Discount',
       entityId: newDiscount._id,
       details: {
         code: formattedCode,
@@ -186,7 +186,7 @@ export const updateDiscount = async (req: AuthenticatedRequest, res: Response, n
     await AuditLog.create({
       userId: req.user?._id,
       action: 'UPDATE_DISCOUNT',
-      entityType: 'Discount',
+      entity: 'Discount',
       entityId: discount._id,
       details: { code: discount.code, isActive: discount.isActive },
       ipAddress: req.ip,
@@ -221,7 +221,7 @@ export const deleteDiscount = async (req: AuthenticatedRequest, res: Response, n
     await AuditLog.create({
       userId: req.user?._id,
       action: 'DELETE_DISCOUNT',
-      entityType: 'Discount',
+      entity: 'Discount',
       entityId: id as any,
       details: { code: discount.code },
       ipAddress: req.ip,
