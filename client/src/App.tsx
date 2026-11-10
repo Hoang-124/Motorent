@@ -35,7 +35,6 @@ import { StaffComplaintPage } from './pages/StaffComplaintPage';
 import { ManagerComplaintsPage } from './pages/ManagerComplaintsPage';
 import { ScrollToTop } from './components/ScrollToTop';
 import { RequireRole } from './components/RequireRole';
-import { ManagementNav } from './components/ManagementNav';
 import { ReportsCenter } from './components/ReportsCenter';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -139,10 +138,7 @@ export function App() {
                     path="/admin/categories"
                     element={
                       <RequireRole roles={['SystemAdmin']}>
-                        <>
-                          <ManagementNav />
-                          <AdminCategoriesPage />
-                        </>
+                        <AdminCategoriesPage />
                       </RequireRole>
                     }
                   />
@@ -150,10 +146,7 @@ export function App() {
                     path="/manager/vehicles"
                     element={
                       <RequireRole roles={['BranchManager', 'SystemAdmin']}>
-                        <>
-                          <ManagementNav />
-                          <ManagerVehiclesPage />
-                        </>
+                        <ManagerVehiclesPage />
                       </RequireRole>
                     }
                   />
@@ -161,10 +154,7 @@ export function App() {
                     path="/manager/fleet"
                     element={
                       <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
-                        <>
-                          <ManagementNav />
-                          <FleetOperationsPage />
-                        </>
+                        <FleetOperationsPage />
                       </RequireRole>
                     }
                   />
@@ -172,10 +162,7 @@ export function App() {
                     path="/manager/fleet-operations"
                     element={
                       <RequireRole roles={['Staff', 'BranchManager', 'SystemAdmin']}>
-                        <>
-                          <ManagementNav />
-                          <FleetOperationsPage />
-                        </>
+                        <FleetOperationsPage />
                       </RequireRole>
                     }
                   />
@@ -183,10 +170,7 @@ export function App() {
                     path="/manager/dashboard"
                     element={
                       <RequireRole roles={['BranchManager', 'SystemAdmin']}>
-                        <>
-                          <ManagementNav />
-                          <FleetDashboardPage />
-                        </>
+                        <FleetDashboardPage />
                       </RequireRole>
                     }
                   />
@@ -194,10 +178,7 @@ export function App() {
                     path="/fleet-dashboard"
                     element={
                       <RequireRole roles={['BranchManager', 'SystemAdmin']}>
-                        <>
-                          <ManagementNav />
-                          <FleetDashboardPage />
-                        </>
+                        <FleetDashboardPage />
                       </RequireRole>
                     }
                   />
@@ -206,7 +187,6 @@ export function App() {
                     element={
                       <RequireRole roles={['BranchManager', 'SystemAdmin']}>
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                          <ManagementNav />
                           <div className="mt-6">
                             <ReportsCenter />
                           </div>
@@ -219,7 +199,6 @@ export function App() {
                     element={
                       <RequireRole roles={['BranchManager', 'SystemAdmin']}>
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                          <ManagementNav />
                           <div className="mt-6">
                             <ReportsCenter />
                           </div>
