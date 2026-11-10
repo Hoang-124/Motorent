@@ -75,7 +75,7 @@ interface EnrichedBooking extends Booking {
 export const OrderDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [booking, setBooking] = useState<EnrichedBooking | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -91,6 +91,18 @@ export const OrderDetailPage: React.FC = () => {
   const [isPaymentProcessing, setIsPaymentProcessing] = useState<boolean>(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
+  // Delivery Location & Bilateral Contract Signature State
+  const [isDeliveryEditOpen, setIsDeliveryEditOpen] = useState<boolean>(false);
+  const [editDeliveryMode, setEditDeliveryMode] = useState<'BranchPickup' | 'DoorDelivery'>('BranchPickup');
+  const [editPickupAddress, setEditPickupAddress] = useState<string>('');
+  const [editReturnAddress, setEditReturnAddress] = useState<string>('');
+  const [savingDelivery, setSavingDelivery] = useState<boolean>(false);
+  const [deliveryFeedback, setDeliveryFeedback] = useState<string | null>(null);
+  const [downloadingContractPdf, setDownloadingContractPdf] = useState<boolean>(false);
+  const [signingParty, setSigningParty] = useState<'renter' | 'lessor' | null>(null);
+  const sigCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const [isDrawingSig, setIsDrawingSig] = useState<boolean>(false);
+
   // Hook for live status synchronization
   const { status: liveStatus, isLive } = useBookingStatus(id, booking);
 
@@ -101,7 +113,11 @@ export const OrderDetailPage: React.FC = () => {
       setError(null);
       const res = await api.get(`/bookings/${id}`);
       if (res.data?.success && res.data.data) {
-        setBooking(res.data.data);
+        const bData: EnrichedBooking = res.data.data;
+        setBooking(bData);
+        setEditDeliveryMode(bData.deliveryMode || 'BranchPickup');
+        setEditPickupAddress(bData.customPickupAddress || '');
+        setEditReturnAddress(bData.customReturnAddress || '');
       } else {
         setError('Không tìm thấy thông tin đơn đặt xe này.');
       }
@@ -114,8 +130,13 @@ export const OrderDetailPage: React.FC = () => {
   }, [id]);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      navigate('/login?returnTo=' + encodeURIComponent(`/booking-details/${id || ''}`), { replace: true });
+      return;
+    }
     fetchBookingDetails();
-  }, [fetchBookingDetails]);
+  }, [authLoading, isAuthenticated, id, navigate, fetchBookingDetails]);
 
   // If live status changes from socket, update local status
   useEffect(() => {
@@ -141,7 +162,7 @@ export const OrderDetailPage: React.FC = () => {
       setIsCancelling(true);
       setCancelError(null);
       const res = await api.put(`/bookings/${booking._id}/cancel`, {
-        reason: cancelReason.trim(),
+        cancelReason: cancelReason.trim(),
       });
 
       if (res.data?.success) {
@@ -179,6 +200,90 @@ export const OrderDetailPage: React.FC = () => {
     } finally {
       setIsPaymentProcessing(false);
     }
+  };
+
+  const handleSaveDeliveryAndContract = async (extraPayload?: {
+    eSignatureUrl?: string;
+    lessorSignatureUrl?: string;
+  }) => {
+    if (!booking?._id) return;
+    try {
+      setSavingDelivery(true);
+      setDeliveryFeedback(null);
+      const res = await api.put(`/bookings/${booking._id}/contract-delivery`, {
+        deliveryMode: editDeliveryMode,
+        customPickupAddress: editDeliveryMode === 'DoorDelivery' ? editPickupAddress.trim() : '',
+        customReturnAddress: editDeliveryMode === 'DoorDelivery' ? editReturnAddress.trim() : '',
+        ...extraPayload,
+      });
+      if (res.data?.success && res.data?.data) {
+        setBooking(res.data.data);
+        setIsDeliveryEditOpen(false);
+        setSigningParty(null);
+        setDeliveryFeedback('Đã cập nhật hợp đồng 2 bên và địa điểm giao nhận xe thành công.');
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      setDeliveryFeedback(errorObj.response?.data?.message || 'Không thể lưu thay đổi.');
+    } finally {
+      setSavingDelivery(false);
+    }
+  };
+
+  const handleDownloadBilateralContract = async () => {
+    if (!booking?._id) return;
+    try {
+      setDownloadingContractPdf(true);
+      const response = await api.get(`/bookings/${booking._id}/invoice?download=true`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Hop_dong_thue_xe_2_ben_${booking.bookingCode}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      window.open(`/api/bookings/${booking._id}/invoice`, '_blank');
+    } finally {
+      setDownloadingContractPdf(false);
+    }
+  };
+
+  const startSigDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    ctx.strokeStyle = '#FFC799';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+    setIsDrawingSig(true);
+  };
+
+  const moveSigDraw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawingSig) return;
+    const canvas = sigCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const endSigDraw = () => {
+    setIsDrawingSig(false);
   };
 
   if (loading) {
@@ -502,18 +607,128 @@ export const OrderDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Schedule & Stations Strip */}
+              {/* Schedule & Stations Strip (with Door-to-Door Custom Location Editor) */}
               <div className="pt-4 border-t border-white/[0.08] space-y-4">
-                <h4 className="text-xs uppercase tracking-wider text-[#6E6E6E] font-semibold">
-                  Lịch trình nhận &amp; Trả xe
-                </h4>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2">
+                    <h4 className="text-xs uppercase tracking-wider text-[#6E6E6E] font-semibold">
+                      Lịch trình &amp; Địa điểm Giao - Nhận xe
+                    </h4>
+                    <span
+                      className={`px-2 py-0.5 rounded-md font-mono text-[10px] font-bold ${
+                        booking.deliveryMode === 'DoorDelivery'
+                          ? 'bg-[#FFC799]/20 text-[#FFC799] border border-[#FFC799]/40'
+                          : 'bg-white/10 text-[#A0A0A0]'
+                      }`}
+                    >
+                      {booking.deliveryMode === 'DoorDelivery'
+                        ? 'Giao & Nhận tận nơi ngoài cửa hàng'
+                        : 'Nhận & Trả tại Cửa hàng'}
+                    </span>
+                  </div>
+
+                  {!['Completed', 'Cancelled', 'Rejected'].includes(booking.status) && (
+                    <button
+                      type="button"
+                      onClick={() => setIsDeliveryEditOpen((prev) => !prev)}
+                      className="px-3 py-1 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/30 text-[#FFC799] text-[11px] font-bold transition-colors cursor-pointer"
+                    >
+                      {isDeliveryEditOpen ? 'Đóng chỉnh sửa' : 'Đổi nơi Nhận / Trả xe tận nơi'}
+                    </button>
+                  )}
+                </div>
+
+                {deliveryFeedback && (
+                  <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs">
+                    {deliveryFeedback}
+                  </div>
+                )}
+
+                {isDeliveryEditOpen && (
+                  <div className="p-4 rounded-xl bg-[#101010] border border-[#FFC799]/40 space-y-3">
+                    <p className="text-xs font-bold text-[#F5F5F5]">
+                      Cập nhật hình thức &amp; địa chỉ Nhận / Trả xe ngoài cửa hàng
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setEditDeliveryMode('BranchPickup')}
+                        className={`p-3 rounded-xl border text-left text-xs cursor-pointer ${
+                          editDeliveryMode === 'BranchPickup'
+                            ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5] font-bold'
+                            : 'bg-[#161616] border-white/10 text-[#A0A0A0]'
+                        }`}
+                      >
+                        Nhận &amp; Trả tại Cửa hàng (Miễn phí 0đ)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditDeliveryMode('DoorDelivery')}
+                        className={`p-3 rounded-xl border text-left text-xs cursor-pointer ${
+                          editDeliveryMode === 'DoorDelivery'
+                            ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5] font-bold'
+                            : 'bg-[#161616] border-white/10 text-[#A0A0A0]'
+                        }`}
+                      >
+                        Giao &amp; Nhận tận nơi ngoài cửa hàng (+40.000đ/chiều)
+                      </button>
+                    </div>
+
+                    {editDeliveryMode === 'DoorDelivery' && (
+                      <div className="space-y-2.5 pt-1">
+                        <div>
+                          <label className="text-[11px] text-[#A0A0A0] block mb-1">
+                            Địa chỉ nhận xe tận nơi (Khách sạn, Sân bay, Nhà riêng...):
+                          </label>
+                          <input
+                            type="text"
+                            value={editPickupAddress}
+                            onChange={(e) => setEditPickupAddress(e.target.value)}
+                            placeholder="VD: Sảnh Ga đến T1 Sân bay Đà Nẵng hoặc Khách sạn Novotel..."
+                            className="w-full bg-[#161616] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] text-[#A0A0A0] block mb-1">
+                            Địa chỉ trả xe tận nơi (Để trống nếu trả tại cửa hàng):
+                          </label>
+                          <input
+                            type="text"
+                            value={editReturnAddress}
+                            onChange={(e) => setEditReturnAddress(e.target.value)}
+                            placeholder="VD: Khách sạn Mường Thanh Luxury 270 Võ Nguyên Giáp..."
+                            className="w-full bg-[#161616] border border-white/15 rounded-xl px-3 py-2 text-xs text-[#F5F5F5] outline-none focus:border-[#FFC799]"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setIsDeliveryEditOpen(false)}
+                        className="px-3.5 py-1.5 rounded-lg bg-white/5 text-xs text-[#A0A0A0] cursor-pointer"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingDelivery}
+                        onClick={() => handleSaveDeliveryAndContract()}
+                        className="px-4 py-1.5 rounded-lg bg-[#FFC799] text-[#101010] text-xs font-black cursor-pointer disabled:opacity-50"
+                      >
+                        {savingDelivery ? 'Đang lưu...' : 'Lưu địa điểm giao nhận'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Pickup Info */}
                   <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-2">
                     <div className="flex items-center space-x-2 text-xs font-semibold text-[#FFC799]">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>Thời gian nhận xe</span>
+                      <span>Thời gian &amp; Điểm nhận xe</span>
                     </div>
                     <div className="font-mono-tabular text-sm font-bold text-[#F5F5F5]">
                       {new Date(booking.pickupDateTime).toLocaleString('vi-VN', {
@@ -525,10 +740,23 @@ export const OrderDetailPage: React.FC = () => {
                       })}
                     </div>
                     <div className="text-xs text-[#A0A0A0] flex items-start space-x-1.5 pt-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#6E6E6E] shrink-0 mt-0.5" />
+                      <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-medium text-[#F5F5F5]">{pickupBranch?.name || 'Trạm trung tâm'}</div>
-                        <div className="text-[11px] text-[#6E6E6E]">{pickupBranch?.address || 'Chi nhánh Motorent'}</div>
+                        {booking.deliveryMode === 'DoorDelivery' && booking.customPickupAddress ? (
+                          <>
+                            <div className="font-bold text-[#FFC799]">
+                              Giao xe tận nơi: {booking.customPickupAddress}
+                            </div>
+                            <div className="text-[11px] text-[#6E6E6E]">
+                              Điều phối từ: {pickupBranch?.name || 'Trạm trung tâm'}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="font-medium text-[#F5F5F5]">{pickupBranch?.name || 'Trạm trung tâm'}</div>
+                            <div className="text-[11px] text-[#6E6E6E]">{pickupBranch?.address || 'Chi nhánh Motorent'}</div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -537,7 +765,7 @@ export const OrderDetailPage: React.FC = () => {
                   <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-2">
                     <div className="flex items-center space-x-2 text-xs font-semibold text-[#A0A0A0]">
                       <Clock className="w-3.5 h-3.5" />
-                      <span>Thời gian trả hẹn ước</span>
+                      <span>Thời gian &amp; Điểm trả xe</span>
                     </div>
                     <div className="font-mono-tabular text-sm font-bold text-[#F5F5F5]">
                       {new Date(booking.returnDateTime).toLocaleString('vi-VN', {
@@ -549,10 +777,23 @@ export const OrderDetailPage: React.FC = () => {
                       })}
                     </div>
                     <div className="text-xs text-[#A0A0A0] flex items-start space-x-1.5 pt-1">
-                      <MapPin className="w-3.5 h-3.5 text-[#6E6E6E] shrink-0 mt-0.5" />
+                      <MapPin className="w-3.5 h-3.5 text-[#FFC799] shrink-0 mt-0.5" />
                       <div>
-                        <div className="font-medium text-[#F5F5F5]">{returnBranch?.name || 'Trạm hoàn trả'}</div>
-                        <div className="text-[11px] text-[#6E6E6E]">{returnBranch?.address || 'Chi nhánh Motorent'}</div>
+                        {booking.deliveryMode === 'DoorDelivery' && booking.customReturnAddress ? (
+                          <>
+                            <div className="font-bold text-[#FFC799]">
+                              Thu hồi xe tận nơi: {booking.customReturnAddress}
+                            </div>
+                            <div className="text-[11px] text-[#6E6E6E]">
+                              Trạm tiếp nhận: {returnBranch?.name || 'Trạm hoàn trả'}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="font-medium text-[#F5F5F5]">{returnBranch?.name || 'Trạm hoàn trả'}</div>
+                            <div className="text-[11px] text-[#6E6E6E]">{returnBranch?.address || 'Chi nhánh Motorent'}</div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -623,6 +864,199 @@ export const OrderDetailPage: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Bilateral Electronic Rental Contract (Hợp đồng thuê xe 2 bên đều giữ bản gốc điện tử & chữ ký) */}
+            <div className="bg-[#161616] border border-[#FFC799]/35 rounded-2xl p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/[0.08]">
+                <div>
+                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block">
+                    HỢP ĐỒNG THUÊ XE ĐIỆN TỬ SONG PHƯƠNG (2 BÊN CÙNG NẮM GIỮ)
+                  </span>
+                  <h4 className="text-base font-bold text-[#F5F5F5] mt-0.5">
+                    Chữ ký Pháp lý của Bên Cho Thuê (Bên A) &amp; Bên Thuê Xe (Bên B)
+                  </h4>
+                </div>
+                <button
+                  type="button"
+                  disabled={downloadingContractPdf}
+                  onClick={handleDownloadBilateralContract}
+                  className="px-4 py-2 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-black transition-all flex items-center space-x-2 shrink-0 cursor-pointer disabled:opacity-50"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>{downloadingContractPdf ? 'Đang xuất PDF...' : 'Tải Hợp đồng PDF 2 bên'}</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                {/* Party A: Lessor (Bên cho thuê) */}
+                <div className="p-4 rounded-xl bg-[#101010] border border-white/10 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-[#FFC799] uppercase text-[11px]">
+                        ĐẠI DIỆN BÊN CHO THUÊ (BÊN A)
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-mono text-[10px] font-bold">
+                        Đã ký xác nhận
+                      </span>
+                    </div>
+                    <p className="font-bold text-[#F5F5F5] mt-1">
+                      {pickupBranch?.name || 'Công ty TNHH Motorent Việt Nam'}
+                    </p>
+                    <p className="text-[11px] text-[#6E6E6E]">
+                      Mã đơn vị: {pickupBranch?.code || 'MR-DANANG'} • Hotline: {pickupBranch?.phone || '1900 6868'}
+                    </p>
+                  </div>
+
+                  {booking.lessorSignatureUrl && booking.lessorSignatureUrl.startsWith('data:image/') ? (
+                    <div className="p-2 rounded-lg bg-white/95 flex items-center justify-center h-24">
+                      <img
+                        src={booking.lessorSignatureUrl}
+                        alt="Chữ ký Bên cho thuê"
+                        className="max-h-20 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg border border-dashed border-[#FFC799]/50 bg-[#FFC799]/[0.05] text-center space-y-1">
+                      <div className="text-[10px] font-mono font-black text-[#FFC799] uppercase">
+                        ĐÃ KÝ SỐ &amp; ĐÓNG DẤU ĐIỆN TỬ MOTORENT
+                      </div>
+                      <div className="text-[11px] text-emerald-400 font-semibold">
+                        {booking.lessorSignatureUrl || `MOTORENT-SEAL-${booking.bookingCode}`}
+                      </div>
+                    </div>
+                  )}
+
+                  {['Staff', 'BranchManager', 'SystemAdmin'].includes(user?.roles || '') && (
+                    <button
+                      type="button"
+                      onClick={() => setSigningParty('lessor')}
+                      className="w-full py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-[#FFC799] font-semibold text-[11px] cursor-pointer"
+                    >
+                      Ký tay đại diện Bên cho thuê (Nhân viên / Quản lý)
+                    </button>
+                  )}
+                </div>
+
+                {/* Party B: Renter (Bên thuê xe) */}
+                <div className="p-4 rounded-xl bg-[#101010] border border-white/10 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-[#99FFE4] uppercase text-[11px]">
+                        ĐẠI DIỆN BÊN THUÊ XE (BÊN B)
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded font-mono text-[10px] font-bold ${
+                          booking.eSignatureUrl
+                            ? 'bg-emerald-500/15 text-emerald-400'
+                            : 'bg-amber-500/15 text-amber-300'
+                        }`}
+                      >
+                        {booking.eSignatureUrl ? 'Đã ký hợp đồng' : 'Chờ ký bổ sung'}
+                      </span>
+                    </div>
+                    <p className="font-bold text-[#F5F5F5] mt-1">
+                      {booking.receiverName ||
+                        (user?.firstName ? `${user.lastName || ''} ${user.firstName}`.trim() : user?.username) ||
+                        'Khách hàng thuê xe'}
+                    </p>
+                    <p className="text-[11px] text-[#6E6E6E]">
+                      SĐT: {booking.receiverPhone || user?.phoneNumber || 'Đã xác thực'}
+                    </p>
+                  </div>
+
+                  {booking.eSignatureUrl && booking.eSignatureUrl.startsWith('data:image/') ? (
+                    <div className="p-2 rounded-lg bg-white/95 flex items-center justify-center h-24">
+                      <img
+                        src={booking.eSignatureUrl}
+                        alt="Chữ ký Bên thuê xe"
+                        className="max-h-20 object-contain"
+                      />
+                    </div>
+                  ) : booking.eSignatureUrl ? (
+                    <div className="p-3 rounded-lg border border-dashed border-emerald-500/40 bg-emerald-500/[0.05] text-center space-y-1">
+                      <div className="text-[10px] font-mono font-black text-emerald-400 uppercase">
+                        CHỮ KÝ ĐIỆN TỬ BÊN THUÊ XE
+                      </div>
+                      <div className="text-[11px] text-[#F5F5F5] font-mono truncate">
+                        {booking.eSignatureUrl}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-lg border border-dashed border-white/15 text-center text-[#6E6E6E] text-[11px]">
+                      Chưa có chữ ký tay của người thuê
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setSigningParty('renter')}
+                    className="w-full py-1.5 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/30 text-[#FFC799] font-semibold text-[11px] cursor-pointer"
+                  >
+                    {booking.eSignatureUrl ? 'Cập nhật chữ ký Bên thuê (Bên B)' : 'Ký xác nhận hợp đồng (Bên B)'}
+                  </button>
+                </div>
+              </div>
+
+              {signingParty && (
+                <div className="p-4 rounded-xl bg-[#101010] border border-[#FFC799] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#FFC799]">
+                      {signingParty === 'renter'
+                        ? 'Ký xác nhận dành cho Bên thuê xe (Bên B)'
+                        : 'Ký xác nhận dành cho Đại diện Bên cho thuê (Bên A)'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const c = sigCanvasRef.current;
+                        c?.getContext('2d')?.clearRect(0, 0, c.width, c.height);
+                      }}
+                      className="text-[11px] text-[#A0A0A0] hover:text-[#F5F5F5] cursor-pointer"
+                    >
+                      Xóa nét vẽ
+                    </button>
+                  </div>
+                  <canvas
+                    ref={sigCanvasRef}
+                    width={420}
+                    height={120}
+                    onMouseDown={startSigDraw}
+                    onMouseMove={moveSigDraw}
+                    onMouseUp={endSigDraw}
+                    onMouseLeave={endSigDraw}
+                    onTouchStart={startSigDraw}
+                    onTouchMove={moveSigDraw}
+                    onTouchEnd={endSigDraw}
+                    className="w-full h-28 bg-[#161616] rounded-xl border border-white/15 cursor-crosshair touch-none"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSigningParty(null)}
+                      className="px-3.5 py-1.5 rounded-lg bg-white/5 text-xs text-[#A0A0A0] cursor-pointer"
+                    >
+                      Đóng
+                    </button>
+                    <button
+                      type="button"
+                      disabled={savingDelivery}
+                      onClick={() => {
+                        const dataUrl = sigCanvasRef.current?.toDataURL('image/png') || '';
+                        if (!dataUrl) return;
+                        if (signingParty === 'renter') {
+                          handleSaveDeliveryAndContract({ eSignatureUrl: dataUrl });
+                        } else {
+                          handleSaveDeliveryAndContract({ lessorSignatureUrl: dataUrl });
+                        }
+                      }}
+                      className="px-4 py-1.5 rounded-lg bg-[#FFC799] text-[#101010] text-xs font-black cursor-pointer"
+                    >
+                      {savingDelivery ? 'Đang lưu chữ ký...' : 'Xác nhận lưu chữ ký vào Hợp đồng'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* RIGHT 5 COLS: FINANCIAL BREAKDOWN & ACTION DISPATCHER */}
@@ -654,6 +1088,15 @@ export const OrderDetailPage: React.FC = () => {
                     {pricing.basePrice.toLocaleString('vi-VN')} đ
                   </span>
                 </div>
+
+                {(booking.deliveryFee || 0) > 0 && (
+                  <div className="flex items-center justify-between text-[#FFC799]">
+                    <span>Phí giao &amp; nhận xe tận nơi ngoài cửa hàng</span>
+                    <span className="font-mono-tabular font-medium">
+                      +{(booking.deliveryFee || 0).toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                )}
 
                 {pricing.discountAmount > 0 && (
                   <div className="flex items-center justify-between text-emerald-400">

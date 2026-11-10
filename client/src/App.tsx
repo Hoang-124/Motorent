@@ -303,6 +303,7 @@ export function App() {
                   <Route path="/booking/:vehicleId" element={<BookingPage />} />
                   <Route path="/booking" element={<BookingPage />} />
                   <Route path="/booking-details/:id" element={<OrderDetailPage />} />
+                  <Route path="/orders/:id" element={<OrderDetailPage />} />
                   <Route path="/vnpay-return" element={<VnPayReturnPage />} />
 
                   {/* CMS Banners (UC-116, UC-117, UC-118) */}

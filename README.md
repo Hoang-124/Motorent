@@ -75,10 +75,13 @@ Motorent/
 │   ├── tsconfig.json           # Strict TypeScript configuration
 │   └── package.json
 │
-├── docs/                       # Technical specifications & business requirements
-│   ├── README.md               # Documentation guide & Canonical SRS reference
-│   ├── MOTORENT_SRS_Document.md # CANONICAL SINGLE SOURCE OF TRUTH (SRS)
-│   └── MOTORENT_TASK_MATRIX.tsv # Detailed status matrix across all user stories
+├── docs/                       # Official Final Release Deliverables (RDS, SDS, Final Release, Tracking & Issues)
+│   ├── README.md               # Documentation index for the 5 official deliverables
+│   ├── MOTORENT_RDS_Final.docx # Requirement & Design Specification (50 UCs + 50 Real UI Screens)
+│   ├── MOTORENT_SDS_Final.docx # Software Design Specification (18 Tables, 9 Class & 50 Sequence Diagrams)
+│   ├── MOTORENT_Final_Release_Document.docx # Installation Guide & Full Illustrated User Manual
+│   ├── MOTORENT_Project_Tracking.xlsx       # 5-Sheet Project & Iteration Tracking (50 Functions)
+│   └── MOTORENT_Issues_Report.xlsx          # 160 Synced GitHub Issues (#6 - #165)
 ├── package.json                # Root orchestration scripts
 └── README.md
 ```
@@ -271,8 +274,11 @@ Tất cả các endpoint nghiệp vụ đều được gắn tiền tố `/api`:
 
 ## Quy Chuẩn Tài Liệu
 
-* **Bản đặc tả nghiệp vụ chuẩn (SRS Canonical)**: [docs/MOTORENT_SRS_Document.md](file:///d:/Motorent/docs/MOTORENT_SRS_Document.md)
-* **Ma trận tiến độ chi tiết**: [docs/MOTORENT_TASK_MATRIX.tsv](file:///d:/Motorent/docs/MOTORENT_TASK_MATRIX.tsv)
+* **Đặc tả Yêu cầu & Thiết kế (RDS Final)**: [docs/MOTORENT_RDS_Final.docx](file:///d:/Motorent/docs/MOTORENT_RDS_Final.docx)
+* **Đặc tả Thiết kế Phần mềm (SDS Final)**: [docs/MOTORENT_SDS_Final.docx](file:///d:/Motorent/docs/MOTORENT_SDS_Final.docx)
+* **Tài liệu Bàn giao & Hướng dẫn sử dụng (Final Release Document)**: [docs/MOTORENT_Final_Release_Document.docx](file:///d:/Motorent/docs/MOTORENT_Final_Release_Document.docx)
+* **Bảng theo dõi tiến độ dự án (Project Tracking)**: [docs/MOTORENT_Project_Tracking.xlsx](file:///d:/Motorent/docs/MOTORENT_Project_Tracking.xlsx)
+* **Báo cáo 160 GitHub Issues (Issues Report)**: [docs/MOTORENT_Issues_Report.xlsx](file:///d:/Motorent/docs/MOTORENT_Issues_Report.xlsx)
 * **Chỉ mục hướng dẫn tài liệu**: [docs/README.md](file:///d:/Motorent/docs/README.md)
 
 ---

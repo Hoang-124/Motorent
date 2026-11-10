@@ -139,6 +139,12 @@ router.put(
   auditLogger('CANCEL_BOOKING', 'Booking'),
   bookingController.cancel
 );
+router.post(
+  '/:id/cancel',
+  authenticateJWT,
+  auditLogger('CANCEL_BOOKING', 'Booking'),
+  bookingController.cancel
+);
 
 // UC-33: Request refund
 router.post(
@@ -166,7 +172,15 @@ router.put(
   bookingController.rejectRefund
 );
 
-// UC-38: Download PDF invoice
+// Update bilateral contract signatures & custom pickup/return delivery locations
+router.put(
+  '/:id/contract-delivery',
+  authenticateJWT,
+  auditLogger('UPDATE_CONTRACT_AND_DELIVERY', 'Booking'),
+  bookingController.updateContractAndDelivery
+);
+
+// UC-38: Download PDF invoice / bilateral rental contract
 router.get('/:id/invoice', authenticateJWT, bookingController.downloadInvoice);
 
 export default router;

@@ -858,7 +858,7 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
       expect(res.body.data.cancelReason).toBe('Khách đổi kế hoạch lịch trình');
     });
 
-    it('Cannot cancel an Ongoing booking -> 400', async () => {
+    it('Allows mid-rental early cancellation on an Ongoing booking (iter3 update) and rejects cancelling a Completed booking -> 409', async () => {
       const ongoingBooking = await Booking.create({
         bookingCode: `MV-ONGOING-${Date.now().toString().slice(-4)}`,
         userId: customerUserId,
@@ -879,7 +879,15 @@ describe('Phase B & C: Booking & Counter Desk Business Logic', () => {
         .set('Authorization', `Bearer ${customerToken}`)
         .send({ cancelReason: 'Hủy đơn đang đi xe' });
 
-      expect(res.status).toBe(409);
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('Cancelled');
+
+      const resAgain = await request(app)
+        .put(`/api/bookings/${ongoingBooking._id}/cancel`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ cancelReason: 'Hủy lần 2' });
+
+      expect(resAgain.status).toBe(409);
 
       await Booking.findByIdAndDelete(ongoingBooking._id);
     });

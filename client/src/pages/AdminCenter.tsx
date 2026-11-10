@@ -109,6 +109,7 @@ export const AdminCenter: React.FC = () => {
 
   // User states
   const [users, setUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [userLoading, setUserLoading] = useState<boolean>(true);
   const [userSearch, setUserSearch] = useState<string>('');
   const [userRoleFilter, setUserRoleFilter] = useState<string>('all');
@@ -202,6 +203,14 @@ export const AdminCenter: React.FC = () => {
       const res = await api.get('/admin/users', { params });
       if (res.data?.data) {
         setUsers(res.data.data);
+        if (
+          userRoleFilter === 'all' &&
+          userStatusFilter === 'all' &&
+          userBranchFilter === 'all' &&
+          !userSearch.trim()
+        ) {
+          setAllUsers(res.data.data);
+        }
       }
     } catch (err: any) {
       showToast('error', err.response?.data?.message || 'Không thể tải danh sách người dùng.');
@@ -577,11 +586,12 @@ export const AdminCenter: React.FC = () => {
   const totalVehiclesCount = branches.reduce((sum, b) => sum + (b.totalVehiclesCount || 0), 0);
   const availableVehiclesCount = branches.reduce((sum, b) => sum + (b.availableVehiclesCount || 0), 0);
 
-  const totalUsersCount = users.length;
-  const managersCount = users.filter((u) => u.roles === 'BranchManager').length;
-  const staffCount = users.filter((u) => u.roles === 'Staff').length;
-  const customerCount = users.filter((u) => u.roles === 'Customer').length;
-  const suspendedCount = users.filter((u) => u.status === 'Suspended').length;
+  const kpiUsersSource = allUsers.length > 0 ? allUsers : users;
+  const totalUsersCount = kpiUsersSource.length;
+  const managersCount = kpiUsersSource.filter((u) => u.roles === 'BranchManager').length;
+  const staffCount = kpiUsersSource.filter((u) => u.roles === 'Staff').length;
+  const customerCount = kpiUsersSource.filter((u) => u.roles === 'Customer').length;
+  const suspendedCount = kpiUsersSource.filter((u) => u.status === 'Suspended').length;
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 sm:py-12 bg-editorial-grain">

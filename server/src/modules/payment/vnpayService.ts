@@ -341,7 +341,11 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
 
   // 2. Validate Total Amount across all bookings in this transaction
   const vnpAmount = Number(queryParams['vnp_Amount']);
-  const existingSuccessfulPayment = await Payment.findOne({ txnRef: String(txnRef), status: 'SUCCESS' });
+  const firstBookingRefKey = bookings.length === 1 ? String(txnRef) : `${txnRef}__${bookings[0].bookingCode}`;
+  const existingSuccessfulPayment = await Payment.findOne({
+    txnRef: { $in: [String(txnRef), firstBookingRefKey] },
+    status: 'SUCCESS',
+  });
   if (existingSuccessfulPayment) {
     return { RspCode: '02', Message: 'Order already confirmed' };
   }
@@ -393,7 +397,11 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
         await Payment.create({
           bookingId: booking._id,
           txnRef: bookings.length === 1 ? String(txnRef) : `${txnRef}__${booking.bookingCode}`,
-          vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+          vnpTransactionNo: vnpTransactionNo
+            ? bookings.length === 1
+              ? String(vnpTransactionNo)
+              : `${vnpTransactionNo}_${booking.bookingCode}`
+            : undefined,
           amount: expectedAmount,
           type: isFullPay ? 'FULL' : 'DEPOSIT',
           status: 'SUCCESS',
@@ -426,7 +434,11 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
       await Payment.create({
         bookingId: booking._id,
         txnRef: paymentRefKey,
-        vnpTransactionNo: vnpTransactionNo ? String(vnpTransactionNo) : undefined,
+        vnpTransactionNo: vnpTransactionNo
+          ? bookings.length === 1
+            ? String(vnpTransactionNo)
+            : `${vnpTransactionNo}_${booking.bookingCode}`
+          : undefined,
         amount: expectedAmount,
         type: isFullPay ? 'FULL' : 'DEPOSIT',
         status: 'SUCCESS',
@@ -665,6 +677,16 @@ export const confirmVietQrPayment = async (options: {
   const amountToPay = isFullPay
     ? Math.max(0, booking.totalAmount - currentPaidAmount)
     : Math.max(0, booking.depositAmount - currentPaidAmount);
+
+  if (booking.isPaid || amountToPay <= 0) {
+    throw new AppError(
+      400,
+      isFullPay
+        ? 'Đơn đặt xe này đã được thanh toán toàn bộ.'
+        : 'Đơn đặt xe này đã hoàn tất thanh toán tiền đặt cọc.'
+    );
+  }
+
   const paidAmount = currentPaidAmount + amountToPay;
   const txnRef = `${booking.bookingCode}__VIETQR_${Date.now()}`;
 
@@ -676,10 +698,10 @@ export const confirmVietQrPayment = async (options: {
     remainingAmount: Math.max(0, booking.totalAmount - paidAmount),
     paymentMethod: 'Banking',
     paymentType: isFullPay ? 'Full100' : 'Deposit30',
-    vnpayTxnRef: txnRef,
+    lastTxnRef: txnRef,
   };
 
-  if (isFullPay) {
+  if (isFullPay || paidAmount >= booking.totalAmount) {
     updatePayload.isPaid = true;
     updatePayload.paidAt = new Date();
   }
@@ -701,8 +723,8 @@ export const confirmVietQrPayment = async (options: {
     bookingId: booking._id,
     txnRef,
     vnpTransactionNo: `MB_VIETQR_${Date.now().toString().slice(-8)}`,
-    amount: paidAmount,
-    type: isFullPay ? 'FULL' : 'DEPOSIT',
+    amount: amountToPay,
+    type: isFullPay || paidAmount >= booking.totalAmount ? 'FULL' : 'DEPOSIT',
     status: 'SUCCESS',
     rawIpn: { channel: 'VietQR_247', bankCode: 'MBBANK', bookingCode: booking.bookingCode },
   }).catch((err: unknown) => console.error('[VietQR Payment Record Error]', err));
@@ -712,7 +734,7 @@ export const confirmVietQrPayment = async (options: {
   await Notification.create({
     userId: booking.userId,
     title: isFullPay ? 'Thanh toán QR 100% thành công' : 'Xác nhận cọc QR 30% thành công',
-    body: `Hệ thống đã nhận chuyển khoản QR ${paidAmount.toLocaleString('vi-VN')} đ cho mã đơn ${booking.bookingCode}. Biển số xe đã được khóa giữ cho bạn.`,
+    body: `Hệ thống đã nhận chuyển khoản QR ${amountToPay.toLocaleString('vi-VN')} đ cho mã đơn ${booking.bookingCode}. Biển số xe đã được khóa giữ cho bạn.`,
     type: 'BOOKING',
     relatedId: booking._id.toString(),
     isRead: false,
@@ -726,7 +748,8 @@ export const confirmVietQrPayment = async (options: {
     details: {
       bookingCode: booking.bookingCode,
       txnRef,
-      amount: paidAmount,
+      amount: amountToPay,
+      paidAmount,
       paymentType: isFullPay ? 'Full100' : 'Deposit30',
     },
     timestamp: new Date(),

@@ -235,7 +235,7 @@ export const VnPayReturnPage: React.FC = () => {
                       )}
                     </div>
                     <Link
-                      to={`/orders/${b._id}`}
+                      to={`/booking-details/${b._id}`}
                       className="text-[11px] font-bold text-[#99FFE4] hover:underline"
                     >
                       Xem đơn

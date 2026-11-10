@@ -26,7 +26,7 @@ import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 
 export const WishlistPage: React.FC = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toggleWishlist, isToggling, toast, clearToast } = useWishlist();
 
   const [wishlistData, setWishlistData] = useState<WishlistResponse | null>(null);
@@ -50,12 +50,13 @@ export const WishlistPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
-      navigate('/login?returnUrl=' + encodeURIComponent('/wishlist'));
+      navigate('/login?returnTo=' + encodeURIComponent('/wishlist'));
       return;
     }
     fetchWishlist(page);
-  }, [isAuthenticated, page]);
+  }, [authLoading, isAuthenticated, page]);
 
   const handleRemove = async (vehicleId: string) => {
     await toggleWishlist(vehicleId);

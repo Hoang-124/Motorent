@@ -17,6 +17,9 @@ router.get('/', authorize('Staff', 'BranchManager', 'SystemAdmin'), scheduleCont
 // Clock in / out (Staff can clock themselves, manager/admin can assist)
 router.put('/:id/clock', authorize('Staff', 'BranchManager', 'SystemAdmin'), scheduleController.clockAttendance);
 
+// AI Shift Optimization Engine (Preview & 1-Click Auto-Assign)
+router.post('/ai-optimize', authorize('BranchManager', 'SystemAdmin'), scheduleController.aiOptimizeSchedules);
+
 // Manager / Admin schedule assignments
 router.post('/', authorize('BranchManager', 'SystemAdmin'), scheduleController.createSchedule);
 router.put('/:id', authorize('BranchManager', 'SystemAdmin'), scheduleController.updateSchedule);

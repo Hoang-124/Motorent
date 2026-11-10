@@ -50,7 +50,7 @@ import { LoyaltyCenter } from '../components/LoyaltyCenter';
 export type ProfileTab = 'bookings' | 'loyalty' | 'info' | 'avatar' | 'ekyc' | 'password';
 
 export const ProfilePage: React.FC = () => {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -299,6 +299,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (authLoading || !user?._id) return;
     fetchBookings();
     fetchMyReviews();
     fetchMyComplaints();
@@ -310,7 +311,7 @@ export const ProfilePage: React.FC = () => {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [authLoading, user?._id]);
 
   useEffect(() => {
     const socket = getSocket();
@@ -379,7 +380,7 @@ export const ProfilePage: React.FC = () => {
 
   useEffect(() => {
     const tabParam = searchParams.get('tab') as ProfileTab;
-    if (tabParam && ['bookings', 'info', 'avatar', 'ekyc', 'password'].includes(tabParam)) {
+    if (tabParam && ['bookings', 'loyalty', 'info', 'avatar', 'ekyc', 'password'].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -852,6 +853,16 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#101010]">
+        <div className="text-center space-y-2">
+          <p className="text-xs text-[#A0A0A0]">Đang tải hồ sơ cá nhân...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4 bg-[#101010]">
@@ -1248,7 +1259,10 @@ export const ProfilePage: React.FC = () => {
                         b.status === 'Confirmed' ||
                         b.status === 'Ongoing';
                       const canExtend = b.status === 'Confirmed' || b.status === 'Ongoing';
-                      const needsDepositPayment = b.status === 'Pending' && !b.depositPaid && !b.isPaid;
+                      const needsDepositPayment =
+                        ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status) &&
+                        !b.isPaid &&
+                        (!b.depositPaid || (b.depositAmount || 0) > (b.paidAmount || 0));
 
                       return (
                         <div
@@ -2382,7 +2396,12 @@ export const ProfilePage: React.FC = () => {
                   Đặt cọc 30% giữ xe
                 </span>
                 <span className="text-sm font-bold font-mono-tabular mt-0.5 block">
-                  {selectedBookingForQrPay.depositAmount.toLocaleString('vi-VN')} đ
+                  {Math.max(
+                    0,
+                    (selectedBookingForQrPay.depositAmount || 0) -
+                      (selectedBookingForQrPay.paidAmount || 0)
+                  ).toLocaleString('vi-VN')}{' '}
+                  đ
                 </span>
               </button>
 
@@ -2399,7 +2418,12 @@ export const ProfilePage: React.FC = () => {
                   Tất toán 100%
                 </span>
                 <span className="text-sm font-bold font-mono-tabular mt-0.5 block">
-                  {selectedBookingForQrPay.totalAmount.toLocaleString('vi-VN')} đ
+                  {Math.max(
+                    0,
+                    (selectedBookingForQrPay.totalAmount || 0) -
+                      (selectedBookingForQrPay.paidAmount || 0)
+                  ).toLocaleString('vi-VN')}{' '}
+                  đ
                 </span>
               </button>
             </div>
@@ -2410,8 +2434,16 @@ export const ProfilePage: React.FC = () => {
                 <img
                   src={`https://api.vietqr.io/image/970422-0905123456-compact2.jpg?amount=${
                     qrPaymentType === 'Full100'
-                      ? selectedBookingForQrPay.totalAmount
-                      : selectedBookingForQrPay.depositAmount
+                      ? Math.max(
+                          0,
+                          (selectedBookingForQrPay.totalAmount || 0) -
+                            (selectedBookingForQrPay.paidAmount || 0)
+                        )
+                      : Math.max(
+                          0,
+                          (selectedBookingForQrPay.depositAmount || 0) -
+                            (selectedBookingForQrPay.paidAmount || 0)
+                        )
                   }&addInfo=${encodeURIComponent(
                     `MOTORENT ${selectedBookingForQrPay.bookingCode}`
                   )}&accountName=CONG%20TY%20MOTORENT`}
@@ -2433,8 +2465,16 @@ export const ProfilePage: React.FC = () => {
                   <span className="text-[#A0A0A0]">Số tiền:</span>
                   <span className="font-mono-tabular font-bold text-[#FFC799]">
                     {(qrPaymentType === 'Full100'
-                      ? selectedBookingForQrPay.totalAmount
-                      : selectedBookingForQrPay.depositAmount
+                      ? Math.max(
+                          0,
+                          (selectedBookingForQrPay.totalAmount || 0) -
+                            (selectedBookingForQrPay.paidAmount || 0)
+                        )
+                      : Math.max(
+                          0,
+                          (selectedBookingForQrPay.depositAmount || 0) -
+                            (selectedBookingForQrPay.paidAmount || 0)
+                        )
                     ).toLocaleString('vi-VN')}{' '}
                     đ
                   </span>

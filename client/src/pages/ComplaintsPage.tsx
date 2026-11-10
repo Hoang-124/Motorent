@@ -77,7 +77,7 @@ const PROGRESS_STEPS: { status: ComplaintStatus; label: string; desc: string }[]
 ];
 
 export const ComplaintsPage: React.FC = () => {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -200,16 +200,22 @@ export const ComplaintsPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!isAuthenticated) {
+      navigate('/login?returnTo=' + encodeURIComponent('/complaints'), { replace: true });
+      return;
+    }
     fetchComplaints();
-  }, [fetchComplaints]);
+  }, [authLoading, isAuthenticated, navigate, fetchComplaints]);
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     if (selectedComplaintId) {
       fetchDetail(selectedComplaintId);
     } else {
       setSelectedDetail(null);
     }
-  }, [selectedComplaintId, fetchDetail]);
+  }, [authLoading, isAuthenticated, selectedComplaintId, fetchDetail]);
 
   const handleFilterChange = (newStatus: string) => {
     setStatusFilter(newStatus);

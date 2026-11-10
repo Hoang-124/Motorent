@@ -577,7 +577,7 @@ export const CartPage: React.FC = () => {
                 </div>
 
                 <Link
-                  to={`/orders/${ord.bookingId}`}
+                  to={`/booking-details/${ord.bookingId}`}
                   className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-[#F5F5F5] text-xs font-semibold transition-colors shrink-0"
                 >
                   <span>Xem hợp đồng</span>
@@ -1037,29 +1037,35 @@ export const CartPage: React.FC = () => {
                           <button
                             key={d._id}
                             type="button"
-                            onClick={() => {
-                              const next = isSelected ? '' : d.code;
-                              setDiscountCode(next);
-                              setDiscountFeedback(
-                                next
-                                  ? `Đã chọn mã ưu đãi ${d.code} (Giảm ${d.discountPercent}%)`
-                                  : 'Đã bỏ chọn mã ưu đãi.'
-                              );
-                            }}
-                            className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
-                                : 'bg-[#101010] border-white/10 hover:border-white/25 text-[#A0A0A0]'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-xs font-bold text-[#FFC799]">
-                                {d.code}
-                              </span>
-                              <span className="text-[11px] font-bold text-[#99FFE4]">
-                                Giảm {d.discountPercent}%
-                              </span>
-                            </div>
+                              onClick={() => {
+                                const next = isSelected ? '' : d.code;
+                                const benefitText =
+                                  d.fixedDiscountAmount && d.fixedDiscountAmount > 0
+                                    ? `Giảm ${d.fixedDiscountAmount.toLocaleString('vi-VN')}đ`
+                                    : `Giảm ${d.discountPercent}%`;
+                                setDiscountCode(next);
+                                setDiscountFeedback(
+                                  next
+                                    ? `Đã chọn mã ưu đãi ${d.code} (${benefitText})`
+                                    : 'Đã bỏ chọn mã ưu đãi.'
+                                );
+                              }}
+                              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
+                                  : 'bg-[#101010] border-white/10 hover:border-white/25 text-[#A0A0A0]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-mono text-xs font-bold text-[#FFC799]">
+                                  {d.code}
+                                </span>
+                                <span className="text-[11px] font-bold text-[#99FFE4]">
+                                  {d.fixedDiscountAmount && d.fixedDiscountAmount > 0
+                                    ? `Giảm ${d.fixedDiscountAmount.toLocaleString('vi-VN')}đ`
+                                    : `Giảm ${d.discountPercent}%`}
+                                </span>
+                              </div>
                             <p className="text-[11px] text-[#A0A0A0] mt-1">
                               {d.description ||
                                 `Đơn tối thiểu ${(d.minBookingAmount || 0).toLocaleString('vi-VN')} đ`}

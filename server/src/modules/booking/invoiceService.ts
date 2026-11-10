@@ -68,11 +68,11 @@ export const streamBookingInvoicePdf = async (
   doc.fillColor('#F5F5F5').font(primaryFont).fontSize(9).text('Hotline: 1900 6868  |  support@motorent.vn  |  www.motorent.vn', 280, 78, { align: 'right', width: 260 });
 
   // --- Document Title ---
-  doc.fillColor('#101010').font(boldFont).fontSize(16).text('HÓA ĐƠN THUÊ XE & BIÊN LAI ĐIỆN TỬ', 40, 120, { align: 'center' });
-  doc.fillColor('#666666').font(primaryFont).fontSize(10).text(`Mã hợp đồng: ${booking.bookingCode}  •  Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`, 40, 142, { align: 'center' });
+  doc.fillColor('#101010').font(boldFont).fontSize(15).text('HỢP ĐỒNG THUÊ XE MÁY SONG PHƯƠNG & HÓA ĐƠN ĐIỆN TỬ', 40, 118, { align: 'center' });
+  doc.fillColor('#666666').font(primaryFont).fontSize(9.5).text(`Mã hợp đồng: ${booking.bookingCode}  |  Ngày lập: ${new Date().toLocaleDateString('vi-VN')}  |  Hiệu lực: Cả 2 bên (Bên thuê & Bên cho thuê)`, 40, 140, { align: 'center' });
 
   // Divider
-  doc.strokeColor('#DDDDDD').lineWidth(1).moveTo(40, 165).lineTo(555, 165).stroke();
+  doc.strokeColor('#DDDDDD').lineWidth(1).moveTo(40, 162).lineTo(555, 162).stroke();
 
   // --- Customer & Booking Information (2 columns) ---
   const userObj = (booking.userId as any) || {};
@@ -80,42 +80,58 @@ export const streamBookingInvoicePdf = async (
   const pickupBranch = (booking.pickupBranchId as any) || {};
   const returnBranch = (booking.returnBranchId as any) || {};
 
-  const customerName = `${userObj.firstName || ''} ${userObj.lastName || ''}`.trim() || userObj.username || 'Khách hàng';
+  const customerName = booking.receiverName || `${userObj.firstName || ''} ${userObj.lastName || ''}`.trim() || userObj.username || 'Khách hàng';
+  const customerPhone = booking.receiverPhone || userObj.phoneNumber || 'N/A';
+  const isDoorDelivery = booking.deliveryMode === 'DoorDelivery';
 
-  // Left Column: Customer
-  doc.fillColor('#FF7A00').font(boldFont).fontSize(11).text('THÔNG TIN KHÁCH HÀNG', 40, 180);
-  doc.fillColor('#333333').font(primaryFont).fontSize(10);
-  doc.text(`Họ và tên: ${customerName}`, 40, 200);
-  doc.text(`Số điện thoại: ${userObj.phoneNumber || 'N/A'}`, 40, 217);
-  doc.text(`Email: ${userObj.email || 'N/A'}`, 40, 234);
-  doc.text(`Trạng thái đơn: ${booking.status}`, 40, 251);
+  // Left Column: Parties (Bên A & Bên B)
+  doc.fillColor('#FF7A00').font(boldFont).fontSize(10.5).text('BÊN B (BÊN THUÊ XE) & BÊN A (CHO THUÊ)', 40, 174);
+  doc.fillColor('#333333').font(primaryFont).fontSize(9);
+  doc.text(`Bên B (Người thuê): ${customerName}`, 40, 192);
+  doc.text(`SĐT / CCCD: ${customerPhone}${booking.receiverIdCard ? ` - ${booking.receiverIdCard}` : ''}`, 40, 207);
+  doc.text(`Email: ${userObj.email || 'N/A'}`, 40, 222);
+  doc.text(`Bên A (Cho thuê): ${pickupBranch.name || 'Công ty TNHH Motorent Việt Nam'}`, 40, 237);
+  doc.text(`Hotline trạm: ${pickupBranch.phone || '1900 6868'}  |  Trạng thái: ${booking.status}`, 40, 252);
 
-  // Right Column: Vehicle & Routing
-  doc.fillColor('#FF7A00').font(boldFont).fontSize(11).text('PHƯƠNG TIỆN & HÀNH TRÌNH', 300, 180);
-  doc.fillColor('#333333').font(primaryFont).fontSize(10);
-  doc.text(`Mẫu xe: ${vehicleObj.brand || ''} ${vehicleObj.vehicleModel || 'Xe Motorent'}`, 300, 200);
-  doc.text(`Biển số: ${vehicleObj.licensePlate || 'N/A'}  (${vehicleObj.transmissionType || 'Tự động'}, ${vehicleObj.fuelType || 'Xăng'})`, 300, 217);
-  doc.text(`Trạm nhận: ${pickupBranch.name || 'Chi nhánh Motorent'}`, 300, 234);
-  doc.text(`Trạm trả: ${returnBranch.name || 'Chi nhánh Motorent'}`, 300, 251);
-  doc.text(`Thời gian: ${new Date(booking.pickupDateTime).toLocaleDateString('vi-VN')} -> ${new Date(booking.returnDateTime).toLocaleDateString('vi-VN')}`, 300, 268);
+  // Right Column: Vehicle & Routing (supports DoorDelivery custom pickup/return)
+  doc.fillColor('#FF7A00').font(boldFont).fontSize(10.5).text('PHƯƠNG TIỆN & ĐỊA ĐIỂM GIAO NHẬN', 300, 174);
+  doc.fillColor('#333333').font(primaryFont).fontSize(9);
+  doc.text(`Mẫu xe: ${vehicleObj.brand || ''} ${vehicleObj.vehicleModel || 'Xe Motorent'} (${vehicleObj.licensePlate || 'N/A'})`, 300, 192);
+  doc.text(`Hình thức: ${isDoorDelivery ? 'Giao & Nhận xe tận nơi ngoài cửa hàng' : 'Nhận & Trả xe tại Cửa hàng (Chi nhánh)'}`, 300, 207);
+  doc.text(
+    `Điểm nhận: ${isDoorDelivery && booking.customPickupAddress ? booking.customPickupAddress : (pickupBranch.name || 'Chi nhánh Motorent')}`,
+    300,
+    222,
+    { width: 255, ellipsis: true }
+  );
+  doc.text(
+    `Điểm trả: ${isDoorDelivery && booking.customReturnAddress ? booking.customReturnAddress : (returnBranch.name || 'Chi nhánh Motorent')}`,
+    300,
+    237,
+    { width: 255, ellipsis: true }
+  );
+  doc.text(`Thời hạn: ${new Date(booking.pickupDateTime).toLocaleDateString('vi-VN')} -> ${new Date(booking.returnDateTime).toLocaleDateString('vi-VN')}`, 300, 252);
 
   // Divider
-  doc.strokeColor('#DDDDDD').lineWidth(1).moveTo(40, 295).lineTo(555, 295).stroke();
+  doc.strokeColor('#DDDDDD').lineWidth(1).moveTo(40, 276).lineTo(555, 276).stroke();
 
   // --- Pricing Table ---
-  doc.fillColor('#FF7A00').font(boldFont).fontSize(11).text('CHI TIẾT THANH TOÁN & ĐỐI SOÁT HỢP ĐỒNG', 40, 310);
+  doc.fillColor('#FF7A00').font(boldFont).fontSize(10.5).text('CHI TIẾT THANH TOÁN & ĐỐI SOÁT HỢP ĐỒNG', 40, 288);
 
   // Table Header
-  doc.rect(40, 330, 515, 24).fill('#F2F2F2');
+  doc.rect(40, 306, 515, 22).fill('#F2F2F2');
   doc.fillColor('#222222').font(boldFont).fontSize(9);
-  doc.text('HẠNG MỤC DỊCH VỤ', 50, 337);
-  doc.text('ĐƠN GIÁ (VND)', 280, 337);
-  doc.text('SỐ LƯỢNG', 380, 337);
-  doc.text('THÀNH TIỀN (VND)', 460, 337, { align: 'right', width: 85 });
+  doc.text('HẠNG MỤC DỊCH VỤ', 50, 313);
+  doc.text('ĐƠN GIÁ (VND)', 280, 313);
+  doc.text('SỐ LƯỢNG', 380, 313);
+  doc.text('THÀNH TIỀN (VND)', 460, 313, { align: 'right', width: 85 });
 
   // Table Rows
-  let y = 360;
-  const baseRentalAmount = booking.baseRentalAmount ?? booking.totalAmount + (booking.discountAmount || 0);
+  let y = 335;
+  const deliveryFee = booking.deliveryFee || 0;
+  const baseRentalAmount =
+    booking.baseRentalAmount ??
+    Math.max(0, booking.totalAmount + (booking.discountAmount || 0) - deliveryFee);
   const seasonalSurcharge = booking.seasonalSurcharge || 0;
 
   // Row 1: Tiền thuê xe
@@ -124,7 +140,7 @@ export const streamBookingInvoicePdf = async (
   doc.text('-', 280, y);
   doc.text('-', 380, y);
   doc.text(`${baseRentalAmount.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
-  y += 20;
+  y += 18;
 
   if (seasonalSurcharge !== 0) {
     doc.text(
@@ -141,7 +157,17 @@ export const streamBookingInvoicePdf = async (
       { align: 'right', width: 85 }
     );
     doc.fillColor('#333333');
-    y += 20;
+    y += 18;
+  }
+
+  // Row: Phí giao nhận xe tận nơi ngoài cửa hàng (nếu có)
+  if (deliveryFee > 0) {
+    doc.text('Phí giao / nhận xe tận nơi ngoài cửa hàng (Door-to-Door)', 50, y);
+    doc.text('40.000 đ/chiều', 280, y);
+    doc.text(deliveryFee >= 80000 ? '2 chiều' : '1 chiều', 380, y);
+    doc.fillColor('#1565C0').text(`+${deliveryFee.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
+    doc.fillColor('#333333');
+    y += 18;
   }
 
   // Row 2: Khuyến mãi (nếu có)
@@ -151,7 +177,7 @@ export const streamBookingInvoicePdf = async (
     doc.text('1', 380, y);
     doc.fillColor('#2E7D32').text(`-${booking.discountAmount.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
     doc.fillColor('#333333');
-    y += 20;
+    y += 18;
   }
 
   // Row 3: Phí trễ hạn (nếu có)
@@ -161,7 +187,7 @@ export const streamBookingInvoicePdf = async (
     doc.text('-', 380, y);
     doc.fillColor('#C62828').text(`+${booking.lateFee.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
     doc.fillColor('#333333');
-    y += 20;
+    y += 18;
   }
 
   // Row 4: Phí bồi thường hỏng hóc (nếu có)
@@ -171,56 +197,120 @@ export const streamBookingInvoicePdf = async (
     doc.text('-', 380, y);
     doc.fillColor('#C62828').text(`+${booking.damageFee.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
     doc.fillColor('#333333');
-    y += 20;
+    y += 18;
   }
 
   // Line before summary
-  doc.strokeColor('#CCCCCC').lineWidth(0.5).moveTo(40, y + 5).lineTo(555, y + 5).stroke();
-  y += 15;
+  doc.strokeColor('#CCCCCC').lineWidth(0.5).moveTo(40, y + 4).lineTo(555, y + 4).stroke();
+  y += 12;
 
   // Summary Box
   doc.font(boldFont).fontSize(10);
   doc.text('TỔNG CỘNG HỢP ĐỒNG:', 300, y);
   doc.text(`${(booking.totalAmount || 0).toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
-  y += 18;
+  y += 16;
 
   doc.font(primaryFont).fontSize(9);
   doc.text('Mức cọc yêu cầu (gồm cọc gia hạn):', 300, y);
   doc.fillColor('#333333').text(`${(booking.depositAmount || 0).toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
-  y += 16;
+  y += 15;
 
   doc.text('Đã thanh toán:', 300, y);
   const paidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
   doc.fillColor('#2E7D32').text(`${paidAmount.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
   doc.fillColor('#333333');
-  y += 16;
+  y += 15;
 
   doc.text('Còn lại phải thanh toán:', 300, y);
   doc.fillColor(booking.isPaid ? '#2E7D32' : '#C62828').text(`${(booking.remainingAmount || 0).toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
   doc.fillColor('#333333');
-  y += 22;
+  y += 18;
 
   // Payment status badge
-  doc.rect(300, y, 245, 24).fill(booking.isPaid ? '#E8F5E9' : '#FFF3E0');
-  doc.fillColor(booking.isPaid ? '#2E7D32' : '#E65100').font(boldFont).fontSize(9).text(
+  doc.rect(300, y, 245, 22).fill(booking.isPaid ? '#E8F5E9' : '#FFF3E0');
+  doc.fillColor(booking.isPaid ? '#2E7D32' : '#E65100').font(boldFont).fontSize(8.5).text(
     booking.isPaid ? 'TRẠNG THÁI: ĐÃ HOÀN TẤT THANH TOÁN 100%' : 'TRẠNG THÁI: ĐÃ THANH TOÁN TIỀN CỌC (CÒN NỢ 70%)',
     305,
-    y + 7,
+    y + 6,
+    { align: 'center', width: 235 }
+  );
+
+  // --- Bilateral Contract Signatures (Chữ ký của cả Bên cho thuê & Bên thuê) ---
+  const sigTop = Math.max(y + 34, 520);
+  doc.strokeColor('#DDDDDD').lineWidth(0.8).moveTo(40, sigTop).lineTo(555, sigTop).stroke();
+  doc.fillColor('#FF7A00').font(boldFont).fontSize(10).text(
+    'XÁC NHẬN HỢP ĐỒNG SONG PHƯƠNG (MỖI BÊN GIỮ 01 BẢN CÓ GIÁ TRỊ PHÁP LÝ NHƯ NHAU)',
+    40,
+    sigTop + 8,
+    { align: 'center', width: 515 }
+  );
+
+  const boxY = sigTop + 26;
+  // Left Box: Bên A (Bên cho thuê)
+  doc.rect(40, boxY, 245, 110).strokeColor('#CCCCCC').lineWidth(0.8).stroke();
+  doc.fillColor('#101010').font(boldFont).fontSize(9.5).text('ĐẠI DIỆN BÊN CHO THUÊ (BÊN A)', 45, boxY + 8, { align: 'center', width: 235 });
+  doc.fillColor('#666666').font(primaryFont).fontSize(8).text(pickupBranch.name || 'MOTORENT VIETNAM', 45, boxY + 22, { align: 'center', width: 235 });
+
+  const renderDataUriSignature = (dataUri: string | undefined, x: number, yPos: number) => {
+    if (!dataUri || !dataUri.startsWith('data:image/')) return false;
+    try {
+      const base64Part = dataUri.split(',')[1];
+      if (!base64Part) return false;
+      const imgBuffer = Buffer.from(base64Part, 'base64');
+      doc.image(imgBuffer, x, yPos, { fit: [150, 48], align: 'center' });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const drewLessorImg = renderDataUriSignature(booking.lessorSignatureUrl, 85, boxY + 36);
+  if (!drewLessorImg) {
+    doc.rect(85, boxY + 40, 155, 38).strokeColor('#E65100').lineWidth(1).stroke();
+    doc.fillColor('#E65100').font(boldFont).fontSize(8).text('ĐÃ KÝ SỐ & ĐÓNG DẤU', 85, boxY + 48, { align: 'center', width: 155 });
+    doc.fontSize(7.5).text('ĐẠI DIỆN MOTORENT VIỆT NAM', 85, boxY + 61, { align: 'center', width: 155 });
+  }
+  doc.fillColor('#2E7D32').font(boldFont).fontSize(8).text(
+    `Đã xác nhận bởi Bên cho thuê (${new Date(booking.contractSignedAt || booking.createdAt || Date.now()).toLocaleDateString('vi-VN')})`,
+    45,
+    boxY + 92,
+    { align: 'center', width: 235 }
+  );
+
+  // Right Box: Bên B (Bên thuê xe)
+  doc.rect(310, boxY, 245, 110).strokeColor('#CCCCCC').lineWidth(0.8).stroke();
+  doc.fillColor('#101010').font(boldFont).fontSize(9.5).text('ĐẠI DIỆN BÊN THUÊ XE (BÊN B)', 315, boxY + 8, { align: 'center', width: 235 });
+  doc.fillColor('#666666').font(primaryFont).fontSize(8).text(customerName, 315, boxY + 22, { align: 'center', width: 235 });
+
+  const drewRenterImg = renderDataUriSignature(booking.eSignatureUrl, 355, boxY + 36);
+  if (!drewRenterImg) {
+    if (booking.eSignatureUrl) {
+      doc.fillColor('#1565C0').font(boldFont).fontSize(9).text(`[Chữ ký điện tử: ${customerName}]`, 315, boxY + 52, { align: 'center', width: 235 });
+    } else {
+      doc.fillColor('#999999').font(primaryFont).fontSize(8).text('(Khách hàng ký điện tử hoặc ký trực tiếp khi nhận xe)', 315, boxY + 52, { align: 'center', width: 235 });
+    }
+  }
+  doc.fillColor(booking.eSignatureUrl ? '#2E7D32' : '#666666').font(boldFont).fontSize(8).text(
+    booking.eSignatureUrl
+      ? `Khách hàng ${customerName} đã ký xác nhận`
+      : `Người thuê: ${customerName}`,
+    315,
+    boxY + 92,
     { align: 'center', width: 235 }
   );
 
   // Footer notes & terms
-  doc.strokeColor('#DDDDDD').lineWidth(1).moveTo(40, 680).lineTo(555, 680).stroke();
+  doc.strokeColor('#DDDDDD').lineWidth(1).moveTo(40, 688).lineTo(555, 688).stroke();
   doc.fillColor('#666666').font(primaryFont).fontSize(8);
-  doc.text('ĐIỀU KHOẢN & LƯU Ý QUAN TRỌNG:', 40, 690);
-  doc.text('1. Hóa đơn và biên lai điện tử này được xuất tự động từ hệ thống quản lý MOTORENT ERP.', 40, 702);
-  doc.text('2. Quý khách vui lòng xuất trình mã hợp đồng và CCCD / Hộ chiếu hợp lệ khi nhận xe tại chi nhánh đã chọn.', 40, 714);
-  doc.text('3. Mọi thắc mắc về cước phí, hoàn trả cọc (BR-06) hoặc sự cố xin liên hệ Tổng đài 1900 6868 để được trợ giúp 24/7.', 40, 726);
+  doc.text('ĐIỀU KHOẢN HỢP ĐỒNG THUÊ XE SONG PHƯƠNG:', 40, 696);
+  doc.text('1. Hợp đồng điện tử có chữ ký của cả Bên cho thuê (Bên A) và Bên thuê (Bên B); mỗi bên đều nắm giữ bản hợp đồng đồng nhất trên hệ thống.', 40, 708);
+  doc.text('2. Bên B cam kết sử dụng phương tiện đúng mục đích, xuất trình CCCD/GPLX hợp lệ và hoàn trả xe đúng thời gian/địa điểm đã thỏa thuận.', 40, 720);
+  doc.text('3. Mọi thắc mắc về giao nhận xe tận nơi, hoàn trả cọc (BR-06) hoặc sự cố kỹ thuật xin liên hệ Tổng đài 1900 6868 (Hỗ trợ 24/7).', 40, 732);
 
   // Stamp text
-  doc.rect(420, 740, 130, 40).strokeColor('#FF7A00').lineWidth(1).stroke();
-  doc.fillColor('#FF7A00').font(boldFont).fontSize(8).text('MOTORENT E-INVOICE', 420, 748, { align: 'center', width: 130 });
-  doc.fontSize(7).text('HỆ THỐNG XÁC THỰC', 420, 762, { align: 'center', width: 130 });
+  doc.rect(420, 745, 130, 36).strokeColor('#FF7A00').lineWidth(1).stroke();
+  doc.fillColor('#FF7A00').font(boldFont).fontSize(8).text('MOTORENT E-CONTRACT', 420, 752, { align: 'center', width: 130 });
+  doc.fontSize(7).text('HỢP ĐỒNG 2 BÊN XÁC THỰC', 420, 765, { align: 'center', width: 130 });
 
   if (paymentRows.length > 0) {
     doc.addPage();

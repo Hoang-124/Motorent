@@ -321,6 +321,7 @@ export const CounterDesk: React.FC = () => {
   });
   const [checkinPhotos, setCheckinPhotos] = useState<string[]>(['', '', '', '']);
   const [signatureData, setSignatureData] = useState<string>('');
+  const [lessorSignatureData, setLessorSignatureData] = useState<string>('');
   const [receiverName, setReceiverName] = useState<string>('');
   const [receiverPhone, setReceiverPhone] = useState<string>('');
 
@@ -332,9 +333,11 @@ export const CounterDesk: React.FC = () => {
   const [checkoutPhotos, setCheckoutPhotos] = useState<string[]>(['', '', '', '']);
   const [uploadingAngle, setUploadingAngle] = useState<string | null>(null);
 
-  // Canvas ref for digital signature
+  // Canvas ref for digital signature (Customer & Lessor/Staff)
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawing = useRef<boolean>(false);
+  const lessorCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isLessorDrawing = useRef<boolean>(false);
 
   // Counter Payment modal states (UC-31)
   const [showCounterPayModal, setShowCounterPayModal] = useState<boolean>(false);
@@ -379,6 +382,7 @@ export const CounterDesk: React.FC = () => {
     setSelectedBooking(b);
     setStatusMessage(null);
     setSignatureData(b.eSignatureUrl || '');
+    setLessorSignatureData(b.lessorSignatureUrl || '');
 
     const bookingOwner =
       typeof b.userId === 'object' && b.userId !== null ? (b.userId as User) : null;
@@ -1122,6 +1126,55 @@ export const CounterDesk: React.FC = () => {
     setSignatureData('');
   };
 
+  const startLessorDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = lessorCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    isLessorDrawing.current = true;
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#FFC799';
+  };
+
+  const drawLessor = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isLessorDrawing.current) return;
+    const canvas = lessorCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = 'touches' in e ? e.touches[0].clientX - rect.left : e.clientX - rect.left;
+    const y = 'touches' in e ? e.touches[0].clientY - rect.top : e.clientY - rect.top;
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopLessorDrawing = () => {
+    if (isLessorDrawing.current && lessorCanvasRef.current) {
+      isLessorDrawing.current = false;
+      setLessorSignatureData(lessorCanvasRef.current.toDataURL('image/png'));
+    }
+  };
+
+  const clearLessorSignature = () => {
+    const canvas = lessorCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setLessorSignatureData('');
+  };
+
   const handleCheckinSubmit = async () => {
     if (!selectedBooking) return;
 
@@ -1151,6 +1204,10 @@ export const CounterDesk: React.FC = () => {
         checklist,
         checkinImages: checkinPhotos.filter(Boolean),
         eSignatureUrl: signatureData,
+        lessorSignatureUrl:
+          lessorSignatureData ||
+          selectedBooking.lessorSignatureUrl ||
+          `MOTORENT-STAFF:${user?.firstName || user?.username || 'STAFF'}:${new Date().toISOString()}`,
         verifiedAtCounter: true,
         receiverName: receiverName.trim() || undefined,
         receiverPhone: receiverPhone.trim() || undefined,
@@ -1999,6 +2056,39 @@ export const CounterDesk: React.FC = () => {
                             />
                           </div>
                         </div>
+
+                        {/* Door-to-Door Custom Delivery & Return Location Banner in CounterDesk */}
+                        <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center space-x-2">
+                            <MapPin className="w-4 h-4 text-[#FFC799] shrink-0" />
+                            {selectedBooking.deliveryMode === 'DoorDelivery' ? (
+                              <div>
+                                <span className="font-bold text-[#FFC799]">
+                                  Đơn Giao &amp; Nhận xe tận nơi ngoài cửa hàng (+{(selectedBooking.deliveryFee || 0).toLocaleString('vi-VN')} đ)
+                                </span>
+                                <p className="text-[11px] text-[#F5F5F5] mt-0.5">
+                                  Điểm giao xe: <strong>{selectedBooking.customPickupAddress || 'Tại trạm'}</strong>
+                                  {selectedBooking.customReturnAddress
+                                    ? ` • Điểm thu hồi: ${selectedBooking.customReturnAddress}`
+                                    : ''}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-[#A0A0A0]">
+                                Hình thức giao nhận: <strong className="text-white">Nhận &amp; Trả xe trực tiếp tại Cửa hàng (Chi nhánh)</strong>
+                              </span>
+                            )}
+                          </div>
+                          <a
+                            href={`/api/bookings/${selectedBooking._id}/invoice`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-3 py-1.5 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/40 text-[#FFC799] font-bold text-[11px] flex items-center space-x-1.5"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>Xuất Hợp đồng PDF 2 bên</span>
+                          </a>
+                        </div>
                       </div>
 
                       {/* 2. Odometer Input & Fuel Level Selector (UC-56) */}
@@ -2297,64 +2387,152 @@ export const CounterDesk: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Digital Signature Canvas */}
-                      <div className="border border-dashed border-white/15 rounded-2xl p-4 bg-[#101010]/60">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-semibold text-[#A0A0A0] flex items-center">
-                            <PenTool className="w-3.5 h-3.5 text-[#FFC799] mr-1" />
-                            Chữ ký điện tử của khách hàng
-                          </p>
-                          {signatureData && (
-                            <button
-                              type="button"
-                              onClick={clearSignature}
-                              disabled={
-                                selectedBooking.status !== 'Confirmed' &&
-                                selectedBooking.status !== 'Approved'
-                              }
-                              className="text-[11px] text-[#FF8080] hover:text-[#FF8080] flex items-center space-x-1 font-semibold"
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>Xóa ký lại</span>
-                            </button>
-                          )}
+                      {/* Bilateral Digital Signature Canvases: Party A (Lessor/Staff) & Party B (Renter/Customer) */}
+                      <div className="border border-dashed border-white/15 rounded-2xl p-4 bg-[#101010]/60 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-bold text-[#F5F5F5] flex items-center">
+                              <PenTool className="w-3.5 h-3.5 text-[#FFC799] mr-1.5" />
+                              Chữ ký Hợp đồng Thuê xe Song phương (Cả 2 bên: Bên Cho Thuê &amp; Bên Thuê)
+                            </p>
+                            <p className="text-[11px] text-[#A0A0A0] mt-0.5">
+                              Hợp đồng điện tử lưu trữ chữ ký của cả Đại diện cửa hàng (Bên A) và Khách thuê xe (Bên B). Mỗi bên giữ 01 bản PDF đồng nhất.
+                            </p>
+                          </div>
                         </div>
 
-                        {selectedBooking.status === 'Confirmed' ||
-                        selectedBooking.status === 'Approved' ? (
-                          <div className="relative border border-white/10 rounded-xl bg-[#101010] overflow-hidden">
-                            <canvas
-                              ref={canvasRef}
-                              width={500}
-                              height={160}
-                              onMouseDown={startDrawing}
-                              onMouseMove={draw}
-                              onMouseUp={stopDrawing}
-                              onMouseLeave={stopDrawing}
-                              onTouchStart={startDrawing}
-                              onTouchMove={draw}
-                              onTouchEnd={stopDrawing}
-                              className="w-full h-40 touch-none cursor-crosshair"
-                            />
-                            {!signatureData && (
-                              <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-xs text-[#6E6E6E]">
-                                Mời khách ký tay trực tiếp tại đây bằng chuột hoặc màn hình cảm ứng
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Party A: Lessor / Staff Representative Signature */}
+                          <div className="p-3 rounded-xl bg-[#141414] border border-white/10 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#FFC799] uppercase">
+                                1. Chữ ký Bên cho thuê (Đại diện Motorent - Bên A)
+                              </span>
+                              {lessorSignatureData && (
+                                <button
+                                  type="button"
+                                  onClick={clearLessorSignature}
+                                  disabled={
+                                    selectedBooking.status !== 'Confirmed' &&
+                                    selectedBooking.status !== 'Approved'
+                                  }
+                                  className="text-[11px] text-[#FF8080] flex items-center space-x-1 font-semibold cursor-pointer"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Ký lại</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {selectedBooking.status === 'Confirmed' ||
+                            selectedBooking.status === 'Approved' ? (
+                              <div className="relative border border-white/10 rounded-xl bg-[#101010] overflow-hidden">
+                                <canvas
+                                  ref={lessorCanvasRef}
+                                  width={400}
+                                  height={140}
+                                  onMouseDown={startLessorDrawing}
+                                  onMouseMove={drawLessor}
+                                  onMouseUp={stopLessorDrawing}
+                                  onMouseLeave={stopLessorDrawing}
+                                  onTouchStart={startLessorDrawing}
+                                  onTouchMove={drawLessor}
+                                  onTouchEnd={stopLessorDrawing}
+                                  className="w-full h-36 touch-none cursor-crosshair"
+                                />
+                                {!lessorSignatureData && (
+                                  <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-center px-3">
+                                    <span className="text-xs text-[#FFC799] font-semibold">
+                                      Nhân viên bàn giao ký tay tại đây
+                                    </span>
+                                    <span className="text-[10px] text-[#6E6E6E] mt-0.5">
+                                      (Nếu để trống hệ thống tự động đóng dấu chữ ký số của {user?.firstName || user?.username || 'Đại diện Motorent'})
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="p-3 bg-[#101010] rounded-xl text-center min-h-[96px] flex items-center justify-center">
+                                {selectedBooking.lessorSignatureUrl &&
+                                selectedBooking.lessorSignatureUrl.startsWith('data:image/') ? (
+                                  <img
+                                    src={selectedBooking.lessorSignatureUrl}
+                                    alt="Chữ ký Bên cho thuê"
+                                    className="max-h-24 mx-auto object-contain"
+                                  />
+                                ) : (
+                                  <div className="text-xs text-emerald-400 font-mono font-bold">
+                                    {selectedBooking.lessorSignatureUrl || 'Đã ký số & đóng dấu bởi Đại diện Motorent'}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
-                        ) : (
-                          <div className="p-3 bg-[#101010] rounded-xl text-center">
-                            {selectedBooking.eSignatureUrl ? (
-                              <img
-                                src={selectedBooking.eSignatureUrl}
-                                alt="Chữ ký khách hàng"
-                                className="max-h-24 mx-auto object-contain filter invert"
-                              />
+
+                          {/* Party B: Renter / Customer Signature */}
+                          <div className="p-3 rounded-xl bg-[#141414] border border-white/10 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-bold text-[#99FFE4] uppercase">
+                                2. Chữ ký Bên thuê xe (Khách hàng - Bên B) *
+                              </span>
+                              {signatureData && (
+                                <button
+                                  type="button"
+                                  onClick={clearSignature}
+                                  disabled={
+                                    selectedBooking.status !== 'Confirmed' &&
+                                    selectedBooking.status !== 'Approved'
+                                  }
+                                  className="text-[11px] text-[#FF8080] flex items-center space-x-1 font-semibold cursor-pointer"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Xóa ký lại</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {selectedBooking.status === 'Confirmed' ||
+                            selectedBooking.status === 'Approved' ? (
+                              <div className="relative border border-white/10 rounded-xl bg-[#101010] overflow-hidden">
+                                <canvas
+                                  ref={canvasRef}
+                                  width={400}
+                                  height={140}
+                                  onMouseDown={startDrawing}
+                                  onMouseMove={draw}
+                                  onMouseUp={stopDrawing}
+                                  onMouseLeave={stopDrawing}
+                                  onTouchStart={startDrawing}
+                                  onTouchMove={draw}
+                                  onTouchEnd={stopDrawing}
+                                  className="w-full h-36 touch-none cursor-crosshair"
+                                />
+                                {!signatureData && (
+                                  <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-xs text-[#6E6E6E] px-3 text-center">
+                                    Mời khách hàng (Bên B) ký tay trực tiếp tại đây
+                                  </div>
+                                )}
+                              </div>
                             ) : (
-                              <span className="text-xs text-[#6E6E6E]">Chưa ghi nhận chữ ký điện tử</span>
+                              <div className="p-3 bg-[#101010] rounded-xl text-center min-h-[96px] flex items-center justify-center">
+                                {selectedBooking.eSignatureUrl &&
+                                selectedBooking.eSignatureUrl.startsWith('data:image/') ? (
+                                  <img
+                                    src={selectedBooking.eSignatureUrl}
+                                    alt="Chữ ký khách hàng"
+                                    className="max-h-24 mx-auto object-contain"
+                                  />
+                                ) : selectedBooking.eSignatureUrl ? (
+                                  <span className="text-xs text-[#99FFE4] font-mono font-bold">
+                                    {selectedBooking.eSignatureUrl}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-[#6E6E6E]">Chưa ghi nhận chữ ký điện tử</span>
+                                )}
+                              </div>
                             )}
                           </div>
-                        )}
+                        </div>
                       </div>
 
                       {/* Complete Check-in Button */}

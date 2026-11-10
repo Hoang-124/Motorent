@@ -67,7 +67,7 @@ export const apiRateLimiter = rateLimit({
     if (req.headers['x-test-ratelimit'] === 'enforce') {
       return 5;
     }
-    return 600;
+    return 10000;
   },
   keyGenerator: (req: Request) => {
     if (typeof req.headers['x-test-ratelimit-key'] === 'string') {

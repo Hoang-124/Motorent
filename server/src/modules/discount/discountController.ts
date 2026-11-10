@@ -116,8 +116,8 @@ export const createDiscount = async (req: AuthenticatedRequest, res: Response, n
     await AuditLog.create({
       userId: req.user?._id,
       action: 'CREATE_DISCOUNT',
-      entityType: 'Discount',
-      entityId: newDiscount._id,
+      entity: 'Discount',
+      entityId: String(newDiscount._id),
       details: {
         code: formattedCode,
         discountPercent: newDiscount.discountPercent,
@@ -186,8 +186,8 @@ export const updateDiscount = async (req: AuthenticatedRequest, res: Response, n
     await AuditLog.create({
       userId: req.user?._id,
       action: 'UPDATE_DISCOUNT',
-      entityType: 'Discount',
-      entityId: discount._id,
+      entity: 'Discount',
+      entityId: String(discount._id),
       details: { code: discount.code, isActive: discount.isActive },
       ipAddress: req.ip,
     });
@@ -221,8 +221,8 @@ export const deleteDiscount = async (req: AuthenticatedRequest, res: Response, n
     await AuditLog.create({
       userId: req.user?._id,
       action: 'DELETE_DISCOUNT',
-      entityType: 'Discount',
-      entityId: id as any,
+      entity: 'Discount',
+      entityId: String(id),
       details: { code: discount.code },
       ipAddress: req.ip,
     });
@@ -287,17 +287,28 @@ export const validateDiscount = async (req: Request, res: Response, next: NextFu
     }
 
     // Calculate discount amount
-    let discountAmount = Math.round((amount * discount.discountPercent) / 100);
-    if (discount.maxDiscountAmount && discount.maxDiscountAmount > 0 && discountAmount > discount.maxDiscountAmount) {
-      discountAmount = discount.maxDiscountAmount;
+    let discountAmount = 0;
+    if (discount.fixedDiscountAmount && discount.fixedDiscountAmount > 0) {
+      discountAmount = Math.min(amount, discount.fixedDiscountAmount);
+    } else {
+      discountAmount = Math.round((amount * discount.discountPercent) / 100);
+      if (discount.maxDiscountAmount && discount.maxDiscountAmount > 0 && discountAmount > discount.maxDiscountAmount) {
+        discountAmount = discount.maxDiscountAmount;
+      }
     }
+
+    const benefitLabel =
+      discount.fixedDiscountAmount && discount.fixedDiscountAmount > 0
+        ? `Giảm ${discount.fixedDiscountAmount.toLocaleString('vi-VN')} VND!`
+        : `Giảm ${discount.discountPercent}%!`;
 
     res.json({
       success: true,
-      message: `Áp dụng thành công mã ${discount.code}: Giảm ${discount.discountPercent}%!`,
+      message: `Áp dụng thành công mã ${discount.code}: ${benefitLabel}`,
       data: {
         code: discount.code,
         discountPercent: discount.discountPercent,
+        fixedDiscountAmount: discount.fixedDiscountAmount,
         discountAmount,
         maxDiscountAmount: discount.maxDiscountAmount,
         description: discount.description,

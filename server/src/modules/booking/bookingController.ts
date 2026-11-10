@@ -13,6 +13,11 @@ const createBookingSchema = z.object({
   returnDateTime: z.string().min(1, 'Thiếu thời gian trả xe'),
   paymentMethod: z.enum(['Banking', 'Cash']).default('Banking'),
   discountCode: z.string().trim().optional(),
+  deliveryMode: z.enum(['BranchPickup', 'DoorDelivery']).optional(),
+  customPickupAddress: z.string().trim().max(300).optional(),
+  customReturnAddress: z.string().trim().max(300).optional(),
+  eSignatureUrl: z.string().optional(),
+  lessorSignatureUrl: z.string().optional(),
 });
 
 const estimateBookingSchema = z.object({
@@ -22,6 +27,9 @@ const estimateBookingSchema = z.object({
   pickupDateTime: z.string().min(1, 'Thiếu thời gian nhận xe'),
   returnDateTime: z.string().min(1, 'Thiếu thời gian trả xe'),
   discountCode: z.string().trim().optional(),
+  deliveryMode: z.enum(['BranchPickup', 'DoorDelivery']).optional(),
+  customPickupAddress: z.string().trim().max(300).optional(),
+  customReturnAddress: z.string().trim().max(300).optional(),
 });
 
 const checkinSchema = z.object({
@@ -29,11 +37,20 @@ const checkinSchema = z.object({
   startFuelLevel: z.union([z.string(), z.number()]).optional().transform((v) => v !== undefined ? String(v) : undefined),
   checkinImages: z.array(z.string()).optional(),
   eSignatureUrl: z.string().optional(),
+  lessorSignatureUrl: z.string().optional(),
   checklist: z.record(z.string(), z.boolean()).optional(),
   verifiedAtCounter: z.boolean().optional(),
   receiverName: z.string().trim().max(120).optional(),
   receiverPhone: z.string().trim().max(25).optional(),
   receiverIdCard: z.string().trim().max(30).optional(),
+});
+
+const updateContractAndDeliverySchema = z.object({
+  deliveryMode: z.enum(['BranchPickup', 'DoorDelivery']).optional(),
+  customPickupAddress: z.string().trim().max(300).optional(),
+  customReturnAddress: z.string().trim().max(300).optional(),
+  eSignatureUrl: z.string().optional(),
+  lessorSignatureUrl: z.string().optional(),
 });
 
 const checkoutSchema = z.object({
@@ -47,6 +64,7 @@ const checkoutSchema = z.object({
 
 const cancelSchema = z.object({
   cancelReason: z.string().trim().optional(),
+  reason: z.string().trim().optional(),
 });
 
 export const createBooking = async (
@@ -260,7 +278,8 @@ export const cancel = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const { cancelReason } = cancelSchema.parse(req.body || {});
+    const parsedCancel = cancelSchema.parse(req.body || {});
+    const cancelReason = parsedCancel.cancelReason || parsedCancel.reason;
     const cancelled = await bookingService.cancelBooking(req.params.id, req.user, cancelReason);
     const policyNotice = (cancelled as unknown as { policySummary?: { policyNotice?: string } })
       .policySummary?.policyNotice;
@@ -629,3 +648,35 @@ export const rejectRefund = async (
     next(error);
   }
 };
+
+export const updateContractAndDelivery = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+
+    const data = updateContractAndDeliverySchema.parse(req.body);
+    const booking = await bookingService.updateBookingDeliveryAndSignatures(
+      req.params.id,
+      req.user,
+      data
+    );
+    const details = bookingService.buildOrderDetails(booking);
+
+    res.json({
+      success: true,
+      message: 'Đã cập nhật hợp đồng điện tử song phương và địa điểm giao nhận xe.',
+      data: {
+        ...booking.toObject(),
+        ...details,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

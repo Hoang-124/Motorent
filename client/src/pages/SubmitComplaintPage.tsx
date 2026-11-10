@@ -29,7 +29,7 @@ import {
 import type { Booking, Vehicle, Branch } from '../types';
 
 export const SubmitComplaintPage: React.FC = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preselectedBookingId = searchParams.get('bookingId');
@@ -62,8 +62,10 @@ export const SubmitComplaintPage: React.FC = () => {
 
   // Load customer bookings and categories
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
-      navigate('/login?redirect=/complaints/new', { replace: true });
+      const targetUrl = '/complaints/new' + (preselectedBookingId ? `?bookingId=${preselectedBookingId}` : '');
+      navigate('/login?returnTo=' + encodeURIComponent(targetUrl), { replace: true });
       return;
     }
 
@@ -96,7 +98,7 @@ export const SubmitComplaintPage: React.FC = () => {
     };
 
     loadData();
-  }, [isAuthenticated, navigate, preselectedBookingId]);
+  }, [authLoading, isAuthenticated, navigate, preselectedBookingId]);
 
   // Selected booking object
   const selectedBooking = bookings.find((b) => b._id === selectedBookingId);

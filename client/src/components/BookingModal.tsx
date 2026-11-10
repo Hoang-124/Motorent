@@ -80,6 +80,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [voucherFeedback, setVoucherFeedback] = useState<string>('');
   const [isConflicting, setIsConflicting] = useState<boolean>(false);
   const [estimateLoading, setEstimateLoading] = useState<boolean>(false);
+  const [serverEstimate, setServerEstimate] = useState<{
+    basePrice: number;
+    discountAmount: number;
+    totalAmount: number;
+    depositAmount: number;
+    remainingAmount: number;
+  } | null>(null);
 
   const [modalAngle, setModalAngle] = useState<number>(1);
   const [modalImgError, setModalImgError] = useState<boolean>(false);
@@ -116,11 +123,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const endDateTime = new Date(`${returnDate}T${returnTime}:00+07:00`);
   const durationMs = Math.max(0, endDateTime.getTime() - startDateTime.getTime());
   const durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 3600 * 24)));
-  const basePrice = durationDays * (vehicle ? vehicle.dailyPrice : 0);
-  const discountDeduction = appliedVoucher ? appliedVoucher.discountAmount : 0;
-  const totalAmount = Math.max(0, basePrice - discountDeduction);
-  const depositAmount = Math.round(totalAmount * 0.3);
-  const remainingAmount = totalAmount - depositAmount;
+  const fallbackBasePrice = durationDays * (vehicle ? vehicle.dailyPrice : 0);
+  const basePrice = serverEstimate ? serverEstimate.basePrice : fallbackBasePrice;
+  const discountDeduction = serverEstimate
+    ? serverEstimate.discountAmount
+    : appliedVoucher
+    ? appliedVoucher.discountAmount
+    : 0;
+  const totalAmount = serverEstimate ? serverEstimate.totalAmount : Math.max(0, basePrice - discountDeduction);
+  const depositAmount = serverEstimate ? serverEstimate.depositAmount : Math.round(totalAmount * 0.3);
+  const remainingAmount = serverEstimate ? serverEstimate.remainingAmount : totalAmount - depositAmount;
 
   // Real-time conflict & price estimation check via server API
   useEffect(() => {
@@ -139,8 +151,16 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           discountCode: appliedVoucher?.code || undefined,
         });
 
-        if (res.data?.success) {
+        if (res.data?.success && res.data.data) {
           setIsConflicting(res.data.data.conflicting);
+          setServerEstimate({
+            basePrice: res.data.data.basePrice ?? fallbackBasePrice,
+            discountAmount: res.data.data.discountAmount ?? 0,
+            totalAmount: res.data.data.totalAmount ?? fallbackBasePrice,
+            depositAmount: res.data.data.depositAmount ?? Math.round(fallbackBasePrice * 0.3),
+            remainingAmount:
+              res.data.data.remainingAmount ?? fallbackBasePrice - Math.round(fallbackBasePrice * 0.3),
+          });
         }
       } catch {
         // Silently catch live estimate failure

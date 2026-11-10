@@ -116,9 +116,13 @@ export const BookingPage: React.FC = () => {
   const [activeAngle, setActiveAngle] = useState<number>(1);
   const [imgError, setImgError] = useState<boolean>(false);
 
-  // Form Step 1: Schedule & Location
+  // Form Step 1: Schedule & Location (BranchPickup vs DoorDelivery)
   const [pickupBranchId, setPickupBranchId] = useState<string>(pickupParam);
   const [returnBranchId, setReturnBranchId] = useState<string>(returnParam || pickupParam);
+  const [deliveryMode, setDeliveryMode] = useState<'BranchPickup' | 'DoorDelivery'>('BranchPickup');
+  const [customPickupAddress, setCustomPickupAddress] = useState<string>('');
+  const [customReturnAddress, setCustomReturnAddress] = useState<string>('');
+  const [sameReturnAddress, setSameReturnAddress] = useState<boolean>(true);
 
   const formatLocalDate = (d: Date) => {
     const year = d.getFullYear();
@@ -163,6 +167,56 @@ export const BookingPage: React.FC = () => {
     idCard: false,
   });
   const [step2Submitted, setStep2Submitted] = useState<boolean>(false);
+  const [renterSignatureDataUrl, setRenterSignatureDataUrl] = useState<string>('');
+  const [isDrawingRenterSig, setIsDrawingRenterSig] = useState<boolean>(false);
+  const renterCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
+
+  const startDrawRenterSig = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = renterCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    ctx.strokeStyle = '#FFC799';
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(clientX - rect.left, clientY - rect.top);
+    setIsDrawingRenterSig(true);
+  };
+
+  const drawRenterSig = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRenterSig) return;
+    const canvas = renterCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    ctx.lineTo(clientX - rect.left, clientY - rect.top);
+    ctx.stroke();
+  };
+
+  const endDrawRenterSig = () => {
+    if (!isDrawingRenterSig) return;
+    setIsDrawingRenterSig(false);
+    const canvas = renterCanvasRef.current;
+    if (canvas) {
+      setRenterSignatureDataUrl(canvas.toDataURL('image/png'));
+    }
+  };
+
+  const clearRenterSig = () => {
+    const canvas = renterCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    setRenterSignatureDataUrl('');
+  };
 
   // Form Step 3: Perks & Real DB Voucher Selection
   const [availableDiscounts, setAvailableDiscounts] = useState<Discount[]>([]);
@@ -380,6 +434,7 @@ export const BookingPage: React.FC = () => {
     }
 
     let active = true;
+    const effectiveReturnAddr = sameReturnAddress ? customPickupAddress : customReturnAddress;
     const timer = window.setTimeout(async () => {
       try {
         setEstimateLoading(true);
@@ -390,6 +445,9 @@ export const BookingPage: React.FC = () => {
           pickupDateTime: startDateTime.toISOString(),
           returnDateTime: endDateTime.toISOString(),
           discountCode: selectedVoucherCode || undefined,
+          deliveryMode,
+          customPickupAddress: deliveryMode === 'DoorDelivery' ? customPickupAddress.trim() : undefined,
+          customReturnAddress: deliveryMode === 'DoorDelivery' ? effectiveReturnAddr.trim() : undefined,
         });
         if (active && res.data?.success && res.data?.data) {
           setEstimateData(res.data.data);
@@ -414,9 +472,18 @@ export const BookingPage: React.FC = () => {
     returnDate,
     returnTime,
     selectedVoucherCode,
+    deliveryMode,
+    customPickupAddress,
+    customReturnAddress,
+    sameReturnAddress,
   ]);
 
   const baseRentalFee = estimateData ? estimateData.basePrice : fallbackBaseRentalFee;
+  const effectiveReturnAddrStr = sameReturnAddress ? customPickupAddress.trim() : customReturnAddress.trim();
+  const computedDeliveryFee =
+    deliveryMode === 'DoorDelivery'
+      ? (customPickupAddress.trim() ? 40000 : 0) + (effectiveReturnAddrStr ? 40000 : 0)
+      : 0;
   const isScheduleConflicting =
     Boolean(estimateData?.conflicting) ||
     vehicle?.status === 'Maintenance' ||
@@ -425,6 +492,9 @@ export const BookingPage: React.FC = () => {
   const computeDiscountPreview = (d: Discount, baseFee: number): number => {
     if (!d.isActive || baseFee <= 0) return 0;
     if (d.minBookingAmount && baseFee < d.minBookingAmount) return 0;
+    if (d.fixedDiscountAmount && d.fixedDiscountAmount > 0) {
+      return Math.min(baseFee, d.fixedDiscountAmount);
+    }
     const raw = Math.round((baseFee * d.discountPercent) / 100);
     return d.maxDiscountAmount && d.maxDiscountAmount > 0 ? Math.min(d.maxDiscountAmount, raw) : raw;
   };
@@ -437,7 +507,9 @@ export const BookingPage: React.FC = () => {
     : null;
 
   const discountAmount = estimateData ? estimateData.discountAmount : 0;
-  const totalAmount = estimateData ? estimateData.totalAmount : Math.max(0, baseRentalFee - discountAmount);
+  const totalAmount = estimateData
+    ? estimateData.totalAmount
+    : Math.max(0, baseRentalFee + computedDeliveryFee - discountAmount);
   const depositAmount = estimateData ? estimateData.depositAmount : Math.round(totalAmount * 0.3);
   const remainingAmount = estimateData ? estimateData.remainingAmount : totalAmount - depositAmount;
   const activePayAmount = paymentScope === 'Full100' ? totalAmount : depositAmount;
@@ -486,6 +558,10 @@ export const BookingPage: React.FC = () => {
       }
       if (!pickupBranchId || !returnBranchId) {
         setErrorMsg('Vui lòng chọn chi nhánh nhận xe và chi nhánh trả xe.');
+        return;
+      }
+      if (deliveryMode === 'DoorDelivery' && !customPickupAddress.trim()) {
+        setErrorMsg('Vui lòng nhập địa chỉ cụ thể để nhân viên giao/nhận xe tận nơi ngoài cửa hàng.');
         return;
       }
       if (isScheduleConflicting) {
@@ -595,6 +671,7 @@ export const BookingPage: React.FC = () => {
     setErrorMsg('');
 
     try {
+      const effectiveRetAddr = sameReturnAddress ? customPickupAddress.trim() : customReturnAddress.trim();
       const payload = {
         vehicleId: vehicle._id,
         pickupBranchId,
@@ -603,6 +680,10 @@ export const BookingPage: React.FC = () => {
         returnDateTime: endDateTime.toISOString(),
         paymentMethod: paymentOption === 'Cash' ? 'Cash' : 'Banking',
         discountCode: appliedDiscount?.code,
+        deliveryMode,
+        customPickupAddress: deliveryMode === 'DoorDelivery' ? customPickupAddress.trim() : undefined,
+        customReturnAddress: deliveryMode === 'DoorDelivery' ? effectiveRetAddr : undefined,
+        eSignatureUrl: renterSignatureDataUrl || `E-SIGNED:${customerName}:${new Date().toISOString()}`,
       };
 
       const res = await api.post('/bookings', payload);
@@ -1052,7 +1133,7 @@ export const BookingPage: React.FC = () => {
                     label={
                       <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
                         <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Chi nhánh nhận xe</span>
+                        <span>{deliveryMode === 'DoorDelivery' ? 'Trạm điều phối giao xe' : 'Chi nhánh nhận xe'}</span>
                       </label>
                     }
                     branches={branches}
@@ -1064,13 +1145,138 @@ export const BookingPage: React.FC = () => {
                     label={
                       <label className="text-xs font-bold text-[#F5F5F5] flex items-center space-x-1.5">
                         <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
-                        <span>Chi nhánh trả xe</span>
+                        <span>{deliveryMode === 'DoorDelivery' ? 'Trạm tiếp nhận thu hồi xe' : 'Chi nhánh trả xe'}</span>
                       </label>
                     }
                     branches={branches}
                     value={returnBranchId}
                     onChange={(newId) => setReturnBranchId(newId)}
                   />
+                </div>
+
+                {/* Pickup & Return Mode Selector: Branch vs Door-to-Door Outside Store */}
+                <div className="p-4 rounded-2xl bg-[#101010] border border-white/10 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-[#F5F5F5] flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#FFC799]" />
+                        <span>Hình thức Nhận &amp; Trả xe (Tại cửa hàng hoặc Tận nơi ngoài cửa hàng)</span>
+                      </span>
+                      <p className="text-[11px] text-[#6E6E6E] mt-0.5">
+                        Linh hoạt nhận và trả xe tại bất kỳ địa điểm nào (Khách sạn, Sân bay, Bến xe, Nhà riêng...) mà không bắt buộc phải tới cửa hàng.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryMode('BranchPickup')}
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        deliveryMode === 'BranchPickup'
+                          ? 'bg-[#FFC799]/12 border-[#FFC799] text-[#F5F5F5]'
+                          : 'bg-[#161616] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-black text-[#F5F5F5]">Nhận &amp; Trả tại Cửa hàng</span>
+                        <span className="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-mono text-[10px] font-bold">
+                          Miễn phí 0đ
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#8A857D]">
+                        Nhận và trả xe trực tiếp tại trạm Motorent đã chọn ở trên.
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeliveryMode('DoorDelivery')}
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        deliveryMode === 'DoorDelivery'
+                          ? 'bg-[#FFC799]/12 border-[#FFC799] text-[#F5F5F5]'
+                          : 'bg-[#161616] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-black text-[#F5F5F5]">Giao &amp; Nhận tận nơi ngoài cửa hàng</span>
+                        <span className="px-2 py-0.5 rounded bg-[#FFC799]/20 text-[#FFC799] font-mono text-[10px] font-bold">
+                          +40.000đ/chiều
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#8A857D]">
+                        Nhân viên giao xe và thu hồi xe tận sảnh Khách sạn, Sân bay, Resort hoặc địa chỉ riêng.
+                      </p>
+                    </button>
+                  </div>
+
+                  {deliveryMode === 'DoorDelivery' && (
+                    <div className="space-y-3 pt-2 border-t border-white/[0.08]">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-[#C8C2B8] block">
+                          Địa chỉ nhận xe tận nơi (Khách sạn / Sân bay / Nhà riêng) *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="VD: Sảnh Ga đến Quốc nội T1 - Sân bay Đà Nẵng, hoặc Khách sạn Novotel 36 Bạch Đằng..."
+                          value={customPickupAddress}
+                          onChange={(e) => setCustomPickupAddress(e.target.value)}
+                          className="w-full bg-[#161616] border border-white/15 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] outline-none"
+                        />
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-[#6E6E6E]">Gợi ý điểm hẹn phổ biến:</span>
+                          {[
+                            'Sảnh Ga đến T1 - Sân bay Quốc tế Đà Nẵng',
+                            'Ga Tàu Hỏa Đà Nẵng - 791 Hải Phòng',
+                            'Khu phố cổ Hội An - Bãi đỗ Chùa Cầu',
+                            'Khách sạn ven biển Võ Nguyên Giáp (Mỹ Khê)',
+                          ].map((landmark) => (
+                            <button
+                              key={landmark}
+                              type="button"
+                              onClick={() => {
+                                setCustomPickupAddress(landmark);
+                                if (sameReturnAddress) setCustomReturnAddress(landmark);
+                              }}
+                              className="px-2 py-0.5 rounded-md bg-white/[0.05] hover:bg-[#FFC799]/15 border border-white/10 text-[10px] text-[#C8C2B8] hover:text-[#FFC799] transition-colors cursor-pointer"
+                            >
+                              {landmark}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <label className="inline-flex items-center space-x-2 text-xs text-[#C8C2B8] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={sameReturnAddress}
+                            onChange={(e) => setSameReturnAddress(e.target.checked)}
+                            className="rounded border-white/20 bg-[#161616] text-[#FFC799] focus:ring-0"
+                          />
+                          <span>Trả xe tại cùng địa chỉ nhận xe ở trên</span>
+                        </label>
+                        <span className="text-[11px] font-mono font-bold text-[#FFC799]">
+                          Phí giao nhận: {computedDeliveryFee.toLocaleString('vi-VN')} đ
+                        </span>
+                      </div>
+
+                      {!sameReturnAddress && (
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-bold text-[#C8C2B8] block">
+                            Địa chỉ trả xe tận nơi (Nếu trả ở nơi khác ngoài cửa hàng)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Nhập địa chỉ hẹn nhân viên tới thu hồi xe (Để trống nếu trả tại cửa hàng)..."
+                            value={customReturnAddress}
+                            onChange={(e) => setCustomReturnAddress(e.target.value)}
+                            className="w-full bg-[#161616] border border-white/15 focus:border-[#FFC799] rounded-xl px-3.5 py-2.5 text-xs text-[#F5F5F5] outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Dates & Times */}
@@ -1512,6 +1718,104 @@ export const BookingPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Bilateral Electronic Rental Contract Preview & Dual Signatures (Bên A & Bên B) */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#101010] border border-[#FFC799]/30 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/[0.08]">
+                    <div>
+                      <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#FFC799] block">
+                        HỢP ĐỒNG THUÊ XE ĐIỆN TỬ SONG PHƯƠNG (2 BÊN CÙNG GIỮ HỢP ĐỒNG)
+                      </span>
+                      <h3 className="text-sm font-black text-[#F5F5F5] mt-0.5">
+                        Chữ ký xác nhận của Bên cho thuê (Bên A) &amp; Bên thuê xe (Bên B)
+                      </h3>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-[10px] font-bold self-start sm:self-center">
+                      Có giá trị pháp lý 2 chiều
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Party A: Lessor (Motorent Representative) */}
+                    <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black text-[#FFC799] uppercase">
+                            ĐẠI DIỆN BÊN CHO THUÊ (BÊN A)
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 font-bold">Đã ký số</span>
+                        </div>
+                        <p className="text-xs font-bold text-[#F5F5F5] mt-1">
+                          {pickupBranch?.name || 'Công ty TNHH Motorent Việt Nam'}
+                        </p>
+                        <p className="text-[11px] text-[#8A857D]">
+                          Đại diện pháp lý &amp; Điều phối viên trạm ({pickupBranch?.phone || '1900 6868'})
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-[#101010] border border-[#FFC799]/30 flex flex-col items-center justify-center text-center min-h-[96px]">
+                        <div className="px-3 py-1.5 rounded-lg border border-dashed border-[#FFC799]/60 bg-[#FFC799]/[0.06]">
+                          <p className="text-[10px] font-mono font-black text-[#FFC799] uppercase tracking-wider">
+                            CHỮ KÝ SỐ &amp; DẤU XÁC THỰC MOTORENT
+                          </p>
+                          <p className="text-[11px] font-bold text-emerald-400 mt-0.5">
+                            Đại diện Bên A: {pickupBranch?.code || 'MR-DANANG'}
+                          </p>
+                        </div>
+                        <span className="text-[10px] text-[#6E6E6E] mt-1.5">
+                          Nhân viên bàn giao sẽ ký đối chứng trực tiếp khi giao xe
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Party B: Renter (Customer Interactive Signature Pad) */}
+                    <div className="p-3.5 rounded-xl bg-[#161616] border border-white/10 flex flex-col justify-between space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[11px] font-black text-[#99FFE4] uppercase block">
+                            ĐẠI DIỆN BÊN THUÊ XE (BÊN B)
+                          </span>
+                          <p className="text-xs font-bold text-[#F5F5F5] mt-0.5">
+                            {customerName || 'Khách hàng thuê xe'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearRenterSig}
+                          className="px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] text-[10px] font-mono text-[#C8C2B8] cursor-pointer"
+                        >
+                          Ký lại
+                        </button>
+                      </div>
+
+                      <div className="relative rounded-xl bg-[#101010] border border-white/15 overflow-hidden">
+                        <canvas
+                          ref={renterCanvasRef}
+                          width={280}
+                          height={96}
+                          onMouseDown={startDrawRenterSig}
+                          onMouseMove={drawRenterSig}
+                          onMouseUp={endDrawRenterSig}
+                          onMouseLeave={endDrawRenterSig}
+                          onTouchStart={startDrawRenterSig}
+                          onTouchMove={drawRenterSig}
+                          onTouchEnd={endDrawRenterSig}
+                          className="w-full h-24 cursor-crosshair touch-none"
+                        />
+                        {!renterSignatureDataUrl && (
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-[11px] text-[#6E6E6E]">
+                            Vẽ chữ ký tay của bạn tại đây (hoặc tự động ký tên điện tử)
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-emerald-400 font-mono">
+                        {renterSignatureDataUrl
+                          ? 'Đã ghi nhận chữ ký tay điện tử của Bên B'
+                          : 'Hệ thống sẽ đính kèm chữ ký vào bản Hợp đồng PDF của cả 2 bên'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex items-center space-x-3 pt-2">
                   <button
                     type="button"
@@ -1642,7 +1946,9 @@ export const BookingPage: React.FC = () => {
                                 )}
                               </div>
                               <p className="text-[11px] font-bold text-[#F5F5F5] truncate">
-                                {v.maxDiscountAmount
+                                {v.fixedDiscountAmount && v.fixedDiscountAmount > 0
+                                  ? `Giảm ${v.fixedDiscountAmount.toLocaleString('vi-VN')}đ`
+                                  : v.maxDiscountAmount
                                   ? `Giảm ${v.discountPercent}% (tối đa ${v.maxDiscountAmount.toLocaleString('vi-VN')}đ)`
                                   : `Giảm ${v.discountPercent}%`}
                               </p>
@@ -2432,8 +2738,16 @@ export const BookingPage: React.FC = () => {
                 </div>
 
                 <div className="flex justify-between py-1 text-[#6E6E6E]">
-                  <span>Phụ phí trả xe liên trạm:</span>
-                  <span className="text-[#FFC799] font-bold">0 đ (Miễn phí)</span>
+                  <span>
+                    {deliveryMode === 'DoorDelivery'
+                      ? 'Phí giao & nhận xe tận nơi ngoài cửa hàng:'
+                      : 'Phụ phí trả xe liên trạm:'}
+                  </span>
+                  <span className="text-[#FFC799] font-bold">
+                    {deliveryMode === 'DoorDelivery' && computedDeliveryFee > 0
+                      ? `+${computedDeliveryFee.toLocaleString('vi-VN')} đ`
+                      : '0 đ (Miễn phí)'}
+                  </span>
                 </div>
               </div>
 

@@ -44,9 +44,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
         logout();
       }
-    } catch {
-      console.warn('Phiên đăng nhập đã hết hạn hoặc không hợp lệ.');
-      logout();
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || status === 403) {
+        console.warn('Phiên đăng nhập đã hết hạn hoặc không hợp lệ.');
+        logout();
+      }
     } finally {
       setIsLoading(false);
     }

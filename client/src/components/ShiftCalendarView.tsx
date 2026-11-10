@@ -98,6 +98,88 @@ export const ShiftCalendarView: React.FC = () => {
   });
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  // AI Shift Optimizer Modal & Results State
+  const [showAiOptimizerModal, setShowAiOptimizerModal] = useState<boolean>(false);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [aiApplying, setAiApplying] = useState<boolean>(false);
+  const [aiResult, setAiResult] = useState<{
+    branch: { _id: string; name: string; code: string };
+    period: { startDate: string; endDate: string; daysCount: number };
+    analytics: {
+      totalBookingsAnalyzed: number;
+      doorDeliveryOrdersCount: number;
+      fairnessIndexPct: number;
+      coverageRatePct: number;
+      recommendedNewShifts: number;
+      appliedShiftsCount: number;
+    };
+    staffWorkloadSummary: Array<{
+      staffId: string;
+      staffName: string;
+      email: string;
+      totalShifts: number;
+      estimatedHours: number;
+      reliabilityPct: number;
+    }>;
+    recommendations: Array<{
+      staffId: string;
+      staffName: string;
+      staffEmail: string;
+      branchId: string;
+      branchName: string;
+      shiftDate: string;
+      shiftType: 'Morning' | 'Afternoon' | 'Evening';
+      demandScore: number;
+      confidenceScore: number;
+      reason: string;
+    }>;
+  } | null>(null);
+
+  const handleRunAiOptimization = async (applyImmediately: boolean = false) => {
+    try {
+      if (applyImmediately) {
+        setAiApplying(true);
+      } else {
+        setAiLoading(true);
+        setShowAiOptimizerModal(true);
+      }
+
+      const targetBranch =
+        selectedBranchId !== 'all'
+          ? selectedBranchId
+          : isManager && currentUser?.branchId
+          ? String((currentUser.branchId as any)?._id || currentUser.branchId)
+          : branches[0]?._id;
+
+      const res = await api.post('/schedules/ai-optimize', {
+        branchId: targetBranch,
+        startDate: currentWeekStart.toISOString(),
+        days: 7,
+        applyImmediately,
+      });
+
+      if (res.data?.success && res.data?.data) {
+        setAiResult(res.data.data);
+        if (applyImmediately) {
+          showToast(
+            'success',
+            res.data.message || 'AI đã áp dụng thành công lịch phân ca tối ưu cho tuần này!'
+          );
+          setShowAiOptimizerModal(false);
+          await fetchSchedules();
+        }
+      }
+    } catch (err: any) {
+      showToast(
+        'error',
+        err.response?.data?.message || 'Không thể chạy thuật toán AI tối ưu lịch trực.'
+      );
+    } finally {
+      setAiLoading(false);
+      setAiApplying(false);
+    }
+  };
+
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
@@ -294,14 +376,25 @@ export const ShiftCalendarView: React.FC = () => {
         </div>
 
         {(isManager || isAdmin) && (
-          <button
-            type="button"
-            onClick={() => handleOpenAssignModal()}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10 shrink-0 whitespace-nowrap self-start sm:self-auto"
-          >
-            <Plus size={18} />
-            Xếp ca trực mới
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => handleRunAiOptimization(false)}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#99FFE4]/15 border border-[#99FFE4]/40 text-[#99FFE4] font-bold text-sm hover:bg-[#99FFE4]/25 transition-all shadow-lg shrink-0 whitespace-nowrap cursor-pointer"
+            >
+              <Sparkles size={17} />
+              <span>AI Tối ưu Phân ca Thông minh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleOpenAssignModal()}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-[#FFC799] text-[#101010] font-semibold text-sm hover:bg-[#ffb77d] transition-all shadow-lg shadow-[#FFC799]/10 shrink-0 whitespace-nowrap cursor-pointer"
+            >
+              <Plus size={18} />
+              Xếp ca trực mới
+            </button>
+          </div>
         )}
       </div>
 
@@ -647,6 +740,191 @@ export const ShiftCalendarView: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI Shift Scheduling Optimizer Modal */}
+      {showAiOptimizerModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#161616] border border-[#99FFE4]/40 rounded-2xl w-full max-w-4xl p-6 space-y-5 shadow-2xl my-8 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-white/10 pb-4">
+              <div>
+                <span className="text-[11px] font-mono font-bold uppercase tracking-widest text-[#99FFE4] flex items-center gap-1.5">
+                  <Sparkles size={14} />
+                  <span>AI WORKFORCE SCHEDULING ENGINE • MULTI-OBJECTIVE OPTIMIZATION</span>
+                </span>
+                <h3 className="text-xl font-black text-white mt-1">
+                  Đề xuất Xếp lịch Phân ca Nhân viên bằng AI
+                </h3>
+                <p className="text-xs text-[#A0A0A0] mt-0.5">
+                  Tự động dự báo tải công việc theo đơn Nhận/Trả xe tại trạm và đơn Giao/Nhận tận nơi ngoài cửa hàng (trọng số 1.8x), cân bằng số giờ làm việc (Jain Fairness Index) và chống ca gãy (Clopening).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAiOptimizerModal(false)}
+                className="text-[#A0A0A0] hover:text-white p-1.5 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {aiLoading ? (
+              <div className="py-16 flex flex-col items-center justify-center space-y-3 text-center">
+                <RefreshCw size={28} className="animate-spin text-[#99FFE4]" />
+                <p className="text-sm font-bold text-white">
+                  AI đang phân tích dữ liệu đặt xe, đơn giao nhận tận nơi và lịch sử điểm danh nhân sự...
+                </p>
+                <p className="text-xs text-[#A0A0A0]">
+                  Tính toán điểm nhu cầu 21 khung ca trong tuần và tối ưu hóa phân bổ nhân lực...
+                </p>
+              </div>
+            ) : aiResult ? (
+              <div className="space-y-5">
+                {/* KPI Analytics Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10">
+                    <span className="text-[10px] text-[#A0A0A0] uppercase font-bold block">
+                      Độ phủ ca trực tuần
+                    </span>
+                    <span className="text-lg font-mono font-black text-[#99FFE4]">
+                      {aiResult.analytics.coverageRatePct}%
+                    </span>
+                    <span className="text-[10px] text-[#6E6E6E] block mt-0.5">
+                      Chi nhánh: {aiResult.branch.name}
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10">
+                    <span className="text-[10px] text-[#A0A0A0] uppercase font-bold block">
+                      Chỉ số công bằng tải (Fairness)
+                    </span>
+                    <span className="text-lg font-mono font-black text-[#FFC799]">
+                      {aiResult.analytics.fairnessIndexPct}%
+                    </span>
+                    <span className="text-[10px] text-[#6E6E6E] block mt-0.5">
+                      Cân bằng số giờ làm giữa các Staff
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10">
+                    <span className="text-[10px] text-[#A0A0A0] uppercase font-bold block">
+                      Đơn đặt &amp; Giao tận nơi
+                    </span>
+                    <span className="text-lg font-mono font-black text-white">
+                      {aiResult.analytics.totalBookingsAnalyzed} đơn ({aiResult.analytics.doorDeliveryOrdersCount} tận nơi)
+                    </span>
+                    <span className="text-[10px] text-[#6E6E6E] block mt-0.5">
+                      Dữ liệu thực tế trong kỳ
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10">
+                    <span className="text-[10px] text-[#A0A0A0] uppercase font-bold block">
+                      Ca trực mới AI đề xuất
+                    </span>
+                    <span className="text-lg font-mono font-black text-emerald-400">
+                      +{aiResult.analytics.recommendedNewShifts} ca
+                    </span>
+                    <span className="text-[10px] text-[#6E6E6E] block mt-0.5">
+                      Không trùng lịch hiện có
+                    </span>
+                  </div>
+                </div>
+
+                {/* Staff Workload Balance Bars */}
+                <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#FFC799]">
+                    Phân bổ khối lượng công việc nhân sự sau khi tối ưu AI
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {aiResult.staffWorkloadSummary.map((st) => (
+                      <div
+                        key={st.staffId}
+                        className="p-3 rounded-lg bg-[#161616] border border-white/10 flex items-center justify-between text-xs"
+                      >
+                        <div>
+                          <div className="font-bold text-white">{st.staffName}</div>
+                          <div className="text-[11px] text-[#A0A0A0]">
+                            Độ tin cậy chuyên cần: <strong className="text-emerald-400">{st.reliabilityPct}%</strong>
+                          </div>
+                        </div>
+                        <div className="text-right font-mono">
+                          <span className="text-sm font-black text-[#FFC799]">{st.totalShifts} ca</span>
+                          <span className="block text-[10px] text-[#6E6E6E]">~{st.estimatedHours} giờ/tuần</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Recommended Shifts Table */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#99FFE4]">
+                    Danh sách ca trực AI đề xuất bổ sung ({aiResult.recommendations.length} ca)
+                  </h4>
+                  {aiResult.recommendations.length === 0 ? (
+                    <div className="p-6 rounded-xl bg-[#101010] border border-white/10 text-center text-xs text-emerald-400 font-semibold">
+                      Lịch phân ca tuần này đã phủ kín 100% nhu cầu vận hành! Không cần bổ sung thêm ca trực mới.
+                    </div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10 divide-y divide-white/10 bg-[#101010]">
+                      {aiResult.recommendations.map((rec, i) => {
+                        const cfg = SHIFT_INFO[rec.shiftType] || SHIFT_INFO.Morning;
+                        return (
+                          <div
+                            key={`${rec.shiftDate}_${rec.shiftType}_${rec.staffId}_${i}`}
+                            className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs hover:bg-white/[0.02]"
+                          >
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-[#FFC799]">{rec.shiftDate}</span>
+                                <span className={`px-2 py-0.5 rounded border text-[10px] font-bold ${cfg.badge}`}>
+                                  {cfg.label} ({cfg.time})
+                                </span>
+                                <span className="font-bold text-white">{rec.staffName}</span>
+                              </div>
+                              <p className="text-[11px] text-[#A0A0A0]">{rec.reason}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="px-2 py-1 rounded bg-[#99FFE4]/15 text-[#99FFE4] font-mono text-[10px] font-bold">
+                                AI Match {rec.confidenceScore}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setShowAiOptimizerModal(false)}
+                    className="px-4 py-2 rounded-xl border border-white/10 text-xs font-semibold text-[#D0D0D0] hover:text-white cursor-pointer"
+                  >
+                    Đóng
+                  </button>
+                  {aiResult.recommendations.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={aiApplying}
+                      onClick={() => handleRunAiOptimization(true)}
+                      className="px-5 py-2.5 rounded-xl bg-[#99FFE4] hover:bg-[#99FFE4]/90 text-[#101010] text-xs font-black transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      <Sparkles size={15} />
+                      <span>
+                        {aiApplying
+                          ? 'Đang lưu lịch phân ca AI...'
+                          : `Áp dụng ngay ${aiResult.recommendations.length} ca trực AI đề xuất`}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

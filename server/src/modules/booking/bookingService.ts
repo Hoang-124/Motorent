@@ -31,6 +31,11 @@ export interface CreateBookingDto {
   returnDateTime: string | Date;
   paymentMethod?: 'Banking' | 'Cash';
   discountCode?: string;
+  deliveryMode?: 'BranchPickup' | 'DoorDelivery';
+  customPickupAddress?: string;
+  customReturnAddress?: string;
+  eSignatureUrl?: string;
+  lessorSignatureUrl?: string;
 }
 
 export interface EstimateBookingDto {
@@ -40,6 +45,9 @@ export interface EstimateBookingDto {
   pickupDateTime: string | Date;
   returnDateTime: string | Date;
   discountCode?: string;
+  deliveryMode?: 'BranchPickup' | 'DoorDelivery';
+  customPickupAddress?: string;
+  customReturnAddress?: string;
 }
 
 export interface CheckinDto {
@@ -47,6 +55,7 @@ export interface CheckinDto {
   startFuelLevel?: string;
   checkinImages?: string[];
   eSignatureUrl?: string;
+  lessorSignatureUrl?: string;
   checklist?: Record<string, boolean>;
   verifiedAtCounter?: boolean;
   receiverName?: string;
@@ -313,7 +322,17 @@ export const createBooking = async (
       }
     }
 
-    const totalAmount = Math.max(0, basePrice - discountAmount);
+    const isDoorDelivery = data.deliveryMode === 'DoorDelivery';
+    const customPickupAddr = (data.customPickupAddress || '').trim();
+    const customReturnAddr = (data.customReturnAddress || '').trim();
+    let deliveryFee = 0;
+    if (isDoorDelivery) {
+      if (customPickupAddr) deliveryFee += 40000;
+      if (customReturnAddr) deliveryFee += 40000;
+      if (deliveryFee === 0) deliveryFee = 50000;
+    }
+
+    const totalAmount = Math.max(0, basePrice + deliveryFee - discountAmount);
     const depositAmount = Math.round(totalAmount * 0.3);
     const remainingAmount = totalAmount - depositAmount;
 
@@ -336,6 +355,15 @@ export const createBooking = async (
         discountId: discountDoc?._id,
         discountAmount,
         paymentMethod: data.paymentMethod || 'Banking',
+        deliveryMode: isDoorDelivery ? 'DoorDelivery' : 'BranchPickup',
+        customPickupAddress: isDoorDelivery ? customPickupAddr : '',
+        customReturnAddress: isDoorDelivery ? customReturnAddr : '',
+        deliveryFee,
+        eSignatureUrl: data.eSignatureUrl || '',
+        lessorSignatureUrl:
+          data.lessorSignatureUrl ||
+          `MOTORENT-SEAL:${pickupBranch.code || 'BRANCH'}:${bookingCode}`,
+        contractSignedAt: data.eSignatureUrl ? new Date() : undefined,
         status: 'Pending',
         isPaid: false,
         depositPaid: false,
@@ -496,7 +524,12 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
     }
   }
 
-  const totalAmount = Math.max(0, basePrice - discountAmount);
+  const deliveryMode = data.deliveryMode || 'BranchPickup';
+  const hasCustomPickup = deliveryMode === 'DoorDelivery' && Boolean(data.customPickupAddress?.trim());
+  const hasCustomReturn = deliveryMode === 'DoorDelivery' && Boolean(data.customReturnAddress?.trim());
+  const deliveryFee = (hasCustomPickup ? 40000 : 0) + (hasCustomReturn ? 40000 : 0);
+
+  const totalAmount = Math.max(0, basePrice + deliveryFee - discountAmount);
   const depositAmount = Math.round(totalAmount * 0.3);
   const remainingAmount = totalAmount - depositAmount;
 
@@ -516,6 +549,10 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
     rentalDays: Math.ceil(diffHours / 24),
     dailyPrice: vehicle.dailyPrice,
     basePrice,
+    deliveryMode,
+    customPickupAddress: data.customPickupAddress?.trim() || undefined,
+    customReturnAddress: data.customReturnAddress?.trim() || undefined,
+    deliveryFee,
     discountAmount,
     appliedDiscount,
     totalAmount,
@@ -810,6 +847,7 @@ export interface OrderPricingDetails {
   dailyPrice: number;
   durationDays: number;
   durationHours: number;
+  deliveryFee: number;
   discountAmount: number;
   totalAmount: number;
   depositAmount: number;
@@ -920,10 +958,11 @@ export const buildOrderDetails = (booking: IBooking) => {
   const dailyPrice = vehicle?.dailyPrice || Math.round(booking.totalAmount / durationDays);
 
   const pricing: OrderPricingDetails = {
-    basePrice: booking.totalAmount + (booking.discountAmount || 0),
+    basePrice: Math.max(0, booking.totalAmount + (booking.discountAmount || 0) - (booking.deliveryFee || 0)),
     dailyPrice,
     durationDays,
     durationHours: Math.round(diffHours * 10) / 10,
+    deliveryFee: booking.deliveryFee || 0,
     discountAmount: booking.discountAmount || 0,
     totalAmount: booking.totalAmount,
     depositAmount: booking.depositAmount,
@@ -1151,6 +1190,24 @@ export const checkinBooking = async (
     } else {
       booking.eSignatureUrl = input.eSignatureUrl;
     }
+    booking.contractSignedAt = new Date();
+  }
+  if (input.lessorSignatureUrl) {
+    if (input.lessorSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
+      try {
+        const uploadedLessorSig = await uploadDataUriToCloudinary(input.lessorSignatureUrl, {
+          folder: 'motorent/signatures',
+          type: 'upload',
+          publicId: `lessor_sig_${booking.bookingCode}_${Date.now()}`,
+        });
+        booking.lessorSignatureUrl = uploadedLessorSig.secureUrl;
+      } catch {
+        booking.lessorSignatureUrl = input.lessorSignatureUrl;
+      }
+    } else {
+      booking.lessorSignatureUrl = input.lessorSignatureUrl;
+    }
+    booking.contractSignedAt = new Date();
   }
   booking.approvedBy = staffUser._id as mongoose.Types.ObjectId;
   booking.status = 'Ongoing';
@@ -1258,7 +1315,8 @@ export const checkoutBooking = async (
   }
 
   const lateFee = Math.max(0, lateHours * 30000); // 30,000 đ per overdue hour
-  const damageFee = Math.max(0, input.damageFee || 0);
+  const damageFee =
+    input.damageFee !== undefined ? Math.max(0, input.damageFee) : Math.max(0, booking.damageFee || 0);
   const finalDue = (booking.remainingAmount || 0) + lateFee + damageFee;
 
   booking.actualReturnDateTime = now;
@@ -1331,7 +1389,7 @@ export const checkoutBooking = async (
     }
     vehicle.branchId = booking.returnBranchId;
     vehicle.odometer = input.endOdometer;
-    vehicle.status = damageFee > 500000 ? 'Maintenance' : 'Available';
+    vehicle.status = damageFee >= 500000 ? 'Maintenance' : 'Available';
     await vehicle.save();
   }
 
@@ -1450,7 +1508,7 @@ export const recordCounterPayment = async (
   booking.counterPaidAt = new Date();
   await booking.save();
 
-  if (booking.status !== 'Pending') {
+  if (booking.status === 'Ongoing') {
     await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Rented' }).catch(() => {});
   }
 
@@ -1741,8 +1799,18 @@ export const cancelBooking = async (
   booking.refundStatus = refundAmount > 0 ? 'Pending' : 'None';
   await booking.save();
 
-  // Release vehicle back to Available status
-  await Vehicle.findByIdAndUpdate(booking.vehicleId, { status: 'Available' }).catch(() => {});
+  // Release vehicle back to Available status if it is not in Maintenance/Transferring or rented by another Ongoing booking
+  const activeOngoingCount = await Booking.countDocuments({
+    _id: { $ne: booking._id },
+    vehicleId: booking.vehicleId,
+    status: 'Ongoing',
+  });
+  if (activeOngoingCount === 0) {
+    await Vehicle.findOneAndUpdate(
+      { _id: booking.vehicleId, status: { $nin: ['Maintenance', 'Transferring'] } },
+      { status: 'Available' }
+    ).catch(() => {});
+  }
 
   // Rollback discount usage count if applied
   if (booking.discountId) {
@@ -1958,7 +2026,7 @@ export const requestRefund = async (
 
   const populated = await Booking.findById(booking._id)
     .populate('userId', 'username email firstName lastName phoneNumber')
-    .populate('vehicleId', 'modelName plateNumber brand dailyPrice')
+    .populate('vehicleId', 'vehicleModel licensePlate brand dailyPrice hourlyPrice images')
     .populate('pickupBranchId', 'name address phone')
     .populate('returnBranchId', 'name address phone');
 
@@ -2709,3 +2777,112 @@ export const rejectRefund = async (
   const populated = await populateBookingDetails(booking._id);
   return (populated || booking) as unknown as IBooking;
 };
+
+/**
+ * Update delivery mode / custom pickup & return addresses and/or bilateral contract signatures (Bên thuê & Bên cho thuê)
+ */
+export const updateBookingDeliveryAndSignatures = async (
+  bookingId: string,
+  requestingUser: { _id: mongoose.Types.ObjectId | string; roles: string; fullName?: string; email?: string; branchId?: string | mongoose.Types.ObjectId },
+  data: {
+    deliveryMode?: 'BranchPickup' | 'DoorDelivery';
+    customPickupAddress?: string;
+    customReturnAddress?: string;
+    eSignatureUrl?: string;
+    lessorSignatureUrl?: string;
+  }
+): Promise<IBooking> => {
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
+  }
+
+  const isOwner = String(booking.userId) === String(requestingUser._id);
+  const isStaffOrAdmin = ['Staff', 'BranchManager', 'SystemAdmin'].includes(requestingUser.roles);
+
+  if (!isOwner && !isStaffOrAdmin) {
+    throw new AppError(403, 'Bạn không có quyền cập nhật thông tin giao nhận hoặc hợp đồng của đơn này.');
+  }
+
+  if (['Cancelled', 'Rejected'].includes(booking.status)) {
+    throw new AppError(400, 'Không thể cập nhật hợp đồng hoặc địa chỉ giao nhận cho đơn đã hủy.');
+  }
+
+  // Handle delivery mode & custom addresses update (allowed beforeCompleted)
+  if (
+    data.deliveryMode !== undefined ||
+    data.customPickupAddress !== undefined ||
+    data.customReturnAddress !== undefined
+  ) {
+    if (booking.status === 'Completed') {
+      throw new AppError(400, 'Đơn đã hoàn tất không thể thay đổi địa điểm giao nhận xe.');
+    }
+
+    const oldFee = booking.deliveryFee || 0;
+    const nextMode = data.deliveryMode || booking.deliveryMode || 'BranchPickup';
+    const nextPickupAddr =
+      data.customPickupAddress !== undefined
+        ? data.customPickupAddress.trim()
+        : booking.customPickupAddress || '';
+    const nextReturnAddr =
+      data.customReturnAddress !== undefined
+        ? data.customReturnAddress.trim()
+        : booking.customReturnAddress || '';
+
+    const hasCustomPickup = nextMode === 'DoorDelivery' && Boolean(nextPickupAddr);
+    const hasCustomReturn = nextMode === 'DoorDelivery' && Boolean(nextReturnAddr);
+    const newFee = (hasCustomPickup ? 40000 : 0) + (hasCustomReturn ? 40000 : 0);
+    const feeDiff = newFee - oldFee;
+
+    booking.deliveryMode = nextMode;
+    booking.customPickupAddress = nextMode === 'DoorDelivery' && nextPickupAddr ? nextPickupAddr : undefined;
+    booking.customReturnAddress = nextMode === 'DoorDelivery' && nextReturnAddr ? nextReturnAddr : undefined;
+    booking.deliveryFee = newFee;
+
+    if (feeDiff !== 0) {
+      booking.totalAmount = Math.max(0, (booking.totalAmount || 0) + feeDiff);
+      const paidSoFar = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
+      booking.remainingAmount = Math.max(0, booking.totalAmount - paidSoFar);
+      if (!booking.depositPaid && !booking.isPaid) {
+        booking.depositAmount = Math.round(booking.totalAmount * 0.3);
+        booking.remainingAmount = booking.totalAmount - booking.depositAmount;
+      }
+    }
+  }
+
+  // Handle bilateral signatures (Bên B: eSignatureUrl, Bên A: lessorSignatureUrl)
+  if (data.eSignatureUrl && data.eSignatureUrl.trim()) {
+    booking.eSignatureUrl = data.eSignatureUrl.trim();
+  }
+  if (data.lessorSignatureUrl && data.lessorSignatureUrl.trim()) {
+    booking.lessorSignatureUrl = data.lessorSignatureUrl.trim();
+  }
+  if (booking.eSignatureUrl && booking.lessorSignatureUrl && !booking.contractSignedAt) {
+    booking.contractSignedAt = new Date();
+  }
+
+  await booking.save();
+
+  await AuditLog.create({
+    userId: requestingUser._id,
+    action: 'UPDATE_CONTRACT_AND_DELIVERY',
+    entity: 'Booking',
+    entityId: booking._id.toString(),
+    details: {
+      bookingCode: booking.bookingCode,
+      deliveryMode: booking.deliveryMode,
+      customPickupAddress: booking.customPickupAddress,
+      customReturnAddress: booking.customReturnAddress,
+      deliveryFee: booking.deliveryFee,
+      hasRenterSignature: Boolean(booking.eSignatureUrl),
+      hasLessorSignature: Boolean(booking.lessorSignatureUrl),
+    },
+    timestamp: new Date(),
+  }).catch(() => {});
+
+  emitBookingStatus(booking);
+
+  const populated = await populateBookingDetails(booking._id);
+  return (populated || booking) as unknown as IBooking;
+};
+

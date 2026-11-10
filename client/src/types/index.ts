@@ -132,6 +132,12 @@ export interface Booking {
   counterPaidAt?: string;
   counterPaidBy?: string | User;
   eSignatureUrl?: string;
+  lessorSignatureUrl?: string;
+  contractSignedAt?: string;
+  deliveryMode?: 'BranchPickup' | 'DoorDelivery';
+  customPickupAddress?: string;
+  customReturnAddress?: string;
+  deliveryFee?: number;
   startOdometer: number;
   endOdometer?: number;
   checkinImages?: string[];
@@ -506,6 +512,7 @@ export interface Discount {
   code: string;
   description?: string;
   discountPercent: number;
+  fixedDiscountAmount?: number;
   maxDiscountAmount?: number;
   minBookingAmount?: number;
   startDate: string;

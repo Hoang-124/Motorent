@@ -68,6 +68,12 @@ export interface IBooking extends Document {
   approvedBy?: mongoose.Types.ObjectId;
   approvedAt?: Date;
   eSignatureUrl?: string;
+  lessorSignatureUrl?: string;
+  contractSignedAt?: Date;
+  deliveryMode?: 'BranchPickup' | 'DoorDelivery';
+  customPickupAddress?: string;
+  customReturnAddress?: string;
+  deliveryFee?: number;
   startOdometer: number;
   endOdometer?: number;
   startFuelLevel?: string;
@@ -155,6 +161,16 @@ const BookingSchema = new Schema<IBooking>(
     approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     approvedAt: { type: Date },
     eSignatureUrl: { type: String, default: '' },
+    lessorSignatureUrl: { type: String, default: '' },
+    contractSignedAt: { type: Date },
+    deliveryMode: {
+      type: String,
+      enum: ['BranchPickup', 'DoorDelivery'],
+      default: 'BranchPickup',
+    },
+    customPickupAddress: { type: String, default: '', trim: true },
+    customReturnAddress: { type: String, default: '', trim: true },
+    deliveryFee: { type: Number, default: 0, min: 0 },
     startOdometer: { type: Number, default: 0 },
     endOdometer: { type: Number },
     startFuelLevel: { type: String, default: '100%' },

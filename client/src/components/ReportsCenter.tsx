@@ -182,13 +182,22 @@ export const ReportsCenter: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (isManager && user?.branchId) {
+      const mBranchId = typeof user.branchId === 'object' ? user.branchId._id : user.branchId;
+      if (mBranchId && selectedBranchId === 'all') {
+        setSelectedBranchId(mBranchId);
+      }
+    }
+  }, [isManager, user?.branchId, selectedBranchId]);
+
+  useEffect(() => {
     if (activeTab === 'daily') fetchDailyReport();
     else if (activeTab === 'monthly') fetchMonthlyReport();
     else if (activeTab === 'fleet') fetchFleetReport();
     else if (activeTab === 'chain') fetchChainReport();
     else if (activeTab === 'kpi') fetchKpiDashboard();
     else if (activeTab === 'forecast') fetchDemandForecast();
-  }, [activeTab, dailyDate, monthlyMonth, monthlyYear, selectedBranchId, chainPeriod]);
+  }, [activeTab, dailyDate, monthlyMonth, monthlyYear, selectedBranchId, chainPeriod, user?.branchId]);
 
   // UC-89: Export handler for Excel and PDF
   const handleExport = async (format: 'excel' | 'pdf') => {

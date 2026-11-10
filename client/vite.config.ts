@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: { preserveSymlinks: true },
   server: { port: 5173, strictPort: true },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
         manualChunks(id) {
