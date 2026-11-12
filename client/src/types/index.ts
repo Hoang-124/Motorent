@@ -505,6 +505,27 @@ export interface StaffSchedule {
 }
 
 // ==========================================
+export interface StaffAvailabilitySlot {
+  dayOfWeek: number;
+  dateKey: string;
+  availableShifts: ShiftType[];
+  busyShifts: ShiftType[];
+  isAllDayBusy: boolean;
+  notes?: string;
+}
+
+export interface StaffAvailability {
+  _id: string;
+  staffId: User;
+  branchId: Branch;
+  weekStartDate: string;
+  rawMessage: string;
+  slots: StaffAvailabilitySlot[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Voucher / Discount Types (UC-110 - UC-112)
 // ==========================================
 export interface Discount {

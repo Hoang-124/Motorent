@@ -16,6 +16,7 @@ const envSchema = z.object({
   CLIENT_URL: z.string().url('CLIENT_URL phải là một URL hợp lệ').default('http://localhost:5173'),
   GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID là bắt buộc').default('dummy_google_client_id.apps.googleusercontent.com'),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GEMINI_API_KEY: z.string().optional(),
   SMTP_HOST: z.string().default('smtp.gmail.com'),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().optional(),

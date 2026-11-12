@@ -20,3 +20,4 @@ export * from './Payment';
 export * from './Wishlist';
 export * from './Review';
 export * from './SystemConfig';
+export * from './StaffAvailability';

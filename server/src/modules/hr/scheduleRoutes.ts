@@ -11,6 +11,10 @@ router.use(authenticateJWT);
 // Get my today's schedule for quick clock-in/out
 router.get('/today', scheduleController.getMyTodaySchedule);
 
+// Staff Availability Registration (Messages & Weekly Shift Slots)
+router.get('/availability', authorize('Staff', 'BranchManager', 'SystemAdmin'), scheduleController.getStaffAvailabilities);
+router.post('/availability', authorize('Staff', 'BranchManager', 'SystemAdmin'), scheduleController.submitStaffAvailability);
+
 // List schedules (Filtered by role in controller)
 router.get('/', authorize('Staff', 'BranchManager', 'SystemAdmin'), scheduleController.getSchedules);
 
