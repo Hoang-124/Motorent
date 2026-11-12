@@ -1,0 +1,256 @@
+{
+  "_metadata": {
+    "database_name": "motorent_db",
+    "project": "MOTORENT - Motorbike Rental Chain Management System",
+    "version": "1.2-final",
+    "exported_at": "2026-11-12T22:33:26.151578",
+    "total_collections": 24,
+    "author": "Trương Quốc Bảo Hoàng (HoangTQB / Hoang-124)"
+  },
+  "collections": {
+    "branches": [
+      {
+        "_id": "671230000000000000000001",
+        "name": "Chi nhánh Sân Bay Quốc Tế Đà Nẵng (Hải Châu)",
+        "code": "CN-DAD",
+        "address": "Cổng Ga Quốc Tế, Đường Duy Tân, Phường Hòa Thuận Tây, Quận Hải Châu, TP. Đà Nẵng",
+        "phoneNumber": "0236.3822.101",
+        "email": "danang.airport@motorent.vn",
+        "latitude": 16.0538,
+        "longitude": 108.2022,
+        "operatingHours": "06:00 - 23:00",
+        "isActive": true,
+        "description": "Cơ sở tại cửa ngõ Sân bay Quốc tế Đà Nẵng, giao nhận xe siêu tốc trong 2 phút khi vừa hạ cánh."
+      },
+      {
+        "_id": "671230000000000000000002",
+        "name": "Chi nhánh Bãi Biển Mỹ Khê",
+        "code": "CN-MK",
+        "address": "28 Võ Nguyên Giáp, Phường Phước Mỹ, Quận Sơn Trà, TP. Đà Nẵng",
+        "phoneNumber": "0236.3822.202",
+        "email": "mykhe.beach@motorent.vn",
+        "latitude": 16.0614,
+        "longitude": 108.2472,
+        "operatingHours": "07:00 - 22:30",
+        "isActive": true,
+        "description": "Nằm sát bãi biển Mỹ Khê, thuận tiện di chuyển tắm biển và khám phá cung đường ven biển."
+      }
+    ],
+    "categories": [
+      {
+        "_id": "671231000000000000000001",
+        "name": "Xe tay ga",
+        "slug": "xe-tay-ga",
+        "description": "Dòng xe êm ái, cốp rộng, dễ điều khiển trong đô thị.",
+        "isActive": true
+      },
+      {
+        "_id": "671231000000000000000002",
+        "name": "Xe số",
+        "slug": "xe-so",
+        "description": "Tiết kiệm xăng tối đa, linh hoạt, leo dốc tốt.",
+        "isActive": true
+      },
+      {
+        "_id": "671231000000000000000003",
+        "name": "Xe côn tay",
+        "slug": "xe-con-tay",
+        "description": "Động cơ mạnh mẽ, thể thao, thích hợp đi phượt tour xa.",
+        "isActive": true
+      },
+      {
+        "_id": "671231000000000000000004",
+        "name": "Xe 50cc (Không cần bằng lái)",
+        "slug": "xe-50cc",
+        "description": "Dành cho học sinh, sinh viên hoặc khách chưa có bằng lái A1, nhỏ gọn an toàn.",
+        "isActive": true
+      },
+      {
+        "_id": "671231000000000000000005",
+        "name": "Xe máy điện",
+        "slug": "xe-dien",
+        "description": "Thân thiện môi trường, vận hành êm ái, sạc tiện lợi.",
+        "isActive": true
+      }
+    ],
+    "users": [
+      {
+        "_id": "671232000000000000000001",
+        "username": "admin",
+        "email": "admin@motorent.vn",
+        "firstName": "Bảo Hoàng",
+        "lastName": "Trương Quốc",
+        "phoneNumber": "0905123456",
+        "role": "SystemAdmin",
+        "status": "Active",
+        "identityStatus": "Verified",
+        "loyaltyPoints": 500,
+        "isEmailVerified": true
+      },
+      {
+        "_id": "671232000000000000000002",
+        "username": "manager_dad",
+        "email": "manager.dad@motorent.vn",
+        "firstName": "Quốc Cả",
+        "lastName": "Phạm",
+        "phoneNumber": "0905234567",
+        "role": "BranchManager",
+        "branchId": "671230000000000000000001",
+        "status": "Active",
+        "identityStatus": "Verified",
+        "isEmailVerified": true
+      },
+      {
+        "_id": "671232000000000000000003",
+        "username": "staff_dad",
+        "email": "staff.dad@motorent.vn",
+        "firstName": "Thái Dương",
+        "lastName": "Nguyễn",
+        "phoneNumber": "0905345678",
+        "role": "Staff",
+        "branchId": "671230000000000000000001",
+        "status": "Active",
+        "identityStatus": "Verified",
+        "isEmailVerified": true
+      },
+      {
+        "_id": "671232000000000000000004",
+        "username": "customer_danang",
+        "email": "customer@danang.vn",
+        "firstName": "Văn Tài",
+        "lastName": "Nguyễn",
+        "phoneNumber": "0905999888",
+        "role": "Customer",
+        "status": "Active",
+        "identityStatus": "Verified",
+        "loyaltyPoints": 120,
+        "referralCode": "TAI-DN99",
+        "isEmailVerified": true
+      }
+    ],
+    "vehicles": [
+      {
+        "_id": "671233000000000000000001",
+        "branchId": "671230000000000000000001",
+        "category": "671231000000000000000001",
+        "vehicleModel": "Honda Vision 110cc",
+        "brand": "Honda",
+        "licensePlate": "43-C1 888.88",
+        "odometer": 3450,
+        "dailyPrice": 150000,
+        "hourlyPrice": 25000,
+        "status": "Available",
+        "transmission": "Automatic",
+        "fuelType": "Gasoline",
+        "yearManufactured": 2024,
+        "color": "Trắng Ngọc Trai",
+        "averageRating": 4.9,
+        "reviewCount": 18
+      },
+      {
+        "_id": "671233000000000000000002",
+        "branchId": "671230000000000000000001",
+        "category": "671231000000000000000001",
+        "vehicleModel": "Honda Air Blade 160cc ABS",
+        "brand": "Honda",
+        "licensePlate": "43-C1 777.77",
+        "odometer": 6200,
+        "dailyPrice": 200000,
+        "hourlyPrice": 35000,
+        "status": "Available",
+        "transmission": "Automatic",
+        "fuelType": "Gasoline",
+        "yearManufactured": 2024,
+        "color": "Đen Nhám",
+        "averageRating": 5.0,
+        "reviewCount": 24
+      },
+      {
+        "_id": "671233000000000000000003",
+        "branchId": "671230000000000000000002",
+        "category": "671231000000000000000005",
+        "vehicleModel": "VinFast Feliz S",
+        "brand": "VinFast",
+        "licensePlate": "43-MĐ1 001.23",
+        "odometer": 1890,
+        "dailyPrice": 160000,
+        "hourlyPrice": 28000,
+        "status": "Available",
+        "transmission": "Automatic",
+        "fuelType": "Electric",
+        "yearManufactured": 2024,
+        "color": "Xanh Rêu",
+        "averageRating": 4.8,
+        "reviewCount": 12
+      }
+    ],
+    "bookings": [
+      {
+        "_id": "671234000000000000000001",
+        "bookingCode": "MV-638774",
+        "userId": "671232000000000000000004",
+        "vehicleId": "671233000000000000000001",
+        "pickupBranchId": "671230000000000000000001",
+        "returnBranchId": "671230000000000000000002",
+        "pickupDateTime": "2026-11-15T08:00:00Z",
+        "returnDateTime": "2026-11-18T18:00:00Z",
+        "deliveryMode": "DoorDelivery",
+        "customPickupAddress": "Khách sạn Novotel Danang Premier Han River, 36 Bạch Đằng",
+        "customReturnAddress": "Sân bay Quốc tế Đà Nẵng, Cổng Ga Quốc Tế",
+        "deliveryFee": 100000,
+        "totalAmount": 650000,
+        "depositAmount": 195000,
+        "remainingAmount": 455000,
+        "status": "Confirmed",
+        "depositPaid": true,
+        "paymentMethod": "Banking",
+        "eSignatureUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAK8AA...",
+        "lessorSignatureUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASw...",
+        "startOdometer": 3450,
+        "startFuelLevel": "100%"
+      }
+    ],
+    "payments": [
+      {
+        "_id": "671235000000000000000001",
+        "bookingId": "671234000000000000000001",
+        "userId": "671232000000000000000004",
+        "amount": 195000,
+        "paymentType": "Deposit30",
+        "paymentMethod": "VNPay",
+        "transactionId": "VNP-14892019",
+        "status": "Success",
+        "paidAt": "2026-11-12T10:30:00Z"
+      }
+    ],
+    "discounts": [
+      {
+        "_id": "671236000000000000000001",
+        "code": "DANANG50",
+        "discountType": "FixedAmount",
+        "discountValue": 50000,
+        "minOrderAmount": 300000,
+        "startDate": "2026-01-01T00:00:00Z",
+        "endDate": "2026-12-31T23:59:59Z",
+        "usageLimit": 1000,
+        "usedCount": 142,
+        "isActive": true
+      }
+    ],
+    "systemconfigs": [
+      {
+        "_id": "671237000000000000000001",
+        "depositPercent": 30,
+        "cancelFreeBeforeHours": 24,
+        "cancelPartialRefundPercent": 50,
+        "lateFeePerHour": 30000,
+        "loyaltySpendPerPoint": 10000,
+        "loyaltyPointValueVnd": 1000,
+        "minPointsToRedeem": 50,
+        "supportHotline": "1900 6868",
+        "supportEmail": "support@motorent.vn",
+        "defaultLocale": "vi"
+      }
+    ]
+  }
+}

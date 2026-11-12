@@ -37,6 +37,8 @@ client/public/uploads/bikes/*.webp
 .idea/
 .DS_Store
 Thumbs.db
+~$*.docx
+~$*.xlsx
 
 # Temp & Agents
 .temp/
