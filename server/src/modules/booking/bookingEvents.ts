@@ -44,3 +44,35 @@ export const emitBookingStatus = (booking: IBooking): void => {
     console.error('[SOCKET ERROR] Failed to emit booking:status event:', err);
   }
 };
+
+export interface BookingExtendedPayload {
+  bookingId: string;
+  bookingCode: string;
+  oldReturnDateTime: string;
+  newReturnDateTime: string;
+  addedAmount: number;
+  totalAmount: number;
+  extensionCount: number;
+  pickupBranchId: string;
+  returnBranchId: string;
+}
+
+/**
+ * Emit real-time notification to branch operations, staff consoles, and admin rooms when booking is extended
+ */
+export const emitBookingExtended = (payload: BookingExtendedPayload): void => {
+  try {
+    if (!io) return;
+    io.to(`booking:${payload.bookingId}`).emit('booking:extended', payload);
+    if (payload.pickupBranchId) {
+      io.to(`staff:branch:${payload.pickupBranchId}`).emit('booking:extended', payload);
+    }
+    if (payload.returnBranchId && payload.returnBranchId !== payload.pickupBranchId) {
+      io.to(`staff:branch:${payload.returnBranchId}`).emit('booking:extended', payload);
+    }
+    io.to('admin').emit('booking:extended', payload);
+    io.to('role:SystemAdmin').emit('booking:extended', payload);
+  } catch (err) {
+    console.error('[SOCKET ERROR] Failed to emit booking:extended event:', err);
+  }
+};

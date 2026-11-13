@@ -162,7 +162,7 @@ export const streamBookingInvoicePdf = async (
 
   // Row: Phí giao nhận xe tận nơi ngoài cửa hàng (nếu có)
   if (deliveryFee > 0) {
-    doc.text('Phí giao / nhận xe tận nơi ngoài cửa hàng (Door-to-Door)', 50, y);
+    doc.text('Phí vận chuyển / giao nhận xe tận nơi (Door-to-Door)', 50, y);
     doc.text('40.000 đ/chiều', 280, y);
     doc.text(deliveryFee >= 80000 ? '2 chiều' : '1 chiều', 380, y);
     doc.fillColor('#1565C0').text(`+${deliveryFee.toLocaleString('vi-VN')} đ`, 460, y, { align: 'right', width: 85 });
@@ -305,7 +305,7 @@ export const streamBookingInvoicePdf = async (
   doc.text('ĐIỀU KHOẢN HỢP ĐỒNG THUÊ XE SONG PHƯƠNG:', 40, 696);
   doc.text('1. Hợp đồng điện tử có chữ ký của cả Bên cho thuê (Bên A) và Bên thuê (Bên B); mỗi bên đều nắm giữ bản hợp đồng đồng nhất trên hệ thống.', 40, 708);
   doc.text('2. Bên B cam kết sử dụng phương tiện đúng mục đích, xuất trình CCCD/GPLX hợp lệ và hoàn trả xe đúng thời gian/địa điểm đã thỏa thuận.', 40, 720);
-  doc.text('3. Mọi thắc mắc về giao nhận xe tận nơi, hoàn trả cọc (BR-06) hoặc sự cố kỹ thuật xin liên hệ Tổng đài 1900 6868 (Hỗ trợ 24/7).', 40, 732);
+  doc.text('3. ĐIỀU KHOẢN KHÔNG HOÀN TIỀN: Áp dụng chính sách KHÔNG HOÀN TIỀN cọc hoặc tiền thuê trong mọi trường hợp (bao gồm trường hợp hủy đơn hoặc trả xe trước hạn). Mọi thắc mắc xin liên hệ Tổng đài 1900 6868.', 40, 732);
 
   // Stamp text
   doc.rect(420, 745, 130, 36).strokeColor('#FF7A00').lineWidth(1).stroke();

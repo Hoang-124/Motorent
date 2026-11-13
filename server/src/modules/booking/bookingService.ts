@@ -13,7 +13,7 @@ import { AppError } from '../../core/errorHandler';
 import { withResourceLock as acquireVehicleLock } from '../../core/resourceLock';
 export { withResourceLock as acquireVehicleLock } from '../../core/resourceLock';
 import { assertBranchAccess } from '../../core/permissions';
-import { emitBookingStatus } from './bookingEvents';
+import { emitBookingStatus, emitBookingExtended } from './bookingEvents';
 import { isCloudinaryConfigured, uploadDataUriToCloudinary } from '../../config/cloudinary';
 import { sendBookingStatusEmail } from '../../config/mailer';
 import { quoteVehicleRental } from '../pricing/pricingService';
@@ -525,9 +525,15 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   }
 
   const deliveryMode = data.deliveryMode || 'BranchPickup';
-  const hasCustomPickup = deliveryMode === 'DoorDelivery' && Boolean(data.customPickupAddress?.trim());
-  const hasCustomReturn = deliveryMode === 'DoorDelivery' && Boolean(data.customReturnAddress?.trim());
-  const deliveryFee = (hasCustomPickup ? 40000 : 0) + (hasCustomReturn ? 40000 : 0);
+  const isDoorDelivery = deliveryMode === 'DoorDelivery';
+  let deliveryFee = 0;
+  if (isDoorDelivery) {
+    const hasCustomPickup = Boolean(data.customPickupAddress?.trim());
+    const hasCustomReturn = Boolean(data.customReturnAddress?.trim());
+    if (hasCustomPickup) deliveryFee += 40000;
+    if (hasCustomReturn) deliveryFee += 40000;
+    if (deliveryFee === 0) deliveryFee = 50000;
+  }
 
   const totalAmount = Math.max(0, basePrice + deliveryFee - discountAmount);
   const depositAmount = Math.round(totalAmount * 0.3);
@@ -985,7 +991,7 @@ export const buildOrderDetails = (booking: IBooking) => {
     canPayFull: !booking.isPaid && (booking.remainingAmount || 0) > 0 && !isCancelled,
     canCancel: (isPending || isApproved || isConfirmed || isOngoing) && !isCancelled,
     canExtend: (isConfirmed || isOngoing) && !isCancelled,
-    canRefund: isCancelled && (booking.refundAmount || 0) > 0 && booking.refundStatus === 'Pending',
+    canRefund: false, // Strict NO REFUND policy under signed contract terms
     canCheckin: (isConfirmed || isApproved) && !isCancelled,
     canCheckout: isOngoing && !isCompleted && !isCancelled,
     canCounterPay: (booking.remainingAmount || 0) > 0 && !isCancelled,
@@ -1175,6 +1181,12 @@ export const checkinBooking = async (
   if (input.checklist) {
     booking.checkinChecklist = input.checklist;
   }
+
+  // Enforce customer digital signature upon vehicle handover
+  if (!input.eSignatureUrl && !booking.eSignatureUrl) {
+    throw new AppError(400, 'Yêu cầu chữ ký xác nhận của khách hàng khi bàn giao xe.');
+  }
+
   if (input.eSignatureUrl) {
     if (input.eSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
       try {
@@ -1192,20 +1204,27 @@ export const checkinBooking = async (
     }
     booking.contractSignedAt = new Date();
   }
-  if (input.lessorSignatureUrl) {
-    if (input.lessorSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
+
+  // Ensure Lessor / Staff handover signature is captured
+  const effectiveLessorSig =
+    input.lessorSignatureUrl ||
+    booking.lessorSignatureUrl ||
+    `MOTORENT-STAFF:${staffUser.username || staffUser._id}:${new Date().toISOString()}`;
+
+  if (effectiveLessorSig) {
+    if (effectiveLessorSig.startsWith('data:image/') && isCloudinaryConfigured()) {
       try {
-        const uploadedLessorSig = await uploadDataUriToCloudinary(input.lessorSignatureUrl, {
+        const uploadedLessorSig = await uploadDataUriToCloudinary(effectiveLessorSig, {
           folder: 'motorent/signatures',
           type: 'upload',
           publicId: `lessor_sig_${booking.bookingCode}_${Date.now()}`,
         });
         booking.lessorSignatureUrl = uploadedLessorSig.secureUrl;
       } catch {
-        booking.lessorSignatureUrl = input.lessorSignatureUrl;
+        booking.lessorSignatureUrl = effectiveLessorSig;
       }
     } else {
-      booking.lessorSignatureUrl = input.lessorSignatureUrl;
+      booking.lessorSignatureUrl = effectiveLessorSig;
     }
     booking.contractSignedAt = new Date();
   }
@@ -1325,9 +1344,16 @@ export const checkoutBooking = async (
   booking.endOdometer = input.endOdometer;
   booking.endFuelLevel = fuelLevel;
   if (input.checkoutImages) booking.checkoutImages = input.checkoutImages;
-  if (input.returnNotes || input.notes) {
-    booking.returnNotes = (input.returnNotes || input.notes || '').trim();
+
+  // Handle return notes and early return non-refundable policy clause
+  const isEarlyReturn = now.getTime() < booking.returnDateTime.getTime();
+  let returnNotesText = (input.returnNotes || input.notes || '').trim();
+  if (isEarlyReturn) {
+    const earlyHours = Math.max(1, Math.round((booking.returnDateTime.getTime() - now.getTime()) / (1000 * 3600)));
+    const earlyNotice = `[Trả xe sớm ${earlyHours} giờ - Áp dụng điều khoản Hợp đồng: Không hoàn tiền khi trả xe sớm]`;
+    returnNotesText = returnNotesText ? `${returnNotesText} | ${earlyNotice}` : earlyNotice;
   }
+  booking.returnNotes = returnNotesText;
   booking.lateFee = lateFee;
   booking.damageFee = damageFee;
   booking.settlementAmount = finalDue;
@@ -1335,6 +1361,8 @@ export const checkoutBooking = async (
   booking.isPaid = true;
   booking.paidAmount = (booking.paidAmount || 0) + finalDue;
   booking.remainingAmount = 0;
+  booking.refundAmount = 0;
+  booking.refundStatus = 'None';
 
   // Award loyalty points once: 1 point per 10,000 VND
   if (!booking.loyaltyAwarded) {
@@ -1755,48 +1783,24 @@ export const cancelBooking = async (
   const wasOngoing = booking.status === 'Ongoing';
   const hoursUntilPickup = (booking.pickupDateTime.getTime() - now.getTime()) / (1000 * 3600);
 
-  let forfeitAmount = 0;
-  let refundAmount = 0;
-  let policyNotice = '';
-
   if (wasOngoing) {
-    const usedHours = Math.max(1, (now.getTime() - booking.pickupDateTime.getTime()) / (1000 * 3600));
-    const usedDays = Math.max(1, Math.ceil(usedHours / 24));
-    const totalContractDays = Math.max(
-      1,
-      Math.ceil((booking.returnDateTime.getTime() - booking.pickupDateTime.getTime()) / (1000 * 3600 * 24))
-    );
-    const dailyRate = Math.round(booking.totalAmount / totalContractDays);
-    const usedRentalCost = Math.min(booking.totalAmount, usedDays * dailyRate);
-    const earlyTerminationFee = Math.round((booking.depositAmount || 0) * 0.5);
-
-    forfeitAmount = Math.min(booking.paidAmount || booking.totalAmount, usedRentalCost + earlyTerminationFee);
-    refundAmount = Math.max(0, (booking.paidAmount || 0) - forfeitAmount);
     booking.actualReturnDateTime = now;
-    policyNotice = `Hủy / Kết thúc chuyến đột xuất khi đang thuê (đã sử dụng ${usedDays}/${totalContractDays} ngày). Chi phí thời gian thực tế & phí chấm dứt sớm: ${forfeitAmount.toLocaleString('vi-VN')} đ. Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
-  } else if ((booking.paidAmount || 0) > 0) {
-    if (hoursUntilPickup > 24) {
-      // Free cancellation > 24h before pickup
-      forfeitAmount = 0;
-      refundAmount = booking.paidAmount;
-      policyNotice = `Hủy trước giờ nhận > 24 giờ (${Math.max(0, Math.floor(hoursUntilPickup))} giờ). Miễn phí hủy 100%, số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
-    } else {
-      // Within 24h of pickup: 50% deposit forfeited
-      forfeitAmount = Math.round((booking.depositAmount || 0) * 0.5);
-      refundAmount = Math.max(0, (booking.paidAmount || 0) - forfeitAmount);
-      policyNotice = `Hủy trong vòng 24 giờ trước giờ nhận (${Math.max(0, Math.round(hoursUntilPickup))} giờ). Khấu trừ 50% tiền cọc (${forfeitAmount.toLocaleString('vi-VN')} đ). Số tiền hoàn lại: ${refundAmount.toLocaleString('vi-VN')} đ.`;
-    }
-  } else {
-    policyNotice = 'Đơn đặt giữ chưa phát sinh tiền thanh toán, hủy đơn không mất phí.';
   }
+
+  // Strict NO REFUND policy on cancellation as per signed contract terms
+  const forfeitAmount = booking.paidAmount || 0;
+  const refundAmount = 0;
+  const policyNotice = (booking.paidAmount || 0) > 0
+    ? 'Áp dụng chính sách KHÔNG HOÀN TIỀN theo điều khoản hợp đồng. Toàn bộ số tiền cọc/đã thanh toán không được hoàn lại khi hủy đơn.'
+    : 'Đơn đặt giữ chưa phát sinh tiền thanh toán, hủy đơn không mất phí.';
 
   // Update booking status and refund state
   booking.status = 'Cancelled';
   booking.cancelReason = cancelReason?.trim() || 'Khách hàng yêu cầu hủy đơn trực tuyến.';
   booking.cancelledAt = now;
-  booking.refundAmount = refundAmount;
+  booking.refundAmount = 0;
   booking.refundForfeitAmount = forfeitAmount;
-  booking.refundStatus = refundAmount > 0 ? 'Pending' : 'None';
+  booking.refundStatus = 'None';
   await booking.save();
 
   // Release vehicle back to Available status if it is not in Maintenance/Transferring or rented by another Ongoing booking
@@ -1931,18 +1935,12 @@ export const requestRefund = async (
     throw new AppError(400, 'Yêu cầu hoàn tiền của đơn này đã được quản lý phê duyệt và hoàn tất.');
   }
 
-  // Calculate refundAmount if not already calculated
-  if (!booking.refundAmount || booking.refundAmount === 0) {
-    const pickupTime = booking.pickupDateTime.getTime();
-    const cancelTime = booking.cancelledAt ? booking.cancelledAt.getTime() : Date.now();
-    const hoursUntil = (pickupTime - cancelTime) / (1000 * 3600);
-    if (hoursUntil > 24) {
-      booking.refundForfeitAmount = 0;
-      booking.refundAmount = booking.paidAmount;
-    } else {
-      booking.refundForfeitAmount = Math.round((booking.depositAmount || 0) * 0.5);
-      booking.refundAmount = Math.max(0, (booking.paidAmount || 0) - booking.refundForfeitAmount);
-    }
+  // Enforce contract policy: Strict NO REFUND
+  if ((booking.refundAmount || 0) <= 0) {
+    throw new AppError(
+      400,
+      'Theo điều khoản hợp đồng thuê xe, hệ thống áp dụng chính sách KHÔNG HOÀN TIỀN cho mọi trường hợp hủy đơn hoặc kết thúc sớm.'
+    );
   }
 
   const now = new Date();
@@ -2313,6 +2311,7 @@ export const extendBooking = async (
       timestamp: new Date(),
     }).catch(() => {});
 
+    // 1. Notify Customer
     await Notification.create({
       userId: booking.userId,
       title: 'Gia hạn chuyến xe thành công',
@@ -2321,7 +2320,36 @@ export const extendBooking = async (
       relatedId: booking._id.toString(),
     }).catch(() => {});
 
+    // 2. Notify Branch Staff & Managers (both pickup & return stations) and SystemAdmins
+    await notifyBranchOperations({
+      branchIds: [booking.pickupBranchId, booking.returnBranchId],
+      title: `[Gia hạn đơn thuê] Đơn #${booking.bookingCode} vừa gia hạn thêm`,
+      body: `Khách hàng đã gia hạn đơn thuê xe đến ${newReturnDate.toLocaleString('vi-VN')} (thêm ${(extensionQuote.addedAmount || 0).toLocaleString('vi-VN')} đ). Thời gian trả cũ: ${oldReturnDateTime.toLocaleString('vi-VN')}.`,
+      type: 'BOOKING',
+      relatedId: booking._id.toString(),
+      data: {
+        bookingId: booking._id.toString(),
+        bookingCode: booking.bookingCode,
+        oldReturnDateTime: oldReturnDateTime.toISOString(),
+        newReturnDateTime: newReturnDate.toISOString(),
+        addedAmount: extensionQuote.addedAmount,
+        extensionCount: booking.extensionCount,
+        vehicleId: booking.vehicleId.toString(),
+      },
+    }).catch((err) => console.error('[Notification Staff Extension Error]', err));
+
     emitBookingStatus(booking);
+    emitBookingExtended({
+      bookingId: booking._id.toString(),
+      bookingCode: booking.bookingCode,
+      oldReturnDateTime: oldReturnDateTime.toISOString(),
+      newReturnDateTime: newReturnDate.toISOString(),
+      addedAmount: extensionQuote.addedAmount,
+      totalAmount: booking.totalAmount,
+      extensionCount: booking.extensionCount || 1,
+      pickupBranchId: booking.pickupBranchId.toString(),
+      returnBranchId: booking.returnBranchId ? booking.returnBranchId.toString() : booking.pickupBranchId.toString(),
+    });
 
     const populated = await Booking.findById(booking._id)
       .populate('userId', 'username email firstName lastName phoneNumber')

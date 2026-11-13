@@ -2740,7 +2740,7 @@ export const BookingPage: React.FC = () => {
                 <div className="flex justify-between py-1 text-[#6E6E6E]">
                   <span>
                     {deliveryMode === 'DoorDelivery'
-                      ? 'Phí giao & nhận xe tận nơi ngoài cửa hàng:'
+                      ? 'Phí vận chuyển / giao nhận xe tận nơi:'
                       : 'Phụ phí trả xe liên trạm:'}
                   </span>
                   <span className="text-[#FFC799] font-bold">

@@ -198,7 +198,7 @@ export const SystemConfigManager: React.FC = () => {
                 <span className="text-xs text-[#A0A0A0] font-semibold">Giờ</span>
               </div>
               <p className="text-[11px] text-[#707070] mt-1">
-                Hủy trước giờ nhận xe {cancelFreeHours}h sẽ được hoàn cọc 100%.
+                Quy chuẩn hệ thống: Áp dụng chính sách KHÔNG HOÀN TIỀN (cọc giữ xe) theo điều khoản hợp đồng.
               </p>
             </div>
 

@@ -183,7 +183,7 @@ export const Footer: React.FC = () => {
                 </li>
                 <li className="flex items-center space-x-2 text-[#A0A0A0]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[#FFC799] shrink-0" />
-                  <span>Hoàn cọc 100% khi báo hủy trước 24 giờ</span>
+                  <span>Cam kết minh bạch: Hợp đồng điện tử ký số song phương</span>
                 </li>
                 <li className="text-[#A0A0A0]">
                   Trang bị tiêu chuẩn: 02 mũ 3/4 khử khuẩn UV &amp; 02 áo mưa

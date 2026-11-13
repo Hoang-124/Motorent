@@ -1091,7 +1091,7 @@ export const OrderDetailPage: React.FC = () => {
 
                 {(booking.deliveryFee || 0) > 0 && (
                   <div className="flex items-center justify-between text-[#FFC799]">
-                    <span>Phí giao &amp; nhận xe tận nơi ngoài cửa hàng</span>
+                    <span>Phí vận chuyển / giao nhận xe tận nơi</span>
                     <span className="font-mono-tabular font-medium">
                       +{(booking.deliveryFee || 0).toLocaleString('vi-VN')} đ
                     </span>
@@ -1256,16 +1256,16 @@ export const OrderDetailPage: React.FC = () => {
             </div>
 
             {/* Electronic Policy Note */}
-            <div className="p-4 rounded-xl bg-[#161616]/60 border border-white/[0.06] text-[11px] text-[#6E6E6E] space-y-1.5">
-              <div className="flex items-center space-x-1.5 text-[#A0A0A0] font-medium">
-                <FileText className="w-3.5 h-3.5 text-[#FFC799]" />
-                <span>Chính sách bảo vệ quyền lợi người thuê</span>
+            <div className="p-4 rounded-xl bg-[#161616]/60 border border-white/[0.06] text-[11px] text-[#A0A0A0] space-y-1.5">
+              <div className="flex items-center space-x-1.5 text-[#FFC799] font-medium">
+                <FileText className="w-3.5 h-3.5" />
+                <span>Chính sách hợp đồng thuê xe</span>
               </div>
               <p>
-                - Hủy trước 24 giờ kể từ thời điểm nhận xe: Hoàn lại 100% số tiền đã thanh toán cọc.
+                - Điều khoản thanh toán &amp; hủy đơn: Áp dụng chính sách KHÔNG HOÀN TIỀN (cọc hoặc tiền thuê) khi hủy đơn hoặc kết thúc hợp đồng sớm.
               </p>
               <p>
-                - Hủy trong vòng 24 giờ trước nhận xe: Giữ lại tiền cọc 30% làm phí lưu kho bãi và bồi hoàn chi nhánh.
+                - Trả xe sớm hơn thời hạn: Không hoàn lại tiền chênh lệch của các ngày chưa sử dụng theo cam kết hợp đồng.
               </p>
             </div>
           </div>
@@ -1296,9 +1296,9 @@ export const OrderDetailPage: React.FC = () => {
               </div>
 
               <div className="p-3.5 rounded-xl bg-[#101010] border border-white/10 text-xs text-[#A0A0A0] space-y-1">
-                <p className="font-semibold text-[#F5F5F5]">Chính sách hủy đơn:</p>
-                <p>• Hệ thống sẽ tự động đối soát mốc thời gian nhận xe để tính toán số tiền hoàn cọc chính xác.</p>
-                <p>• Biển số xe sẽ được mở khóa lại ngay lập tức cho các khách hàng khác thuê.</p>
+                <p className="font-semibold text-[#FF8080]">Lưu ý điều khoản KHÔNG HOÀN TIỀN:</p>
+                <p>• Áp dụng chính sách KHÔNG HOÀN TIỀN cọc hoặc tiền thuê khi khách hàng hủy đơn theo quy định hợp đồng.</p>
+                <p>• Phương tiện sẽ được mở khóa lại ngay lập tức cho các khách hàng khác thuê.</p>
               </div>
 
               <div>

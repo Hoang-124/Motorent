@@ -158,6 +158,10 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       if (['Staff', 'BranchManager'].includes(user.roles) && user.branchId) {
         socket.join(`staff:branch:${user.branchId.toString()}`);
       }
+      if (user.roles === 'SystemAdmin') {
+        socket.join('admin');
+        socket.join('role:SystemAdmin');
+      }
 
       // UC-45: Push live badge count immediately on connect so client badge syncs without full list fetch
       Notification.countDocuments({ userId: user._id, isRead: false })
@@ -173,8 +177,10 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       if (!user) return;
       if (['Staff', 'BranchManager'].includes(user.roles) && user.branchId) {
         socket.join(`staff:branch:${user.branchId.toString()}`);
-      } else if (user.roles === 'SystemAdmin' && branchId) {
-        socket.join(`staff:branch:${branchId}`);
+      } else if (user.roles === 'SystemAdmin') {
+        if (branchId) socket.join(`staff:branch:${branchId}`);
+        socket.join('admin');
+        socket.join('role:SystemAdmin');
       }
     });
 

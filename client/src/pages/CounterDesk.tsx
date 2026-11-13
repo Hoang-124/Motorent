@@ -2886,6 +2886,7 @@ export const CounterDesk: React.FC = () => {
                         const isOverdueNow = overdueMs > graceMinutes * 60 * 1000;
                         const overdueMinutes = Math.max(0, Math.floor(overdueMs / (60 * 1000)));
                         const overdueHoursCeil = isOverdueNow ? Math.ceil(overdueMs / (3600 * 1000)) : 0;
+                        const isEarlyReturn = now.getTime() < returnDate.getTime();
                         const dynamicLateFee =
                           selectedBooking.lateFee !== undefined && selectedBooking.lateFee > 0
                             ? selectedBooking.lateFee
@@ -2906,12 +2907,24 @@ export const CounterDesk: React.FC = () => {
                                 className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                   isOverdueNow
                                     ? 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
+                                    : isEarlyReturn
+                                    ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
                                     : 'bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30'
                                 }`}
                               >
-                                {isOverdueNow ? `Trễ hẹn +${overdueMinutes}p` : 'Đúng hạn (15p ân hạn)'}
+                                {isOverdueNow
+                                  ? `Trễ hẹn +${overdueMinutes}p`
+                                  : isEarlyReturn
+                                  ? 'Trả trước hạn'
+                                  : 'Đúng hạn (15p ân hạn)'}
                               </span>
                             </div>
+
+                            {isEarlyReturn && (
+                              <div className="p-2.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/20 text-[11px] text-[#FFC799]">
+                                <span className="font-bold">Lưu ý điều khoản trả xe sớm:</span> Hợp đồng áp dụng chính sách KHÔNG HOÀN TIỀN khi trả trước thời hạn thỏa thuận. Khách hàng thanh toán phần dư còn thiếu theo hợp đồng đã ký.
+                              </div>
+                            )}
 
                             <div className="flex justify-between text-[#A0A0A0]">
                               <span>Tiền thuê còn lại (70%):</span>
