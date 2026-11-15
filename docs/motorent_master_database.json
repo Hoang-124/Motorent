@@ -5,7 +5,7 @@
     "version": "1.2-final",
     "exported_at": "2026-11-12T22:33:26.151578",
     "total_collections": 24,
-    "author": "Trương Quốc Bảo Hoàng (HoangTQB / Hoang-124)"
+    "author": "Trần Quang Bửu Hoàng (HoangTQB / Hoang-124)"
   },
   "collections": {
     "branches": [
@@ -78,8 +78,8 @@
         "_id": "671232000000000000000001",
         "username": "admin",
         "email": "admin@motorent.vn",
-        "firstName": "Bảo Hoàng",
-        "lastName": "Trương Quốc",
+        "firstName": "Bửu Hoàng",
+        "lastName": "Trần Quang",
         "phoneNumber": "0905123456",
         "role": "SystemAdmin",
         "status": "Active",
