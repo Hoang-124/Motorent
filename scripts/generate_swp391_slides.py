@@ -30,8 +30,7 @@ def create_deck(output_path):
         return bg
 
     def add_header(slide, section_tag, title_text):
-        # Section tag
-        tag_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.45), Inches(11.7), Inches(0.35))
+        tag_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.4), Inches(11.7), Inches(0.35))
         tf = tag_box.text_frame
         tf.word_wrap = True
         tf.margin_left = tf.margin_top = tf.margin_right = tf.margin_bottom = 0
@@ -42,8 +41,7 @@ def create_deck(output_path):
         p.font.bold = True
         p.font.color.rgb = ACCENT_PEACH
 
-        # Title
-        title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.8), Inches(11.7), Inches(0.6))
+        title_box = slide.shapes.add_textbox(Inches(0.8), Inches(0.75), Inches(11.7), Inches(0.6))
         tf2 = title_box.text_frame
         tf2.word_wrap = True
         tf2.margin_left = tf2.margin_top = tf2.margin_right = tf2.margin_bottom = 0
@@ -70,7 +68,7 @@ def create_deck(output_path):
                 p = tf.paragraphs[0]
                 p.text = title
                 p.font.name = 'Calibri'
-                p.font.size = Pt(15)
+                p.font.size = Pt(14)
                 p.font.bold = True
                 p.font.color.rgb = ACCENT_PEACH
                 p.space_after = Pt(4)
@@ -78,7 +76,7 @@ def create_deck(output_path):
                 p2 = tf.add_paragraph()
                 p2.text = subtitle
                 p2.font.name = 'Calibri'
-                p2.font.size = Pt(11)
+                p2.font.size = Pt(10.5)
                 p2.font.color.rgb = TEXT_MUTED
             return tf
         return card
@@ -89,13 +87,12 @@ def create_deck(output_path):
     s1 = prs.slides.add_slide(blank_layout)
     set_slide_background(s1)
 
-    # Main title box
     tb = s1.shapes.add_textbox(Inches(1.0), Inches(1.8), Inches(11.3), Inches(3.5))
     tf = tb.text_frame
     tf.word_wrap = True
     
     p0 = tf.paragraphs[0]
-    p0.text = "SWP391 • BÁO CÁO DỰ ÁN TỐT NGHIỆP PHẦN MỀM"
+    p0.text = "SWP391 • BÁO CÁO DỰ ÁN PHẦN MỀM TỐT NGHIỆP"
     p0.font.name = 'Calibri'
     p0.font.size = Pt(14)
     p0.font.bold = True
@@ -118,13 +115,12 @@ def create_deck(output_path):
     p2.space_after = Pt(24)
 
     p3 = tf.add_paragraph()
-    p3.text = "Xác thực eKYC • Hợp đồng ký số song phương • Giao xe tận nơi • AI tối ưu hóa ca trực"
+    p3.text = "Xác thực eKYC • Hợp đồng ký số song phương • Giao xe tận nơi • AI tối ưu hóa ca trực kép"
     p3.font.name = 'Calibri'
     p3.font.size = Pt(13)
     p3.font.color.rgb = TEXT_MUTED
 
-    # Bottom team pill
-    c_team = add_card(s1, Inches(1.0), Inches(5.6), Inches(11.3), Inches(1.1), border_color=CARD_BORDER)
+    add_card(s1, Inches(1.0), Inches(5.6), Inches(11.3), Inches(1.1), border_color=CARD_BORDER)
     tb_b = s1.shapes.add_textbox(Inches(1.3), Inches(5.75), Inches(10.7), Inches(0.8))
     tf_b = tb_b.text_frame
     tf_b.word_wrap = True
@@ -144,20 +140,20 @@ def create_deck(output_path):
     p_b2.font.color.rgb = TEXT_WHITE
 
     # ==========================================
-    # SLIDE 2: AGENDA (7 MỤC TRÌNH BÀY)
+    # SLIDE 2: AGENDA (7 MỤC)
     # ==========================================
     s2 = prs.slides.add_slide(blank_layout)
     set_slide_background(s2)
-    add_header(s2, "Nội dung thuyết trình", "7 Hạng Mục Báo Cáo Bảo Vệ SWP391")
+    add_header(s2, "Dàn ý báo cáo", "7 Hạng Mục Trình Bày Dự Án SWP391")
 
     agenda_items = [
-        ("01", "Tên đề tài & Thành viên nhóm", "Giới thiệu thông tin đề tài, phân công trách nhiệm & vai trò các thành viên."),
-        ("02", "Product Background", "Bối cảnh thị trường thuê xe máy, nỗi đau khách hàng & bài toán kinh doanh."),
-        ("03", "Existing System", "Khảo sát các hệ thống hiện tại, phân tích nhược điểm & khoảng trống thị trường."),
+        ("01", "Tên đề tài & Thành viên nhóm", "Giới thiệu đề tài, phân công trách nhiệm & vai trò 5 thành viên."),
+        ("02", "Product Background", "Bối cảnh du lịch Đà Nẵng, nỗi đau khách hàng & bài toán kinh doanh."),
+        ("03", "Existing System", "Khảo sát hệ thống hiện có, nhược điểm mô hình cũ & khoảng trống thị trường."),
         ("04", "Use Case Diagram", "Sơ đồ Use Case tổng quan theo 4 tác nhân: Khách hàng, Nhân viên, Quản lý, Admin."),
-        ("05", "Database Architecture", "Kiến trúc CSDL MongoDB với 24 models chuẩn hóa theo 6 nhóm nghiệp vụ."),
-        ("06", "Package Diagram [Trọng tâm]", "Kiến trúc Modular Monolith: Client SPA, Core Middlewares, 22 Modules, Sockets."),
-        ("07", "Ứng dụng AI vào hệ thống [Trọng tâm]", "Dual-AI Engine: Heuristic MOTORENT-Rule-v2 + Gemini LLM xếp ca trực thông minh.")
+        ("05", "Database Architecture", "Kiến trúc CSDL MongoDB với 24 models chuẩn hóa theo 5 cụm nghiệp vụ."),
+        ("06", "Package Diagram [Trọng tâm]", "Kiến trúc Modular Monolith: Client SPA, Core Middleware, 22 Modules, Sockets."),
+        ("07", "Ứng dụng AI vào hệ thống [Trọng tâm]", "Dual-AI Engine: Heuristic Rule-v2 kết hợp Gemini LLM API & NLP Tiếng Việt.")
     ]
 
     col_w = Inches(5.6)
@@ -169,12 +165,12 @@ def create_deck(output_path):
 
         if idx < 4:
             x = Inches(0.8)
-            y = Inches(1.6 + idx * 1.25)
+            y = Inches(1.5 + idx * 1.25)
         else:
             x = Inches(6.8)
-            y = Inches(1.6 + (idx - 4) * 1.25)
+            y = Inches(1.5 + (idx - 4) * 1.25)
 
-        card = add_card(s2, x, y, col_w, row_h, border_color=border_col, bg_color=bg_col)
+        add_card(s2, x, y, col_w, row_h, border_color=border_col, bg_color=bg_col)
         tb_item = s2.shapes.add_textbox(x + Inches(0.25), y + Inches(0.12), col_w - Inches(0.5), row_h - Inches(0.24))
         tf_item = tb_item.text_frame
         tf_item.word_wrap = True
@@ -183,7 +179,7 @@ def create_deck(output_path):
         p = tf_item.paragraphs[0]
         p.text = f"{num}. {title}"
         p.font.name = 'Calibri'
-        p.font.size = Pt(14)
+        p.font.size = Pt(13.5)
         p.font.bold = True
         p.font.color.rgb = ACCENT_PEACH if is_highlight else TEXT_WHITE
         p.space_after = Pt(2)
@@ -191,15 +187,15 @@ def create_deck(output_path):
         p_desc = tf_item.add_paragraph()
         p_desc.text = desc
         p_desc.font.name = 'Calibri'
-        p_desc.font.size = Pt(10.5)
+        p_desc.font.size = Pt(10)
         p_desc.font.color.rgb = TEXT_MUTED
 
     # ==========================================
-    # SLIDE 3: MỤC 1 - THÀNH VIÊN & PHÂN CÔNG
+    # SLIDE 3: MỤC 1 - THÀNH VIÊN
     # ==========================================
     s3 = prs.slides.add_slide(blank_layout)
     set_slide_background(s3)
-    add_header(s3, "Mục 1 • Nhóm thực hiện", "Thông Tin Thành Viên & Bảng Phân Công Đóng Góp")
+    add_header(s3, "Mục 1 • Nhóm thực hiện", "Thông Tin Thành Viên & Bảng Phân Công Đóng Góp (Group 4)")
 
     members = [
         ("Trần Quang Bửu Hoàng", "Team Leader / Full-Stack", "35%", 
@@ -229,14 +225,13 @@ def create_deck(output_path):
           "Quản lý nội dung banner slider & trang chính sách"])
     ]
 
-    # Draw 5 horizontal cards or 5 columns
     w_card = Inches(2.25)
     for idx, (name, role, pct, tasks) in enumerate(members):
         x = Inches(0.8 + idx * 2.4)
-        y = Inches(1.6)
-        h = Inches(5.2)
+        y = Inches(1.5)
+        h = Inches(5.3)
 
-        card = add_card(s3, x, y, w_card, h, border_color=ACCENT_PEACH if idx == 0 else CARD_BORDER)
+        add_card(s3, x, y, w_card, h, border_color=ACCENT_PEACH if idx == 0 else CARD_BORDER)
         tb_m = s3.shapes.add_textbox(x + Inches(0.18), y + Inches(0.18), w_card - Inches(0.36), h - Inches(0.36))
         tf_m = tb_m.text_frame
         tf_m.word_wrap = True
@@ -263,7 +258,7 @@ def create_deck(output_path):
         p_pct.font.size = Pt(11)
         p_pct.font.bold = True
         p_pct.font.color.rgb = ACCENT_PEACH
-        p_pct.space_after = Pt(10)
+        p_pct.space_after = Pt(8)
 
         for t in tasks:
             pt = tf_m.add_paragraph()
@@ -278,9 +273,8 @@ def create_deck(output_path):
     # ==========================================
     s4 = prs.slides.add_slide(blank_layout)
     set_slide_background(s4)
-    add_header(s4, "Mục 2 • Bối cảnh sản phẩm", "Bối Cảnh Thị Trường & Mục Tiêu Của MOTORENT")
+    add_header(s4, "Mục 2 • Bối cảnh sản phẩm", "Bối Cảnh Thị Trường, Nỗi Đau & Tầm Nhìn MOTORENT")
 
-    # 3 major columns: Thị trường, Nỗi đau, Giải pháp
     cols_data = [
         ("BỐI CẢNH THỊ TRƯỜNG ĐÀ NẴNG", 
          "Nhu cầu thuê xe máy du lịch cực kỳ lớn:",
@@ -304,9 +298,9 @@ def create_deck(output_path):
 
     for idx, (title, subtitle, bullets) in enumerate(cols_data):
         x = Inches(0.8 + idx * 4.0)
-        y = Inches(1.6)
+        y = Inches(1.5)
         w = Inches(3.7)
-        h = Inches(5.2)
+        h = Inches(5.3)
 
         add_card(s4, x, y, w, h, border_color=ACCENT_PEACH if idx == 2 else CARD_BORDER)
         tb_c = s4.shapes.add_textbox(x + Inches(0.25), y + Inches(0.2), w - Inches(0.5), h - Inches(0.4))
@@ -334,7 +328,7 @@ def create_deck(output_path):
             pb = tf_c.add_paragraph()
             pb.text = f"• {b}"
             pb.font.name = 'Calibri'
-            pb.font.size = Pt(10.5)
+            pb.font.size = Pt(10)
             pb.font.color.rgb = TEXT_MUTED
             pb.space_after = Pt(6)
 
@@ -345,7 +339,6 @@ def create_deck(output_path):
     set_slide_background(s5)
     add_header(s5, "Mục 3 • Hiện trạng hệ thống", "Khảo Sát Hệ Thống Hiện Có & Bảng So Sánh Năng Lực")
 
-    # Table comparison: 4 columns (Tính năng, Thuê xe truyền thống, Nền tảng Ô tô (Mioto), MOTORENT)
     rows = [
         ("Xác thực khách hàng", "Giữ CCCD / Bằng lái gốc", "Chụp ảnh giấy tờ (ô tô)", "eKYC mã hóa AES-256-GCM, không giữ gốc"),
         ("Hợp đồng thuê xe", "Hợp đồng giấy viết tay", "Hợp đồng xác nhận 1 chiều", "Ký số song phương tại quầy (Khách & NV)"),
@@ -357,11 +350,10 @@ def create_deck(output_path):
         ("Phân ca nhân viên", "Xếp lịch thủ công bằng giấy/Excel", "Không áp dụng", "AI Tối ưu hóa phân ca (Gemini & Heuristic)")
     ]
 
-    # Create visual table
     x = Inches(0.8)
-    y = Inches(1.6)
+    y = Inches(1.5)
     w = Inches(11.7)
-    h = Inches(5.2)
+    h = Inches(5.3)
 
     table_shape = s5.shapes.add_table(len(rows) + 1, 4, x, y, w, h)
     table = table_shape.table
@@ -402,209 +394,179 @@ def create_deck(output_path):
                 p.font.color.rgb = TEXT_MUTED
 
     # ==========================================
-    # SLIDE 6: MỤC 4 - USE CASE DIAGRAM
+    # SLIDE 6: MỤC 4 - USE CASE DIAGRAM (KÈM HÌNH ẢNH)
     # ==========================================
     s6 = prs.slides.add_slide(blank_layout)
     set_slide_background(s6)
-    add_header(s6, "Mục 4 • Sơ đồ Use Case", "Use Case Diagram Tổng Quan Theo 4 Tác Nhân Chính")
+    add_header(s6, "Mục 4 • Sơ đồ Use Case", "Sơ Đồ Use Case Diagram & Luồng Nghiệp Vụ Người Dùng")
 
-    actors = [
-        ("CUSTOMER (KHÁCH HÀNG)", ACCENT_MINT,
-         ["Đăng ký, Đăng nhập, Google OAuth2",
-          "Xác thực eKYC trực tuyến (CCCD / GPLX)",
-          "Tìm kiếm xe, chọn trạm, lọc theo hãng & giá",
-          "Đặt xe đơn lẻ hoặc Giỏ xe nhiều chiếc",
-          "Thanh toán cọc 30% VNPay / VietQR",
-          "Ký hợp đồng nhận xe song phương",
-          "Yêu cầu gia hạn hợp đồng thuê xe",
-          "Gửi khiếu nại, đánh giá sao, xe yêu thích"]),
-        ("STAFF (NHÂN VIÊN TRẠM)", ACCENT_PEACH,
-         ["Điểm danh vào/ra ca trực (Clock-In/Out)",
-          "Đăng ký lịch rảnh/bận bằng tin nhắn tiếng Việt",
-          "Lễ tân tiếp đón khách tại quầy (Counter Desk)",
-          "Kiểm tra hiện trạng xe & chụp ảnh 4 góc",
-          "Ký hợp đồng số xác nhận bàn giao xe",
-          "Thu tất toán 70% & xử lý Check-in / Check-out",
-          "Hỗ trợ khách hàng qua Live Chat thời gian thực"]),
-        ("BRANCH MANAGER (QUẢN LÝ)", ACCENT_BLUE,
-         ["Quản lý danh sách đội xe tại chi nhánh",
-          "Tạo lệnh điều chuyển xe giữa các trạm",
-          "Xác nhận hoàn tất bảo dưỡng xe định kỳ",
-          "Duyệt đơn đặt xe đặc biệt tại chi nhánh",
-          "Chạy AI Tối ưu hóa phân ca trực tuần",
-          "Đối soát tài chính & công nợ trạm",
-          "Giải quyết khiếu nại khách hàng cấp trạm"]),
-        ("SYSTEM ADMIN (HỆ THỐNG)", RGBColor(255, 140, 140),
-         ["Quản lý danh mục chi nhánh & tọa độ GPS",
-          "Cấu hình chính sách hệ thống (SystemConfig)",
-          "Phân quyền ma trận người dùng (RBAC)",
-          "Giám sát nhật ký kiểm toán (AuditLog)",
-          "Báo cáo KPI doanh thu & dự báo nhu cầu",
-          "Quản lý nội dung CMS (Banner, Trang tĩnh)",
-          "Theo dõi và quản lý toàn bộ các Cron Jobs"])
+    # Left card: Summary of 4 actors
+    add_card(s6, Inches(0.8), Inches(1.5), Inches(4.3), Inches(5.3))
+    tb_u = s6.shapes.add_textbox(Inches(1.0), Inches(1.7), Inches(3.9), Inches(4.9))
+    tf_u = tb_u.text_frame
+    tf_u.word_wrap = True
+    tf_u.margin_left = tf_u.margin_top = tf_u.margin_right = tf_u.margin_bottom = 0
+
+    p_ut = tf_u.paragraphs[0]
+    p_ut.text = "4 TÁC NHÂN CHÍNH (ACTORS)"
+    p_ut.font.name = 'Calibri'
+    p_ut.font.size = Pt(13)
+    p_ut.font.bold = True
+    p_ut.font.color.rgb = ACCENT_PEACH
+    p_ut.space_after = Pt(8)
+
+    actor_summaries = [
+        ("Khách Hàng (Customer):", "Đăng ký, eKYC trực tuyến, Đặt xe đơn/giỏ xe, Thanh toán VNPay/VietQR, Ký hợp đồng nhận xe, Gia hạn, Khiếu nại, Review."),
+        ("Nhân Viên Quầy (Staff):", "Điểm danh vào/ra ca, Đăng ký lịch rảnh tiếng Việt, Bàn làm việc tại quầy, Ký biên bản bàn giao xe, Thu 70% tất toán, Live Chat."),
+        ("Quản Lý Trạm (BranchManager):", "Quản lý đội xe, Lệnh điều chuyển xe giữa các trạm, Duyệt xe bảo dưỡng, Chạy AI xếp lịch ca trực tuần, Đối soát tài chính."),
+        ("Quản Trị Viên (SystemAdmin):", "Quản lý mạng lưới trạm & GPS, Phân quyền ma trận RBAC, Giám sát AuditLog, Báo cáo KPI chuỗi, Cấu hình CMS & Cron Jobs.")
     ]
 
-    for idx, (title, color, ucs) in enumerate(actors):
-        x = Inches(0.8 + idx * 3.0)
-        y = Inches(1.6)
-        w = Inches(2.75)
-        h = Inches(5.2)
+    for a_t, a_d in actor_summaries:
+        pa = tf_u.add_paragraph()
+        pa.text = a_t
+        pa.font.name = 'Calibri'
+        pa.font.size = Pt(11)
+        pa.font.bold = True
+        pa.font.color.rgb = ACCENT_MINT
+        pa.space_after = Pt(1)
 
-        add_card(s6, x, y, w, h, border_color=color)
-        tb_a = s6.shapes.add_textbox(x + Inches(0.18), y + Inches(0.18), w - Inches(0.36), h - Inches(0.36))
-        tf_a = tb_a.text_frame
-        tf_a.word_wrap = True
-        tf_a.margin_left = tf_a.margin_top = tf_a.margin_right = tf_a.margin_bottom = 0
+        pad = tf_u.add_paragraph()
+        pad.text = a_d
+        pad.font.name = 'Calibri'
+        pad.font.size = Pt(9.5)
+        pad.font.color.rgb = TEXT_MUTED
+        pad.space_after = Pt(6)
 
-        p = tf_a.paragraphs[0]
-        p.text = title
-        p.font.name = 'Calibri'
-        p.font.size = Pt(11.5)
-        p.font.bold = True
-        p.font.color.rgb = color
-        p.space_after = Pt(8)
-
-        for uc in ucs:
-            puc = tf_a.add_paragraph()
-            puc.text = f"• {uc}"
-            puc.font.name = 'Calibri'
-            puc.font.size = Pt(9.5)
-            puc.font.color.rgb = TEXT_MUTED
-            puc.space_after = Pt(4)
+    # Right: Use Case Overview Diagram Image
+    uc_img_path = 'docs/diagrams/usecase_overview_flow.jpeg'
+    if os.path.exists(uc_img_path):
+        # White backing card for clean contrast
+        card_img = s6.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(5.3), Inches(1.5), Inches(7.2), Inches(5.3))
+        card_img.fill.solid()
+        card_img.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        card_img.line.color.rgb = CARD_BORDER
+        card_img.line.width = Pt(1)
+        s6.shapes.add_picture(uc_img_path, Inches(5.4), Inches(1.6), Inches(7.0), Inches(5.1))
 
     # ==========================================
-    # SLIDE 7: MỤC 5 - DATABASE ARCHITECTURE
+    # SLIDE 7: MỤC 5 - DATABASE (KÈM HÌNH ẢNH ERD)
     # ==========================================
     s7 = prs.slides.add_slide(blank_layout)
     set_slide_background(s7)
-    add_header(s7, "Mục 5 • Cơ sở dữ liệu", "Kiến Trúc CSDL MongoDB: 24 Collections Chuẩn Hóa")
+    add_header(s7, "Mục 5 • Cơ sở dữ liệu", "Kiến Trúc CSDL MongoDB (24 Collections) & Sơ Đồ ERD")
 
-    db_groups = [
-        ("1. ĐỊNH DANH & PHÂN QUYỀN (3)", 
-         ["User: Khách hàng, Nhân viên, Quản lý, Admin. Hash bcrypt, tokenVersion, AES-256 eKYC.",
-          "StaffSchedule: Lịch phân ca (Morning/Afternoon/Evening), trạng thái điểm danh, checkIn/Out.",
-          "StaffAvailability: Đăng ký lịch rảnh/bận hàng tuần, tin nhắn raw và ma trận slot."]),
-        ("2. ĐỘI XE & CHI NHÁNH (6)",
-         ["Branch: Chi nhánh trạm, tọa độ GPS (Leaflet), bán kính phục vụ.",
-          "Vehicle: Biển số, ODO, trạng thái (Available, Rented, Maintenance, Transferring).",
-          "Category: Phân loại xe số, tay ga, côn tay, cọc tiêu chuẩn.",
-          "SeasonalPricingRule: Quy tắc giá mùa cao điểm, lễ tết.",
-          "VehicleTransfer: Lệnh điều chuyển xe giữa 2 chi nhánh.",
-          "MaintenanceLog: Nhật ký bảo dưỡng ODO, chi phí và hóa đơn."]),
-        ("3. ĐẶT XE & GIAO DỊCH (4)",
-         ["Booking: Hợp đồng thuê xe, lịch trình, chữ ký song phương, cọc 30%, tất toán 70%.",
-          "Payment: Lịch sử thanh toán VNPay, VietQR, tiền mặt.",
-          "Discount: Mã voucher giảm giá, mã khách hàng thân thiết.",
-          "BookingReminder: Lịch nhắc trả xe qua SMS/Email."]),
-        ("4. HỖ TRỢ & TƯƠNG TÁC (6)",
-         ["Complaint: Khiếu nại dịch vụ, trạng thái Open->Closed.",
-          "Feedback: Đánh giá nhân viên tại quầy sau chuyến đi.",
-          "Review: Đánh giá sao & nhận xét chất lượng xe.",
-          "Wishlist: Danh sách xe khách hàng lưu yêu thích.",
-          "Conversation & Message: Phòng chat và tin nhắn Socket.IO."]),
-        ("5. BẢO MẬT & HỆ THỐNG (5)",
-         ["AuditLog: Nhật ký kiểm toán mọi thao tác thêm/sửa/xóa nhạy cảm.",
-          "Notification: Thông báo đẩy đa kênh trong ứng dụng.",
-          "Banner: Quản lý banner slider trang chủ.",
-          "StaticPage: Nội dung trang tĩnh (Điều khoản, Chính sách bảo mật).",
-          "SystemConfig: Cấu hình tham số nghiệp vụ toàn hệ thống."])
+    # Left: 24 collections description
+    add_card(s7, Inches(0.8), Inches(1.5), Inches(4.3), Inches(5.3))
+    tb_db = s7.shapes.add_textbox(Inches(1.0), Inches(1.7), Inches(3.9), Inches(4.9))
+    tf_db = tb_db.text_frame
+    tf_db.word_wrap = True
+    tf_db.margin_left = tf_db.margin_top = tf_db.margin_right = tf_db.margin_bottom = 0
+
+    p_dbt = tf_db.paragraphs[0]
+    p_dbt.text = "5 CỤM DỮ LIỆU NGHIỆP VỤ (24 MODELS)"
+    p_dbt.font.name = 'Calibri'
+    p_dbt.font.size = Pt(13)
+    p_dbt.font.bold = True
+    p_dbt.font.color.rgb = ACCENT_PEACH
+    p_dbt.space_after = Pt(8)
+
+    db_bullets = [
+        ("1. Định danh & Phân ca (3):", "User (bcrypt, tokenVersion, eKYC AES-256), StaffSchedule, StaffAvailability."),
+        ("2. Đội xe & Chi nhánh (6):", "Branch (GPS Leaflet), Vehicle, Category, SeasonalPricingRule, VehicleTransfer, MaintenanceLog."),
+        ("3. Thuê xe & Giao dịch (4):", "Booking (chữ ký song phương, cọc 30%, tất toán 70%), Payment (VNPay/VietQR), Discount, BookingReminder."),
+        ("4. Hỗ trợ & Khách hàng (6):", "Complaint (Open->Closed), Feedback, Review, Wishlist, Conversation, Message (Socket.IO)."),
+        ("5. Hệ thống & CMS (5):", "AuditLog (che secret [REDACTED]), Notification, Banner, StaticPage, SystemConfig.")
     ]
 
-    for idx, (title, items) in enumerate(db_groups):
-        if idx < 3:
-            x = Inches(0.8 + idx * 4.0)
-            y = Inches(1.6)
-            w = Inches(3.7)
-            h = Inches(2.55)
-        else:
-            x = Inches(0.8 + (idx - 3) * 6.0)
-            y = Inches(4.35)
-            w = Inches(5.7)
-            h = Inches(2.45)
+    for d_h, d_b in db_bullets:
+        pd = tf_db.add_paragraph()
+        pd.text = d_h
+        pd.font.name = 'Calibri'
+        pd.font.size = Pt(11)
+        pd.font.bold = True
+        pd.font.color.rgb = ACCENT_MINT
+        pd.space_after = Pt(1)
 
-        add_card(s7, x, y, w, h)
-        tb_d = s7.shapes.add_textbox(x + Inches(0.2), y + Inches(0.15), w - Inches(0.4), h - Inches(0.3))
-        tf_d = tb_d.text_frame
-        tf_d.word_wrap = True
-        tf_d.margin_left = tf_d.margin_top = tf_d.margin_right = tf_d.margin_bottom = 0
+        pdb = tf_db.add_paragraph()
+        pdb.text = d_b
+        pdb.font.name = 'Calibri'
+        pdb.font.size = Pt(9.5)
+        pdb.font.color.rgb = TEXT_MUTED
+        pdb.space_after = Pt(6)
 
-        p = tf_d.paragraphs[0]
-        p.text = title
-        p.font.name = 'Calibri'
-        p.font.size = Pt(12)
-        p.font.bold = True
-        p.font.color.rgb = ACCENT_PEACH
-        p.space_after = Pt(4)
-
-        for it in items:
-            pit = tf_d.add_paragraph()
-            pit.text = f"• {it}"
-            pit.font.name = 'Calibri'
-            pit.font.size = Pt(9.5)
-            pit.font.color.rgb = TEXT_MUTED
-            pit.space_after = Pt(2.5)
+    # Right: ERD Diagram Image
+    db_img_path = 'docs/diagrams/database_booking_erd.jpeg'
+    if os.path.exists(db_img_path):
+        card_db_img = s7.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(5.3), Inches(1.5), Inches(7.2), Inches(5.3))
+        card_db_img.fill.solid()
+        card_db_img.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        card_db_img.line.color.rgb = CARD_BORDER
+        card_db_img.line.width = Pt(1)
+        s7.shapes.add_picture(db_img_path, Inches(5.4), Inches(1.6), Inches(7.0), Inches(5.1))
 
     # ==========================================
-    # SLIDE 8: MỤC 6 - PACKAGE DIAGRAM (TỔNG QUAN)
+    # SLIDE 8: MỤC 6 - PACKAGE DIAGRAM (KÈM HÌNH ẢNH TRỌNG TÂM)
     # ==========================================
     s8 = prs.slides.add_slide(blank_layout)
     set_slide_background(s8)
-    add_header(s8, "Mục 6 • Sơ đồ Package [Trọng tâm]", "Kiến Trúc Modular Monolith & Phân Tầng Package")
+    add_header(s8, "Mục 6 • Sơ đồ Package [Trọng tâm]", "Sơ Đồ Package Diagram Kiến Trúc Modular Monolith")
 
-    # 3 big horizontal layers:
-    # 1. Presentation Layer (Client React SPA)
-    # 2. Application & Core Layer (Express Server Modular Monolith)
-    # 3. Persistence & Infrastructure Layer (MongoDB & 3rd Party APIs)
+    # Left: Package structure explanation
+    add_card(s8, Inches(0.8), Inches(1.5), Inches(4.3), Inches(5.3), border_color=ACCENT_PEACH)
+    tb_pkg = s8.shapes.add_textbox(Inches(1.0), Inches(1.7), Inches(3.9), Inches(4.9))
+    tf_pkg = tb_pkg.text_frame
+    tf_pkg.word_wrap = True
+    tf_pkg.margin_left = tf_pkg.margin_top = tf_pkg.margin_right = tf_pkg.margin_bottom = 0
 
-    layers = [
-        ("TẦNG TRÌNH DIỄN (CLIENT SPA - REACT + VITE + TAILWIND)", ACCENT_MINT,
-         [("client/src/pages", "25+ Trang: BookingPage, CartPage, CounterDesk, AdminCenter, ManagerVehiclesPage..."),
-          ("client/src/components", "40+ Components: ShiftCalendarView, StaffClockWidget, ContractSignaturePad, FinanceManager..."),
-          ("client/src/context & services", "AuthContext (JWT & Role State), WishlistContext, SocketContext, Axios API Client")]),
-        ("TẦNG XỬ LÝ TRUNG TÂM (SERVER MODULAR MONOLITH - NODE.JS + EXPRESS + TYPESCRIPT)", ACCENT_PEACH,
-         [("server/src/config", "Cấu hình Môi trường (env), MongoDB (db), VNPay Gateway, Nodemailer"),
-          ("server/src/core", "Middlewares (Auth, RBAC 4 vai trò, AuditLog, Multer eKYC), ResourceLock, Transaction, Cron Jobs"),
-          ("server/src/modules (22 Modules)", "auth, branch, vehicle, booking, payment, fleet, hr, support, finance, cms, admin..."),
-          ("server/src/routes & sockets", "Bộ tổng hợp /api index router & Socket.IO Realtime Namespaces (/ & /chat)")]),
-        ("TẦNG DỮ LIỆU & DỊCH VỤ NGOÀI (PERSISTENCE & EXTERNAL SERVICES)", ACCENT_BLUE,
-         [("server/src/models", "24 Mongoose Data Schemas, Validation, Index hợp chất, mã hóa PII AES-256-GCM"),
-          ("Database Cluster", "MongoDB Replica Set / Atlas Clustered Storage"),
-          ("External APIs & SDKs", "Google Gemini API (Xếp ca AI), VNPay Sandbox, VietQR Banking API, Nodemailer SMTP")])
+    p_pkt = tf_pkg.paragraphs[0]
+    p_pkt.text = "KIẾN TRÚC MODULAR MONOLITH"
+    p_pkt.font.name = 'Calibri'
+    p_pkt.font.size = Pt(13)
+    p_pkt.font.bold = True
+    p_pkt.font.color.rgb = ACCENT_PEACH
+    p_pkt.space_after = Pt(8)
+
+    pkg_desc = [
+        ("Tầng Giao Diện (Client SPA):", "React 18 + Vite + Tailwind CSS, 25+ Pages, 40+ Components, Axios Interceptors tự động đính kèm Bearer Token."),
+        ("Bộ Định Tuyến (routes/index):", "Đầu mối phân phối API duy nhất, gắn tiền tố /api, định tuyến vào 22 Feature Modules con."),
+        ("22 Feature Modules Độc Lập:", "Mỗi module sở hữu khép kín Controller -> Service -> Routes (auth, branch, vehicle, booking, fleet, hr, support, cms...)."),
+        ("Tầng Bảo Vệ Tập Trung (core/):", "authMiddleware, rbacMiddleware (4 vai trò), auditMiddleware (che bí mật), resourceLock (chống trùng lịch)."),
+        ("Hạ Tầng & Dữ Liệu (models/ & config/):", "24 Mongoose Data Models kết nối MongoDB Cluster, VNPay SDK, Google Gemini API.")
     ]
 
-    for idx, (title, color, pkgs) in enumerate(layers):
-        y = Inches(1.6 + idx * 1.8)
-        w = Inches(11.7)
-        h = Inches(1.6)
+    for p_h, p_d in pkg_desc:
+        pp = tf_pkg.add_paragraph()
+        pp.text = p_h
+        pp.font.name = 'Calibri'
+        pp.font.size = Pt(11)
+        pp.font.bold = True
+        pp.font.color.rgb = ACCENT_MINT
+        pp.space_after = Pt(1)
 
-        add_card(s8, Inches(0.8), y, w, h, border_color=color)
-        tb_l = s8.shapes.add_textbox(Inches(1.05), y + Inches(0.12), w - Inches(0.5), h - Inches(0.24))
-        tf_l = tb_l.text_frame
-        tf_l.word_wrap = True
-        tf_l.margin_left = tf_l.margin_top = tf_l.margin_right = tf_l.margin_bottom = 0
+        ppd = tf_pkg.add_paragraph()
+        ppd.text = p_d
+        ppd.font.name = 'Calibri'
+        ppd.font.size = Pt(9.5)
+        ppd.font.color.rgb = TEXT_MUTED
+        ppd.space_after = Pt(5)
 
-        p = tf_l.paragraphs[0]
-        p.text = title
-        p.font.name = 'Calibri'
-        p.font.size = Pt(12)
-        p.font.bold = True
-        p.font.color.rgb = color
-        p.space_after = Pt(4)
-
-        for p_name, p_desc in pkgs:
-            pp = tf_l.add_paragraph()
-            pp.text = f"• [{p_name}]: {p_desc}"
-            pp.font.name = 'Calibri'
-            pp.font.size = Pt(10)
-            pp.font.color.rgb = TEXT_WHITE
-            pp.space_after = Pt(2)
+    # Right: Package Diagram Image
+    pkg_img_path = 'docs/diagrams/package_diagram.png'
+    if os.path.exists(pkg_img_path):
+        card_pkg_img = s8.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(5.3), Inches(1.5), Inches(7.2), Inches(5.3))
+        card_pkg_img.fill.solid()
+        card_pkg_img.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        card_pkg_img.line.color.rgb = ACCENT_PEACH
+        card_pkg_img.line.width = Pt(1.5)
+        s8.shapes.add_picture(pkg_img_path, Inches(5.4), Inches(1.6), Inches(7.0), Inches(5.1))
 
     # ==========================================
-    # SLIDE 9: MỤC 6 - PACKAGE DIAGRAM (LUỒNG GIAO TIẾP & BẢO VỆ)
+    # SLIDE 9: MỤC 6 - CHI TIẾT PACKAGE & REQUEST FLOW
     # ==========================================
     s9 = prs.slides.add_slide(blank_layout)
     set_slide_background(s9)
-    add_header(s9, "Mục 6 • Chi tiết Package [Trọng tâm]", "Luồng Giao Tiếp Request & Cơ Chế Khóa Tài Nguyên")
+    add_header(s9, "Mục 6 • Vòng đời xử lý [Trọng tâm]", "Vòng Đời Xử Lý Yêu Cầu & Cơ Chế Khóa Tài Nguyên An Toàn")
 
     flow_boxes = [
         ("1. HTTP REQUEST", "Client gửi Request kèm JWT Bearer Token (HTTPS REST / WebSocket)."),
@@ -619,14 +581,14 @@ def create_deck(output_path):
     for idx, (title, desc) in enumerate(flow_boxes):
         if idx < 4:
             x = Inches(0.8 + idx * 2.95)
-            y = Inches(1.6)
+            y = Inches(1.5)
             w = Inches(2.8)
-            h = Inches(2.4)
+            h = Inches(2.5)
         else:
             x = Inches(0.8 + (idx - 4) * 3.95)
             y = Inches(4.3)
             w = Inches(3.8)
-            h = Inches(2.4)
+            h = Inches(2.5)
 
         add_card(s9, x, y, w, h, border_color=ACCENT_PEACH if idx in [2, 5] else CARD_BORDER)
         tb_f = s9.shapes.add_textbox(x + Inches(0.2), y + Inches(0.2), w - Inches(0.4), h - Inches(0.4))
@@ -645,11 +607,11 @@ def create_deck(output_path):
         pd = tf_f.add_paragraph()
         pd.text = desc
         pd.font.name = 'Calibri'
-        pd.font.size = Pt(10.5)
+        pd.font.size = Pt(10)
         pd.font.color.rgb = TEXT_MUTED
 
     # ==========================================
-    # SLIDE 10: MỤC 7 - CÁCH APPLY AI VÀO HỆ THỐNG
+    # SLIDE 10: MỤC 7 - CÁCH APPLY AI
     # ==========================================
     s10 = prs.slides.add_slide(blank_layout)
     set_slide_background(s10)
@@ -675,9 +637,9 @@ def create_deck(output_path):
 
     for idx, (title, subtitle, bullets) in enumerate(ai_overview_cols):
         x = Inches(0.8 + idx * 4.0)
-        y = Inches(1.6)
+        y = Inches(1.5)
         w = Inches(3.7)
-        h = Inches(5.2)
+        h = Inches(5.3)
 
         add_card(s10, x, y, w, h, border_color=ACCENT_PEACH if idx == 1 else CARD_BORDER)
         tb_ai = s10.shapes.add_textbox(x + Inches(0.25), y + Inches(0.2), w - Inches(0.5), h - Inches(0.4))
@@ -705,7 +667,7 @@ def create_deck(output_path):
             pb = tf_ai.add_paragraph()
             pb.text = f"• {b}"
             pb.font.name = 'Calibri'
-            pb.font.size = Pt(10.5)
+            pb.font.size = Pt(10)
             pb.font.color.rgb = TEXT_MUTED
             pb.space_after = Pt(6)
 
@@ -714,7 +676,7 @@ def create_deck(output_path):
     # ==========================================
     s11 = prs.slides.add_slide(blank_layout)
     set_slide_background(s11)
-    add_header(s11, "Mục 7 • Chi tiết thuật toán [Trọng tâm]", "Bộ Quy Tắc MOTORENT-Rule-v2 & Prompt Engineering")
+    add_header(s11, "Mục 7 • Chi tiết thuật toán [Trọng tâm]", "Bộ Quy Tắc MOTORENT-Rule-v2 & Kỹ Thuật Prompt Gemini")
 
     col_rules = [
         ("QUY TẮC THUẬT TOÁN HEURISTIC (RULE-v2)",
@@ -733,9 +695,9 @@ def create_deck(output_path):
 
     for idx, (title, items) in enumerate(col_rules):
         x = Inches(0.8 + idx * 6.0)
-        y = Inches(1.6)
+        y = Inches(1.5)
         w = Inches(5.7)
-        h = Inches(5.2)
+        h = Inches(5.3)
 
         add_card(s11, x, y, w, h, border_color=ACCENT_PEACH if idx == 0 else ACCENT_MINT)
         tb_r = s11.shapes.add_textbox(x + Inches(0.25), y + Inches(0.2), w - Inches(0.5), h - Inches(0.4))
@@ -793,9 +755,9 @@ def create_deck(output_path):
 
     for idx, (title, subtitle, bullets) in enumerate(nlp_cards):
         x = Inches(0.8 + idx * 6.0)
-        y = Inches(1.6)
+        y = Inches(1.5)
         w = Inches(5.7)
-        h = Inches(5.2)
+        h = Inches(5.3)
 
         add_card(s12, x, y, w, h, border_color=ACCENT_MINT if idx == 0 else ACCENT_PEACH)
         tb_nlp = s12.shapes.add_textbox(x + Inches(0.25), y + Inches(0.2), w - Inches(0.5), h - Inches(0.4))
@@ -823,12 +785,12 @@ def create_deck(output_path):
             pb = tf_nlp.add_paragraph()
             pb.text = f"• {b}"
             pb.font.name = 'Calibri'
-            pb.font.size = Pt(10.5)
+            pb.font.size = Pt(10)
             pb.font.color.rgb = TEXT_MUTED
             pb.space_after = Pt(6)
 
     # ==========================================
-    # SLIDE 13: KẾT QUẢ KIỂM THỬ & CHẤT LƯỢNG MÃ NGUỒN
+    # SLIDE 13: KẾT QUẢ KIỂM THỬ
     # ==========================================
     s13 = prs.slides.add_slide(blank_layout)
     set_slide_background(s13)
@@ -843,9 +805,9 @@ def create_deck(output_path):
 
     for idx, (stat, label, desc) in enumerate(kpi_cards):
         x = Inches(0.8 + idx * 2.95)
-        y = Inches(1.6)
+        y = Inches(1.5)
         w = Inches(2.8)
-        h = Inches(5.2)
+        h = Inches(5.3)
 
         add_card(s13, x, y, w, h, border_color=ACCENT_PEACH if idx == 0 else CARD_BORDER)
         tb_k = s13.shapes.add_textbox(x + Inches(0.2), y + Inches(0.25), w - Inches(0.4), h - Inches(0.5))
@@ -876,7 +838,7 @@ def create_deck(output_path):
         p_d.font.color.rgb = TEXT_MUTED
 
     # ==========================================
-    # SLIDE 14: KẾT LUẬN & DEMO / Q&A
+    # SLIDE 14: KẾT LUẬN & Q&A
     # ==========================================
     s14 = prs.slides.add_slide(blank_layout)
     set_slide_background(s14)
@@ -915,7 +877,7 @@ def create_deck(output_path):
     p_e3.font.color.rgb = TEXT_MUTED
 
     prs.save(output_path)
-    print(f"Presentation saved successfully to {output_path}")
+    print(f"Presentation updated with images and saved to {output_path}")
 
 if __name__ == '__main__':
     out = os.path.join(r"d:\Motorent\docs", "MOTORENT_SWP391_Slide_Trinh_Bay.pptx")
