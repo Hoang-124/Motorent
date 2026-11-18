@@ -65,6 +65,9 @@ router.get(
   reviewController.getMyReviews
 );
 
+// Notifications (mounted BEFORE generic systemRoutes so /notifications uses notificationRoutes cleanly)
+router.use('/notifications', notificationRoutes);
+
 // System telemetry & RBAC matrix
 router.use('/', systemRoutes);
 
@@ -89,7 +92,6 @@ router.use('/staff', staffRoutes);
 router.use('/schedules', scheduleRoutes);
 router.use('/discounts', discountRoutes);
 router.use('/reports', reportRoutes);
-router.use('/notifications', notificationRoutes);
 router.use('/loyalty', loyaltyRoutes);
 
 export default router;

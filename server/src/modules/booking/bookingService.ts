@@ -22,6 +22,13 @@ import { rewardReferralOnFirstCompletedBooking } from '../loyalty/loyaltyService
 import { sendBookingStatusUpdateEmail } from './bookingEmailService';
 import { createUserNotification } from '../notifications/notificationService';
 import { notifyBranchOperations } from '../../core/notificationDispatch';
+import { withOptionalTransaction } from '../../core/transaction';
+import {
+  calculateDoorDeliveryFee,
+  evaluateNoRefundPolicy,
+  evaluateCheckoutSettlement,
+  resolveHandoverSignatures,
+} from './bookingPolicy';
 
 export interface CreateBookingDto {
   vehicleId: string;
@@ -80,6 +87,24 @@ export interface RecordDamageDto {
   severity?: 'Minor' | 'Moderate' | 'Severe';
   partsReplaced?: string[];
 }
+
+const extractRefId = (val: unknown): string => {
+  if (!val) return '';
+  if (val instanceof mongoose.Types.ObjectId) {
+    return val.toString();
+  }
+  if (typeof val === 'object' && '_id' in val) {
+    const idVal = (val as { _id?: unknown })._id;
+    return idVal ? String(idVal) : '';
+  }
+  return String(val);
+};
+
+const extractBookingBranchIds = (booking: {
+  pickupBranchId?: unknown;
+  returnBranchId?: unknown;
+}): string[] =>
+  [extractRefId(booking.pickupBranchId), extractRefId(booking.returnBranchId)].filter(Boolean);
 
 /**
  * Generate unique booking code with MV- prefix
@@ -287,17 +312,33 @@ export const createBooking = async (
     if (data.discountCode && data.discountCode.trim()) {
       const code = data.discountCode.trim().toUpperCase();
       const currentDate = new Date();
+      const isCodeLoyaltyPattern = /^LOYALTY-/i.test(code);
+      const ownershipCriteria = isCodeLoyaltyPattern
+        ? { ownerUserId: user._id }
+        : {
+            $and: [
+              {
+                $or: [
+                  { isLoyaltyVoucher: { $ne: true } },
+                  { ownerUserId: user._id },
+                ],
+              },
+              {
+                $or: [
+                  { ownerUserId: { $exists: false } },
+                  { ownerUserId: null },
+                  { ownerUserId: user._id },
+                ],
+              },
+            ],
+          };
       const appliedDiscount = await Discount.findOneAndUpdate(
         {
           code,
           isActive: true,
           startDate: { $lte: currentDate },
           endDate: { $gte: currentDate },
-          $or: [
-            { ownerUserId: { $exists: false } },
-            { ownerUserId: null },
-            { ownerUserId: user._id },
-          ],
+          ...ownershipCriteria,
           $expr: { $lt: ['$usedCount', '$usageLimit'] },
         },
         { $inc: { usedCount: 1 } },
@@ -325,12 +366,11 @@ export const createBooking = async (
     const isDoorDelivery = data.deliveryMode === 'DoorDelivery';
     const customPickupAddr = (data.customPickupAddress || '').trim();
     const customReturnAddr = (data.customReturnAddress || '').trim();
-    let deliveryFee = 0;
-    if (isDoorDelivery) {
-      if (customPickupAddr) deliveryFee += 40000;
-      if (customReturnAddr) deliveryFee += 40000;
-      if (deliveryFee === 0) deliveryFee = 50000;
-    }
+    const deliveryFee = calculateDoorDeliveryFee(
+      isDoorDelivery ? 'DoorDelivery' : 'BranchPickup',
+      customPickupAddr,
+      customReturnAddr
+    );
 
     const totalAmount = Math.max(0, basePrice + deliveryFee - discountAmount);
     const depositAmount = Math.round(totalAmount * 0.3);
@@ -361,7 +401,7 @@ export const createBooking = async (
         deliveryFee,
         eSignatureUrl: data.eSignatureUrl || '',
         lessorSignatureUrl:
-          data.lessorSignatureUrl ||
+          (user.roles !== 'Customer' && data.lessorSignatureUrl) ||
           `MOTORENT-SEAL:${pickupBranch.code || 'BRANCH'}:${bookingCode}`,
         contractSignedAt: data.eSignatureUrl ? new Date() : undefined,
         status: 'Pending',
@@ -417,7 +457,7 @@ export const createBooking = async (
 /**
  * Pre-booking estimation: calculates rental duration, pricing, 30% deposit, and checks availability
  */
-export const estimateBooking = async (data: EstimateBookingDto) => {
+export const estimateBooking = async (data: EstimateBookingDto, requestingUserId?: string) => {
   const vehicle = await Vehicle.findOne({ _id: data.vehicleId, isDeleted: false });
   if (!vehicle) {
     throw new AppError(404, 'Không tìm thấy phương tiện.');
@@ -503,8 +543,20 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
       const isExpired = discount.endDate && new Date(discount.endDate) < now;
       const isNotStarted = discount.startDate && new Date(discount.startDate) > now;
       const isUsageExceeded = discount.usedCount >= discount.usageLimit;
+      const isPrivateVoucher = Boolean(
+        discount.isLoyaltyVoucher ||
+          discount.ownerUserId ||
+          /^LOYALTY-/i.test(discount.code)
+      );
+      const isOwnerAllowed =
+        !isPrivateVoucher ||
+        Boolean(
+          requestingUserId &&
+            discount.ownerUserId &&
+            String(discount.ownerUserId) === String(requestingUserId)
+        );
 
-      if (!isExpired && !isNotStarted && !isUsageExceeded) {
+      if (!isExpired && !isNotStarted && !isUsageExceeded && isOwnerAllowed) {
         if (!discount.minBookingAmount || basePrice >= discount.minBookingAmount) {
           if (discount.fixedDiscountAmount) {
             discountAmount = Math.min(basePrice, discount.fixedDiscountAmount);
@@ -525,15 +577,11 @@ export const estimateBooking = async (data: EstimateBookingDto) => {
   }
 
   const deliveryMode = data.deliveryMode || 'BranchPickup';
-  const isDoorDelivery = deliveryMode === 'DoorDelivery';
-  let deliveryFee = 0;
-  if (isDoorDelivery) {
-    const hasCustomPickup = Boolean(data.customPickupAddress?.trim());
-    const hasCustomReturn = Boolean(data.customReturnAddress?.trim());
-    if (hasCustomPickup) deliveryFee += 40000;
-    if (hasCustomReturn) deliveryFee += 40000;
-    if (deliveryFee === 0) deliveryFee = 50000;
-  }
+  const deliveryFee = calculateDoorDeliveryFee(
+    deliveryMode,
+    data.customPickupAddress,
+    data.customReturnAddress
+  );
 
   const totalAmount = Math.max(0, basePrice + deliveryFee - discountAmount);
   const depositAmount = Math.round(totalAmount * 0.3);
@@ -989,7 +1037,7 @@ export const buildOrderDetails = (booking: IBooking) => {
       !isCancelled &&
       !isCompleted,
     canPayFull: !booking.isPaid && (booking.remainingAmount || 0) > 0 && !isCancelled,
-    canCancel: (isPending || isApproved || isConfirmed || isOngoing) && !isCancelled,
+    canCancel: (isPending || isApproved || isConfirmed) && !isCancelled,
     canExtend: (isConfirmed || isOngoing) && !isCancelled,
     canRefund: false, // Strict NO REFUND policy under signed contract terms
     canCheckin: (isConfirmed || isApproved) && !isCancelled,
@@ -1020,14 +1068,12 @@ export const getBookingByCode = async (code: string, requestingUser: IUser) => {
   }
 
   if (requestingUser.roles === 'Customer') {
-    const rawUser = booking.userId as unknown;
-    const bookingUserId =
-      rawUser && typeof rawUser === 'object' && '_id' in rawUser
-        ? (rawUser as { _id: mongoose.Types.ObjectId })._id.toString()
-        : String(booking.userId);
+    const bookingUserId = extractRefId(booking.userId);
     if (bookingUserId !== requestingUser._id.toString()) {
       throw new AppError(403, 'Bạn không có quyền xem thông tin đơn đặt xe này.');
     }
+  } else if (booking.status !== 'Ongoing') {
+    assertBranchAccess(requestingUser, extractBookingBranchIds(booking));
   }
 
   const doc = booking.toObject ? booking.toObject() : booking;
@@ -1058,13 +1104,12 @@ export const getBookingById = async (id: string, requestingUser: IUser) => {
   }
 
   if (requestingUser.roles === 'Customer') {
-    const rawUserId = booking.userId as unknown;
-    const bookingUserId = rawUserId && typeof rawUserId === 'object' && '_id' in rawUserId
-      ? (rawUserId as { _id: { toString(): string } })._id.toString()
-      : String(rawUserId);
+    const bookingUserId = extractRefId(booking.userId);
     if (bookingUserId !== requestingUser._id.toString()) {
       throw new AppError(403, 'Bạn không có quyền xem thông tin đơn đặt xe này.');
     }
+  } else {
+    assertBranchAccess(requestingUser, extractBookingBranchIds(booking));
   }
 
   const doc = booking.toObject ? booking.toObject() : booking;
@@ -1182,60 +1227,55 @@ export const checkinBooking = async (
     booking.checkinChecklist = input.checklist;
   }
 
-  // Enforce customer digital signature upon vehicle handover
-  if (!input.eSignatureUrl && !booking.eSignatureUrl) {
-    throw new AppError(400, 'Yêu cầu chữ ký xác nhận của khách hàng khi bàn giao xe.');
-  }
+  // Enforce customer digital signature & capture Lessor/Staff signature upon vehicle handover
+  const resolvedSigs = resolveHandoverSignatures({
+    inputESignature: input.eSignatureUrl,
+    existingESignature: booking.eSignatureUrl,
+    inputLessorSignature: input.lessorSignatureUrl,
+    existingLessorSignature: booking.lessorSignatureUrl,
+    staffIdentifier: String(staffUser.username || staffUser._id),
+  });
 
-  if (input.eSignatureUrl) {
-    if (input.eSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
-      try {
-        const uploadedSig = await uploadDataUriToCloudinary(input.eSignatureUrl, {
-          folder: 'motorent/signatures',
-          type: 'upload',
-          publicId: `sig_${booking.bookingCode}_${Date.now()}`,
-        });
-        booking.eSignatureUrl = uploadedSig.secureUrl;
-      } catch {
-        booking.eSignatureUrl = input.eSignatureUrl;
-      }
-    } else {
-      booking.eSignatureUrl = input.eSignatureUrl;
+  if (input.eSignatureUrl && input.eSignatureUrl.startsWith('data:image/') && isCloudinaryConfigured()) {
+    try {
+      const uploadedSig = await uploadDataUriToCloudinary(input.eSignatureUrl, {
+        folder: 'motorent/signatures',
+        type: 'upload',
+        publicId: `sig_${booking.bookingCode}_${Date.now()}`,
+      });
+      booking.eSignatureUrl = uploadedSig.secureUrl;
+    } catch {
+      booking.eSignatureUrl = resolvedSigs.customerSignature;
     }
-    booking.contractSignedAt = new Date();
+  } else {
+    booking.eSignatureUrl = resolvedSigs.customerSignature;
   }
 
-  // Ensure Lessor / Staff handover signature is captured
-  const effectiveLessorSig =
-    input.lessorSignatureUrl ||
-    booking.lessorSignatureUrl ||
-    `MOTORENT-STAFF:${staffUser.username || staffUser._id}:${new Date().toISOString()}`;
-
-  if (effectiveLessorSig) {
-    if (effectiveLessorSig.startsWith('data:image/') && isCloudinaryConfigured()) {
-      try {
-        const uploadedLessorSig = await uploadDataUriToCloudinary(effectiveLessorSig, {
-          folder: 'motorent/signatures',
-          type: 'upload',
-          publicId: `lessor_sig_${booking.bookingCode}_${Date.now()}`,
-        });
-        booking.lessorSignatureUrl = uploadedLessorSig.secureUrl;
-      } catch {
-        booking.lessorSignatureUrl = effectiveLessorSig;
-      }
-    } else {
+  const effectiveLessorSig = resolvedSigs.lessorSignature;
+  if (effectiveLessorSig.startsWith('data:image/') && isCloudinaryConfigured()) {
+    try {
+      const uploadedLessorSig = await uploadDataUriToCloudinary(effectiveLessorSig, {
+        folder: 'motorent/signatures',
+        type: 'upload',
+        publicId: `lessor_sig_${booking.bookingCode}_${Date.now()}`,
+      });
+      booking.lessorSignatureUrl = uploadedLessorSig.secureUrl;
+    } catch {
       booking.lessorSignatureUrl = effectiveLessorSig;
     }
-    booking.contractSignedAt = new Date();
+  } else {
+    booking.lessorSignatureUrl = effectiveLessorSig;
   }
+  booking.contractSignedAt = resolvedSigs.contractSignedAt;
   booking.approvedBy = staffUser._id as mongoose.Types.ObjectId;
   booking.status = 'Ongoing';
-  await booking.save();
 
-  // Set vehicle status to Rented and update odometer
-  vehicle.status = 'Rented';
-  vehicle.odometer = input.startOdometer;
-  await vehicle.save();
+  await withOptionalTransaction(async (session) => {
+    await booking.save(session ? { session } : undefined);
+    vehicle.status = 'Rented';
+    vehicle.odometer = input.startOdometer;
+    await vehicle.save(session ? { session } : undefined);
+  });
 
   // Log audit
   await AuditLog.create({
@@ -1327,16 +1367,16 @@ export const checkoutBooking = async (
   }
 
   const now = new Date();
-  let lateHours = 0;
-  const graceMinutes = 15;
-  if (now.getTime() > booking.returnDateTime.getTime() + graceMinutes * 60 * 1000) {
-    lateHours = Math.ceil((now.getTime() - booking.returnDateTime.getTime()) / (1000 * 3600));
-  }
-
-  const lateFee = Math.max(0, lateHours * 30000); // 30,000 đ per overdue hour
-  const damageFee =
+  const rawDamageFee =
     input.damageFee !== undefined ? Math.max(0, input.damageFee) : Math.max(0, booking.damageFee || 0);
-  const finalDue = (booking.remainingAmount || 0) + lateFee + damageFee;
+  const settlement = evaluateCheckoutSettlement({
+    now,
+    scheduledReturn: booking.returnDateTime,
+    remainingAmount: booking.remainingAmount || 0,
+    damageFee: rawDamageFee,
+    rawReturnNotes: input.returnNotes || input.notes,
+  });
+  const { lateHours, lateFee, damageFee, finalDue } = settlement;
 
   booking.actualReturnDateTime = now;
   booking.checkoutAt = now;
@@ -1344,16 +1384,7 @@ export const checkoutBooking = async (
   booking.endOdometer = input.endOdometer;
   booking.endFuelLevel = fuelLevel;
   if (input.checkoutImages) booking.checkoutImages = input.checkoutImages;
-
-  // Handle return notes and early return non-refundable policy clause
-  const isEarlyReturn = now.getTime() < booking.returnDateTime.getTime();
-  let returnNotesText = (input.returnNotes || input.notes || '').trim();
-  if (isEarlyReturn) {
-    const earlyHours = Math.max(1, Math.round((booking.returnDateTime.getTime() - now.getTime()) / (1000 * 3600)));
-    const earlyNotice = `[Trả xe sớm ${earlyHours} giờ - Áp dụng điều khoản Hợp đồng: Không hoàn tiền khi trả xe sớm]`;
-    returnNotesText = returnNotesText ? `${returnNotesText} | ${earlyNotice}` : earlyNotice;
-  }
-  booking.returnNotes = returnNotesText;
+  booking.returnNotes = settlement.returnNotes;
   booking.lateFee = lateFee;
   booking.damageFee = damageFee;
   booking.settlementAmount = finalDue;
@@ -1361,27 +1392,48 @@ export const checkoutBooking = async (
   booking.isPaid = true;
   booking.paidAmount = (booking.paidAmount || 0) + finalDue;
   booking.remainingAmount = 0;
-  booking.refundAmount = 0;
-  booking.refundStatus = 'None';
+  booking.refundAmount = settlement.refundAmount;
+  booking.refundStatus = settlement.refundStatus;
 
-  // Award loyalty points once: 1 point per 10,000 VND
-  if (!booking.loyaltyAwarded) {
-    const pointsEarned = Math.floor(Math.max(0, booking.totalAmount) / 10000);
+  const shouldAwardLoyalty = !booking.loyaltyAwarded;
+  const pointsEarned = shouldAwardLoyalty ? Math.floor(Math.max(0, booking.totalAmount) / 10000) : 0;
+  if (shouldAwardLoyalty) {
     booking.loyaltyPointsEarned = pointsEarned;
     booking.loyaltyAwarded = true;
-    if (pointsEarned > 0) {
+  }
+
+  let vehicle = await Vehicle.findById(booking.vehicleId);
+  await withOptionalTransaction(async (session) => {
+    if (shouldAwardLoyalty && pointsEarned > 0) {
       const rewardedCustomer = await User.findByIdAndUpdate(
         booking.userId,
         { $inc: { loyaltyPoints: pointsEarned } },
-        { new: true }
+        session ? { new: true, session } : { new: true }
       ).select('_id');
       if (!rewardedCustomer) {
         throw new AppError(404, 'Không tìm thấy khách hàng để cộng điểm thành viên.');
       }
     }
-  }
 
-  await booking.save();
+    await booking.save(session ? { session } : undefined);
+
+    if (vehicle) {
+      const baselineOdo = booking.startOdometer || vehicle.odometer || 0;
+      const currentBucket = Math.floor(input.endOdometer / 1500);
+      const lastBucket = vehicle.lastMaintenanceBucket || Math.floor(baselineOdo / 1500);
+      if (currentBucket > lastBucket) {
+        vehicle.requiresMaintenance = true;
+        vehicle.lastMaintenanceBucket = currentBucket;
+      } else if (!vehicle.lastMaintenanceBucket) {
+        vehicle.lastMaintenanceBucket = lastBucket;
+      }
+      vehicle.branchId = booking.returnBranchId;
+      vehicle.odometer = input.endOdometer;
+      vehicle.status = damageFee >= 500000 ? 'Maintenance' : 'Available';
+      await vehicle.save(session ? { session } : undefined);
+    }
+  });
+
   await rewardReferralOnFirstCompletedBooking(booking.userId);
   await sendBookingStatusUpdateEmail(booking);
   await createUserNotification({
@@ -1401,24 +1453,6 @@ export const checkoutBooking = async (
       type: 'COUNTER',
       status: 'SUCCESS',
     }).catch((err: unknown) => console.error('[Checkout Payment Record Error]', err));
-  }
-
-  // Update Vehicle: move to return branch, update ODO, set Available (or Maintenance if severely damaged)
-  const vehicle = await Vehicle.findById(booking.vehicleId);
-  if (vehicle) {
-    const baselineOdo = booking.startOdometer || vehicle.odometer || 0;
-    const currentBucket = Math.floor(input.endOdometer / 1500);
-    const lastBucket = vehicle.lastMaintenanceBucket || Math.floor(baselineOdo / 1500);
-    if (currentBucket > lastBucket) {
-      vehicle.requiresMaintenance = true;
-      vehicle.lastMaintenanceBucket = currentBucket;
-    } else if (!vehicle.lastMaintenanceBucket) {
-      vehicle.lastMaintenanceBucket = lastBucket;
-    }
-    vehicle.branchId = booking.returnBranchId;
-    vehicle.odometer = input.endOdometer;
-    vehicle.status = damageFee >= 500000 ? 'Maintenance' : 'Available';
-    await vehicle.save();
   }
 
   // Log audit
@@ -1505,11 +1539,10 @@ export const recordCounterPayment = async (
   }
 
   const currentPaidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
-  const isInitialPendingUnpaid =
-    booking.status === 'Pending' && !booking.depositPaid && currentPaidAmount === 0;
-  const maxPayableBalance = isInitialPendingUnpaid
+  const isUnpaidFullBalance = !booking.depositPaid && currentPaidAmount === 0;
+  const maxPayableBalance = isUnpaidFullBalance
     ? booking.totalAmount
-    : booking.remainingAmount || 0;
+    : Math.max(0, booking.remainingAmount || 0);
 
   if (amount > maxPayableBalance) {
     throw new AppError(
@@ -1518,9 +1551,9 @@ export const recordCounterPayment = async (
     );
   }
 
-  const wasPending = booking.status === 'Pending';
+  const wasPreHandover = booking.status === 'Pending' || booking.status === 'Approved';
   booking.paidAmount = currentPaidAmount + amount;
-  if (isInitialPendingUnpaid) {
+  if (isUnpaidFullBalance) {
     booking.remainingAmount = Math.max(0, booking.totalAmount - booking.paidAmount);
   } else {
     booking.remainingAmount = Math.max(0, (booking.remainingAmount || 0) - amount);
@@ -1529,7 +1562,7 @@ export const recordCounterPayment = async (
     booking.isPaid = true;
   }
   booking.depositPaid = booking.paidAmount >= booking.depositAmount;
-  if (wasPending && (booking.depositPaid || booking.isPaid)) {
+  if (wasPreHandover && (booking.depositPaid || booking.isPaid)) {
     booking.status = 'Confirmed';
   }
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
@@ -1738,10 +1771,7 @@ export const calculateBookingPenalty = async (
 };
 
 /**
- * Cancel booking (UC-32) - BR-06 Cancellation Policy
- * Free cancellation if > 24 hours before pickup time.
- * 50% deposit forfeited if cancelled within 24 hours of pickup.
- * No cancellation allowed after vehicle handover (Ongoing / Completed).
+ * Cancel booking (UC-32) - Strict No-Refund Policy under signed bilateral contract
  */
 export const cancelBooking = async (
   bookingId: string,
@@ -1757,11 +1787,19 @@ export const cancelBooking = async (
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
 
-  // Precondition 1: Customer authorization
+  // Precondition 1: Customer authorization & branch isolation
   if (requestingUser.roles === 'Customer') {
-    if (booking.userId.toString() !== requestingUser._id.toString()) {
+    if (extractRefId(booking.userId) !== requestingUser._id.toString()) {
       throw new AppError(403, 'Bạn không có quyền hủy đơn đặt xe này.');
     }
+    if (booking.status === 'Ongoing') {
+      throw new AppError(
+        400,
+        'Phương tiện đang trong hành trình thuê. Vui lòng mang xe tới quầy chi nhánh để nhân viên kiểm tra và làm thủ tục trả xe sớm.'
+      );
+    }
+  } else {
+    assertBranchAccess(requestingUser, extractBookingBranchIds(booking));
   }
 
   // Disallow cancellation only if already Completed, Cancelled, or Rejected
@@ -1788,20 +1826,20 @@ export const cancelBooking = async (
   }
 
   // Strict NO REFUND policy on cancellation as per signed contract terms
-  const forfeitAmount = booking.paidAmount || 0;
-  const refundAmount = 0;
-  const policyNotice = (booking.paidAmount || 0) > 0
-    ? 'Áp dụng chính sách KHÔNG HOÀN TIỀN theo điều khoản hợp đồng. Toàn bộ số tiền cọc/đã thanh toán không được hoàn lại khi hủy đơn.'
-    : 'Đơn đặt giữ chưa phát sinh tiền thanh toán, hủy đơn không mất phí.';
+  const evaluation = evaluateNoRefundPolicy(booking.paidAmount || 0, 'CANCEL');
+  const { forfeitAmount, refundAmount, policyNotice } = evaluation;
 
   // Update booking status and refund state
   booking.status = 'Cancelled';
   booking.cancelReason = cancelReason?.trim() || 'Khách hàng yêu cầu hủy đơn trực tuyến.';
   booking.cancelledAt = now;
-  booking.refundAmount = 0;
+  booking.refundAmount = refundAmount;
   booking.refundForfeitAmount = forfeitAmount;
-  booking.refundStatus = 'None';
-  await booking.save();
+  booking.refundStatus = evaluation.refundStatus;
+
+  await withOptionalTransaction(async (session) => {
+    await booking.save(session ? { session } : undefined);
+  });
 
   // Release vehicle back to Available status if it is not in Maintenance/Transferring or rented by another Ongoing booking
   const activeOngoingCount = await Booking.countDocuments({
@@ -2081,10 +2119,12 @@ const quoteBookingExtension = async (booking: IBooking, newReturnDate: Date) => 
   const newTotalAmount = booking.totalAmount + addedAmount;
   const paidAmount = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
   const extensionDepositAmount = Math.round(addedAmount * 0.3);
-  const newDepositAmount = Math.max(booking.depositAmount || 0, paidAmount) + extensionDepositAmount;
+  const currentDepositBase = booking.depositAmount || Math.round(booking.totalAmount * 0.3);
+  const newDepositAmount = currentDepositBase + extensionDepositAmount;
 
   return {
     vehicle,
+    paidAmount,
     addedBaseAmount,
     addedSeasonalSurcharge,
     addedAmount,
@@ -2116,9 +2156,11 @@ export const estimateBookingExtension = async (
   }
 
   if (requestingUser.roles === 'Customer') {
-    if (booking.userId.toString() !== requestingUser._id.toString()) {
+    if (extractRefId(booking.userId) !== requestingUser._id.toString()) {
       throw new AppError(403, 'Bạn không có quyền thao tác trên đơn đặt xe này.');
     }
+  } else {
+    assertBranchAccess(requestingUser, extractBookingBranchIds(booking));
   }
 
   if (!['Confirmed', 'Ongoing'].includes(booking.status)) {
@@ -2214,9 +2256,11 @@ export const extendBooking = async (
   }
 
   if (requestingUser.roles === 'Customer') {
-    if (booking.userId.toString() !== requestingUser._id.toString()) {
+    if (extractRefId(booking.userId) !== requestingUser._id.toString()) {
       throw new AppError(403, 'Bạn không có quyền gia hạn đơn đặt xe này.');
     }
+  } else {
+    assertBranchAccess(requestingUser, extractBookingBranchIds(booking));
   }
 
   if (!['Confirmed', 'Ongoing'].includes(booking.status)) {
@@ -2281,6 +2325,7 @@ export const extendBooking = async (
     booking.totalAmount = extensionQuote.newTotalAmount;
     booking.baseRentalAmount = extensionQuote.baseRentalAmount;
     booking.seasonalSurcharge = extensionQuote.seasonalSurcharge;
+    booking.paidAmount = extensionQuote.paidAmount;
     booking.depositAmount = extensionQuote.newDepositAmount;
     booking.depositPaid = extensionQuote.depositTopUpAmount === 0;
     booking.remainingAmount = extensionQuote.newRemainingAmount;
@@ -2413,11 +2458,14 @@ export const approveBooking = async (
   booking.approvedBy = managerUser._id as mongoose.Types.ObjectId;
   booking.approvedAt = now;
 
-  // If deposit or full payment is already paid, transition directly to Confirmed, else Approved
-  if (booking.depositPaid || booking.isPaid) {
+  // If deposit or full payment is already paid, transition directly to Confirmed, else Approved with full unpaid contract balance
+  const paidSoFar = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
+  if (booking.depositPaid || booking.isPaid || paidSoFar >= (booking.depositAmount || 0)) {
     booking.status = 'Confirmed';
+    booking.remainingAmount = booking.isPaid ? 0 : Math.max(0, booking.totalAmount - paidSoFar);
   } else {
     booking.status = 'Approved';
+    booking.remainingAmount = Math.max(0, booking.totalAmount - paidSoFar);
   }
 
   await booking.save();
@@ -2512,29 +2560,14 @@ export const rejectBooking = async (
   booking.rejectedAt = now;
   booking.cancelledAt = now;
 
-  // Since rejection is initiated by Manager/System, customer is entitled to 100% refund of any paid money
+  // Strict NO REFUND policy across platform
   const customerPaid = (booking.paidAmount && booking.paidAmount > 0)
     ? booking.paidAmount
     : (booking.depositPaid ? booking.depositAmount : 0);
-
-  if (customerPaid > 0) {
-    booking.refundAmount = customerPaid;
-    booking.refundForfeitAmount = 0;
-    booking.refundStatus = 'Pending';
-
-    // Create Payment refund record
-    await Payment.create({
-      bookingId: booking._id,
-      txnRef: `REFUND-REJECT-${booking.bookingCode}-${Date.now()}`,
-      amount: customerPaid,
-      type: 'REFUND',
-      status: 'PENDING',
-    }).catch((err: unknown) => console.error('[Refund Record Error]', err));
-  } else {
-    booking.refundAmount = 0;
-    booking.refundForfeitAmount = 0;
-    booking.refundStatus = 'None';
-  }
+  const rejectEval = evaluateNoRefundPolicy(customerPaid, 'REJECT');
+  booking.refundAmount = rejectEval.refundAmount;
+  booking.refundForfeitAmount = rejectEval.forfeitAmount;
+  booking.refundStatus = rejectEval.refundStatus;
 
   // Restore voucher usage if used
   if (booking.discountId) {
@@ -2562,14 +2595,15 @@ export const rejectBooking = async (
 
   // Send Notification to Customer
   const customerId = (booking.userId as unknown as { _id?: mongoose.Types.ObjectId })?._id || booking.userId;
-  const refundText = booking.refundAmount && booking.refundAmount > 0
-    ? ` Số tiền đã thanh toán (${booking.refundAmount.toLocaleString('vi-VN')} đ) đang được xử lý hoàn trả 100%.`
-    : '';
+  const noRefundNoticeText =
+    customerPaid > 0
+      ? ` Theo chính sách hợp đồng đã ký, hệ thống áp dụng điều khoản KHÔNG HOÀN TIỀN (Ghi nhận không hoàn: ${customerPaid.toLocaleString('vi-VN')} đ).`
+      : '';
 
   await Notification.create({
     userId: customerId,
     title: `Đơn đặt xe ${booking.bookingCode} đã bị từ chối`,
-    body: `Đơn đặt xe #${booking.bookingCode} của bạn đã bị Quản lý chi nhánh từ chối. Lý do: "${cleanReason}".${refundText}`,
+    body: `Đơn đặt xe #${booking.bookingCode} của bạn đã bị Quản lý chi nhánh từ chối. Lý do: "${cleanReason}".${noRefundNoticeText}`,
     type: 'BOOKING',
     relatedId: booking._id.toString(),
     isRead: false,
@@ -2621,7 +2655,7 @@ export const approveRefund = async (
 
   // Branch access check for BranchManager
   if (requestingUser.roles !== 'SystemAdmin') {
-    assertBranchAccess(requestingUser as any, booking.pickupBranchId);
+    assertBranchAccess(requestingUser, booking.pickupBranchId);
   }
 
   if (booking.refundStatus === 'Approved') {
@@ -2730,7 +2764,7 @@ export const rejectRefund = async (
 
   // Branch access check for BranchManager
   if (requestingUser.roles !== 'SystemAdmin') {
-    assertBranchAccess(requestingUser as any, booking.pickupBranchId);
+    assertBranchAccess(requestingUser, booking.pickupBranchId);
   }
 
   if (booking.refundStatus === 'Approved') {
@@ -2825,10 +2859,16 @@ export const updateBookingDeliveryAndSignatures = async (
     throw new AppError(404, 'Không tìm thấy đơn đặt xe.');
   }
 
-  const isOwner = String(booking.userId) === String(requestingUser._id);
-  const isStaffOrAdmin = ['Staff', 'BranchManager', 'SystemAdmin'].includes(requestingUser.roles);
-
-  if (!isOwner && !isStaffOrAdmin) {
+  if (requestingUser.roles === 'Customer') {
+    if (extractRefId(booking.userId) !== String(requestingUser._id)) {
+      throw new AppError(403, 'Bạn không có quyền cập nhật thông tin giao nhận hoặc hợp đồng của đơn này.');
+    }
+    if (data.lessorSignatureUrl && data.lessorSignatureUrl.trim()) {
+      throw new AppError(403, 'Khách hàng không có quyền ký thay đại diện Bên cho thuê (Bên A).');
+    }
+  } else if (['Staff', 'BranchManager', 'SystemAdmin'].includes(requestingUser.roles)) {
+    assertBranchAccess(requestingUser, extractBookingBranchIds(booking));
+  } else {
     throw new AppError(403, 'Bạn không có quyền cập nhật thông tin giao nhận hoặc hợp đồng của đơn này.');
   }
 
@@ -2836,16 +2876,16 @@ export const updateBookingDeliveryAndSignatures = async (
     throw new AppError(400, 'Không thể cập nhật hợp đồng hoặc địa chỉ giao nhận cho đơn đã hủy.');
   }
 
-  // Handle delivery mode & custom addresses update (allowed beforeCompleted)
+  if (booking.status === 'Completed') {
+    throw new AppError(400, 'Đơn đã hoàn tất không thể thay đổi địa điểm giao nhận xe hoặc chữ ký hợp đồng.');
+  }
+
+  // Handle delivery mode & custom addresses update (allowed before Completed)
   if (
     data.deliveryMode !== undefined ||
     data.customPickupAddress !== undefined ||
     data.customReturnAddress !== undefined
   ) {
-    if (booking.status === 'Completed') {
-      throw new AppError(400, 'Đơn đã hoàn tất không thể thay đổi địa điểm giao nhận xe.');
-    }
-
     const oldFee = booking.deliveryFee || 0;
     const nextMode = data.deliveryMode || booking.deliveryMode || 'BranchPickup';
     const nextPickupAddr =
@@ -2857,9 +2897,7 @@ export const updateBookingDeliveryAndSignatures = async (
         ? data.customReturnAddress.trim()
         : booking.customReturnAddress || '';
 
-    const hasCustomPickup = nextMode === 'DoorDelivery' && Boolean(nextPickupAddr);
-    const hasCustomReturn = nextMode === 'DoorDelivery' && Boolean(nextReturnAddr);
-    const newFee = (hasCustomPickup ? 40000 : 0) + (hasCustomReturn ? 40000 : 0);
+    const newFee = calculateDoorDeliveryFee(nextMode, nextPickupAddr, nextReturnAddr);
     const feeDiff = newFee - oldFee;
 
     booking.deliveryMode = nextMode;
@@ -2870,11 +2908,17 @@ export const updateBookingDeliveryAndSignatures = async (
     if (feeDiff !== 0) {
       booking.totalAmount = Math.max(0, (booking.totalAmount || 0) + feeDiff);
       const paidSoFar = booking.paidAmount || (booking.depositPaid ? booking.depositAmount : 0);
-      booking.remainingAmount = Math.max(0, booking.totalAmount - paidSoFar);
-      if (!booking.depositPaid && !booking.isPaid) {
+      if (!booking.depositPaid && !booking.isPaid && paidSoFar === 0) {
         booking.depositAmount = Math.round(booking.totalAmount * 0.3);
-        booking.remainingAmount = booking.totalAmount - booking.depositAmount;
+        booking.remainingAmount =
+          booking.status === 'Approved'
+            ? booking.totalAmount
+            : booking.totalAmount - booking.depositAmount;
+      } else {
+        booking.remainingAmount = Math.max(0, booking.totalAmount - paidSoFar);
       }
+      booking.isPaid = booking.remainingAmount === 0;
+      booking.depositPaid = booking.isPaid || paidSoFar >= (booking.depositAmount || 0);
     }
   }
 
@@ -2882,7 +2926,7 @@ export const updateBookingDeliveryAndSignatures = async (
   if (data.eSignatureUrl && data.eSignatureUrl.trim()) {
     booking.eSignatureUrl = data.eSignatureUrl.trim();
   }
-  if (data.lessorSignatureUrl && data.lessorSignatureUrl.trim()) {
+  if (requestingUser.roles !== 'Customer' && data.lessorSignatureUrl && data.lessorSignatureUrl.trim()) {
     booking.lessorSignatureUrl = data.lessorSignatureUrl.trim();
   }
   if (booking.eSignatureUrl && booking.lessorSignatureUrl && !booking.contractSignedAt) {

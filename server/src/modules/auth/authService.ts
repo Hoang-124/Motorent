@@ -7,7 +7,12 @@ import { OAuth2Client } from 'google-auth-library';
 import { User, IUser } from '../../models/User';
 import { AuditLog } from '../../models/AuditLog';
 import { Notification } from '../../models/Notification';
-import { sendVerificationEmail, sendPasswordResetEmail } from '../../config/mailer';
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+  isRealSmtpConfigured,
+  isDeliverableRecipientEmail,
+} from '../../config/mailer';
 import { env } from '../../config/env';
 import { deleteFromCloudinary, getSignedCloudinaryEkycUrl } from '../../config/cloudinary';
 import { AppError } from '../../core/errorHandler';
@@ -146,7 +151,7 @@ export const register = async (data: {
   // Generate 6-digit OTP code using crypto.randomInt
   const verificationOtp = crypto.randomInt(100000, 1000000).toString();
   const hashedOtp = hashToken(verificationOtp);
-  const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry for link token
+  const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes expiry
 
   const newUser = await User.create({
     username: normalizedUsername,
@@ -172,11 +177,13 @@ export const register = async (data: {
 
   // Send verification email with 6-digit OTP
   await sendVerificationEmail(normalizedEmail, normalizedUsername, verificationOtp);
+  const hasRealSmtp = isRealSmtpConfigured() && isDeliverableRecipientEmail(normalizedEmail);
 
-  // Never return verification tokens or dev OTP in the response
   return {
     user: sanitizeUser(newUser),
     email: normalizedEmail,
+    hasRealSmtp,
+    ...(env.NODE_ENV !== 'production' && !hasRealSmtp ? { devOtp: verificationOtp } : {}),
   };
 };
 
@@ -283,10 +290,13 @@ export const resendOtp = async (email: string) => {
   await user.save();
 
   await sendVerificationEmail(normalizedEmail, user.username, newOtp);
+  const hasRealSmtp = isRealSmtpConfigured() && isDeliverableRecipientEmail(normalizedEmail);
 
   return {
     success: true,
     message: 'Mã OTP mới đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư.',
+    hasRealSmtp,
+    ...(env.NODE_ENV !== 'production' && !hasRealSmtp ? { devOtp: newOtp } : {}),
   };
 };
 
@@ -326,7 +336,7 @@ export const verifyEmail = async (token: string, email?: string) => {
   }
 
   if (user.emailVerificationExpires < new Date()) {
-    throw new AppError(410, 'Liên kết xác thực đã hết hạn (24 giờ). Vui lòng yêu cầu gửi lại mã xác thực mới qua chức năng gửi lại mã (resend-otp).');
+    throw new AppError(410, 'Liên kết xác thực đã hết hạn (15 phút). Vui lòng yêu cầu gửi lại mã xác thực mới qua chức năng gửi lại mã (resend-otp).');
   }
 
   const isMatch = timingSafeEqualHashes(user.emailVerificationToken, hashedInput);
@@ -378,6 +388,13 @@ export const login = async (identifier: string, password: string) => {
 
   if (user.status === 'Suspended') {
     throw new AppError(403, 'Tài khoản của bạn hiện đang bị tạm khóa. Vui lòng liên hệ ban quản trị.');
+  }
+
+  if (user.isEmailVerified === false || user.status === 'Unverified') {
+    throw new AppError(
+      403,
+      'Tài khoản chưa được xác thực email. Vui lòng nhập mã OTP 6 chữ số đã gửi qua email để kích hoạt tài khoản.'
+    );
   }
 
   if (!user.passwordHash) {
@@ -522,6 +539,12 @@ export const loginWithGoogle = async (googleIdToken: string) => {
       existingUser = await User.findOne({ username: uniqueUsername });
     }
 
+    let newReferralCode = generateReferralCode();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      if (!(await User.exists({ referralCode: newReferralCode }))) break;
+      newReferralCode = generateReferralCode();
+    }
+
     user = await User.create({
       username: uniqueUsername,
       email: normalizedEmail,
@@ -529,6 +552,7 @@ export const loginWithGoogle = async (googleIdToken: string) => {
       firstName: given_name || name || 'Google User',
       lastName: family_name || '',
       avatarUrl: picture || '',
+      referralCode: newReferralCode,
       roles: 'Customer',
       status: 'Active',
       isEmailVerified: true,

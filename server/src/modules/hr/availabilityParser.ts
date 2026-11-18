@@ -61,8 +61,44 @@ export interface ParsedAvailabilityResult {
   warnings: string[];
 }
 
+const ALL_THREE_SHIFTS: ShiftType[] = ['Morning', 'Afternoon', 'Evening'];
+
+const extractShiftsFromFragment = (fragment: string): ShiftType[] => {
+  const found: ShiftType[] = [];
+  if (/\b1\b|sang/.test(fragment)) found.push('Morning');
+  if (/\b2\b|chieu/.test(fragment)) found.push('Afternoon');
+  if (/\b3\b|toi/.test(fragment)) found.push('Evening');
+  return Array.from(new Set(found));
+};
+
 /**
- * Parse staff availability text message (e.g. "t2 2 3, t3 1 3, t4 1 2, t5 bận, t6 1, t7 2 3, cn 3")
+ * Converts structured 7-day slots into canonical shorthand text:
+ * e.g. "t2 2 3, t3 1 3, t4 1 2, t5 bận, t6 1, t7 2 3, cn 3"
+ */
+export const slotsToShorthandMessage = (slots: IStaffAvailabilitySlot[]): string => {
+  const dayTokens = ['t2', 't3', 't4', 't5', 't6', 't7', 'cn'];
+  const parts: string[] = [];
+
+  for (const slot of slots) {
+    const token = dayTokens[slot.dayOfWeek - 1] || `t${slot.dayOfWeek + 1}`;
+    if (slot.isAllDayBusy || slot.availableShifts.length === 0) {
+      parts.push(`${token} bận`);
+    } else if (slot.availableShifts.length === 3) {
+      parts.push(`${token} 1 2 3`);
+    } else {
+      const nums = slot.availableShifts
+        .map((s) => (s === 'Morning' ? '1' : s === 'Afternoon' ? '2' : '3'))
+        .sort()
+        .join(' ');
+      parts.push(`${token} ${nums}`);
+    }
+  }
+
+  return parts.join(', ');
+};
+
+/**
+ * Parse staff availability text message (e.g. "t2 2 3, t3 1 3, t4 bận ca 1, t5 bận, t6 1, t7 ko làm ca 2, cn nghỉ sáng")
  * Produces structured 7-day schedule availability for the target week.
  */
 export const parseStaffAvailabilityMessage = (
@@ -97,8 +133,7 @@ export const parseStaffAvailabilityMessage = (
     };
   }
 
-  // Tokenize segments by newline, comma, semicolon, or slash
-  // Also support regex splitting on day markers: (t2|t3|t4|t5|t6|t7|cn)
+  // Tokenize segments by newline, comma, semicolon
   const normalizedText = rawMessage.replace(/\r\n/g, '\n');
   const rawSegments = normalizedText
     .split(/[\n,;]+/)
@@ -106,11 +141,12 @@ export const parseStaffAvailabilityMessage = (
     .filter(Boolean);
 
   const matchedDays = new Set<number>();
+  let hasExplicitPositiveDay = false;
 
   for (const segment of rawSegments) {
     // Look for day token at the start of segment e.g. "t2 2 3" or "thứ 2: ca 2 3" or "cn: bận"
     const match = segment.match(
-      /^(t[2-7]|th[uứ]\s*[2-7]|th[uứ]\s*(hai|ba|t[uư]|n[aă]m|s[aá]u|b[aả]y)|cn|ch[uủ]\s*nh[aậ]t)\s*[:=\-]?\s*(.*)$/i
+      /^(t[2-7]|th[uứ]\s*[2-7]|th[uứ]\s*(hai|ba|t[uư]|n[aă]m|s[aá]u|b[aả]y)|cn|ch[uủ]\s*nh[aậ]t|mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\s*[:=\-]?\s*(.*)$/i
     );
 
     if (match) {
@@ -124,43 +160,79 @@ export const parseStaffAvailabilityMessage = (
         const contentLower = content
           .toLowerCase()
           .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '');
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/đ/g, 'd')
+          .trim();
 
-        // Check if all-day busy (bận, off, nghỉ, ko làm)
-        if (
-          /\b(ban|off|nghi|ko lam|khong lam|b|x)\b/.test(contentLower) &&
-          !/\b(1|2|3)\b/.test(contentLower)
-        ) {
+        const hasShiftToken = /\b(1|2|3)\b|sang|chieu|toi/.test(contentLower);
+        const isFullDayKeyword = /\bfull\b|ca ngay/.test(contentLower);
+        const negMatch = contentLower.match(/^(.*?)\b(ban|off|nghi|ko\s*lam|khong\s*lam|ket)\b(.*)$/);
+
+        // 1. Negation handling: all-day busy OR negated specific shift(s) e.g. "t2 bận ca 1", "t2 ko làm ca 2", "t2 nghỉ sáng"
+        if (negMatch) {
+          if (isFullDayKeyword || !hasShiftToken) {
+            slot.isAllDayBusy = true;
+            slot.availableShifts = [];
+            slot.busyShifts = [...ALL_THREE_SHIFTS];
+            slot.notes = 'Bận cả ngày';
+            continue;
+          }
+
+          const beforeShifts = extractShiftsFromFragment(negMatch[1] || '');
+          const afterShifts = extractShiftsFromFragment(negMatch[3] || '');
+
+          let available: ShiftType[] = [];
+          let busy: ShiftType[] = [];
+
+          if (beforeShifts.length > 0 && afterShifts.length > 0) {
+            // Mixed e.g. "t2 1 2 bận 3" -> available 1,2 and busy 3
+            hasExplicitPositiveDay = true;
+            busy = afterShifts;
+            available = beforeShifts.filter((s) => !busy.includes(s));
+          } else {
+            // Pure negated shift(s): prefix ("t2 bận ca 1", "t2 ko làm ca 2", "t2 nghỉ sáng") or postfix ("t2 sáng nghỉ")
+            const negatedShifts = afterShifts.length > 0 ? afterShifts : beforeShifts;
+            busy = negatedShifts;
+            available = ALL_THREE_SHIFTS.filter((s) => !busy.includes(s));
+          }
+
+          if (available.length === 0) {
+            slot.isAllDayBusy = true;
+            slot.availableShifts = [];
+            slot.busyShifts = [...ALL_THREE_SHIFTS];
+            slot.notes = 'Bận cả ngày';
+          } else {
+            slot.isAllDayBusy = false;
+            slot.availableShifts = available;
+            slot.busyShifts = ALL_THREE_SHIFTS.filter((s) => !available.includes(s));
+            const busyLabels = slot.busyShifts
+              .map((s) => (s === 'Morning' ? '1' : s === 'Afternoon' ? '2' : '3'))
+              .join(', ');
+            slot.notes = `Bận ca: ${busyLabels}`;
+          }
+          continue;
+        }
+
+        // Shorthand single-letter all-day busy ("t2 b", "t2 x")
+        if (!hasShiftToken && !isFullDayKeyword && /\b(b|x)\b/.test(contentLower)) {
           slot.isAllDayBusy = true;
           slot.availableShifts = [];
-          slot.busyShifts = ['Morning', 'Afternoon', 'Evening'];
+          slot.busyShifts = [...ALL_THREE_SHIFTS];
           slot.notes = 'Bận cả ngày';
           continue;
         }
 
-        // Check for specific shift numbers: 1 (Morning), 2 (Afternoon), 3 (Evening)
-        const declaredShifts: ShiftType[] = [];
-        if (/\b1\b|sang/.test(contentLower)) declaredShifts.push('Morning');
-        if (/\b2\b|chieu/.test(contentLower)) declaredShifts.push('Afternoon');
-        if (/\b3\b|toi/.test(contentLower)) declaredShifts.push('Evening');
-
-        // Check for "full" / "ca ngay"
-        if (/full|ca ngay/.test(contentLower)) {
-          declaredShifts.length = 0;
-          declaredShifts.push('Morning', 'Afternoon', 'Evening');
-        }
+        // 2. Positive shift declaration: 1 (Morning), 2 (Afternoon), 3 (Evening), or "full" / "cả ngày"
+        const declaredShifts: ShiftType[] = isFullDayKeyword
+          ? [...ALL_THREE_SHIFTS]
+          : extractShiftsFromFragment(contentLower);
 
         if (declaredShifts.length > 0) {
+          hasExplicitPositiveDay = true;
           slot.isAllDayBusy = false;
-          slot.availableShifts = Array.from(new Set(declaredShifts));
-          const allThree: ShiftType[] = ['Morning', 'Afternoon', 'Evening'];
-          slot.busyShifts = allThree.filter((s) => !slot.availableShifts.includes(s));
+          slot.availableShifts = declaredShifts;
+          slot.busyShifts = ALL_THREE_SHIFTS.filter((s) => !slot.availableShifts.includes(s));
           slot.notes = `Rảnh ca: ${declaredShifts.map((s) => (s === 'Morning' ? '1' : s === 'Afternoon' ? '2' : '3')).join(', ')}`;
-        } else if (/\b(ban|off|nghi)\b/.test(contentLower)) {
-          slot.isAllDayBusy = true;
-          slot.availableShifts = [];
-          slot.busyShifts = ['Morning', 'Afternoon', 'Evening'];
-          slot.notes = 'Bận cả ngày';
         } else {
           warnings.push(`Không nhận diện được ca làm việc trong đoạn: "${segment}"`);
         }
@@ -171,8 +243,9 @@ export const parseStaffAvailabilityMessage = (
     }
   }
 
-  // When a staff explicitly lists days, any unmentioned day was NOT registered (Day Off / Not Available)
-  if (matchedDays.size > 0) {
+  // When a staff explicitly lists positive working days, any unmentioned day was NOT registered (Day Off / Not Available).
+  // If a staff ONLY sent busy/negated exceptions (e.g. "t2 bận ca 1"), unmentioned days remain open.
+  if (matchedDays.size > 0 && hasExplicitPositiveDay) {
     for (let d = 1; d <= 7; d++) {
       if (!matchedDays.has(d)) {
         const slot = slotsMap.get(d)!;
@@ -238,10 +311,12 @@ export const normalizeStaffMatchKey = (str: string): string => {
 /**
  * Robustly finds the matching staff member in the branch by name, username, or email prefix
  */
-export const findMatchingStaffInBranch = (
+export const findMatchingStaffInBranch = <
+  T extends { _id: unknown; firstName?: string; lastName?: string; username?: string; email?: string }
+>(
   nameQuery: string,
-  branchStaff: Array<{ _id: any; firstName?: string; lastName?: string; username?: string; email?: string }>
-): (typeof branchStaff)[0] | null => {
+  branchStaff: T[]
+): T | null => {
   const cleanQuery = normalizeStaffMatchKey(nameQuery);
   if (!cleanQuery) return null;
 
@@ -289,7 +364,7 @@ export const findMatchingStaffInBranch = (
  */
 export const parseMultiStaffAvailabilityText = (
   multiStaffText: string,
-  branchStaff: Array<{ _id: any; firstName?: string; lastName?: string; username?: string; email?: string }>,
+  branchStaff: Array<{ _id: unknown; firstName?: string; lastName?: string; username?: string; email?: string }>,
   weekMonday: Date
 ): MultiStaffParsedResult[] => {
   const results: MultiStaffParsedResult[] = [];
@@ -302,7 +377,7 @@ export const parseMultiStaffAvailabilityText = (
     .filter(Boolean);
 
   for (const line of lines) {
-    const match = line.match(/^([^:\-=]+)[:=\-](.+)$/);
+    const match = line.match(/^([^:=]+)[:=](.+)$/) || line.match(/^([^-]+)-\s*(.+)$/);
     if (!match) continue;
 
     const nameQuery = match[1].trim();

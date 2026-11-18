@@ -153,20 +153,31 @@ export const getMyComplaints = async (
     Complaint.countDocuments(filter),
   ]);
 
-  const items = rawComplaints.map((c: any) => {
+  interface PopulatedComplaintBooking {
+    _id?: mongoose.Types.ObjectId | string;
+    bookingCode?: string;
+    vehicleId?: unknown;
+    pickupDateTime?: Date;
+    returnDateTime?: Date;
+  }
+
+  const items = rawComplaints.map((c) => {
     let bookingSummary: FormattedBookingSummary | null = null;
-    if (c.bookingId && typeof c.bookingId === 'object') {
+    if (c.bookingId && typeof c.bookingId === 'object' && 'pickupDateTime' in c.bookingId) {
+      const bObj = c.bookingId as unknown as PopulatedComplaintBooking;
+      const bIdStr = bObj._id ? String(bObj._id) : '';
       bookingSummary = {
-        _id: c.bookingId._id?.toString() || '',
-        bookingCode: c.bookingId.bookingCode || `MV-${c.bookingId._id?.toString().slice(-6).toUpperCase()}`,
-        vehicle: buildVehicleSummary(c.bookingId.vehicleId),
-        pickupDateTime: c.bookingId.pickupDateTime,
-        returnDateTime: c.bookingId.returnDateTime,
+        _id: bIdStr,
+        bookingCode: bObj.bookingCode || `MV-${bIdStr.slice(-6).toUpperCase()}`,
+        vehicle: buildVehicleSummary(bObj.vehicleId),
+        pickupDateTime: bObj.pickupDateTime as Date,
+        returnDateTime: bObj.returnDateTime as Date,
       };
     }
 
     const isResolvedOrClosed = c.status === 'Resolved' || c.status === 'Closed';
-    const finalResolution = isResolvedOrClosed ? c.finalResolution || c.resolutionNotes || null : undefined;
+    const cExt = c as unknown as { finalResolution?: string; resolutionNotes?: string; closedAt?: Date | null };
+    const finalResolution = isResolvedOrClosed ? cExt.finalResolution || cExt.resolutionNotes || null : undefined;
 
     return {
       _id: c._id?.toString(),
@@ -180,7 +191,7 @@ export const getMyComplaints = async (
       booking: bookingSummary,
       finalResolution,
       createdAt: c.createdAt,
-      closedAt: c.closedAt || null,
+      closedAt: cExt.closedAt || null,
       updatedAt: c.updatedAt,
     };
   });
@@ -206,7 +217,53 @@ export const getComplaintDetail = async (
     throw new AppError(404, 'Khiếu nại không tồn tại.');
   }
 
-  const complaint: any = await Complaint.findById(complaintId)
+  interface LeanComplaintDoc {
+    _id: mongoose.Types.ObjectId;
+    code: string;
+    category: IComplaint['category'];
+    title?: string;
+    description: string;
+    attachments?: string[];
+    status: ComplaintStatus;
+    customerId?: { _id?: mongoose.Types.ObjectId; firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId;
+    bookingId?: {
+      _id?: mongoose.Types.ObjectId | string;
+      bookingCode?: string;
+      vehicleId?: unknown;
+      pickupDateTime: Date;
+      returnDateTime: Date;
+    } | mongoose.Types.ObjectId | null;
+    branchId?: unknown;
+    handledBy?: { _id?: mongoose.Types.ObjectId } | mongoose.Types.ObjectId;
+    resolvedBy?: unknown;
+    finalResolution?: string;
+    resolutionNotes?: string;
+    createdAt: Date;
+    updatedAt: Date;
+    closedAt?: Date | null;
+  }
+
+  interface LeanStatusLog {
+    changedBy?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    changedByRole?: string;
+    fromStatus?: string | null;
+    previousStatus?: string | null;
+    toStatus?: string;
+    newStatus?: string;
+    note?: string;
+    createdAt: Date;
+  }
+
+  interface LeanComplaintResponse {
+    authorId?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    respondedBy?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    authorRole?: string;
+    message?: string;
+    content?: string;
+    createdAt: Date;
+  }
+
+  const complaint = (await Complaint.findById(complaintId)
     .populate({
       path: 'bookingId',
       select: 'bookingCode vehicleId pickupDateTime returnDateTime',
@@ -216,14 +273,14 @@ export const getComplaintDetail = async (
       },
     })
     .populate('customerId', 'firstName lastName username roles')
-    .lean();
+    .lean()) as unknown as LeanComplaintDoc | null;
 
   if (!complaint) {
     throw new AppError(404, 'Khiếu nại không tồn tại.');
   }
 
   const complaintOwnerId =
-    typeof complaint.customerId === 'object' && complaint.customerId?._id
+    typeof complaint.customerId === 'object' && complaint.customerId !== null && '_id' in complaint.customerId && complaint.customerId._id
       ? complaint.customerId._id.toString()
       : complaint.customerId?.toString();
 
@@ -243,8 +300,8 @@ export const getComplaintDetail = async (
 
   const timeline: TimelineItem[] = [];
 
-  for (const log of statusLogs as any[]) {
-    const rawUser = log.changedBy && typeof log.changedBy === 'object' ? log.changedBy : null;
+  for (const log of statusLogs as unknown as LeanStatusLog[]) {
+    const rawUser = log.changedBy && typeof log.changedBy === 'object' && 'roles' in log.changedBy ? log.changedBy : null;
     const actorName = formatDisplayName(rawUser);
     const actorRole = rawUser?.roles || log.changedByRole || 'Staff';
 
@@ -274,10 +331,17 @@ export const getComplaintDetail = async (
     });
   }
 
-  for (const resp of responses as any[]) {
+  for (const resp of responses as unknown as Array<{
+    authorId?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    respondedBy?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    authorRole?: string;
+    message?: string;
+    content?: string;
+    createdAt: Date;
+  }>) {
     const rawUser =
-      (resp.authorId && typeof resp.authorId === 'object' ? resp.authorId : null) ||
-      (resp.respondedBy && typeof resp.respondedBy === 'object' ? resp.respondedBy : null);
+      (resp.authorId && typeof resp.authorId === 'object' && 'roles' in resp.authorId ? resp.authorId : null) ||
+      (resp.respondedBy && typeof resp.respondedBy === 'object' && 'roles' in resp.respondedBy ? resp.respondedBy : null);
     const actorName = formatDisplayName(rawUser);
     const actorRole = rawUser?.roles || resp.authorRole || 'Staff';
 
@@ -298,7 +362,10 @@ export const getComplaintDetail = async (
 
   const hasOpenEvent = timeline.some((t) => t.type === 'status' && t.status === 'Open');
   if (!hasOpenEvent) {
-    const customerUser = complaint.customerId;
+    const customerUser =
+      complaint.customerId && typeof complaint.customerId === 'object' && 'username' in complaint.customerId
+        ? (complaint.customerId as Record<string, unknown>)
+        : null;
     const actorName = formatDisplayName(customerUser);
     timeline.unshift({
       type: 'status',
@@ -319,7 +386,7 @@ export const getComplaintDetail = async (
   timeline.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   let bookingSummary: FormattedBookingSummary | null = null;
-  if (complaint.bookingId && typeof complaint.bookingId === 'object') {
+  if (complaint.bookingId && typeof complaint.bookingId === 'object' && 'pickupDateTime' in complaint.bookingId) {
     bookingSummary = {
       _id: complaint.bookingId._id?.toString() || '',
       bookingCode:
@@ -542,7 +609,7 @@ export const submitComplaint = async (
         session.endSession();
         await notifyNewComplaint(complaint, booking);
         return complaint;
-      } catch (txErr: any) {
+      } catch (txErr: unknown) {
         try {
           await session.abortTransaction();
           session.endSession();
@@ -550,7 +617,8 @@ export const submitComplaint = async (
           // ignore
         }
         session = null;
-        if (!txErr?.message?.includes('replica set member')) {
+        const txMsg = txErr instanceof Error ? txErr.message : '';
+        if (!txMsg.includes('replica set member')) {
           throw txErr;
         }
       }
@@ -585,6 +653,73 @@ export const submitComplaint = async (
 
 export const createComplaint = submitComplaint;
 
+const extractRefId = (rawRef: unknown): string => {
+  if (!rawRef) return '';
+  if (typeof rawRef === 'object' && '_id' in rawRef) {
+    return String((rawRef as { _id?: unknown })._id || '');
+  }
+  return String(rawRef);
+};
+
+/**
+ * Enforce complaint access:
+ * - SystemAdmin: full access
+ * - Customer: must own complaint.customerId
+ * - Staff / BranchManager: must belong to the same branch (or unassigned legacy complaint)
+ */
+const assertComplaintAccess = (
+  complaint: { customerId?: unknown; branchId?: unknown },
+  user: IUser
+): void => {
+  if (user.roles === 'SystemAdmin') {
+    return;
+  }
+
+  if (user.roles === 'Customer') {
+    const ownerId = extractRefId(complaint.customerId);
+    if (ownerId !== user._id.toString()) {
+      throw new AppError(404, 'Không tìm thấy khiếu nại.');
+    }
+    return;
+  }
+
+  if (user.roles === 'Staff' || user.roles === 'BranchManager') {
+    if (!user.branchId) {
+      throw new AppError(403, 'Tài khoản nhân sự chưa được phân công chi nhánh.');
+    }
+    const complaintBranchId = extractRefId(complaint.branchId);
+    if (complaintBranchId && complaintBranchId !== user.branchId.toString()) {
+      throw new AppError(403, 'Bạn không có quyền truy cập hoặc xử lý khiếu nại thuộc chi nhánh khác.');
+    }
+    return;
+  }
+
+  throw new AppError(403, 'Không đủ quyền truy cập khiếu nại.');
+};
+
+const notifyComplaintCustomer = async (
+  customerIdRaw: unknown,
+  title: string,
+  body: string,
+  complaintId: string
+): Promise<void> => {
+  const customerId = extractRefId(customerIdRaw);
+  if (!customerId || !mongoose.isValidObjectId(customerId)) return;
+  try {
+    await Notification.create({
+      userId: new mongoose.Types.ObjectId(customerId),
+      title,
+      body,
+      type: 'SYSTEM',
+      relatedId: complaintId,
+      isRead: false,
+      data: { complaintId },
+    });
+  } catch {
+    // Non-blocking customer notification
+  }
+};
+
 /**
  * UC-65: Details for Staff/Manager
  */
@@ -600,26 +735,18 @@ export const getComplaintDetailsForStaffOrManager = async (
     throw new AppError(400, 'ID khiếu nại không hợp lệ.');
   }
 
-  const complaint = (await Complaint.findById(complaintId)
+  const complaint = await Complaint.findById(complaintId)
     .populate('customerId', 'username firstName lastName email phoneNumber avatarUrl')
     .populate('bookingId', 'bookingCode pickupDateTime returnDateTime totalAmount vehicleId')
     .populate('branchId', 'name code address phone')
     .populate('resolvedBy', 'username firstName lastName email roles')
-    .lean()) as any;
+    .lean<IComplaint>();
 
   if (!complaint) {
     throw new AppError(404, 'Không tìm thấy khiếu nại.');
   }
 
-  if (user.roles === 'Customer') {
-    const ownerId =
-      typeof complaint.customerId === 'object' && (complaint.customerId as any)?._id
-        ? (complaint.customerId as any)._id.toString()
-        : complaint.customerId?.toString();
-    if (ownerId !== user._id.toString()) {
-      throw new AppError(404, 'Không tìm thấy khiếu nại.');
-    }
-  }
+  assertComplaintAccess(complaint, user);
 
   const [statusLogs, responses] = await Promise.all([
     ComplaintStatusLog.find({ complaintId: complaint._id })
@@ -669,6 +796,8 @@ export const addComplaintResponse = async (
     throw new AppError(404, 'Không tìm thấy khiếu nại.');
   }
 
+  assertComplaintAccess(complaint, user);
+
   if (complaint.status === 'Closed') {
     throw new AppError(409, 'Khiếu nại đã đóng (Closed), không thể gửi thêm phản hồi.');
   }
@@ -703,6 +832,15 @@ export const addComplaintResponse = async (
     createdAt: new Date(),
   });
 
+  if (isStaffOrManagerRole(user.roles)) {
+    await notifyComplaintCustomer(
+      complaint.customerId,
+      `Phản hồi mới cho khiếu nại ${complaint.code}`,
+      trimmedMessage.slice(0, 160),
+      complaint._id.toString()
+    );
+  }
+
   return responseDoc;
 };
 
@@ -735,7 +873,7 @@ export const getStaffComplaints = async (
   const limit = Math.max(1, Math.min(100, parseInt(String(query.limit || '10'), 10) || 10));
   const skip = (page - 1) * limit;
 
-  const matchStage: Record<string, any> = {};
+  const matchStage: Record<string, unknown> = {};
   if (query.status && String(query.status).trim() !== '') {
     matchStage.status = String(query.status).trim();
   }
@@ -743,14 +881,19 @@ export const getStaffComplaints = async (
     matchStage.category = String(query.category).trim();
   }
   if (query.q && String(query.q).trim() !== '') {
-    matchStage.code = { $regex: String(query.q).trim(), $options: 'i' };
+    const escapedCode = String(query.q).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    matchStage.code = { $regex: escapedCode, $options: 'i' };
   }
-  if (
-    user &&
-    (user.roles === 'Staff' || user.roles === 'BranchManager') &&
-    user.branchId &&
-    mongoose.isValidObjectId(String(user.branchId))
-  ) {
+  if (user && (user.roles === 'Staff' || user.roles === 'BranchManager')) {
+    if (!user.branchId || !mongoose.isValidObjectId(String(user.branchId))) {
+      return {
+        items: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 1,
+      };
+    }
     matchStage.$or = [
       { branchId: new mongoose.Types.ObjectId(String(user.branchId)) },
       { branchId: null },
@@ -782,7 +925,8 @@ export const getStaffComplaints = async (
   ]);
 
   const total = aggregateResult[0]?.metadata[0]?.total || 0;
-  const ids = aggregateResult[0]?.ids?.map((item: any) => item._id) || [];
+  const ids: mongoose.Types.ObjectId[] =
+    (aggregateResult[0]?.ids as Array<{ _id: mongoose.Types.ObjectId }> | undefined)?.map((item) => item._id) || [];
 
   const rawItems = await Complaint.find({ _id: { $in: ids } })
     .populate('customerId', 'firstName lastName username email phoneNumber avatarUrl roles')
@@ -798,8 +942,8 @@ export const getStaffComplaints = async (
     .populate('branchId', 'name address code')
     .lean();
 
-  const itemMap = new Map(rawItems.map((i: any) => [i._id.toString(), i]));
-  const items = ids.map((id: any) => itemMap.get(id.toString())).filter(Boolean);
+  const itemMap = new Map(rawItems.map((i) => [String(i._id), i]));
+  const items = ids.map((id) => itemMap.get(String(id))).filter(Boolean);
 
   return {
     items,
@@ -825,7 +969,7 @@ export const getStaffComplaintById = async (
     throw new AppError(404, 'Khiếu nại không tồn tại.');
   }
 
-  const complaint: any = await Complaint.findById(complaintId)
+  const complaint = await Complaint.findById(complaintId)
     .populate('customerId', 'firstName lastName username email phoneNumber avatarUrl roles')
     .populate({
       path: 'bookingId',
@@ -838,11 +982,13 @@ export const getStaffComplaintById = async (
     .populate('handledBy', 'firstName lastName username roles')
     .populate('branchId', 'name address code phone')
     .populate('resolvedBy', 'firstName lastName username roles')
-    .lean();
+    .lean<IComplaint>();
 
   if (!complaint) {
     throw new AppError(404, 'Khiếu nại không tồn tại.');
   }
+
+  assertComplaintAccess(complaint, user);
 
   const [statusLogs, responses] = await Promise.all([
     ComplaintStatusLog.find({ complaintId: complaint._id })
@@ -858,8 +1004,17 @@ export const getStaffComplaintById = async (
 
   const timeline: TimelineItem[] = [];
 
-  for (const log of statusLogs as any[]) {
-    const rawUser = log.changedBy && typeof log.changedBy === 'object' ? log.changedBy : null;
+  for (const log of statusLogs as unknown as Array<{
+    changedBy?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    changedByRole?: string;
+    fromStatus?: string | null;
+    previousStatus?: string | null;
+    toStatus?: string;
+    newStatus?: string;
+    note?: string;
+    createdAt: Date;
+  }>) {
+    const rawUser = log.changedBy && typeof log.changedBy === 'object' && 'roles' in log.changedBy ? log.changedBy : null;
     const actorName = formatDisplayName(rawUser);
     const actorRole = rawUser?.roles || log.changedByRole || 'Staff';
 
@@ -889,10 +1044,17 @@ export const getStaffComplaintById = async (
     });
   }
 
-  for (const resp of responses as any[]) {
+  for (const resp of responses as unknown as Array<{
+    authorId?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    respondedBy?: { firstName?: string; lastName?: string; username?: string; roles?: string } | mongoose.Types.ObjectId | null;
+    authorRole?: string;
+    message?: string;
+    content?: string;
+    createdAt: Date;
+  }>) {
     const rawUser =
-      (resp.authorId && typeof resp.authorId === 'object' ? resp.authorId : null) ||
-      (resp.respondedBy && typeof resp.respondedBy === 'object' ? resp.respondedBy : null);
+      (resp.authorId && typeof resp.authorId === 'object' && 'roles' in resp.authorId ? resp.authorId : null) ||
+      (resp.respondedBy && typeof resp.respondedBy === 'object' && 'roles' in resp.respondedBy ? resp.respondedBy : null);
     const actorName = formatDisplayName(rawUser);
     const actorRole = rawUser?.roles || resp.authorRole || 'Staff';
 
@@ -913,7 +1075,11 @@ export const getStaffComplaintById = async (
 
   const hasOpenEvent = timeline.some((t) => t.type === 'status' && t.status === 'Open');
   if (!hasOpenEvent) {
-    const customerUser = complaint.customerId;
+    const rawCustomer = complaint.customerId as unknown;
+    const customerUser =
+      rawCustomer && typeof rawCustomer === 'object' && 'username' in rawCustomer
+        ? (rawCustomer as Record<string, unknown>)
+        : null;
     const actorName = formatDisplayName(customerUser);
     timeline.unshift({
       type: 'status',
@@ -933,7 +1099,10 @@ export const getStaffComplaintById = async (
 
   timeline.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-  const allowedTransitions = getAllowedTransitions(complaint.status, user.roles);
+  const hasFinalResolution = Boolean(complaint.finalResolution && complaint.finalResolution.trim());
+  const allowedTransitions = getAllowedTransitions(complaint.status, user.roles).filter(
+    (nextStatus) => nextStatus !== 'Closed' || hasFinalResolution
+  );
 
   return {
     ...complaint,
@@ -970,10 +1139,19 @@ export const updateComplaintStatus = async (
     throw new AppError(404, 'Khiếu nại không tồn tại.');
   }
 
+  assertComplaintAccess(complaint, user);
+
   const fromStatus = complaint.status;
 
   if (toStatus === 'Closed' && user.roles === 'Staff') {
     throw new AppError(403, 'Chỉ Quản lý (BranchManager, SystemAdmin) mới có quyền đóng khiếu nại.');
+  }
+
+  if (toStatus === 'Closed' && (!complaint.finalResolution || !complaint.finalResolution.trim())) {
+    throw new AppError(
+      400,
+      'Khiếu nại chưa có kết luận giải quyết cuối cùng (finalResolution), không thể đóng.'
+    );
   }
 
   if (!canTransition(fromStatus, toStatus, user.roles)) {
@@ -984,10 +1162,11 @@ export const updateComplaintStatus = async (
   }
 
   if (user.roles === 'Staff' && complaint.handledBy) {
+    const rawHandler = complaint.handledBy as unknown;
     const handledById =
-      typeof complaint.handledBy === 'object' && (complaint.handledBy as any)._id
-        ? (complaint.handledBy as any)._id.toString()
-        : complaint.handledBy.toString();
+      rawHandler && typeof rawHandler === 'object' && '_id' in rawHandler
+        ? String((rawHandler as { _id?: unknown })._id || '')
+        : String(rawHandler);
     if (handledById !== user._id.toString()) {
       throw new AppError(
         403,
@@ -1009,7 +1188,7 @@ export const updateComplaintStatus = async (
     }
   }
 
-  const updatePayload: Record<string, any> = {
+  const updatePayload: Record<string, unknown> = {
     status: toStatus,
     updatedAt: new Date(),
   };
@@ -1021,10 +1200,15 @@ export const updateComplaintStatus = async (
     updatePayload.closedAt = new Date();
   }
 
-  const updateResult = await Complaint.updateOne(
-    { _id: complaint._id, status: fromStatus },
-    { $set: updatePayload }
-  );
+  const atomicCondition: Record<string, unknown> = {
+    _id: complaint._id,
+    status: fromStatus,
+  };
+  if (toStatus === 'Closed') {
+    atomicCondition.finalResolution = { $exists: true, $nin: [null, ''] };
+  }
+
+  const updateResult = await Complaint.updateOne(atomicCondition, { $set: updatePayload });
 
   if (updateResult.matchedCount === 0 || updateResult.modifiedCount === 0) {
     throw new AppError(
@@ -1219,6 +1403,13 @@ export const resolveComplaintByManager = async (
       createdAt: new Date(),
     });
 
+    await notifyComplaintCustomer(
+      existing.customerId,
+      `Khiếu nại ${existing.code} đã có kết luận giải quyết`,
+      trimmedResolution.slice(0, 160),
+      updated._id.toString()
+    );
+
     return updated;
   }
 
@@ -1244,6 +1435,13 @@ export const resolveComplaintByManager = async (
       }
       throw new AppError(409, 'Xung đột trạng thái khiếu nại.');
     }
+
+    await notifyComplaintCustomer(
+      existing.customerId,
+      `Cập nhật kết luận khiếu nại ${existing.code}`,
+      trimmedResolution.slice(0, 160),
+      updated._id.toString()
+    );
 
     return updated;
   }
@@ -1345,6 +1543,13 @@ export const closeComplaintByManager = async (
     note: 'Manager chính thức đóng khiếu nại (bước không thể hoàn tác)',
     createdAt: closedAt,
   });
+
+  await notifyComplaintCustomer(
+    existing.customerId,
+    `Hồ sơ khiếu nại ${existing.code} đã đóng hoàn tất`,
+    'Khiếu nại của bạn đã được giải quyết và lưu trữ hoàn tất.',
+    updated._id.toString()
+  );
 
   return updated;
 };

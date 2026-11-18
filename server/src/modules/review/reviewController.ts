@@ -1,35 +1,72 @@
+import fs from 'fs';
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
+import { validateImageMagicBytes } from '../../core/uploadMiddleware';
+import { isCloudinaryConfigured, uploadFileToCloudinary } from '../../config/cloudinary';
 import * as reviewService from './reviewService';
 import { AppError } from '../../core/errorHandler';
 
+const isAllowedPhotoReference = (url: string): boolean => {
+  const trimmed = url.trim();
+  return trimmed.startsWith('/uploads/') || /^https:\/\//i.test(trimmed);
+};
+
+const cleanupUploadedReviewFiles = async (req: AuthenticatedRequest): Promise<void> => {
+  if (!req.files || !Array.isArray(req.files)) return;
+  for (const file of req.files as Express.Multer.File[]) {
+    if (file.path && fs.existsSync(file.path)) {
+      await fs.promises.unlink(file.path).catch(() => {});
+    }
+  }
+};
+
 /**
- * Helper to extract photo URLs from Multer files and body
+ * Helper to validate & extract photo URLs from Multer files and body
  */
-function extractUploadedPhotoUrls(req: AuthenticatedRequest): string[] {
+async function extractUploadedPhotoUrls(req: AuthenticatedRequest): Promise<string[]> {
   const photoUrls: string[] = [];
 
-  // Files from multer
   if (req.files && Array.isArray(req.files)) {
     for (const f of req.files as Express.Multer.File[]) {
-      photoUrls.push(`/uploads/${f.filename}`);
+      const validMagic = await validateImageMagicBytes(f.path);
+      if (!validMagic) {
+        throw new AppError(400, 'Tệp ảnh đánh giá tải lên không hợp lệ hoặc bị hỏng.');
+      }
+
+      let resolvedUrl = `/uploads/${f.filename}`;
+      if (isCloudinaryConfigured()) {
+        try {
+          const uploaded = await uploadFileToCloudinary(f.path, {
+            folder: 'motorent/reviews',
+            type: 'upload',
+          });
+          resolvedUrl = uploaded.secureUrl;
+        } catch {
+          // Keep local /uploads fallback when Cloudinary is unreachable
+        }
+      }
+      photoUrls.push(resolvedUrl);
     }
   }
 
-  // URLs from body (if passed as array or JSON string)
   if (req.body.photos) {
+    const pushIfSafe = (candidate: unknown) => {
+      if (typeof candidate === 'string' && isAllowedPhotoReference(candidate)) {
+        photoUrls.push(candidate.trim());
+      }
+    };
     if (Array.isArray(req.body.photos)) {
-      photoUrls.push(...req.body.photos.filter((p: any) => typeof p === 'string'));
+      req.body.photos.forEach(pushIfSafe);
     } else if (typeof req.body.photos === 'string') {
       try {
-        const parsed = JSON.parse(req.body.photos);
+        const parsed: unknown = JSON.parse(req.body.photos);
         if (Array.isArray(parsed)) {
-          photoUrls.push(...parsed.filter((p: any) => typeof p === 'string'));
+          parsed.forEach(pushIfSafe);
         } else {
-          photoUrls.push(req.body.photos);
+          pushIfSafe(req.body.photos);
         }
       } catch {
-        photoUrls.push(req.body.photos);
+        pushIfSafe(req.body.photos);
       }
     }
   }
@@ -60,7 +97,7 @@ export async function createReview(
     }
 
     const comment = typeof req.body.comment === 'string' ? req.body.comment : '';
-    const photos = extractUploadedPhotoUrls(req);
+    const photos = await extractUploadedPhotoUrls(req);
 
     const review = await reviewService.createReview({
       bookingId,
@@ -76,6 +113,7 @@ export async function createReview(
       data: review,
     });
   } catch (error) {
+    await cleanupUploadedReviewFiles(req);
     next(error);
   }
 }
@@ -110,27 +148,49 @@ export async function updateReview(
     // Handle existing photos to keep
     let existingPhotos: string[] | undefined;
     if (req.body.existingPhotos !== undefined) {
+      const keepSafe = (items: unknown[]) =>
+        items
+          .filter((p: unknown): p is string => typeof p === 'string' && isAllowedPhotoReference(p))
+          .map((p) => p.trim());
+
       if (Array.isArray(req.body.existingPhotos)) {
-        existingPhotos = req.body.existingPhotos.filter((p: any) => typeof p === 'string');
+        existingPhotos = keepSafe(req.body.existingPhotos);
       } else if (typeof req.body.existingPhotos === 'string') {
         try {
-          const parsed = JSON.parse(req.body.existingPhotos);
+          const parsed: unknown = JSON.parse(req.body.existingPhotos);
           if (Array.isArray(parsed)) {
-            existingPhotos = parsed.filter((p: any) => typeof p === 'string');
+            existingPhotos = keepSafe(parsed);
           } else {
-            existingPhotos = [req.body.existingPhotos];
+            existingPhotos = keepSafe([req.body.existingPhotos]);
           }
         } catch {
-          existingPhotos = [req.body.existingPhotos];
+          existingPhotos = keepSafe([req.body.existingPhotos]);
         }
       }
     }
 
-    // New uploaded files
+    // Validate & extract new uploaded files
     const newPhotos: string[] = [];
     if (req.files && Array.isArray(req.files)) {
       for (const f of req.files as Express.Multer.File[]) {
-        newPhotos.push(`/uploads/${f.filename}`);
+        const validMagic = await validateImageMagicBytes(f.path);
+        if (!validMagic) {
+          throw new AppError(400, 'Tệp ảnh đánh giá tải lên không hợp lệ hoặc bị hỏng.');
+        }
+
+        let resolvedUrl = `/uploads/${f.filename}`;
+        if (isCloudinaryConfigured()) {
+          try {
+            const uploaded = await uploadFileToCloudinary(f.path, {
+              folder: 'motorent/reviews',
+              type: 'upload',
+            });
+            resolvedUrl = uploaded.secureUrl;
+          } catch {
+            // Keep local /uploads fallback when Cloudinary is unreachable
+          }
+        }
+        newPhotos.push(resolvedUrl);
       }
     }
 
@@ -149,6 +209,7 @@ export async function updateReview(
       data: updated,
     });
   } catch (error) {
+    await cleanupUploadedReviewFiles(req);
     next(error);
   }
 }

@@ -17,6 +17,7 @@ import {
   PlayCircle,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
 import type { Discount } from '../types';
 
 interface DiscountFormData {
@@ -64,7 +65,7 @@ export const DiscountsManager: React.FC = () => {
   const fetchDiscounts = async () => {
     setLoading(true);
     try {
-      const params: Record<string, any> = {};
+      const params: Record<string, string> = {};
       if (activeFilter === 'active') params.activeOnly = 'true';
       if (search.trim()) params.search = search.trim();
 
@@ -72,8 +73,8 @@ export const DiscountsManager: React.FC = () => {
       if (res.data?.success) {
         setDiscounts(res.data.data);
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể tải danh sách mã giảm giá.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể tải danh sách mã giảm giá.'));
     } finally {
       setLoading(false);
     }
@@ -164,8 +165,8 @@ export const DiscountsManager: React.FC = () => {
           fetchDiscounts();
         }
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Có lỗi xảy ra khi lưu mã giảm giá.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Có lỗi xảy ra khi lưu mã giảm giá.'));
     } finally {
       setSubmitting(false);
     }
@@ -181,8 +182,8 @@ export const DiscountsManager: React.FC = () => {
         showToast('success', res.data.message || 'Đã xóa mã giảm giá.');
         fetchDiscounts();
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể xóa mã giảm giá.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể xóa mã giảm giá.'));
     }
   };
 
@@ -194,8 +195,8 @@ export const DiscountsManager: React.FC = () => {
         showToast('success', `Đã ${!d.isActive ? 'kích hoạt' : 'tạm dừng'} mã ${d.code}.`);
         fetchDiscounts();
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể thay đổi trạng thái.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể thay đổi trạng thái.'));
     }
   };
 
@@ -262,7 +263,7 @@ export const DiscountsManager: React.FC = () => {
           <div className="flex items-center gap-2">
             <select
               value={activeFilter}
-              onChange={(e) => setActiveFilter(e.target.value as any)}
+              onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active')}
               className="bg-[#101010] border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:border-[#FFC799] focus:outline-none"
             >
               <option value="all">Tất cả chương trình</option>

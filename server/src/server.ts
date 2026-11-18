@@ -3,11 +3,13 @@ import http from 'http';
 import { Server as SocketIOServer, Namespace, Socket } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
+import mongoose from 'mongoose';
 
 import jwt from 'jsonwebtoken';
 import { env } from './config/env';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './core/errorHandler';
+import { autoCrudAuditMiddleware } from './core/auditMiddleware';
 import {
   helmetSecurityMiddleware,
   apiRateLimiter,
@@ -102,18 +104,18 @@ app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 app.use('/api', apiRouter);
 
 // Direct root route aliases for CMS Banners (UC-116, UC-117, UC-118)
-app.use('/admin/banners', adminBannerRouter);
+app.use('/admin/banners', autoCrudAuditMiddleware, adminBannerRouter);
 app.use('/banners', publicBannerRouter);
 
 // Direct root route aliases for CMS Static Pages (UC-119)
-app.use('/admin/pages', adminPageRouter);
+app.use('/admin/pages', autoCrudAuditMiddleware, adminPageRouter);
 app.use('/pages', publicPageRouter);
 
 // Direct root route aliases for Complaints (UC-42, UC-43, UC-65, UC-85)
-app.use('/me/complaints', customerComplaintRouter);
-app.use('/complaints', complaintRouter);
-app.use('/manager/complaints', managerComplaintRouter);
-app.use('/staff/complaints', staffComplaintRouter);
+app.use('/me/complaints', autoCrudAuditMiddleware, customerComplaintRouter);
+app.use('/complaints', autoCrudAuditMiddleware, complaintRouter);
+app.use('/manager/complaints', autoCrudAuditMiddleware, managerComplaintRouter);
+app.use('/staff/complaints', autoCrudAuditMiddleware, staffComplaintRouter);
 
 // Reusable Socket.IO JWT Authentication Middleware
 const socketAuthMiddleware = async (socket: Socket, next: (err?: Error) => void) => {
@@ -178,7 +180,14 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       if (['Staff', 'BranchManager'].includes(user.roles) && user.branchId) {
         socket.join(`staff:branch:${user.branchId.toString()}`);
       } else if (user.roles === 'SystemAdmin') {
-        if (branchId) socket.join(`staff:branch:${branchId}`);
+        for (const room of socket.rooms) {
+          if (room.startsWith('staff:branch:')) {
+            socket.leave(room);
+          }
+        }
+        if (branchId && mongoose.isValidObjectId(branchId)) {
+          socket.join(`staff:branch:${branchId}`);
+        }
         socket.join('admin');
         socket.join('role:SystemAdmin');
       }
@@ -292,17 +301,42 @@ const attachSocketHandlers = (nsp: SocketIOServer | Namespace) => {
       }
     );
 
-    socket.on('chat:typing', (data: { conversationId: string; isTyping: boolean }) => {
-      if (!user || !data?.conversationId) return;
-      const payload = {
-        conversationId: data.conversationId,
-        userId: user._id.toString(),
-        username: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
-        role: user.roles,
-        isTyping: Boolean(data.isTyping),
-      };
-      socket.to(`conversation:${data.conversationId}`).emit('chat:typing', payload);
-      socket.to('staff:console').emit('chat:typing', payload);
+    socket.on('chat:typing', async (data: { conversationId: string; isTyping: boolean }) => {
+      if (!user || !data?.conversationId || !mongoose.isValidObjectId(data.conversationId)) return;
+      try {
+        const conversation = await Conversation.findById(data.conversationId)
+          .select('customerId branchId')
+          .lean();
+        if (!conversation) return;
+
+        const isCustomerOwner = conversation.customerId.toString() === user._id.toString();
+        const isSameBranchStaff =
+          ['Staff', 'BranchManager'].includes(user.roles) &&
+          Boolean(
+            user.branchId &&
+              conversation.branchId &&
+              conversation.branchId.toString() === user.branchId.toString()
+          );
+
+        if (!isCustomerOwner && !isSameBranchStaff && user.roles !== 'SystemAdmin') {
+          return;
+        }
+
+        const payload = {
+          conversationId: data.conversationId,
+          userId: user._id.toString(),
+          username: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username,
+          role: user.roles,
+          isTyping: Boolean(data.isTyping),
+        };
+        socket.to(`conversation:${data.conversationId}`).emit('chat:typing', payload);
+        if (conversation.branchId) {
+          socket.to(`staff:branch:${conversation.branchId.toString()}`).emit('chat:typing', payload);
+        }
+        socket.to('admin').emit('chat:typing', payload);
+      } catch {
+        // Ignore transient typing broadcast error
+      }
     });
 
     socket.on('chat:read', async (data: { conversationId: string }) => {

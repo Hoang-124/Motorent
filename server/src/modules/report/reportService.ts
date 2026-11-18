@@ -26,11 +26,23 @@ const formatCurrencyVN = (amount: number): string => {
   return `${(amount || 0).toLocaleString('vi-VN')} đ`;
 };
 
-const paymentBelongsToBranch = (payment: any, branchId?: string): boolean => {
+interface PopulatedBookingRef {
+  bookingCode?: string;
+  pickupBranchId?: { _id?: unknown } | string;
+}
+
+const extractRefId = (val: unknown): string => {
+  if (val && typeof val === 'object' && '_id' in val) {
+    return String((val as { _id?: unknown })._id || '');
+  }
+  return val ? String(val) : '';
+};
+
+const paymentBelongsToBranch = (payment: { bookingId?: unknown }, branchId?: string): boolean => {
   if (!branchId || !mongoose.isValidObjectId(branchId)) return true;
-  const booking = payment.bookingId;
-  const pickupBranchId = booking?.pickupBranchId?._id || booking?.pickupBranchId;
-  return String(pickupBranchId || '') === branchId;
+  const booking = payment.bookingId as PopulatedBookingRef | null | undefined;
+  const pickupBranchId = extractRefId(booking?.pickupBranchId);
+  return pickupBranchId === branchId;
 };
 
 const paymentDirection = (type: string): 'IN' | 'OUT' => (type === 'REFUND' ? 'OUT' : 'IN');
@@ -61,7 +73,7 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
     endOfDay.setHours(23, 59, 59, 999);
   }
 
-  const branchFilter: Record<string, any> = {};
+  const branchFilter: Record<string, unknown> = {};
   if (branchId && mongoose.isValidObjectId(branchId)) {
     branchFilter.pickupBranchId = new mongoose.Types.ObjectId(branchId);
   }
@@ -151,7 +163,7 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
       cancelledCount,
     },
     transactions: paymentsToday.map((payment) => {
-      const booking = payment.bookingId as any;
+      const booking = payment.bookingId as unknown as PopulatedBookingRef | null;
       return {
         txnRef: payment.txnRef,
         bookingCode: booking?.bookingCode || 'Không rõ đơn',
@@ -167,24 +179,30 @@ export const getDailyRevenue = async (branchId?: string, dateStr?: string) => {
       vnpay: onlineDepositRevenue,
       counter: counterSettlementRevenue,
     },
-    bookings: bookingsToday.map((b) => ({
-      _id: b._id,
-      bookingCode: b.bookingCode,
-      customerName: (b.userId as any)?.firstName
-        ? `${(b.userId as any).firstName} ${(b.userId as any).lastName}`
-        : 'Khách vãng lai',
-      customerPhone: (b.userId as any)?.phoneNumber || '---',
-      vehicleModel: (b.vehicleId as any)?.vehicleModel || 'Xe máy',
-      licensePlate: (b.vehicleId as any)?.licensePlate || '---',
-      totalAmount: b.totalAmount,
-      paidAmount: b.paidAmount,
-      status: b.status,
-      paymentMethod: b.paymentMethod,
-      pickupTime: b.pickupDateTime,
-      returnTime: b.returnDateTime,
-      damageFee: b.damageFee || 0,
-      lateFee: b.lateFee || 0,
-    })),
+    bookings: bookingsToday.map((b) => {
+      const u = typeof b.userId === 'object' && b.userId !== null
+        ? (b.userId as unknown as { firstName?: string; lastName?: string; phoneNumber?: string })
+        : undefined;
+      const v = typeof b.vehicleId === 'object' && b.vehicleId !== null
+        ? (b.vehicleId as unknown as { vehicleModel?: string; licensePlate?: string })
+        : undefined;
+      return {
+        _id: b._id,
+        bookingCode: b.bookingCode,
+        customerName: u?.firstName ? `${u.firstName} ${u.lastName || ''}`.trim() : 'Khách vãng lai',
+        customerPhone: u?.phoneNumber || '---',
+        vehicleModel: v?.vehicleModel || 'Xe máy',
+        licensePlate: v?.licensePlate || '---',
+        totalAmount: b.totalAmount,
+        paidAmount: b.paidAmount,
+        status: b.status,
+        paymentMethod: b.paymentMethod,
+        pickupTime: b.pickupDateTime,
+        returnTime: b.returnDateTime,
+        damageFee: b.damageFee || 0,
+        lateFee: b.lateFee || 0,
+      };
+    }),
   };
 };
 
@@ -206,7 +224,7 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
   const startOfPrevMonth = new Date(prevYear, prevMonth - 1, 1, 0, 0, 0, 0);
   const endOfPrevMonth = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999);
 
-  const branchFilter: Record<string, any> = {};
+  const branchFilter: Record<string, unknown> = {};
   if (branchId && mongoose.isValidObjectId(branchId)) {
     branchFilter.pickupBranchId = new mongoose.Types.ObjectId(branchId);
   }
@@ -285,7 +303,7 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
   }
 
   const transactions = currentPayments.map((payment) => {
-    const booking = payment.bookingId as any;
+    const booking = payment.bookingId as unknown as PopulatedBookingRef | null;
     return {
       txnRef: payment.txnRef,
       bookingCode: booking?.bookingCode || 'Không rõ đơn',
@@ -321,7 +339,10 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
   // Category breakdown
   const categoryCounts: Record<string, { name: string; revenue: number; bookingsCount: number }> = {};
   for (const b of currentMonthBookings) {
-    const cat = (b.vehicleId as any)?.category || 'Khác';
+    const vObj = typeof b.vehicleId === 'object' && b.vehicleId !== null
+      ? (b.vehicleId as unknown as { category?: { name?: string } | string })
+      : undefined;
+    const cat = vObj?.category || 'Khác';
     const catName = typeof cat === 'object' && cat.name ? cat.name : String(cat);
     if (!categoryCounts[catName]) {
       categoryCounts[catName] = { name: catName, revenue: 0, bookingsCount: 0 };
@@ -359,7 +380,7 @@ export const getMonthlyRevenue = async (branchId?: string, monthParam?: number, 
  * UC-90, UC-91, UC-92: Fleet Utilization & Statistics Report
  */
 export const getFleetStats = async (branchId?: string) => {
-  const vehicleFilter: Record<string, any> = { isDeleted: false };
+  const vehicleFilter: Record<string, unknown> = { isDeleted: false };
   if (branchId && mongoose.isValidObjectId(branchId)) {
     vehicleFilter.branchId = new mongoose.Types.ObjectId(branchId);
   }
@@ -399,7 +420,7 @@ export const getFleetStats = async (branchId?: string) => {
   // Maintenance log costs this month
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const maintenanceQuery: Record<string, any> = { createdAt: { $gte: startOfMonth } };
+  const maintenanceQuery: Record<string, unknown> = { createdAt: { $gte: startOfMonth } };
   if (branchId && mongoose.isValidObjectId(branchId)) {
     maintenanceQuery.branchId = new mongoose.Types.ObjectId(branchId);
   }
@@ -470,8 +491,20 @@ export const getChainRevenue = async (period: string = 'this_month') => {
     0
   );
 
+  interface BranchKpiEntry {
+    branchId: mongoose.Types.ObjectId;
+    branchName: string;
+    branchCode: string;
+    address: string;
+    revenue: number;
+    bookingsCount: number;
+    activeVehicles: number;
+    utilizationRate: number;
+    contributionPercent: number;
+  }
+
   // Per branch breakdown
-  const branchMap: Record<string, any> = {};
+  const branchMap: Record<string, BranchKpiEntry> = {};
   for (const br of branches) {
     const bId = String(br._id);
     branchMap[bId] = {
@@ -488,7 +521,7 @@ export const getChainRevenue = async (period: string = 'this_month') => {
   }
 
   for (const b of allBookings) {
-    const brId = b.pickupBranchId ? String((b.pickupBranchId as any)._id || b.pickupBranchId) : null;
+    const brId = b.pickupBranchId ? extractRefId(b.pickupBranchId) : null;
     if (brId && branchMap[brId]) {
       const rev = (b.totalAmount || 0) + (b.lateFee || 0) + (b.damageFee || 0);
       branchMap[brId].revenue += rev;
@@ -525,7 +558,7 @@ export const getBranchComparison = async (period: string = 'this_month') => {
   const chainData = await getChainRevenue(period);
   const branches = chainData.branchBreakdown;
 
-  const comparison = branches.map((b: any) => ({
+  const comparison = branches.map((b) => ({
     branchId: b.branchId,
     branchName: b.branchName,
     branchCode: b.branchCode,
@@ -555,7 +588,7 @@ export const getBranchComparison = async (period: string = 'this_month') => {
  * UC-105: Executive KPI Dashboard (Trends, Top Vehicles, Funnel)
  */
 export const getKpiDashboard = async (branchId?: string) => {
-  const branchFilter: Record<string, any> = {};
+  const branchFilter: Record<string, unknown> = {};
   if (branchId && mongoose.isValidObjectId(branchId)) {
     branchFilter.pickupBranchId = new mongoose.Types.ObjectId(branchId);
   }
@@ -657,7 +690,7 @@ export const getDemandForecast = async (branchId?: string) => {
   const now = new Date();
   const past30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const query: Record<string, any> = {
+  const query: Record<string, unknown> = {
     createdAt: { $gte: past30Days },
     status: { $nin: ['Cancelled', 'Rejected'] },
   };

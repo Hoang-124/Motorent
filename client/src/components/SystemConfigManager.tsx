@@ -16,6 +16,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
 import type { SystemConfig } from '../types';
 
 export const SystemConfigManager: React.FC = () => {
@@ -26,8 +27,8 @@ export const SystemConfigManager: React.FC = () => {
 
   // Form Fields
   const [depositPercent, setDepositPercent] = useState<number>(30);
-  const [cancelFreeHours, setCancelFreeHours] = useState<number>(24);
-  const [cancelPartialRefundPercent, setCancelPartialRefundPercent] = useState<number>(50);
+  const [cancelFreeHours, setCancelFreeHours] = useState<number>(0);
+  const [cancelPartialRefundPercent, setCancelPartialRefundPercent] = useState<number>(0);
   const [lateFeePerHour, setLateFeePerHour] = useState<number>(30000);
   const [loyaltySpendPerPoint, setLoyaltySpendPerPoint] = useState<number>(10000);
   const [loyaltyPointValueVnd, setLoyaltyPointValueVnd] = useState<number>(1000);
@@ -57,8 +58,8 @@ export const SystemConfigManager: React.FC = () => {
         setSupportHotline(c.supportHotline || '1900 6868');
         setSupportEmail(c.supportEmail || 'support@motorent.vn');
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể tải cấu hình hệ thống.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể tải cấu hình hệ thống.'));
     } finally {
       setLoading(false);
     }
@@ -89,8 +90,8 @@ export const SystemConfigManager: React.FC = () => {
         setConfig(res.data.data);
         showToast('success', res.data.message || 'Cập nhật cấu hình toàn hệ thống thành công.');
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể lưu cấu hình hệ thống.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể lưu cấu hình hệ thống.'));
     } finally {
       setSaving(false);
     }
@@ -184,13 +185,13 @@ export const SystemConfigManager: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                Thời gian hủy miễn phí (Giờ) <span className="text-rose-400">*</span>
+                Khung giờ đối chiếu hủy đơn (Giờ) <span className="text-rose-400">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   required
-                  min={1}
+                  min={0}
                   value={cancelFreeHours}
                   onChange={(e) => setCancelFreeHours(Number(e.target.value))}
                   className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-sm font-bold text-white focus:border-[#FFC799] focus:outline-none"
@@ -198,13 +199,13 @@ export const SystemConfigManager: React.FC = () => {
                 <span className="text-xs text-[#A0A0A0] font-semibold">Giờ</span>
               </div>
               <p className="text-[11px] text-[#707070] mt-1">
-                Quy chuẩn hệ thống: Áp dụng chính sách KHÔNG HOÀN TIỀN (cọc giữ xe) theo điều khoản hợp đồng.
+                Quy chuẩn hợp đồng hiện hành: Áp dụng chính sách KHÔNG HOÀN TIỀN khi khách tự hủy đơn hoặc trả xe sớm.
               </p>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-[#A0A0A0] mb-1">
-                Tỷ lệ hoàn khi hủy sát giờ (%) <span className="text-rose-400">*</span>
+                Tỷ lệ hoàn tiền khi khách tự hủy (%) <span className="text-rose-400">*</span>
               </label>
               <div className="flex items-center gap-2">
                 <input
@@ -219,7 +220,7 @@ export const SystemConfigManager: React.FC = () => {
                 <span className="text-xs text-[#A0A0A0] font-semibold">% cọc</span>
               </div>
               <p className="text-[11px] text-[#707070] mt-1">
-                Nếu hủy trong vòng dưới {cancelFreeHours}h, khách nhận lại {cancelPartialRefundPercent}% cọc.
+                Đặt mặc định 0% theo điều khoản KHÔNG HOÀN TIỀN (chỉ hoàn 100% khi chi nhánh chủ động từ chối đơn).
               </p>
             </div>
 

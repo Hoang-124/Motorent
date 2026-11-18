@@ -44,6 +44,7 @@ export const VnPayReturnPage: React.FC = () => {
   const [responseCode, setResponseCode] = useState<string>('');
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [isFullPayment, setIsFullPayment] = useState<boolean>(false);
+  const [bookingStatus, setBookingStatus] = useState<string>('');
   const [retryVehicleId, setRetryVehicleId] = useState<string>('');
   const [pickupBranchName, setPickupBranchName] = useState<string>('');
   const [returnBranchName, setReturnBranchName] = useState<string>('');
@@ -104,6 +105,9 @@ export const VnPayReturnPage: React.FC = () => {
         }
         if (Array.isArray(bookingsList) && bookingsList.length > 0) {
           setBatchBookings(bookingsList);
+        }
+        if (bookingData?.status) {
+          setBookingStatus(String(bookingData.status));
         }
         if (bookingData?.vehicleId) {
           const vId =
@@ -306,6 +310,15 @@ export const VnPayReturnPage: React.FC = () => {
                     quầy <strong className="text-white">{pickupBranchName || 'chi nhánh đã chọn'}</strong> khi đến giờ nhận xe để đối soát và thanh toán 70% còn lại.
                   </>
                 )
+              ) : responseCode === '00' ? (
+                <>
+                  Đơn giữ chỗ <span className="text-[#FF8080] font-mono font-bold">{bookingCode}</span> đã hết thời hạn trước khi cổng thanh toán phản hồi. Theo điều khoản hợp đồng áp dụng chính sách <strong className="text-white">KHÔNG HOÀN TIỀN</strong>; vui lòng liên hệ Tổng đài 1900 6868 để được đối soát giao dịch.
+                </>
+              ) : bookingStatus === 'Confirmed' || bookingStatus === 'Ongoing' ? (
+                <>
+                  Giao dịch thanh toán bổ sung chưa hoàn tất. Hợp đồng thuê xe{' '}
+                  <span className="text-[#FFC799] font-mono font-bold">{bookingCode}</span> của bạn vẫn đang có hiệu lực bình thường; bạn có thể thực hiện thanh toán lại trong mục Quản lý đơn thuê xe.
+                </>
               ) : (
                 <>
                   Giao dịch chưa bị trừ tiền và đơn giữ chỗ tạm thời{' '}

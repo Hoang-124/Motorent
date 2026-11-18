@@ -4,6 +4,19 @@ import mongoose from 'mongoose';
 import { User, Branch, AuditLog } from '../../models';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
 
+const escapeRegex = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const sanitizeStaffUser = (doc: mongoose.Document | Record<string, unknown>): Record<string, unknown> => {
+  const plain: Record<string, unknown> =
+    typeof (doc as mongoose.Document).toObject === 'function'
+      ? ((doc as mongoose.Document).toObject() as unknown as Record<string, unknown>)
+      : { ...(doc as Record<string, unknown>) };
+  delete plain.passwordHash;
+  delete plain.emailVerificationToken;
+  delete plain.resetPasswordToken;
+  return plain;
+};
+
 /**
  * Get staff list (UC-81 context)
  * SystemAdmin can see all or filter by branch; BranchManager can only see staff in their assigned branch
@@ -13,7 +26,7 @@ export const getStaff = async (req: AuthenticatedRequest, res: Response, next: N
     const userRole = req.user?.roles;
     const managerBranchId = req.user?.branchId;
 
-    const query: Record<string, any> = { roles: 'Staff' };
+    const query: Record<string, unknown> = { roles: 'Staff' };
 
     if (userRole === 'BranchManager') {
       if (!managerBranchId) {
@@ -31,18 +44,21 @@ export const getStaff = async (req: AuthenticatedRequest, res: Response, next: N
 
     if (req.query.search) {
       const searchStr = String(req.query.search).trim();
-      query.$or = [
-        { username: { $regex: searchStr, $options: 'i' } },
-        { email: { $regex: searchStr, $options: 'i' } },
-        { phoneNumber: { $regex: searchStr, $options: 'i' } },
-        { firstName: { $regex: searchStr, $options: 'i' } },
-        { lastName: { $regex: searchStr, $options: 'i' } },
-      ];
+      if (searchStr) {
+        const safeRegex = escapeRegex(searchStr);
+        query.$or = [
+          { username: { $regex: safeRegex, $options: 'i' } },
+          { email: { $regex: safeRegex, $options: 'i' } },
+          { phoneNumber: { $regex: safeRegex, $options: 'i' } },
+          { firstName: { $regex: safeRegex, $options: 'i' } },
+          { lastName: { $regex: safeRegex, $options: 'i' } },
+        ];
+      }
     }
 
     const staffList = await User.find(query)
       .populate('branchId', 'name code address')
-      .select('-passwordHash')
+      .select('-passwordHash -emailVerificationToken -resetPasswordToken')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -64,7 +80,7 @@ export const createStaff = async (req: AuthenticatedRequest, res: Response, next
     const { username, email, password, firstName, lastName, phoneNumber, branchId: reqBranchId } = req.body;
 
     const userRole = req.user?.roles;
-    let targetBranchId: any = reqBranchId;
+    let targetBranchId: unknown = reqBranchId;
 
     if (userRole === 'BranchManager') {
       targetBranchId = req.user?.branchId;
@@ -197,7 +213,7 @@ export const updateStaff = async (req: AuthenticatedRequest, res: Response, next
     res.json({
       success: true,
       message: 'Cập nhật thông tin nhân viên thành công.',
-      data: staff,
+      data: sanitizeStaffUser(staff),
     });
   } catch (error) {
     next(error);
@@ -245,7 +261,7 @@ export const deactivateStaff = async (req: AuthenticatedRequest, res: Response, 
     res.json({
       success: true,
       message: 'Đã tạm khóa tài khoản nhân viên thành công.',
-      data: staff,
+      data: sanitizeStaffUser(staff),
     });
   } catch (error) {
     next(error);
@@ -274,6 +290,7 @@ export const activateStaff = async (req: AuthenticatedRequest, res: Response, ne
 
     staff.status = 'Active';
     staff.failedLoginAttempts = 0;
+    staff.lockUntil = undefined;
     await staff.save();
 
     await AuditLog.create({
@@ -288,7 +305,7 @@ export const activateStaff = async (req: AuthenticatedRequest, res: Response, ne
     res.json({
       success: true,
       message: 'Đã kích hoạt lại tài khoản nhân viên thành công.',
-      data: staff,
+      data: sanitizeStaffUser(staff),
     });
   } catch (error) {
     next(error);

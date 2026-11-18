@@ -24,6 +24,8 @@ import {
   Info
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
+import { getBannerImageUrl } from '../utils/imageHelper';
 import { useAuth } from '../context/AuthContext';
 import type { Complaint, ComplaintStatus, Booking } from '../types';
 
@@ -285,8 +287,8 @@ export const ComplaintsPage: React.FC = () => {
         }
         fetchComplaints();
       }
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Không thể gửi khiếu nại. Vui lòng kiểm tra lại.';
+    } catch (err: unknown) {
+      const msg = extractApiError(err, 'Không thể gửi khiếu nại. Vui lòng kiểm tra lại.');
       setFormError(msg);
     } finally {
       setIsSubmitting(false);
@@ -689,11 +691,12 @@ export const ComplaintsPage: React.FC = () => {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
                           {selectedDetail.attachments.map((fileUrl, index) => {
-                            const isPdf = fileUrl.toLowerCase().endsWith('.pdf');
+                            const resolvedUrl = getBannerImageUrl(fileUrl);
+                            const isPdf = /\.pdf(\?|$)/i.test(fileUrl);
                             return (
                               <a
                                 key={index}
-                                href={fileUrl}
+                                href={resolvedUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="group block p-2 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-orange-500/50 transition overflow-hidden"
@@ -701,12 +704,12 @@ export const ComplaintsPage: React.FC = () => {
                                 {isPdf ? (
                                   <div className="h-24 flex flex-col items-center justify-center gap-1 text-zinc-400 group-hover:text-orange-400">
                                     <FileText className="w-8 h-8" />
-                                    <span className="text-[11px]">Tệp PDF</span>
+                                    <span className="text-[11px] font-medium">Tệp PDF</span>
                                   </div>
                                 ) : (
                                   <div className="h-24 rounded-lg overflow-hidden bg-black flex items-center justify-center">
                                     <img
-                                      src={fileUrl}
+                                      src={resolvedUrl}
                                       alt={`Đính kèm ${index + 1}`}
                                       className="w-full h-full object-cover group-hover:scale-105 transition"
                                     />

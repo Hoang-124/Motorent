@@ -32,7 +32,7 @@ import type {
   ComplaintTimelineItem,
 } from '../types';
 import * as complaintService from '../services/complaintService';
-import { getUserAvatarUrl } from '../utils/imageHelper';
+import { getBannerImageUrl, getUserAvatarUrl } from '../utils/imageHelper';
 
 export const StaffComplaintDesk: React.FC = () => {
   const { user } = useAuth();
@@ -756,18 +756,22 @@ export const StaffComplaintDesk: React.FC = () => {
                         Tệp đính kèm ({selectedComplaint.attachments.length}):
                       </span>
                       <div className="flex flex-wrap gap-2">
-                        {selectedComplaint.attachments.map((url, i) => (
-                          <a
-                            key={i}
-                            href={url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-amber-300 border border-slate-700 transition-colors"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>Tệp #{i + 1}</span>
-                          </a>
-                        ))}
+                        {selectedComplaint.attachments.map((url, i) => {
+                          const resolvedUrl = getBannerImageUrl(url);
+                          const isPdf = /\.pdf(\?|$)/i.test(url);
+                          return (
+                            <a
+                              key={i}
+                              href={resolvedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs text-amber-300 border border-slate-700 transition-colors"
+                            >
+                              {isPdf ? <FileText className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
+                              <span>{isPdf ? `Tệp PDF #${i + 1}` : `Ảnh đính kèm #${i + 1}`}</span>
+                            </a>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

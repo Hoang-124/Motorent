@@ -42,15 +42,15 @@ interface Maintenance {
 }
 interface Pagination { page: number; limit: number; total: number; totalPages: number }
 interface MaintenanceSummary { totalCost: number; completedCount: number; pendingEstimatedCost: number; pendingCount: number }
-interface TransferSummary { pending: number; completedCount: number; rejectedCount: number }
+interface TransferSummary { pending: number; inTransitCount: number; completedCount: number; rejectedCount: number }
 interface ListResponse<T, S> { success: boolean; data: T[]; pagination: Pagination; summary: S }
 interface Notice { type: 'success' | 'error'; text: string }
 
 const emptyPage: Pagination = { page: 1, limit: 8, total: 0, totalPages: 0 };
 const emptySummary: MaintenanceSummary = { totalCost: 0, completedCount: 0, pendingEstimatedCost: 0, pendingCount: 0 };
-const emptyTransferSummary: TransferSummary = { pending: 0, completedCount: 0, rejectedCount: 0 };
+const emptyTransferSummary: TransferSummary = { pending: 0, inTransitCount: 0, completedCount: 0, rejectedCount: 0 };
 const maintenanceLabels: Record<MaintenanceStatus, string> = { Scheduled: 'Đã lên lịch', InProgress: 'Đang thực hiện', Completed: 'Hoàn tất' };
-const transferLabels: Record<TransferStatus, string> = { Pending: 'Chờ phê duyệt', Approved: 'Đã điều chuyển', InTransit: 'Đang vận chuyển', Completed: 'Hoàn tất', Rejected: 'Đã từ chối' };
+const transferLabels: Record<TransferStatus, string> = { Pending: 'Chờ phê duyệt', Approved: 'Đã duyệt xuất kho', InTransit: 'Đang vận chuyển', Completed: 'Hoàn tất bàn giao', Rejected: 'Đã từ chối' };
 
 const idOf = (value?: string | { _id: string }): string => typeof value === 'string' ? value : value?._id ?? '';
 const branchName = (value: string | Branch): string => typeof value === 'string' ? value : value.name;
@@ -183,6 +183,7 @@ export function FleetOperationsPage() {
       setTransferPage(response.data.pagination);
       setTransferSummary({
         pending: response.data.summary?.pending ?? 0,
+        inTransitCount: response.data.summary?.inTransitCount ?? 0,
         completedCount: response.data.summary?.completedCount ?? 0,
         rejectedCount: response.data.summary?.rejectedCount ?? 0,
       });
@@ -226,7 +227,7 @@ export function FleetOperationsPage() {
     <div className="mb-8 grid gap-3 sm:grid-cols-3">
       {[{ label: 'Xe cần bảo trì', value: alertPage.total, detail: 'Chu kỳ ODO 1.500 km', icon: 'alert' as const },
         { label: 'Phiếu bảo trì chưa hoàn tất', value: summary.pendingCount, detail: `Hoàn tất: ${summary.completedCount} phiếu · ${money(summary.totalCost)}`, icon: 'maintenance' as const },
-        { label: 'Lệnh & Nhật ký điều chuyển', value: transferSummary.pending + transferSummary.completedCount + transferSummary.rejectedCount, detail: `${transferSummary.pending} chờ duyệt · ${transferSummary.completedCount} đã chuyển · ${transferSummary.rejectedCount} từ chối`, icon: 'transfer' as const }].map((item) =>
+        { label: 'Lệnh & Nhật ký điều chuyển', value: transferSummary.pending + transferSummary.inTransitCount + transferSummary.completedCount + transferSummary.rejectedCount, detail: `${transferSummary.pending} chờ duyệt · ${transferSummary.inTransitCount} đang chuyển · ${transferSummary.completedCount} hoàn tất · ${transferSummary.rejectedCount} từ chối`, icon: 'transfer' as const }].map((item) =>
         <div key={item.label} className="min-w-0 rounded-2xl border border-white/10 bg-[#161616] p-5"><div className="flex justify-between gap-3 text-[#A0A0A0]"><span className="text-xs leading-relaxed">{item.label}</span><span className="shrink-0 text-[#FFC799]"><Icon kind={item.icon} /></span></div>
           <p className="my-3 text-3xl font-semibold tabular-nums">{item.value}</p><p className="text-xs leading-relaxed text-[#A0A0A0]">{item.detail}</p></div>)}
     </div>
@@ -252,6 +253,7 @@ export function FleetOperationsPage() {
       <button role="tab" aria-selected={tab === 'transfers'} onClick={() => setTab('transfers')} className={`flex min-h-12 items-center gap-2 border-b-2 pb-3 text-left text-xs font-semibold sm:text-sm ${tab === 'transfers' ? 'border-[#FFC799] text-[#FFC799]' : 'border-transparent text-[#A0A0A0]'}`}>
         <span>02. Điều chuyển &amp; Nhật ký điều chuyển</span>
         {transferSummary.pending > 0 && <span className="rounded-full bg-[#FFC799]/15 px-2 py-0.5 text-[10px] font-bold text-[#FFC799]">{transferSummary.pending} chờ duyệt</span>}
+        {transferSummary.inTransitCount > 0 && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-[#F5F5F5]">{transferSummary.inTransitCount} đang chuyển</span>}
         <span className="rounded-full bg-[#99FFE4]/15 px-2 py-0.5 text-[10px] font-bold text-[#99FFE4]">{transferSummary.completedCount} hoàn tất</span>
       </button>
     </div>
@@ -372,7 +374,7 @@ export function FleetOperationsPage() {
                   : 'text-[#A0A0A0] hover:text-white'
               }`}
             >
-              Tất cả nhật ký ({transferSummary.pending + transferSummary.completedCount + transferSummary.rejectedCount})
+              Tất cả nhật ký ({transferSummary.pending + transferSummary.inTransitCount + transferSummary.completedCount + transferSummary.rejectedCount})
             </button>
             <button
               type="button"
@@ -392,17 +394,32 @@ export function FleetOperationsPage() {
             <button
               type="button"
               onClick={() => {
-                setTransferSubView('history');
-                setTransferStatus('Approved');
+                setTransferSubView('active');
+                setTransferStatus('InTransit');
                 setTransferPage(emptyPage);
               }}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                transferStatus === 'Approved'
+                transferStatus === 'InTransit'
+                  ? 'bg-[#F5F5F5] text-[#101010]'
+                  : 'text-[#A0A0A0] hover:text-white'
+              }`}
+            >
+              Đang vận chuyển ({transferSummary.inTransitCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTransferSubView('history');
+                setTransferStatus('Completed');
+                setTransferPage(emptyPage);
+              }}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                transferStatus === 'Completed'
                   ? 'bg-[#99FFE4] text-[#101010]'
                   : 'text-[#A0A0A0] hover:text-white'
               }`}
             >
-              Đã điều chuyển ({transferSummary.completedCount})
+              Hoàn tất bàn giao ({transferSummary.completedCount})
             </button>
             <button
               type="button"
@@ -422,16 +439,21 @@ export function FleetOperationsPage() {
           </div>
         </div>
 
-        <dl className="mb-6 grid gap-3 sm:grid-cols-3">
+        <dl className="mb-6 grid gap-3 sm:grid-cols-4">
           <div className="min-w-0 rounded-xl border border-[#FFC799]/20 bg-[#FFC799]/[.04] p-4">
             <dt className="text-xs text-[#A0A0A0]">Yêu cầu chờ phê duyệt</dt>
             <dd className="mt-2 text-2xl font-semibold tabular-nums text-[#FFC799]">{transferSummary.pending}</dd>
             <dd className="mt-1 text-[11px] text-[#A0A0A0]">Chờ chi nhánh xuất xác nhận</dd>
           </div>
+          <div className="min-w-0 rounded-xl border border-white/15 bg-white/[.03] p-4">
+            <dt className="text-xs text-[#A0A0A0]">Đang trên đường chuyển</dt>
+            <dd className="mt-2 text-2xl font-semibold tabular-nums text-[#F5F5F5]">{transferSummary.inTransitCount}</dd>
+            <dd className="mt-1 text-[11px] text-[#A0A0A0]">Chờ chi nhánh đích tiếp nhận</dd>
+          </div>
           <div className="min-w-0 rounded-xl border border-[#99FFE4]/20 bg-[#99FFE4]/[.04] p-4">
-            <dt className="text-xs text-[#A0A0A0]">Đã điều chuyển thành công</dt>
+            <dt className="text-xs text-[#A0A0A0]">Hoàn tất bàn giao</dt>
             <dd className="mt-2 text-2xl font-semibold tabular-nums text-[#99FFE4]">{transferSummary.completedCount}</dd>
-            <dd className="mt-1 text-[11px] text-[#A0A0A0]">Xe đã cập nhật sang chi nhánh nhận</dd>
+            <dd className="mt-1 text-[11px] text-[#A0A0A0]">Xe đã sẵn sàng tại chi nhánh nhận</dd>
           </div>
           <div className="min-w-0 rounded-xl border border-white/10 bg-[#101010] p-4">
             <dt className="text-xs text-[#A0A0A0]">Yêu cầu từ chối</dt>
@@ -442,13 +464,19 @@ export function FleetOperationsPage() {
 
         <ol aria-label="Dòng thời gian nhật ký điều chuyển" className="ml-1 border-l border-white/15 pl-5 sm:pl-6">
           {transfers.map((transfer) => {
-            const isDone = transfer.status === 'Approved' || transfer.status === 'Completed';
+            const isDone = transfer.status === 'Completed';
+            const isInTransit = transfer.status === 'InTransit' || transfer.status === 'Approved';
             const isRejected = transfer.status === 'Rejected';
             const canReview =
               canManage &&
               transfer.status === 'Pending' &&
-              idOf(transfer.requestedBy) !== user?._id &&
-              (isAdmin || idOf(transfer.fromBranchId) === ownBranch);
+              (isAdmin ||
+                (idOf(transfer.requestedBy) !== user?._id &&
+                  idOf(transfer.fromBranchId) === ownBranch));
+            const canComplete =
+              canManage &&
+              isInTransit &&
+              (isAdmin || idOf(transfer.toBranchId) === ownBranch);
 
             return (
               <li key={transfer._id} className="relative min-w-0 pb-6 last:pb-0">
@@ -463,6 +491,14 @@ export function FleetOperationsPage() {
                   <time dateTime={transfer.createdAt} className="tabular-nums font-mono text-[#F5F5F5]">
                     {date(transfer.createdAt)}
                   </time>
+                  {transfer.departureTime && (
+                    <>
+                      <span>· Xuất kho</span>
+                      <time dateTime={transfer.departureTime} className="tabular-nums font-mono text-[#FFC799]">
+                        {date(transfer.departureTime)}
+                      </time>
+                    </>
+                  )}
                   {transfer.arrivalTime && (
                     <>
                       <span>· Hoàn tất bàn giao</span>
@@ -524,7 +560,7 @@ export function FleetOperationsPage() {
                     </div>
                     <div className="min-w-0">
                       <dt className="text-[#A0A0A0]">
-                        {isRejected ? 'Người từ chối' : isDone ? 'Người phê duyệt' : 'Trạng thái duyệt'}
+                        {isRejected ? 'Người từ chối' : isDone || isInTransit ? 'Người phê duyệt' : 'Trạng thái duyệt'}
                       </dt>
                       <dd className="mt-1 font-medium text-[#F5F5F5] break-words">
                         {transfer.approvedBy ? personName(transfer.approvedBy) : 'Đang chờ quản lý chi nhánh xuất'}
@@ -538,27 +574,45 @@ export function FleetOperationsPage() {
                     </p>
                   )}
 
-                  {canReview && (
+                  {(canReview || canComplete) && (
                     <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-3">
-                      <button
-                        disabled={busy}
-                        className={buttonClass}
-                        onClick={() =>
-                          void mutate(
-                            () => api.put(`/transfers/${transfer._id}/approve`),
-                            'Đã phê duyệt và lưu vào nhật ký điều chuyển.'
-                          )
-                        }
-                      >
-                        Phê duyệt điều chuyển
-                      </button>
-                      <button
-                        disabled={busy}
-                        className={subtleButton}
-                        onClick={() => setReview({ id: transfer._id, reason: '' })}
-                      >
-                        Từ chối
-                      </button>
+                      {canReview && (
+                        <>
+                          <button
+                            disabled={busy}
+                            className={buttonClass}
+                            onClick={() =>
+                              void mutate(
+                                () => api.put(`/transfers/${transfer._id}/approve`),
+                                'Đã phê duyệt và xuất xe vận chuyển liên chi nhánh.'
+                              )
+                            }
+                          >
+                            Phê duyệt &amp; Xuất xe
+                          </button>
+                          <button
+                            disabled={busy}
+                            className={subtleButton}
+                            onClick={() => setReview({ id: transfer._id, reason: '' })}
+                          >
+                            Từ chối
+                          </button>
+                        </>
+                      )}
+                      {canComplete && (
+                        <button
+                          disabled={busy}
+                          className={buttonClass}
+                          onClick={() =>
+                            void mutate(
+                              () => api.put(`/transfers/${transfer._id}/complete`),
+                              'Đã xác nhận tiếp nhận xe tại chi nhánh đích. Xe sẵn sàng phục vụ.'
+                            )
+                          }
+                        >
+                          Xác nhận nhận xe (Hoàn tất)
+                        </button>
+                      )}
                     </div>
                   )}
                 </article>

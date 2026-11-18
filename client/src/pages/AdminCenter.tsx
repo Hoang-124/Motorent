@@ -39,6 +39,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
 import type { Branch, User } from '../types';
 import { BranchInteractiveMap } from '../components/BranchInteractiveMap';
 import { StaffManager } from '../components/StaffManager';
@@ -138,6 +139,7 @@ export const AdminCenter: React.FC = () => {
   const [lockReason, setLockReason] = useState<string>('');
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   // Forms initial state
   const initialBranchForm: BranchFormData = {
@@ -183,8 +185,8 @@ export const AdminCenter: React.FC = () => {
       if (res.data?.data) {
         setBranches(res.data.data);
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể tải danh sách chi nhánh.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể tải danh sách chi nhánh.'));
     } finally {
       setBranchLoading(false);
     }
@@ -212,8 +214,8 @@ export const AdminCenter: React.FC = () => {
           setAllUsers(res.data.data);
         }
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể tải danh sách người dùng.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể tải danh sách người dùng.'));
     } finally {
       setUserLoading(false);
     }
@@ -242,7 +244,7 @@ export const AdminCenter: React.FC = () => {
   }, [userRoleFilter, userStatusFilter, userBranchFilter]);
 
   // Handle GPS detection
-  const handleDetectGPS = (forEdit = false) => {
+  const handleDetectGPS = (updateFormCoords = false) => {
     if (!navigator.geolocation) {
       showToast('warning', 'Trình duyệt không hỗ trợ Geolocation.');
       return;
@@ -251,11 +253,14 @@ export const AdminCenter: React.FC = () => {
       (pos) => {
         const lat = Math.round(pos.coords.latitude * 10000) / 10000;
         const lng = Math.round(pos.coords.longitude * 10000) / 10000;
-        setBranchForm((prev) => ({
-          ...prev,
-          location_lat: lat,
-          location_lng: lng,
-        }));
+        setUserCoords({ lat, lng });
+        if (updateFormCoords || showAddBranchModal || Boolean(editingBranch)) {
+          setBranchForm((prev) => ({
+            ...prev,
+            location_lat: lat,
+            location_lng: lng,
+          }));
+        }
         showToast('success', `Đã lấy tọa độ GPS thực tế: ${lat}, ${lng}`);
       },
       (err) => {
@@ -288,8 +293,8 @@ export const AdminCenter: React.FC = () => {
       setBranchForm(initialBranchForm);
       fetchBranches();
       fetchManagersList();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể tạo chi nhánh.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể tạo chi nhánh.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -342,8 +347,8 @@ export const AdminCenter: React.FC = () => {
       setEditingBranch(null);
       fetchBranches();
       fetchManagersList();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Lỗi cập nhật chi nhánh.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Lỗi cập nhật chi nhánh.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -377,8 +382,8 @@ export const AdminCenter: React.FC = () => {
       }
       setDeactivatingBranch(null);
       fetchBranches();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Lỗi khi tạm ngưng chi nhánh.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Lỗi khi tạm ngưng chi nhánh.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -390,8 +395,8 @@ export const AdminCenter: React.FC = () => {
       const res = await api.put(`/branches/${branchId}/activate`);
       showToast('success', res.data?.message || 'Đã kích hoạt lại chi nhánh thành công!');
       fetchBranches();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Lỗi khi kích hoạt lại chi nhánh.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Lỗi khi kích hoạt lại chi nhánh.'));
     }
   };
 
@@ -413,8 +418,8 @@ export const AdminCenter: React.FC = () => {
       setUserForm(initialUserForm);
       fetchUsers();
       fetchManagersList();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Lỗi khi tạo tài khoản.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Lỗi khi tạo tài khoản.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -462,8 +467,8 @@ export const AdminCenter: React.FC = () => {
       fetchUsers();
       fetchManagersList();
       fetchBranches();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Lỗi khi cập nhật tài khoản.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Lỗi khi cập nhật tài khoản.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -481,8 +486,8 @@ export const AdminCenter: React.FC = () => {
       setLockingUser(null);
       setLockReason('');
       fetchUsers();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Lỗi khi khóa tài khoản.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Lỗi khi khóa tài khoản.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -494,8 +499,8 @@ export const AdminCenter: React.FC = () => {
       const res = await api.put(`/admin/users/${userId}/unlock`);
       showToast('success', res.data?.message || 'Đã kích hoạt lại tài khoản thành công.');
       fetchUsers();
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Lỗi khi mở khóa tài khoản.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Lỗi khi mở khóa tài khoản.'));
     }
   };
 
@@ -669,6 +674,32 @@ export const AdminCenter: React.FC = () => {
             >
               <Users className="w-3.5 h-3.5 shrink-0" />
               <span>Người dùng</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('staff')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                activeTab === 'staff'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <UserCheck className="w-3.5 h-3.5 shrink-0" />
+              <span>Nhân sự trạm</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('schedules')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                activeTab === 'schedules'
+                  ? 'bg-[#FFC799] text-[#101010] shadow'
+                  : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+              }`}
+            >
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
+              <span>Lịch phân ca</span>
             </button>
 
             <button
@@ -1410,7 +1441,7 @@ export const AdminCenter: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => handleDetectGPS()}
+                onClick={() => handleDetectGPS(false)}
                 className="px-3.5 py-2 rounded-xl bg-[#101010] border border-white/15 text-xs font-semibold text-[#FFC799] hover:border-[#FFC799] transition-colors flex items-center space-x-1.5 shrink-0"
               >
                 <Navigation className="w-3.5 h-3.5" />
@@ -1419,7 +1450,11 @@ export const AdminCenter: React.FC = () => {
             </div>
 
             {/* Interactive Vector SVG Map */}
-            <BranchInteractiveMap branches={branches} />
+            <BranchInteractiveMap
+              branches={branches}
+              userCoords={userCoords}
+              onFindNearest={() => handleDetectGPS(false)}
+            />
           </div>
         )}
 
@@ -1821,33 +1856,72 @@ export const AdminCenter: React.FC = () => {
                   </select>
                 </div>
 
-                {/* GPS Coordinates */}
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/[0.08]">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#A0A0A0]">
-                      Vĩ độ (Lat) <span className="text-red-500 font-bold ml-0.5">*</span>
+                {/* GPS Coordinates & Presets */}
+                <div className="space-y-2 pt-2 border-t border-white/[0.08]">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-[#FFC799] flex items-center space-x-1.5">
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>
+                        Tọa độ GPS (Vĩ độ / Kinh độ) <span className="text-red-500 font-bold ml-0.5">*</span>
+                      </span>
                     </label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={branchForm.location_lat}
-                      onChange={(e) => setBranchForm({ ...branchForm, location_lat: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs font-mono text-[#F5F5F5] focus:outline-none focus:border-[#FFC799]"
-                    />
+                    <button
+                      type="button"
+                      onClick={() => handleDetectGPS(true)}
+                      className="text-[11px] text-[#99FFE4] hover:underline flex items-center space-x-1"
+                    >
+                      <Navigation className="w-3 h-3" />
+                      <span>Lấy GPS hiện tại</span>
+                    </button>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-[#A0A0A0]">
-                      Kinh độ (Lng) <span className="text-red-500 font-bold ml-0.5">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={branchForm.location_lng}
-                      onChange={(e) => setBranchForm({ ...branchForm, location_lng: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs font-mono text-[#F5F5F5] focus:outline-none focus:border-[#FFC799]"
-                    />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-[#A0A0A0]">
+                        Vĩ độ (Lat) <span className="text-red-500 font-bold ml-0.5">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={branchForm.location_lat}
+                        onChange={(e) => setBranchForm({ ...branchForm, location_lat: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs font-mono text-[#F5F5F5] focus:outline-none focus:border-[#FFC799]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-[#A0A0A0]">
+                        Kinh độ (Lng) <span className="text-red-500 font-bold ml-0.5">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        required
+                        value={branchForm.location_lng}
+                        onChange={(e) => setBranchForm({ ...branchForm, location_lng: e.target.value })}
+                        className="w-full px-3 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs font-mono text-[#F5F5F5] focus:outline-none focus:border-[#FFC799]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="text-[10px] text-[#6E6E6E] w-full block">Vị trí phổ biến:</span>
+                    {DA_NANG_PRESETS.map((preset, pIdx) => (
+                      <button
+                        key={pIdx}
+                        type="button"
+                        onClick={() =>
+                          setBranchForm({
+                            ...branchForm,
+                            location_lat: preset.lat,
+                            location_lng: preset.lng,
+                          })
+                        }
+                        className="px-2 py-1 rounded-md bg-[#222222] hover:bg-[#2A2A2A] text-[10px] text-[#A0A0A0] hover:text-[#FFC799] border border-white/10 transition-colors"
+                      >
+                        {preset.name}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

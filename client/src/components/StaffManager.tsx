@@ -18,6 +18,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError, extractEntityId } from '../utils/errorHelper';
 import type { User, Branch } from '../types';
 import { useAuth } from '../context/AuthContext';
 
@@ -80,7 +81,7 @@ export const StaffManager: React.FC = () => {
   const fetchStaff = async () => {
     setLoading(true);
     try {
-      const params: Record<string, any> = {};
+      const params: Record<string, string> = {};
       if (statusFilter !== 'all') params.status = statusFilter;
       if (branchFilter !== 'all') params.branchId = branchFilter;
       if (search.trim()) params.search = search.trim();
@@ -89,8 +90,8 @@ export const StaffManager: React.FC = () => {
       if (res.data?.success) {
         setStaffList(res.data.data);
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể tải danh sách nhân viên.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể tải danh sách nhân viên.'));
     } finally {
       setLoading(false);
     }
@@ -117,7 +118,7 @@ export const StaffManager: React.FC = () => {
       firstName: '',
       lastName: '',
       phoneNumber: '',
-      branchId: isManager && currentUser?.branchId ? String((currentUser.branchId as any)._id || currentUser.branchId) : '',
+      branchId: isManager && currentUser?.branchId ? extractEntityId(currentUser.branchId) : '',
     });
     setEditingStaff(null);
   };
@@ -179,8 +180,8 @@ export const StaffManager: React.FC = () => {
           fetchStaff();
         }
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Có lỗi xảy ra khi lưu thông tin nhân viên.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Có lỗi xảy ra khi lưu thông tin nhân viên.'));
     } finally {
       setSubmitting(false);
     }
@@ -203,8 +204,8 @@ export const StaffManager: React.FC = () => {
         showToast('success', res.data.message || 'Cập nhật trạng thái thành công.');
         fetchStaff();
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể thay đổi trạng thái nhân viên.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể thay đổi trạng thái nhân viên.'));
     }
   };
 
@@ -619,7 +620,7 @@ export const StaffManager: React.FC = () => {
                     type="text"
                     disabled
                     value={
-                      branches.find((b) => String(b._id) === String(currentUser?.branchId))?.name ||
+                      branches.find((b) => String(b._id) === extractEntityId(currentUser?.branchId))?.name ||
                       'Chi nhánh quản lý của bạn'
                     }
                     className="w-full bg-[#101010] border border-white/10 rounded-xl px-3 py-2 text-sm text-[#A0A0A0] opacity-60"

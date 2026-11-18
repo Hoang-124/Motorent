@@ -9,7 +9,7 @@ const router = Router();
 router.get(
   '/reconcile',
   authenticateJWT,
-  authorize('SystemAdmin', 'BranchManager', 'FINANCE_RECONCILE'),
+  authorize('SystemAdmin', 'BranchManager'),
   financeController.getReconcile
 );
 
@@ -17,7 +17,7 @@ router.get(
 router.get(
   '/tax-report',
   authenticateJWT,
-  authorize('SystemAdmin', 'FINANCE_TAX_REPORT'),
+  authorize('SystemAdmin'),
   financeController.getTaxReport
 );
 

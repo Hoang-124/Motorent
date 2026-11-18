@@ -216,7 +216,7 @@ export const FleetPage: React.FC = () => {
     const thumb = getOptimizedVehicleImageUrl(repBike?.images?.[1] || repBike?.images?.[0]);
     const minPrice =
       matched.length > 0
-        ? Math.min(...matched.map((m) => m.dailyPrice))
+        ? Math.min(...matched.map((m) => m.effectiveDailyPrice ?? m.dailyPrice))
         : null;
     return {
       count: matched.length,
@@ -508,7 +508,7 @@ export const FleetPage: React.FC = () => {
                       {filteredVehicles.slice(0, 6).map((vehicle) => (
                         <button key={vehicle._id} type="button" role="option" aria-selected="false" onClick={() => handleNavigateToDetail(vehicle)} className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/5 focus:bg-white/5 focus:outline-none">
                           <span className="min-w-0"><span className="block truncate text-xs font-semibold">{vehicle.vehicleModel}</span><span className="mt-1 block text-[11px] text-[#A0A0A0]">{vehicle.brand} · {vehicle.licensePlate}</span></span>
-                          <span className="shrink-0 text-xs text-[#FFC799]">{vehicle.dailyPrice.toLocaleString('vi-VN')} đ/ngày</span>
+                          <span className="shrink-0 text-xs text-[#FFC799]">{(vehicle.effectiveDailyPrice ?? vehicle.dailyPrice).toLocaleString('vi-VN')} đ/ngày</span>
                         </button>
                       ))}
                     </>
@@ -611,7 +611,7 @@ export const FleetPage: React.FC = () => {
                         : 'bg-white/[0.05] text-[#FFC799]'
                     }`}
                   >
-                    {vehicles.length}
+                    {catalogVehicles.length}
                   </span>
                 </button>
 

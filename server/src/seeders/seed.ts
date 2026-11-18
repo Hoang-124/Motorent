@@ -14,7 +14,10 @@ import {
   VehicleTransfer,
   MaintenanceLog,
   StaffSchedule,
+  StaffAvailability,
   Complaint,
+  ComplaintResponse,
+  ComplaintStatusLog,
   AuditLog,
   Discount,
   Feedback,
@@ -27,6 +30,7 @@ import {
   Payment,
   Review,
   Wishlist,
+  SystemConfig,
 } from '../models';
 import { VEHICLE_CATALOG_34 } from './vehicleCatalogData';
 import { SeasonalPricingRule } from '../models/SeasonalPricingRule';
@@ -58,7 +62,10 @@ const seedDatabase = async (): Promise<void> => {
     VehicleTransfer.deleteMany({}),
     MaintenanceLog.deleteMany({}),
     StaffSchedule.deleteMany({}),
+    StaffAvailability.deleteMany({}),
     Complaint.deleteMany({}),
+    ComplaintResponse.deleteMany({}),
+    ComplaintStatusLog.deleteMany({}),
     AuditLog.deleteMany({}),
     Discount.deleteMany({}),
     Feedback.deleteMany({}),
@@ -68,6 +75,7 @@ const seedDatabase = async (): Promise<void> => {
     Message.deleteMany({}),
     Banner.deleteMany({}),
     StaticPage.deleteMany({}),
+    SystemConfig.deleteMany({}),
   ]);
   // Reset loyaltyPoints to 0 for preserved real accounts since all historical bookings were cleared
   await User.updateMany({}, { $set: { loyaltyPoints: 0 } });
@@ -376,6 +384,15 @@ const seedDatabase = async (): Promise<void> => {
   ]);
 
   // 6. Seed Static Pages & Banners
+  const standardTermsHtml = [
+    '<h2>1. Quy định chung &amp; Ký nhận bàn giao song phương</h2>',
+    '<p>Khách hàng xuất trình GPLX (A1/A2) và CCCD/Hộ chiếu hợp lệ để đối chiếu định danh điện tử eKYC. Khi nhận xe, cả Đại diện Motorent (Bên A) và Khách thuê (Bên B) ký xác nhận điện tử song phương kèm biên bản 04 góc xe và chỉ số ODO thực tế. Motorent cam kết <strong>không giữ giấy tờ tùy thân bản gốc</strong> của khách hàng.</p>',
+    '<h2>2. Chính sách đặt cọc 30% &amp; Điều khoản KHÔNG HOÀN TIỀN</h2>',
+    '<p>Khách hàng thanh toán cọc 30% (hoặc 100%) qua cổng VNPay / VietQR để hệ thống khóa độc quyền biển số xe trong khung giờ đã chọn; phần còn lại tất toán tại quầy. Hệ thống áp dụng chính sách <strong>KHÔNG HOÀN TIỀN</strong> cọc hoặc tiền thuê đã thanh toán trong mọi trường hợp khách tự hủy đơn hoặc trả xe trước thời hạn hợp đồng.</p>',
+    '<h2>3. Giao nhận liên trạm, Tận nơi &amp; Phụ phí trả trễ</h2>',
+    '<p>Hỗ trợ nhận và trả xe linh hoạt giữa Chi nhánh Sân Bay Quốc Tế Đà Nẵng (CN-DAD) và Chi nhánh Bãi Biển Mỹ Khê (CN-MK) với phụ phí một chiều 0đ. Dịch vụ giao/nhận xe tận nơi nội thành Đà Nẵng áp dụng phí vận chuyển niêm yết <strong>40.000 đ/chiều</strong> (80.000 đ khứ hồi). Phí trả xe quá giờ sau 15 phút ân hạn: <strong>30.000 đ/giờ</strong>.</p>',
+  ].join('');
+
   await StaticPage.create([
     {
       slug: 'faq',
@@ -384,41 +401,43 @@ const seedDatabase = async (): Promise<void> => {
       isPublished: true,
       content: [
         '<h2>1. Thủ tục nhận xe tại Sân bay Quốc tế Đà Nẵng diễn ra thế nào?</h2><p>Khách hàng xuất trình CCCD/Hộ chiếu và Giấy phép lái xe hợp lệ (A1/A2) để đối chiếu eKYC trực tuyến. Motorent cam kết <strong>không giữ giấy tờ tùy thân gốc</strong> của khách hàng, ký biên bản bàn giao điện tử kèm 02 mũ bảo hiểm đạt chuẩn.</p>',
-        '<h2>2. Chính sách đặt cọc 30% và hoàn cọc hoạt động ra sao?</h2><p>Khi thanh toán cọc 30% qua cổng VNPay hoặc VietQR 24/7, hệ thống tự động khóa biển số xe theo đúng khung giờ thuê đã chọn. Khách hàng thông báo hủy trước 24 giờ so với giờ nhận xe được hoàn lại 100% tiền cọc theo chính sách hệ thống.</p>',
+        '<h2>2. Chính sách đặt cọc 30% và điều khoản hợp đồng hoạt động ra sao?</h2><p>Khi thanh toán cọc 30% qua cổng VNPay hoặc VietQR 24/7, hệ thống tự động khóa độc quyền biển số xe theo đúng khung giờ thuê đã chọn. Hệ thống áp dụng chính sách <strong>KHÔNG HOÀN TIỀN</strong> cọc hoặc tiền thuê trong mọi trường hợp hủy đơn hoặc trả xe trước hạn theo hợp đồng điện tử song phương. Hỗ trợ giao nhận xe tận nơi trong nội thành Đà Nẵng với phí vận chuyển niêm yết 40.000 đ/chiều.</p>',
         '<h2>3. Tôi có thể nhận xe ở Sân bay và trả xe ở chi nhánh khác không?</h2><p>Có. Hệ thống hỗ trợ giao nhận xe liên trạm giữa 02 chi nhánh chính thức: Chi nhánh Sân Bay Quốc Tế Đà Nẵng (Hải Châu) và Chi nhánh Bãi Biển Mỹ Khê.</p>',
         '<h2>4. Giá thuê xe đã bao gồm những trang bị nào?</h2><p>Giá niêm yết trên hệ thống đã bao gồm 02 mũ bảo hiểm 3/4 khử khuẩn UV, 02 áo mưa tiện lợi, giá đỡ điện thoại và hỗ trợ kỹ thuật nội thành Đà Nẵng.</p>',
       ].join(''),
-      lastUpdatedBy: userAdmin._id,
+      updatedBy: userAdmin._id,
     },
     {
       slug: 'terms',
       title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
       type: 'Terms',
       isPublished: true,
-      content: '<h2>1. Quy định chung</h2><p>Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.</p>',
-      lastUpdatedBy: userAdmin._id,
+      content: standardTermsHtml,
+      updatedBy: userAdmin._id,
     },
     {
       slug: 'privacy',
       title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
       type: 'Privacy',
       isPublished: true,
-      content: '<h2>1. Cam kết bảo mật dữ liệu</h2><p>Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được đóng dấu bảo mật và lưu trữ theo tiêu chuẩn an toàn cao cấp.</p>',
-      lastUpdatedBy: userAdmin._id,
+      content: '<h2>1. Cam kết bảo mật dữ liệu</h2><p>Mọi dữ liệu cá nhân, số CCCD và ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa AES-256-GCM, đóng dấu bảo mật watermark và lưu trữ theo tiêu chuẩn an toàn Nghị định 13/2023/NĐ-CP.</p>',
+      updatedBy: userAdmin._id,
     },
     {
       slug: 'dieu-khoan-dich-vu',
+      type: 'Terms',
       isPublished: true,
-      title: 'Điều Khoản Dịch Vụ Thuê Xe Motorent',
-      content: 'Chính sách thuê xe tự lái minh bạch: Khách hàng cần xuất trình GPLX và CCCD hợp lệ để đối chiếu eKYC. Motorent cam kết không giữ bản gốc giấy tờ tùy thân của khách.',
-      lastUpdatedBy: userAdmin._id,
+      title: 'Điều Khoản Dịch Vụ & Chính Sách Thuê Xe Motorent',
+      content: standardTermsHtml,
+      updatedBy: userAdmin._id,
     },
     {
       slug: 'chinh-sach-bao-mat',
+      type: 'Privacy',
       isPublished: true,
       title: 'Chính Sách Bảo Mật Thông Tin Khách Hàng',
-      content: 'Mọi dữ liệu cá nhân, ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa lưu trữ theo tiêu chuẩn bảo mật cao cấp.',
-      lastUpdatedBy: userAdmin._id,
+      content: '<h2>1. Cam kết bảo mật dữ liệu</h2><p>Mọi dữ liệu cá nhân, số CCCD và ảnh chụp giấy tờ CCCD/GPLX đều được mã hóa AES-256-GCM, đóng dấu bảo mật watermark và lưu trữ theo tiêu chuẩn an toàn Nghị định 13/2023/NĐ-CP.</p>',
+      updatedBy: userAdmin._id,
     },
   ]);
 

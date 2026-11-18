@@ -21,13 +21,13 @@ const auditQuerySchema = z.object({
 });
 
 /**
- * UC-102 Audit Log Viewer (SystemAdmin, BranchManager, Staff)
+ * UC-102 Audit Log Viewer (SystemAdmin only)
  * Searchable, filterable, paginated append-only security log inspection.
  */
 router.get(
   '/',
   authenticateJWT,
-  authorize('SystemAdmin', 'BranchManager', 'Staff'),
+  authorize('SystemAdmin'),
   async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const query = auditQuerySchema.parse(req.query);

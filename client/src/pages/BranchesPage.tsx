@@ -106,7 +106,7 @@ export const BranchesPage: React.FC = () => {
     });
   };
 
-  const totalAvailable = vehicles.filter((v) => v.status === 'Available').length;
+  const totalAvailable = vehicles.filter((v) => v.status === 'Available' && !v.requiresMaintenance).length;
 
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-10 sm:py-14 bg-editorial-grain">
@@ -313,7 +313,9 @@ export const BranchesPage: React.FC = () => {
               >
                 {branches.map((branch, idx) => {
                   const branchBikes = getBranchVehicles(branch._id);
-                  const availableBikes = branchBikes.filter((v) => v.status === 'Available');
+                  const availableBikes = branchBikes.filter(
+                    (v) => v.status === 'Available' && !v.requiresMaintenance
+                  );
                   const previewBikes = (availableBikes.length > 0 ? availableBikes : branchBikes).slice(0, 3);
                   const isAirport =
                     branch.name.toLowerCase().includes('sân bay') ||
@@ -432,7 +434,7 @@ export const BranchesPage: React.FC = () => {
                                       {bike.vehicleModel}
                                     </span>
                                     <span className="text-[10px] font-mono-tabular text-[#FFC799] block font-medium">
-                                      {bike.dailyPrice?.toLocaleString('vi-VN')}đ/ngày
+                                      {(bike.effectiveDailyPrice ?? bike.dailyPrice)?.toLocaleString('vi-VN')}đ/ngày
                                     </span>
                                   </div>
                                 </Link>

@@ -14,14 +14,18 @@ import {
 import { api } from '../services/api';
 
 interface DiscrepancyItem {
-  bookingId: string;
-  bookingCode: string;
-  status: string;
-  expectedPaid: number;
-  recordedPaymentsTotal: number;
-  difference: number;
-  issue: string;
-  createdAt: string;
+  bookingId?: string;
+  bookingCode?: string;
+  status?: string;
+  expectedPaid?: number;
+  recordedPaymentsTotal?: number;
+  difference?: number;
+  issue?: string;
+  description?: string;
+  severity?: 'HIGH' | 'MEDIUM' | 'LOW';
+  type?: string;
+  details?: Record<string, unknown>;
+  createdAt?: string;
 }
 
 interface ReconcileSummary {
@@ -35,7 +39,7 @@ interface ReconcileSummary {
 }
 
 interface ReconcileResponse {
-  range: { from: string | null; to: string | null };
+  range?: { from: string | null; to: string | null };
   summary: ReconcileSummary;
   discrepancies: DiscrepancyItem[];
 }
@@ -319,10 +323,10 @@ export const FinanceManager: React.FC = () => {
               <span>Dòng tiền thực thu ròng</span>
             </span>
             <p className="text-2xl font-bold font-mono text-[#99FFE4] mt-1.5">
-              {summary ? `${summary.netCashflow.toLocaleString('vi-VN')} đ` : '--'}
+              {summary ? `${(summary.netCashflow ?? 0).toLocaleString('vi-VN')} đ` : '--'}
             </p>
             <span className="text-[11px] text-[#6E6E6E] mt-0.5 block">
-              Tiền vào {summary ? `${summary.totalRevenueRecorded.toLocaleString('vi-VN')} đ` : '--'} · Hoàn ra {summary ? `${summary.totalRefundsRecorded.toLocaleString('vi-VN')} đ` : '--'}
+              Tiền vào {summary ? `${(summary.totalRevenueRecorded ?? 0).toLocaleString('vi-VN')} đ` : '--'} · Hoàn ra {summary ? `${(summary.totalRefundsRecorded ?? 0).toLocaleString('vi-VN')} đ` : '--'}
             </span>
           </div>
 
@@ -390,23 +394,54 @@ export const FinanceManager: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/[0.06]">
-                  {reconcileData.discrepancies.map((item) => (
-                    <tr key={item.bookingId} className="hover:bg-white/[0.02]">
-                      <td className="px-4 py-3 font-mono font-bold text-[#FFC799]">{item.bookingCode}</td>
-                      <td className="px-4 py-3 text-[#E0E0E0]">{item.status}</td>
-                      <td className="px-4 py-3 text-right font-mono text-[#F5F5F5]">
-                        {item.expectedPaid.toLocaleString('vi-VN')} đ
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-[#99FFE4]">
-                        {item.recordedPaymentsTotal.toLocaleString('vi-VN')} đ
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-[#FF8080]">
-                        {item.difference > 0 ? '+' : ''}
-                        {item.difference.toLocaleString('vi-VN')} đ
-                      </td>
-                      <td className="px-4 py-3 text-[#A0A0A0]">{item.issue}</td>
-                    </tr>
-                  ))}
+                  {reconcileData.discrepancies.map((item, idx) => {
+                    const detailsObj = item.details || {};
+                    const expectedPaid =
+                      typeof item.expectedPaid === 'number'
+                        ? item.expectedPaid
+                        : typeof detailsObj.bookingPaidAmount === 'number'
+                        ? detailsObj.bookingPaidAmount
+                        : typeof detailsObj.paidAmount === 'number'
+                        ? detailsObj.paidAmount
+                        : 0;
+                    const recordedTotal =
+                      typeof item.recordedPaymentsTotal === 'number'
+                        ? item.recordedPaymentsTotal
+                        : typeof detailsObj.paymentsSum === 'number'
+                        ? detailsObj.paymentsSum
+                        : 0;
+                    const diffVal =
+                      typeof item.difference === 'number'
+                        ? item.difference
+                        : recordedTotal - expectedPaid;
+                    const statusLabel =
+                      item.status ||
+                      (typeof detailsObj.status === 'string' ? detailsObj.status : undefined) ||
+                      item.type ||
+                      '--';
+                    const reasonText = item.issue || item.description || 'Cần kiểm tra chứng từ đối soát';
+                    const rowKey = `${item.bookingId || item.bookingCode || 'issue'}-${item.type || 'row'}-${idx}`;
+
+                    return (
+                      <tr key={rowKey} className="hover:bg-white/[0.02]">
+                        <td className="px-4 py-3 font-mono font-bold text-[#FFC799]">
+                          {item.bookingCode || 'N/A'}
+                        </td>
+                        <td className="px-4 py-3 text-[#E0E0E0]">{statusLabel}</td>
+                        <td className="px-4 py-3 text-right font-mono text-[#F5F5F5]">
+                          {(expectedPaid ?? 0).toLocaleString('vi-VN')} đ
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-[#99FFE4]">
+                          {(recordedTotal ?? 0).toLocaleString('vi-VN')} đ
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono font-bold text-[#FF8080]">
+                          {diffVal > 0 ? '+' : ''}
+                          {(diffVal ?? 0).toLocaleString('vi-VN')} đ
+                        </td>
+                        <td className="px-4 py-3 text-[#A0A0A0]">{reasonText}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

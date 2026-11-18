@@ -68,9 +68,9 @@ export const ManagerComplaintsPage: React.FC = () => {
         </div>
 
         {subTab === 'manager' ? (
-          <ManagerComplaintWorkspace onPendingCountChange={setPendingCount} />
+          <ManagerComplaintWorkspace key="manager-workspace" onPendingCountChange={setPendingCount} />
         ) : (
-          <StaffComplaintDesk />
+          <StaffComplaintDesk key="manager-all-queue" />
         )}
       </div>
     </div>

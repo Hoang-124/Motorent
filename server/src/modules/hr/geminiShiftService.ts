@@ -63,16 +63,41 @@ export interface GeminiOptimizationResult {
   aiOverview: string;
 }
 
+const PLACEHOLDER_GEMINI_KEYS = new Set([
+  'your_gemini_api_key_here',
+  'your_api_key_here',
+  'placeholder',
+  'changeme',
+  'demo_key',
+  'none',
+  'null',
+  'undefined',
+]);
+
+export const isPlaceholderGeminiApiKey = (rawKey?: string): boolean => {
+  if (!rawKey) return true;
+  const trimmed = rawKey.trim();
+  if (!trimmed) return true;
+  const lower = trimmed.toLowerCase();
+  return PLACEHOLDER_GEMINI_KEYS.has(lower) || lower.startsWith('your_');
+};
+
 /**
  * Call Google Gemini API to optimize staff shift scheduling
  */
 export const runGeminiShiftOptimization = async (
   input: GeminiOptimizationInput
 ): Promise<GeminiOptimizationResult | null> => {
-  const apiKey = (input.geminiApiKey || env.GEMINI_API_KEY || '').trim();
-  if (!apiKey) {
-    return null; // Fall back to local solver if no key
+  const candidateKey = !isPlaceholderGeminiApiKey(input.geminiApiKey)
+    ? input.geminiApiKey!.trim()
+    : !isPlaceholderGeminiApiKey(env.GEMINI_API_KEY)
+    ? env.GEMINI_API_KEY!.trim()
+    : '';
+
+  if (!candidateKey) {
+    return null; // Fall back to local solver if no valid key
   }
+  const apiKey = candidateKey;
 
   const prompt = `
 Bạn là chuyên gia AI điều phối nhân sự hàng đầu của hệ thống cho thuê xe máy MOTORENT tại Đà Nẵng.
@@ -133,8 +158,8 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
 }
 `;
 
-  const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
-  let lastError: any = null;
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  let lastError: unknown = null;
 
   for (const model of models) {
     try {
@@ -142,6 +167,7 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
@@ -157,7 +183,9 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
         continue;
       }
 
-      const resJson = (await response.json()) as any;
+      const resJson = (await response.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
       const textContent =
         resJson?.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
@@ -167,28 +195,97 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
 
       // Clean possible markdown code fences if any
       const cleaned = textContent.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as {
+        aiOverview?: string;
+        recommendations?: Array<Record<string, unknown>>;
+      };
 
       if (parsed && Array.isArray(parsed.recommendations)) {
         const staffMap = new Map(input.staffList.map((s) => [s.sid, s]));
+        const validWeekDates = new Set(input.period.weekDates);
+        const seenAssignments = new Set<string>();
+        const staffDayShifts = new Map<string, Set<string>>();
+
+        for (const ex of input.existingSchedules) {
+          const dayKey = `${ex.staffId}_${ex.shiftDate}`;
+          if (!staffDayShifts.has(dayKey)) {
+            staffDayShifts.set(dayKey, new Set());
+          }
+          if (ex.shiftType === 'FullDay') {
+            seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_Morning`);
+            seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_Afternoon`);
+            seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_Evening`);
+            staffDayShifts.get(dayKey)!.add('Morning');
+            staffDayShifts.get(dayKey)!.add('Afternoon');
+            staffDayShifts.get(dayKey)!.add('Evening');
+          } else {
+            seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_${ex.shiftType}`);
+            staffDayShifts.get(dayKey)!.add(ex.shiftType);
+          }
+        }
 
         const sanitizedRecs: GeminiShiftRecommendation[] = [];
         for (const rec of parsed.recommendations) {
-          const staff = staffMap.get(rec.staffId);
-          if (staff && ['Morning', 'Afternoon', 'Evening'].includes(rec.shiftType)) {
-            sanitizedRecs.push({
-              staffId: staff.sid,
-              staffName: staff.name,
-              staffEmail: staff.email,
-              shiftDate: rec.shiftDate,
-              shiftType: rec.shiftType,
-              demandScore: Number(rec.demandScore) || 1.2,
-              confidenceScore: Math.min(99, Math.max(75, Number(rec.confidenceScore) || 92)),
-              reason: rec.reason || `Gemini tối ưu ca trực cho ${staff.name}`,
-              isConsecutive: Boolean(rec.isConsecutive),
-              isReluctant13: Boolean(rec.isReluctant13),
-              isMatchRegistration: Boolean(rec.isMatchRegistration),
-            });
+          const rawStaffId = typeof rec.staffId === 'string' ? rec.staffId.trim() : '';
+          const rawShiftDate = typeof rec.shiftDate === 'string' ? rec.shiftDate.trim() : '';
+          const rawShiftType = typeof rec.shiftType === 'string' ? rec.shiftType.trim() : '';
+          const staff = staffMap.get(rawStaffId);
+
+          if (
+            !staff ||
+            !validWeekDates.has(rawShiftDate) ||
+            !['Morning', 'Afternoon', 'Evening'].includes(rawShiftType)
+          ) {
+            continue;
+          }
+
+          const shiftTypeVal = rawShiftType as 'Morning' | 'Afternoon' | 'Evening';
+          const dedupeKey = `${staff.sid}_${rawShiftDate}_${shiftTypeVal}`;
+          if (seenAssignments.has(dedupeKey)) {
+            continue;
+          }
+          seenAssignments.add(dedupeKey);
+
+          const dayKey = `${staff.sid}_${rawShiftDate}`;
+          if (!staffDayShifts.has(dayKey)) {
+            staffDayShifts.set(dayKey, new Set());
+          }
+          staffDayShifts.get(dayKey)!.add(shiftTypeVal);
+
+          const reasonStr =
+            typeof rec.reason === 'string' && rec.reason.trim()
+              ? rec.reason.trim()
+              : `Gemini tối ưu ca trực cho ${staff.name}`;
+
+          sanitizedRecs.push({
+            staffId: staff.sid,
+            staffName: staff.name,
+            staffEmail: staff.email,
+            shiftDate: rawShiftDate,
+            shiftType: shiftTypeVal,
+            demandScore: Number(rec.demandScore) || 1.2,
+            confidenceScore: Math.min(99, Math.max(75, Number(rec.confidenceScore) || 92)),
+            reason: reasonStr,
+            isConsecutive: Boolean(rec.isConsecutive),
+            isReluctant13: Boolean(rec.isReluctant13),
+            isMatchRegistration:
+              rec.isMatchRegistration !== undefined
+                ? Boolean(rec.isMatchRegistration)
+                : /khớp lịch|đăng ký/i.test(reasonStr),
+          });
+        }
+
+        // Reconcile consecutive vs 1&3 split flags across each staff's daily shifts
+        for (const rec of sanitizedRecs) {
+          const daySet = staffDayShifts.get(`${rec.staffId}_${rec.shiftDate}`);
+          if (daySet && daySet.size >= 2) {
+            const hasConsec =
+              (daySet.has('Morning') && daySet.has('Afternoon')) ||
+              (daySet.has('Afternoon') && daySet.has('Evening'));
+            const hasSplit13 =
+              daySet.has('Morning') && daySet.has('Evening') && !daySet.has('Afternoon');
+            if (hasConsec) rec.isConsecutive = true;
+            if (hasSplit13) rec.isReluctant13 = true;
           }
         }
 
@@ -207,7 +304,8 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
   }
 
   if (lastError) {
-    console.warn('[GeminiShiftService] Fallback to heuristic solver. Error:', lastError.message || lastError);
+    const errMsg = lastError instanceof Error ? lastError.message : String(lastError);
+    console.warn('[GeminiShiftService] Fallback to heuristic solver. Error:', errMsg);
   }
   return null;
 };

@@ -22,10 +22,17 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { getSocket } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
 import { useBookingStatus } from '../hooks/useBookingStatus';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import type { Booking, Vehicle, Branch } from '../types';
+
+const isRenderableSignatureUrl = (url?: string): boolean =>
+  Boolean(
+    url &&
+      (url.startsWith('data:image/') || url.startsWith('http://') || url.startsWith('https://'))
+  );
 
 interface OrderTimelineItem {
   key: string;
@@ -138,12 +145,27 @@ export const OrderDetailPage: React.FC = () => {
     fetchBookingDetails();
   }, [authLoading, isAuthenticated, id, navigate, fetchBookingDetails]);
 
-  // If live status changes from socket, update local status
+  // If live status changes from socket, update local status and refresh full details
   useEffect(() => {
     if (liveStatus && booking && liveStatus !== booking.status) {
       setBooking((prev) => (prev ? { ...prev, status: liveStatus as Booking['status'] } : null));
+      void fetchBookingDetails();
     }
-  }, [liveStatus, booking]);
+  }, [liveStatus, booking, fetchBookingDetails]);
+
+  useEffect(() => {
+    if (!id) return;
+    const socket = getSocket();
+    const handleExtended = (payload: { bookingId?: string }) => {
+      if (!payload?.bookingId || payload.bookingId === id) {
+        void fetchBookingDetails();
+      }
+    };
+    socket.on('booking:extended', handleExtended);
+    return () => {
+      socket.off('booking:extended', handleExtended);
+    };
+  }, [id, fetchBookingDetails]);
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -207,6 +229,15 @@ export const OrderDetailPage: React.FC = () => {
     lessorSignatureUrl?: string;
   }) => {
     if (!booking?._id) return;
+    if (
+      !extraPayload &&
+      editDeliveryMode === 'DoorDelivery' &&
+      !editPickupAddress.trim() &&
+      !editReturnAddress.trim()
+    ) {
+      setDeliveryFeedback('Vui lòng nhập ít nhất địa chỉ nhận xe hoặc địa chỉ trả xe tận nơi.');
+      return;
+    }
     try {
       setSavingDelivery(true);
       setDeliveryFeedback(null);
@@ -247,7 +278,7 @@ export const OrderDetailPage: React.FC = () => {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      window.open(`/api/bookings/${booking._id}/invoice`, '_blank');
+      setDeliveryFeedback('Không thể tải bản PDF hợp đồng lúc này. Vui lòng thử lại sau.');
     } finally {
       setDownloadingContractPdf(false);
     }
@@ -350,7 +381,7 @@ export const OrderDetailPage: React.FC = () => {
       (booking.paidAmount || 0) < booking.depositAmount &&
       !['Cancelled', 'Rejected', 'Completed'].includes(booking.status),
     canPayFull: !booking.isPaid && (booking.remainingAmount || 0) > 0,
-    canCancel: ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(booking.status),
+    canCancel: ['Pending', 'Approved', 'Confirmed'].includes(booking.status),
     canExtend: ['Confirmed', 'Ongoing'].includes(booking.status),
     canRefund: false,
     canCheckin: false,
@@ -907,7 +938,7 @@ export const OrderDetailPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {booking.lessorSignatureUrl && booking.lessorSignatureUrl.startsWith('data:image/') ? (
+                  {isRenderableSignatureUrl(booking.lessorSignatureUrl) ? (
                     <div className="p-2 rounded-lg bg-white/95 flex items-center justify-center h-24">
                       <img
                         src={booking.lessorSignatureUrl}
@@ -964,7 +995,7 @@ export const OrderDetailPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {booking.eSignatureUrl && booking.eSignatureUrl.startsWith('data:image/') ? (
+                  {isRenderableSignatureUrl(booking.eSignatureUrl) ? (
                     <div className="p-2 rounded-lg bg-white/95 flex items-center justify-center h-24">
                       <img
                         src={booking.eSignatureUrl}
@@ -1238,7 +1269,7 @@ export const OrderDetailPage: React.FC = () => {
                     className="w-full py-2.5 px-4 rounded-xl bg-transparent border border-white/10 hover:border-[#FF8080]/40 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-all flex items-center justify-center space-x-2 cursor-pointer"
                   >
                     <X className="w-4 h-4" />
-                    <span>{booking.status === 'Ongoing' ? 'Hủy chuyến / Kết thúc thuê sớm' : 'Hủy đơn đặt xe này'}</span>
+                    <span>Hủy đơn đặt xe này</span>
                   </button>
                 )}
 

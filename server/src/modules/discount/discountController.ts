@@ -1,14 +1,53 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { Discount, AuditLog } from '../../models';
+import { UserRole } from '../../models/User';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
+import { env } from '../../config/env';
+
+const escapeRegex = (input: string): string => input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const extractOptionalJwtAuth = (req: Request): { userId?: string; role?: UserRole } => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return {};
+  }
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return {};
+  }
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId?: unknown; role?: UserRole };
+    return {
+      userId: typeof decoded.userId === 'string' ? decoded.userId : undefined,
+      role: decoded.role,
+    };
+  } catch {
+    return {};
+  }
+};
+
+const isPrivateLoyaltyDiscount = (discount: {
+  code?: string;
+  isLoyaltyVoucher?: boolean;
+  ownerUserId?: unknown;
+}): boolean =>
+  Boolean(
+    discount.isLoyaltyVoucher ||
+      discount.ownerUserId ||
+      (discount.code && /^LOYALTY-/i.test(discount.code))
+  );
 
 /**
- * Get all discounts with optional filtering (Admin / Manager / Staff)
+ * Get all discounts with optional filtering (Admin / Manager / Staff / Public)
  */
 export const getDiscounts = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { activeOnly, search } = req.query;
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
+    const andConditions: Record<string, unknown>[] = [];
+    const optionalAuth = extractOptionalJwtAuth(req);
+    const isSystemAdmin = req.user?.roles === 'SystemAdmin' || optionalAuth.role === 'SystemAdmin';
 
     if (activeOnly === 'true') {
       const now = new Date();
@@ -18,12 +57,28 @@ export const getDiscounts = async (req: AuthenticatedRequest, res: Response, nex
       query.$expr = { $lt: ['$usedCount', '$usageLimit'] };
     }
 
+    if (activeOnly === 'true' || !isSystemAdmin) {
+      andConditions.push({
+        isLoyaltyVoucher: { $ne: true },
+        code: { $not: /^LOYALTY-/i },
+        $or: [{ ownerUserId: { $exists: false } }, { ownerUserId: null }],
+      });
+    }
+
     if (search) {
-      const searchStr = String(search).trim();
-      query.$or = [
-        { code: { $regex: searchStr, $options: 'i' } },
-        { description: { $regex: searchStr, $options: 'i' } },
-      ];
+      const escapedSearch = escapeRegex(String(search).trim());
+      if (escapedSearch) {
+        andConditions.push({
+          $or: [
+            { code: { $regex: escapedSearch, $options: 'i' } },
+            { description: { $regex: escapedSearch, $options: 'i' } },
+          ],
+        });
+      }
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     const discounts = await Discount.find(query).sort({ createdAt: -1 });
@@ -49,6 +104,20 @@ export const getDiscountById = async (req: Request, res: Response, next: NextFun
     if (!discount) {
       res.status(404).json({ success: false, message: 'Không tìm thấy mã giảm giá.' });
       return;
+    }
+
+    if (isPrivateLoyaltyDiscount(discount)) {
+      const auth = extractOptionalJwtAuth(req);
+      const isOwner = Boolean(
+        auth.userId && discount.ownerUserId && String(discount.ownerUserId) === String(auth.userId)
+      );
+      if (auth.role !== 'SystemAdmin' && !isOwner) {
+        res.status(403).json({
+          success: false,
+          message: 'Bạn không có quyền truy cập mã voucher đổi điểm cá nhân này.',
+        });
+        return;
+      }
     }
 
     res.json({ success: true, data: discount });
@@ -254,6 +323,20 @@ export const validateDiscount = async (req: Request, res: Response, next: NextFu
     if (!discount) {
       res.status(404).json({ success: false, message: 'Mã giảm giá không tồn tại.' });
       return;
+    }
+
+    if (isPrivateLoyaltyDiscount(discount)) {
+      const auth = extractOptionalJwtAuth(req);
+      const isOwner = Boolean(
+        auth.userId && discount.ownerUserId && String(discount.ownerUserId) === String(auth.userId)
+      );
+      if (!isOwner) {
+        res.status(403).json({
+          success: false,
+          message: 'Mã voucher đổi điểm này chỉ thuộc quyền sử dụng của tài khoản chủ sở hữu.',
+        });
+        return;
+      }
     }
 
     if (!discount.isActive) {

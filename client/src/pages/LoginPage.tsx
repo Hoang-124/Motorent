@@ -10,7 +10,9 @@ import {
   Eye, 
   EyeOff,
   Mail,
-  Sparkles
+  Sparkles,
+  KeyRound,
+  RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
@@ -63,6 +65,12 @@ export const LoginPage: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [loginSuccessMsg, setLoginSuccessMsg] = useState('');
   const [gisReady, setGisReady] = useState(false);
+  const [needsOtpVerification, setNeedsOtpVerification] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
+  const [devOtpHint, setDevOtpHint] = useState('');
 
   const googleClientId =
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -259,12 +267,85 @@ export const LoginPage: React.FC = () => {
       }
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.data?.message) {
-        setErrorMsg(err.response.data.message);
+        const message = String(err.response.data.message);
+        setErrorMsg(message);
+        if (err.response.status === 403 && /chưa được xác thực email/i.test(message)) {
+          setNeedsOtpVerification(true);
+          if (identifier.includes('@')) {
+            setOtpEmail(identifier.trim().toLowerCase());
+          }
+        }
       } else {
         setErrorMsg('Tên đăng nhập hoặc mật khẩu không chính xác.');
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyInlineOtp = async (codeOverride?: string) => {
+    const code = (codeOverride ?? otpCode).trim();
+    const targetEmail = otpEmail.trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setErrorMsg('Vui lòng nhập địa chỉ email đã đăng ký để xác thực mã OTP.');
+      return;
+    }
+    if (code.length !== 6) {
+      setErrorMsg('Mã OTP bao gồm đúng 6 chữ số.');
+      return;
+    }
+    setVerifyingOtp(true);
+    setErrorMsg('');
+    try {
+      const res = await api.post('/auth/verify-otp', { email: targetEmail, otp: code });
+      if (res.data?.success && res.data.data?.token && res.data.data?.user) {
+        const u = res.data.data.user;
+        setNeedsOtpVerification(false);
+        setLoginSuccessMsg('Kích hoạt tài khoản và đăng nhập thành công!');
+        login(res.data.data.token, u);
+        const returnTo = queryParams.get('returnTo');
+        setTimeout(() => {
+          navigate(resolvePostLoginPath(u.roles, returnTo), { replace: true });
+        }, 300);
+      } else {
+        setErrorMsg(res.data?.message || 'Mã OTP không hợp lệ.');
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setErrorMsg(String(err.response.data.message));
+      } else {
+        setErrorMsg('Xác thực mã OTP không thành công.');
+      }
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleResendInlineOtp = async () => {
+    const targetEmail = otpEmail.trim().toLowerCase();
+    if (!targetEmail || !targetEmail.includes('@')) {
+      setErrorMsg('Vui lòng nhập địa chỉ email đã đăng ký để nhận lại mã OTP.');
+      return;
+    }
+    setResendingOtp(true);
+    setErrorMsg('');
+    try {
+      const res = await api.post('/auth/resend-otp', { email: targetEmail });
+      if (res.data?.success) {
+        setLoginSuccessMsg(res.data.message || 'Mã OTP mới đã được gửi tới email của bạn.');
+        const nextDevOtp = res.data.data?.devOtp || res.data.devOtp;
+        if (nextDevOtp && !res.data.data?.hasRealSmtp && !res.data.hasRealSmtp) {
+          setDevOtpHint(String(nextDevOtp));
+        }
+      }
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.data?.message) {
+        setErrorMsg(String(err.response.data.message));
+      } else {
+        setErrorMsg('Không thể gửi lại mã OTP lúc này.');
+      }
+    } finally {
+      setResendingOtp(false);
     }
   };
 
@@ -316,6 +397,73 @@ export const LoginPage: React.FC = () => {
           <div className="p-3.5 bg-[#FFC799]/10 border border-[#FFC799]/30 text-[#FFC799] rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
             <CheckCircle2 className="w-4 h-4 text-[#FFC799] shrink-0" />
             <span>{loginSuccessMsg}</span>
+          </div>
+        )}
+
+        {/* Inline OTP Activation Panel for Unverified Accounts */}
+        {needsOtpVerification && (
+          <div className="p-5 bg-[#161616] border border-[#FFC799]/30 rounded-2xl space-y-3.5 text-xs">
+            <div className="flex items-center space-x-2 text-[#FFC799] font-bold">
+              <KeyRound className="w-4 h-4 shrink-0" />
+              <span>Kích hoạt email bằng mã OTP 6 chữ số</span>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-[#A0A0A0] mb-1">
+                Email đã đăng ký
+              </label>
+              <input
+                type="email"
+                value={otpEmail}
+                onChange={(e) => setOtpEmail(e.target.value)}
+                placeholder="Nhập email đăng ký tài khoản..."
+                className="w-full px-3 py-2 bg-[#101010] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+              />
+            </div>
+            {devOtpHint && (
+              <div className="flex items-center justify-between bg-[#101010] px-3 py-2 rounded-xl border border-[#FFC799]/30">
+                <span className="text-[11px] text-[#A0A0A0]">
+                  Mã OTP (Dev): <strong className="font-mono text-[#FFC799]">{devOtpHint}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOtpCode(devOtpHint);
+                    handleVerifyInlineOtp(devOtpHint);
+                  }}
+                  className="px-2.5 py-1 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-lg text-[11px]"
+                >
+                  Kích hoạt ngay
+                </button>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                placeholder="Nhập 6 số OTP"
+                className="flex-1 px-3 py-2 bg-[#101010] border border-white/15 rounded-xl font-mono font-bold tracking-widest text-center text-[#FFC799] outline-none focus:border-[#FFC799]"
+              />
+              <button
+                type="button"
+                disabled={verifyingOtp || otpCode.length !== 6}
+                onClick={() => handleVerifyInlineOtp()}
+                className="px-3.5 py-2 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] disabled:opacity-50 font-black rounded-xl transition-colors"
+              >
+                {verifyingOtp ? 'Đang xác thực...' : 'Xác nhận'}
+              </button>
+            </div>
+            <button
+              type="button"
+              disabled={resendingOtp}
+              onClick={handleResendInlineOtp}
+              className="w-full py-2 border border-white/10 hover:border-[#FFC799]/40 rounded-xl text-[11px] font-semibold text-[#F5F5F5] flex items-center justify-center space-x-1.5 transition-colors"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${resendingOtp ? 'animate-spin' : ''}`} />
+              <span>{resendingOtp ? 'Đang gửi lại mã...' : 'Gửi lại mã OTP mới'}</span>
+            </button>
           </div>
         )}
 
@@ -389,7 +537,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] active:scale-[0.99] text-white rounded-xl text-xs font-black shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
+              className="w-full py-3 px-4 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] active:scale-[0.99] rounded-xl text-xs font-black shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
             >
               {loading ? (
                 <span>Đang xử lý đăng nhập...</span>

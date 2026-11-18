@@ -1,11 +1,14 @@
 import { Response, NextFunction } from 'express';
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
+import { AppError } from '../../core/errorHandler';
 import * as financeService from './financeService';
 
 const reconcileQuerySchema = z.object({
   from: z.string().trim().optional(),
   to: z.string().trim().optional(),
+  branchId: z.string().trim().optional(),
 });
 
 const taxReportQuerySchema = z.object({
@@ -25,7 +28,27 @@ export const getReconcile = async (
     const fromDate = query.from ? new Date(query.from) : undefined;
     const toDate = query.to ? new Date(query.to) : undefined;
 
-    const result = await financeService.reconcilePayments(fromDate, toDate);
+    if (fromDate && Number.isNaN(fromDate.getTime())) {
+      throw new AppError(400, 'Ngày bắt đầu đối soát (from) không hợp lệ.');
+    }
+    if (toDate && Number.isNaN(toDate.getTime())) {
+      throw new AppError(400, 'Ngày kết thúc đối soát (to) không hợp lệ.');
+    }
+    if (toDate && query.to && /^\d{4}-\d{2}-\d{2}$/.test(query.to)) {
+      toDate.setHours(23, 59, 59, 999);
+    }
+
+    let scopedBranchId: string | undefined;
+    if (req.user?.roles === 'BranchManager') {
+      if (!req.user.branchId) {
+        throw new AppError(403, 'Tài khoản quản lý chưa được phân công chi nhánh để đối soát.');
+      }
+      scopedBranchId = req.user.branchId.toString();
+    } else if (query.branchId && mongoose.isValidObjectId(query.branchId)) {
+      scopedBranchId = query.branchId;
+    }
+
+    const result = await financeService.reconcilePayments(fromDate, toDate, scopedBranchId);
     res.json({ success: true, data: result });
   } catch (error) {
     next(error);

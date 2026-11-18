@@ -1,7 +1,12 @@
 import { Response, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { StaffSchedule, User, Branch, Booking, AuditLog, StaffAvailability } from '../../models';
-import { parseStaffAvailabilityMessage, parseMultiStaffAvailabilityText, toLocalDateKey } from './availabilityParser';
+import {
+  parseStaffAvailabilityMessage,
+  parseMultiStaffAvailabilityText,
+  slotsToShorthandMessage,
+  toLocalDateKey,
+} from './availabilityParser';
 import { runGeminiShiftOptimization } from './geminiShiftService';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
 
@@ -24,13 +29,134 @@ export const parseLocalDateKey = (dateKeyStr: string): Date => {
   return new Date(yr, (mo || 1) - 1, da || 1, 0, 0, 0, 0);
 };
 
+const parseDateInputToLocalStart = (val: unknown): Date => {
+  const str = String(val || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    return parseLocalDateKey(str);
+  }
+  const d = new Date(str);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const extractIdStr = (val: unknown): string => {
+  if (val && typeof val === 'object' && '_id' in val) {
+    return String((val as { _id?: unknown })._id || '');
+  }
+  return val ? String(val) : '';
+};
+
+/**
+ * Determines whether an existing shift must be preserved (never overwritten/deleted)
+ * during mid-week AI schedule optimization:
+ * - Any shift on a past date (< startOfToday)
+ * - Any shift with recorded attendance (checkInTime or checkOutTime)
+ * - Any shift with status 'Present', 'Absent', or 'OnLeave' (i.e. not un-attended 'Assigned'/'Scheduled')
+ */
+export const shouldPreserveShiftOnOverwrite = (
+  sched: {
+    shiftDate: Date | string;
+    status?: string;
+    checkInTime?: Date | string | null;
+    checkOutTime?: Date | string | null;
+  },
+  todayKey: string
+): boolean => {
+  const dKey = toLocalDateKey(new Date(sched.shiftDate));
+  if (dKey < todayKey) return true;
+  if (sched.checkInTime || sched.checkOutTime) return true;
+  const st = sched.status || 'Assigned';
+  if (st !== 'Assigned' && st !== 'Scheduled') return true;
+  return false;
+};
+
+/**
+ * Sorts shift documents in strict chronological shift order:
+ * Date asc -> Morning (Ca 1) -> Afternoon (Ca 2) -> Evening (Ca 3) -> FullDay
+ */
+export const sortShiftsChronologically = <
+  T extends { shiftDate?: Date | string; shiftType: string }
+>(
+  shifts: T[]
+): T[] => {
+  return [...shifts].sort((a, b) => {
+    if (a.shiftDate && b.shiftDate) {
+      const dA = new Date(a.shiftDate).getTime();
+      const dB = new Date(b.shiftDate).getTime();
+      if (dA !== dB) return dA - dB;
+    }
+    const oA = SHIFT_CHRONO_ORDER[a.shiftType] || 99;
+    const oB = SHIFT_CHRONO_ORDER[b.shiftType] || 99;
+    return oA - oB;
+  });
+};
+
+/**
+ * Selects the active shift for today's clock-in/out widget when a staff member
+ * has 1 or 2+ shifts in the same day:
+ * 1. Shift currently checked in without checkOutTime
+ * 2. Earliest chronological shift without checkOutTime
+ * 3. Last chronological shift if all shifts are completed
+ */
+export const pickActiveTodayShift = <
+  T extends {
+    shiftDate?: Date | string;
+    shiftType: string;
+    checkInTime?: Date | string | null;
+    checkOutTime?: Date | string | null;
+    status?: string;
+  }
+>(
+  shifts: T[]
+): { activeShift: T | null; orderedShifts: T[] } => {
+  if (!Array.isArray(shifts) || shifts.length === 0) {
+    return { activeShift: null, orderedShifts: [] };
+  }
+  const eligible = shifts.filter((s) => s.status !== 'Absent' && s.status !== 'OnLeave');
+  const orderedShifts = sortShiftsChronologically(eligible.length > 0 ? eligible : shifts);
+
+  const inProgress = orderedShifts.find((s) => Boolean(s.checkInTime) && !s.checkOutTime);
+  if (inProgress) {
+    return { activeShift: inProgress, orderedShifts };
+  }
+
+  const nextUnfinished = orderedShifts.find((s) => !s.checkOutTime);
+  if (nextUnfinished) {
+    return { activeShift: nextUnfinished, orderedShifts };
+  }
+
+  return {
+    activeShift: orderedShifts[orderedShifts.length - 1] || null,
+    orderedShifts,
+  };
+};
+
+/**
+ * Comparator for heuristic shift candidates:
+ * 1. Non-busy candidates ALWAYS rank above declared-busy candidates
+ * 2. Within the same availability status, Tier 1 (single / consecutive 1-2 or 2-3) beats Tier 2 (split 1 & 3)
+ * 3. Higher multi-objective totalUtility wins
+ */
+export const compareShiftCandidates = (
+  a: { isBusyByRegistration: boolean; tier: number; totalUtility: number },
+  b: { isBusyByRegistration: boolean; tier: number; totalUtility: number }
+): number => {
+  if (a.isBusyByRegistration !== b.isBusyByRegistration) {
+    return a.isBusyByRegistration ? 1 : -1;
+  }
+  if (a.tier !== b.tier) {
+    return a.tier - b.tier;
+  }
+  return b.totalUtility - a.totalUtility;
+};
+
 /**
  * Get schedules with filtering by branch, staff, date range (Shift Calendar View)
  */
 export const getSchedules = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userRole = req.user?.roles;
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
 
     if (userRole === 'Staff') {
       // Staff can see all schedules of their branch or their own
@@ -105,10 +231,10 @@ export const getStaffAvailabilities = async (
     let targetBranchId = req.query.branchId as string | undefined;
 
     if (userRole === 'Staff' || userRole === 'BranchManager') {
-      targetBranchId = String((req.user?.branchId as any)?._id || req.user?.branchId);
+      targetBranchId = extractIdStr(req.user?.branchId);
     }
 
-    const query: Record<string, any> = {};
+    const query: Record<string, unknown> = {};
     if (targetBranchId && targetBranchId !== 'all') {
       query.branchId = targetBranchId;
     }
@@ -120,10 +246,8 @@ export const getStaffAvailabilities = async (
     }
 
     if (req.query.weekStartDate) {
-      const wDate = new Date(String(req.query.weekStartDate));
-      const wStart = new Date(wDate);
-      wStart.setHours(0, 0, 0, 0);
-      const wEnd = new Date(wDate);
+      const wStart = parseDateInputToLocalStart(req.query.weekStartDate);
+      const wEnd = new Date(wStart);
       wEnd.setHours(23, 59, 59, 999);
       query.weekStartDate = { $gte: wStart, $lte: wEnd };
     }
@@ -166,7 +290,7 @@ export const submitStaffAvailability = async (
       }
     }
 
-    const { weekStartDate, rawMessage, slots, notes } = req.body;
+    const { weekStartDate, rawMessage, slots, notes, branchId: reqBranchId } = req.body;
     if (!weekStartDate) {
       res.status(400).json({
         success: false,
@@ -175,8 +299,17 @@ export const submitStaffAvailability = async (
       return;
     }
 
-    const monday = new Date(weekStartDate);
-    monday.setHours(0, 0, 0, 0);
+    if (!targetBranchId && reqBranchId) {
+      targetBranchId = reqBranchId;
+    }
+    if (!targetBranchId) {
+      const fallbackBranch = await Branch.findOne({ isActive: true }).select('_id');
+      if (fallbackBranch) {
+        targetBranchId = fallbackBranch._id;
+      }
+    }
+
+    const monday = parseDateInputToLocalStart(weekStartDate);
 
     // If slots not explicitly passed, parse from raw text message (e.g. "t2 2 3, t3 1 3, t4 1 2, t5 bận, t6 1, t7 2 3, cn 3")
     let finalSlots = slots;
@@ -208,7 +341,7 @@ export const submitStaffAvailability = async (
       entityId: String(updated._id),
       details: {
         staffId: String(targetStaffId),
-        weekStartDate: monday.toISOString().slice(0, 10),
+        weekStartDate: toLocalDateKey(monday),
         rawMessage: rawMessage || '',
       },
       ipAddress: req.ip,
@@ -253,10 +386,13 @@ export const createSchedule = async (req: AuthenticatedRequest, res: Response, n
       return;
     }
 
-    const dateObj = new Date(shiftDate);
-    const dayStart = new Date(dateObj);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dateObj);
+    if (targetBranchId && staff.branchId && String(staff.branchId) !== String(targetBranchId)) {
+      res.status(400).json({ success: false, message: 'Nhân viên này không trực thuộc chi nhánh được chọn.' });
+      return;
+    }
+
+    const dayStart = parseDateInputToLocalStart(shiftDate);
+    const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
 
     // Check overlap: Same staff cannot have the exact same shiftType or FullDay on the same date
@@ -299,7 +435,7 @@ export const createSchedule = async (req: AuthenticatedRequest, res: Response, n
       entityId: String(newSchedule._id),
       details: {
         staffName: `${staff.firstName} ${staff.lastName}`,
-        shiftDate: dayStart.toISOString().slice(0, 10),
+        shiftDate: toLocalDateKey(dayStart),
         shiftType,
       },
       ipAddress: req.ip,
@@ -336,7 +472,32 @@ export const updateSchedule = async (req: AuthenticatedRequest, res: Response, n
       }
     }
 
-    if (shiftType) schedule.shiftType = shiftType;
+    if (shiftType && shiftType !== schedule.shiftType) {
+      const dayStart = new Date(schedule.shiftDate);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(schedule.shiftDate);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const conflict = await StaffSchedule.findOne({
+        _id: { $ne: schedule._id },
+        staffId: schedule.staffId,
+        shiftDate: { $gte: dayStart, $lte: dayEnd },
+        $or: [
+          { shiftType },
+          { shiftType: 'FullDay' },
+          ...(shiftType === 'FullDay' ? [{ shiftType: { $in: ['Morning', 'Afternoon', 'Evening'] } }] : []),
+        ],
+      });
+
+      if (conflict) {
+        res.status(409).json({
+          success: false,
+          message: `Trùng lịch trực: Nhân viên đã có ca ${conflict.shiftType} trong ngày này.`,
+        });
+        return;
+      }
+      schedule.shiftType = shiftType;
+    }
     if (status) schedule.status = status;
     if (notes !== undefined) schedule.notes = notes;
 
@@ -397,7 +558,8 @@ export const clockAttendance = async (req: AuthenticatedRequest, res: Response, 
     }
 
     // Must be the staff member themselves or their manager
-    const isSelf = String(schedule.staffId._id) === String(req.user?._id);
+    const scheduleStaffId = extractIdStr(schedule.staffId);
+    const isSelf = Boolean(scheduleStaffId && scheduleStaffId === String(req.user?._id));
     const isManager = req.user?.roles === 'BranchManager' && String(schedule.branchId) === String(req.user.branchId);
     const isAdmin = req.user?.roles === 'SystemAdmin';
 
@@ -467,6 +629,9 @@ export const clockAttendance = async (req: AuthenticatedRequest, res: Response, 
 
 /**
  * Quick Clock In/Out for Current Authenticated Staff
+ * Sorts all shifts of today chronologically (Morning -> Afternoon -> Evening -> FullDay)
+ * and selects the active unfinished shift (!checkOutTime) first so double-shift staff
+ * clock in/out of Morning first, then seamlessly advance to Afternoon/Evening.
  */
 export const getMyTodaySchedule = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -481,16 +646,17 @@ export const getMyTodaySchedule = async (req: AuthenticatedRequest, res: Respons
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    const todayShift = await StaffSchedule.findOne({
+    const todayShifts = await StaffSchedule.find({
       staffId,
       shiftDate: { $gte: todayStart, $lte: todayEnd },
-    })
-      .populate('branchId', 'name code address')
-      .sort({ createdAt: -1 });
+    }).populate('branchId', 'name code address');
+
+    const { activeShift, orderedShifts } = pickActiveTodayShift(todayShifts);
 
     res.json({
       success: true,
-      data: todayShift,
+      data: activeShift,
+      shifts: orderedShifts,
     });
   } catch (error) {
     next(error);
@@ -685,7 +851,7 @@ export const aiOptimizeSchedules = async (
               rawMessage: item.rawMessage,
               slots: item.slots,
               notes: `Đăng ký phân ca quản lý gửi cho AI (${new Date().toLocaleDateString('vi-VN')})`,
-              updatedBy: (req as any).user?._id,
+              updatedBy: req.user?._id,
             },
             { upsert: true, new: true }
           );
@@ -729,28 +895,42 @@ export const aiOptimizeSchedules = async (
 
 
 
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayKey = toDateKey(startOfToday);
     const weekStartKey = toDateKey(weekStart);
     const weekEndKey = toDateKey(weekEnd);
 
-    for (const sched of existingSchedules) {
-      const sid = String((sched.staffId as any)?._id || sched.staffId);
+    // Shifts inside the target window that MUST be kept (either overwriteExisting=false,
+    // or past/attended/Present shifts preserved during mid-week overwrite)
+    const activeExistingSchedulesInWindow = existingSchedules.filter((sched) => {
       const dKey = toDateKey(new Date(sched.shiftDate));
+      if (dKey < weekStartKey || dKey > weekEndKey) return false;
+      return !overwriteExisting || shouldPreserveShiftOnOverwrite(sched, todayKey);
+    });
 
-      // When overwriteExisting is true, ignore existing shifts inside the target week
-      // Only keep shifts outside the target week (for boundary clopening checks)
-      if (!overwriteExisting || dKey < weekStartKey || dKey > weekEndKey) {
+    for (const sched of existingSchedules) {
+      const sid = extractIdStr(sched.staffId);
+      const dKey = toDateKey(new Date(sched.shiftDate));
+      const isOutsideWindow = dKey < weekStartKey || dKey > weekEndKey;
+      const keepInsideWindow = !overwriteExisting || shouldPreserveShiftOnOverwrite(sched, todayKey);
+
+      if (isOutsideWindow || keepInsideWindow) {
         const mapKey = `${sid}_${dKey}`;
         if (!staffDayShiftsMap.has(mapKey)) {
           staffDayShiftsMap.set(mapKey, new Set());
         }
         staffDayShiftsMap.get(mapKey)!.add(sched.shiftType);
 
-        if (dKey >= weekStartKey && dKey <= weekEndKey && assignedCountMap.has(sid)) {
+        if (!isOutsideWindow && keepInsideWindow && assignedCountMap.has(sid)) {
           const weight = sched.shiftType === 'FullDay' ? 2 : 1;
           assignedCountMap.set(sid, (assignedCountMap.get(sid) || 0) + weight);
         }
       }
     }
+
+    // Snapshot pre-heuristic baseline counts (from preserved/existing shifts) so Gemini or precomputed overrides do not double-count
+    const baselineAssignedCountMap = new Map<string, number>(assignedCountMap);
 
     // Helper to classify booking event hour into shift slot
     const getShiftSlotFromHour = (hour: number): 'Morning' | 'Afternoon' | 'Evening' => {
@@ -786,6 +966,9 @@ export const aiOptimizeSchedules = async (
       demandScore: number;
       confidenceScore: number;
       reason: string;
+      isConsecutive?: boolean;
+      isReluctant13?: boolean;
+      isMatchRegistration?: boolean;
     }> = [];
 
     const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
@@ -854,17 +1037,15 @@ export const aiOptimizeSchedules = async (
           recommendedStaffCount = 3;
         }
 
-        // Count already assigned staff in this branch & slot
-        const existingInSlot = overwriteExisting
-          ? []
-          : existingSchedules.filter((s) => {
-              const sDateKey = toDateKey(new Date(s.shiftDate));
-              return (
-                String(s.branchId) === String(branch._id) &&
-                sDateKey === dKey &&
-                (s.shiftType === shiftType || s.shiftType === 'FullDay')
-              );
-            });
+        // Count already assigned / preserved staff in this branch & slot
+        const existingInSlot = activeExistingSchedulesInWindow.filter((s) => {
+          const sDateKey = toDateKey(new Date(s.shiftDate));
+          return (
+            String(s.branchId) === String(branch._id) &&
+            sDateKey === dKey &&
+            (s.shiftType === shiftType || s.shiftType === 'FullDay')
+          );
+        });
 
         const existingStaffCount = existingInSlot.length;
         const deficit = Math.max(0, recommendedStaffCount - existingStaffCount);
@@ -1001,16 +1182,16 @@ export const aiOptimizeSchedules = async (
               } else if (isBusyByRegistration) {
                 const note = daySlotInfo?.notes || '';
                 if (note.includes('Không đăng ký')) {
-                  reasons.push('⚠️ Điều động ca trực do chưa có nhân sự đăng ký ca này');
+                  reasons.push('[Lưu ý] Điều động ca trực do chưa có nhân sự đăng ký ca này');
                 } else {
-                  reasons.push('⚠️ Huy động nhân sự do ca trực thiếu người');
+                  reasons.push('[Lưu ý] Huy động nhân sự do ca trực thiếu người');
                 }
               }
 
               if (isConsecutiveShift) {
                 reasons.push(`Ưu tiên xếp 2 ca liên tiếp trong ngày (${consecutiveLabel})`);
               } else if (isSplitShift13) {
-                reasons.push('⚠️ Miễn cưỡng chọn ca gãy (Ca 1 Sáng & Ca 3 Tối) do không còn lựa chọn nào khác');
+                reasons.push('[Lưu ý] Miễn cưỡng chọn ca gãy (Ca 1 Sáng & Ca 3 Tối) do không còn lựa chọn nào khác');
               }
 
               if (doorDeliveryCount > 0) {
@@ -1035,6 +1216,7 @@ export const aiOptimizeSchedules = async (
                 sid,
                 tier,
                 isBusyByRegistration,
+                isPreferredByRegistration,
                 isSplitShift13,
                 isConsecutiveShift,
                 totalUtility,
@@ -1043,18 +1225,7 @@ export const aiOptimizeSchedules = async (
               };
             })
             .filter((c): c is NonNullable<typeof c> => c !== null)
-            .sort((a, b) => {
-              // 1. Tier 1 (Normal / Consecutive) ALWAYS beats Tier 2 (Split-shift 1 & 3)
-              if (a.tier !== b.tier) {
-                return a.tier - b.tier;
-              }
-              // 2. Staff not busy by registration comes first
-              if (a.isBusyByRegistration !== b.isBusyByRegistration) {
-                return a.isBusyByRegistration ? 1 : -1;
-              }
-              // 3. Total utility score
-              return b.totalUtility - a.totalUtility;
-            });
+            .sort(compareShiftCandidates);
 
           if (candidates.length > 0) {
             const chosen = candidates[0];
@@ -1076,111 +1247,226 @@ export const aiOptimizeSchedules = async (
               demandScore,
               confidenceScore: chosen.confidenceScore,
               reason: chosen.reason,
+              isConsecutive: chosen.isConsecutiveShift,
+              isReluctant13: chosen.isSplitShift13,
+              isMatchRegistration: chosen.isPreferredByRegistration,
             });
           }
         }
       }
     }
 
-    // 2.5. Integrate Google Gemini AI Optimizer (if GEMINI_API_KEY is configured or passed via request)
+    // Build set of preserved shift keys inside target window so neither Gemini nor persistence duplicates them
+    const preservedSlotKeys = new Set<string>();
+    for (const ex of activeExistingSchedulesInWindow) {
+      const exSid = extractIdStr(ex.staffId);
+      const exDateKey = toDateKey(new Date(ex.shiftDate));
+      if (ex.shiftType === 'FullDay') {
+        preservedSlotKeys.add(`${exSid}_${exDateKey}_Morning`);
+        preservedSlotKeys.add(`${exSid}_${exDateKey}_Afternoon`);
+        preservedSlotKeys.add(`${exSid}_${exDateKey}_Evening`);
+      } else {
+        preservedSlotKeys.add(`${exSid}_${exDateKey}_${ex.shiftType}`);
+      }
+    }
+
+    // 2.5. Integrate Precomputed Preview Recommendations OR Google Gemini AI Optimizer
     let aiEngineName = 'Bộ giải Thuật toán Quy chuẩn (Heuristic Solver)';
     let aiModelUsed = 'MOTORENT-Rule-v2';
     let aiOverviewNote = 'Tối ưu hóa đa mục tiêu: Ưu tiên ca liên tiếp (1-2 hoặc 2-3), loại trừ ca gãy 1 & 3 và tôn trọng lịch đăng ký của nhân viên.';
 
-    try {
-      const weekDateKeys: string[] = [];
-      for (let di = 0; di < daysCount; di++) {
-        const curD = new Date(weekStart);
-        curD.setDate(weekStart.getDate() + di);
-        weekDateKeys.push(toDateKey(curD));
+    const weekDateKeys: string[] = [];
+    for (let di = 0; di < daysCount; di++) {
+      const curD = new Date(weekStart);
+      curD.setDate(weekStart.getDate() + di);
+      weekDateKeys.push(toDateKey(curD));
+    }
+    const validWeekDateSet = new Set(weekDateKeys);
+    const branchStaffMap = new Map(branchStaff.map((s) => [String(s._id), s]));
+
+    const rawPrecomputed = Array.isArray(req.body.precomputedRecommendations)
+      ? (req.body.precomputedRecommendations as Array<Record<string, unknown>>)
+      : null;
+
+    if (rawPrecomputed && rawPrecomputed.length > 0) {
+      if (typeof req.body.aiEngine === 'string' && req.body.aiEngine.trim()) {
+        aiEngineName = req.body.aiEngine.trim();
+      }
+      if (typeof req.body.modelUsed === 'string' && req.body.modelUsed.trim()) {
+        aiModelUsed = req.body.modelUsed.trim();
+      }
+      if (typeof req.body.aiOverview === 'string' && req.body.aiOverview.trim()) {
+        aiOverviewNote = req.body.aiOverview.trim();
       }
 
-      const geminiResult = await runGeminiShiftOptimization({
-        geminiApiKey: req.body.geminiApiKey,
-        branch: {
-          _id: String(branch._id),
-          name: branch.name,
-          code: branch.code,
-        },
-        period: {
-          startDate: toDateKey(weekStart),
-          endDate: toDateKey(weekEnd),
-          daysCount,
-          weekDates: weekDateKeys,
-        },
-        staffList: branchStaff.map((s) => ({
-          sid: String(s._id),
-          name: `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.username,
-          email: s.email || '',
-          username: s.username,
-        })),
-        staffAvailabilities: branchStaff.map((s) => {
-          const sid = String(s._id);
-          const fromParsed = parsedMulti.find((p) => p.staffId === sid);
-          if (fromParsed) {
+      // Reset workload counts back to pre-heuristic baseline before applying precomputed recommendations
+      assignedCountMap.clear();
+      for (const [sid, count] of baselineAssignedCountMap.entries()) {
+        assignedCountMap.set(sid, count);
+      }
+
+      recommendations.length = 0;
+      const seenPrecomputed = new Set<string>(preservedSlotKeys);
+
+      for (const pr of rawPrecomputed) {
+        const sid = typeof pr.staffId === 'string' ? pr.staffId.trim() : '';
+        const sDate = typeof pr.shiftDate === 'string' ? pr.shiftDate.trim() : '';
+        const sType = typeof pr.shiftType === 'string' ? pr.shiftType.trim() : '';
+        const staffDoc = branchStaffMap.get(sid);
+
+        if (
+          !staffDoc ||
+          !validWeekDateSet.has(sDate) ||
+          !['Morning', 'Afternoon', 'Evening'].includes(sType)
+        ) {
+          continue;
+        }
+
+        const shiftTypeVal = sType as 'Morning' | 'Afternoon' | 'Evening';
+        const dedupeKey = `${sid}_${sDate}_${shiftTypeVal}`;
+        if (seenPrecomputed.has(dedupeKey)) {
+          continue;
+        }
+        seenPrecomputed.add(dedupeKey);
+
+        const reasonStr =
+          typeof pr.reason === 'string' && pr.reason.trim()
+            ? pr.reason.trim()
+            : `AI tối ưu ca trực cho ${staffDoc.firstName || staffDoc.username}`;
+
+        recommendations.push({
+          staffId: sid,
+          staffName: `${staffDoc.firstName || ''} ${staffDoc.lastName || ''}`.trim() || staffDoc.username || 'Nhân viên',
+          staffEmail: staffDoc.email || '',
+          branchId: String(branch._id),
+          branchName: branch.name,
+          shiftDate: sDate,
+          shiftType: shiftTypeVal,
+          demandScore: Number(pr.demandScore) || 1.2,
+          confidenceScore: Math.min(99, Math.max(70, Number(pr.confidenceScore) || 90)),
+          reason: reasonStr,
+          isConsecutive: pr.isConsecutive !== undefined ? Boolean(pr.isConsecutive) : /liên tiếp/i.test(reasonStr),
+          isReluctant13: pr.isReluctant13 !== undefined ? Boolean(pr.isReluctant13) : /miễn cưỡng/i.test(reasonStr),
+          isMatchRegistration:
+            pr.isMatchRegistration !== undefined ? Boolean(pr.isMatchRegistration) : /khớp lịch/i.test(reasonStr),
+        });
+
+        if (assignedCountMap.has(sid)) {
+          assignedCountMap.set(sid, (assignedCountMap.get(sid) || 0) + 1);
+        }
+      }
+    } else {
+      try {
+        const geminiResult = await runGeminiShiftOptimization({
+          geminiApiKey: req.body.geminiApiKey,
+          branch: {
+            _id: String(branch._id),
+            name: branch.name,
+            code: branch.code,
+          },
+          period: {
+            startDate: toDateKey(weekStart),
+            endDate: toDateKey(weekEnd),
+            daysCount,
+            weekDates: weekDateKeys,
+          },
+          staffList: branchStaff.map((s) => ({
+            sid: String(s._id),
+            name: `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.username,
+            email: s.email || '',
+            username: s.username,
+          })),
+          staffAvailabilities: branchStaff.map((s) => {
+            const sid = String(s._id);
+            const fromParsed = parsedMulti.find((p) => p.staffId === sid);
+            if (fromParsed) {
+              return {
+                staffId: sid,
+                staffName: `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.username || 'Nhân viên',
+                rawMessage: fromParsed.rawMessage,
+                summary: `Đăng ký phân ca quản lý gửi cho AI: ${fromParsed.rawMessage}`,
+              };
+            }
+            const sa = staffAvailabilities.find((a) => String(a.staffId) === sid);
+            const slotsShorthand =
+              sa && Array.isArray(sa.slots) && sa.slots.length > 0
+                ? slotsToShorthandMessage(sa.slots)
+                : '';
+            const effectiveRaw = sa?.rawMessage?.trim() || slotsShorthand;
+            const summaryParts = [
+              slotsShorthand ? `Lịch ca đăng ký: ${slotsShorthand}` : '',
+              sa?.notes?.trim() || '',
+            ].filter(Boolean);
             return {
               staffId: sid,
               staffName: `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.username || 'Nhân viên',
-              rawMessage: fromParsed.rawMessage,
-              summary: `Đăng ký phân ca quản lý gửi cho AI: ${fromParsed.rawMessage}`,
+              rawMessage: effectiveRaw,
+              summary: summaryParts.join(' | '),
             };
+          }),
+          existingSchedules: activeExistingSchedulesInWindow.map((s) => ({
+            staffId: extractIdStr(s.staffId),
+            shiftDate: toDateKey(new Date(s.shiftDate)),
+            shiftType: s.shiftType,
+          })),
+          slotDemands: slotAnalyses.map((s) => ({
+            date: s.date,
+            dayOfWeek: s.dayOfWeek,
+            shiftType: s.shiftType,
+            demandScore: s.demandScore,
+            requiredStaffCount: s.recommendedStaffCount,
+            existingStaffCount: s.existingStaffCount,
+            deficit: s.deficit,
+          })),
+        });
+
+        if (geminiResult && geminiResult.recommendations.length > 0) {
+          aiEngineName = 'Google Gemini AI (' + (geminiResult.modelUsed || 'Flash') + ')';
+          aiModelUsed = geminiResult.modelUsed || 'gemini-2.5-flash';
+          aiOverviewNote = geminiResult.aiOverview;
+
+          // Reset assignedCountMap back to pre-heuristic baseline before counting Gemini's returned shifts
+          assignedCountMap.clear();
+          for (const [sid, count] of baselineAssignedCountMap.entries()) {
+            assignedCountMap.set(sid, count);
           }
-          const sa = staffAvailabilities.find((a) => String(a.staffId) === sid);
-          const staffUser = s;
-          return {
-            staffId: sid,
-            staffName: `${staffUser.firstName || ''} ${staffUser.lastName || ''}`.trim() || staffUser.username || 'Nhân viên',
-            rawMessage: sa?.rawMessage || '',
-            summary: sa?.notes || '',
-          };
-        }),
-        existingSchedules: overwriteExisting
-            ? []
-            : existingSchedules.map((s) => ({
-                staffId: String((s.staffId as any)?._id || s.staffId),
-                shiftDate: toDateKey(new Date(s.shiftDate)),
-                shiftType: s.shiftType,
-              })),
-        slotDemands: slotAnalyses.map((s) => ({
-          date: s.date,
-          dayOfWeek: s.dayOfWeek,
-          shiftType: s.shiftType,
-          demandScore: s.demandScore,
-          requiredStaffCount: s.recommendedStaffCount,
-          existingStaffCount: s.existingStaffCount,
-          deficit: s.deficit,
-        })),
-      });
 
-      if (geminiResult && geminiResult.recommendations.length > 0) {
-        aiEngineName = 'Google Gemini AI (' + (geminiResult.modelUsed || 'Flash') + ')';
-        aiModelUsed = geminiResult.modelUsed || 'gemini-2.5-flash';
-        aiOverviewNote = geminiResult.aiOverview;
+          // Replace recommendations with Gemini's validated response
+          recommendations.length = 0;
+          const seenGemini = new Set<string>(preservedSlotKeys);
 
-        // Replace recommendations with Gemini's response
-        recommendations.length = 0;
-        for (const gr of geminiResult.recommendations) {
-          recommendations.push({
-            staffId: gr.staffId,
-            staffName: gr.staffName,
-            staffEmail: gr.staffEmail,
-            branchId: String(branch._id),
-            branchName: branch.name,
-            shiftDate: gr.shiftDate,
-            shiftType: gr.shiftType,
-            demandScore: gr.demandScore,
-            confidenceScore: gr.confidenceScore,
-            reason: gr.reason,
-          });
+          for (const gr of geminiResult.recommendations) {
+            const dedupeKey = `${gr.staffId}_${gr.shiftDate}_${gr.shiftType}`;
+            if (seenGemini.has(dedupeKey)) {
+              continue;
+            }
+            seenGemini.add(dedupeKey);
 
-          // Sync count
-          if (assignedCountMap.has(gr.staffId)) {
-            assignedCountMap.set(gr.staffId, (assignedCountMap.get(gr.staffId) || 0) + 1);
+            recommendations.push({
+              staffId: gr.staffId,
+              staffName: gr.staffName,
+              staffEmail: gr.staffEmail,
+              branchId: String(branch._id),
+              branchName: branch.name,
+              shiftDate: gr.shiftDate,
+              shiftType: gr.shiftType,
+              demandScore: gr.demandScore,
+              confidenceScore: gr.confidenceScore,
+              reason: gr.reason,
+              isConsecutive: gr.isConsecutive,
+              isReluctant13: gr.isReluctant13,
+              isMatchRegistration: gr.isMatchRegistration,
+            });
+
+            if (assignedCountMap.has(gr.staffId)) {
+              assignedCountMap.set(gr.staffId, (assignedCountMap.get(gr.staffId) || 0) + 1);
+            }
           }
         }
+      } catch (gErr: unknown) {
+        const gMsg = gErr instanceof Error ? gErr.message : String(gErr);
+        console.warn('[AI Optimize] Gemini execution failed, keeping rule solver:', gMsg);
       }
-    } catch (gErr: any) {
-      console.warn('[AI Optimize] Gemini execution failed, keeping rule solver:', gErr?.message || gErr);
     }
 
     // Sort recommendations chronologically: Date asc -> Ca 1 Sáng -> Ca 2 Chiều -> Ca 3 Tối
@@ -1191,43 +1477,43 @@ export const aiOptimizeSchedules = async (
       return oA - oB;
     });
 
-    // 3. If applyImmediately is true, persist all recommended shifts into StaffSchedule (Idempotent check)
+    // 3. If applyImmediately is true, persist all recommended shifts into StaffSchedule
+    // Preserves past dates (< startOfToday) and any attended/Present shifts!
     const createdSchedules = [];
     if (applyImmediately && recommendations.length > 0) {
       if (overwriteExisting) {
-        await StaffSchedule.deleteMany({
-          branchId: branch._id,
-          shiftDate: { $gte: weekStart, $lte: weekEnd },
-        });
+        const deleteFromDate = weekStart > startOfToday ? weekStart : startOfToday;
+        if (deleteFromDate <= weekEnd) {
+          await StaffSchedule.deleteMany({
+            branchId: branch._id,
+            shiftDate: { $gte: deleteFromDate, $lte: weekEnd },
+            status: { $in: ['Assigned', 'Scheduled'] },
+            checkInTime: null,
+            checkOutTime: null,
+          });
+        }
       }
 
+      const persistedSlotKeys = new Set<string>(preservedSlotKeys);
+
       for (const rec of recommendations) {
+        const slotKey = `${rec.staffId}_${rec.shiftDate}_${rec.shiftType}`;
+        if (persistedSlotKeys.has(slotKey)) {
+          continue;
+        }
+        persistedSlotKeys.add(slotKey);
+
         const localDayStart = parseLocalDateKey(rec.shiftDate);
-        const localDayEnd = new Date(localDayStart);
-        localDayEnd.setHours(23, 59, 59, 999);
-
-        let canCreate = true;
-        if (!overwriteExisting) {
-          const duplicateCheck = await StaffSchedule.findOne({
-            staffId: rec.staffId,
-            shiftDate: { $gte: localDayStart, $lte: localDayEnd },
-            $or: [{ shiftType: rec.shiftType }, { shiftType: 'FullDay' }],
-          });
-          if (duplicateCheck) canCreate = false;
-        }
-
-        if (canCreate) {
-          const created = await StaffSchedule.create({
-            staffId: rec.staffId,
-            branchId: branch._id,
-            shiftDate: localDayStart,
-            shiftType: rec.shiftType,
-            status: 'Assigned',
-            assignedBy: req.user?._id,
-            notes: `[AI Tối ưu Phân ca - Độ tin cậy ${rec.confidenceScore}%] ${rec.reason}`,
-          });
-          createdSchedules.push(created);
-        }
+        const created = await StaffSchedule.create({
+          staffId: rec.staffId,
+          branchId: branch._id,
+          shiftDate: localDayStart,
+          shiftType: rec.shiftType,
+          status: 'Assigned',
+          assignedBy: req.user?._id,
+          notes: `[AI Tối ưu Phân ca - Độ tin cậy ${rec.confidenceScore}%] ${rec.reason}`,
+        });
+        createdSchedules.push(created);
       }
 
       await AuditLog.create({
@@ -1299,8 +1585,8 @@ export const aiOptimizeSchedules = async (
           recommendedNewShifts: recommendations.length,
           appliedShiftsCount: createdSchedules.length,
           staffAvailabilityCount: Math.max(staffAvailabilities.length, parsedMulti.length),
-          consecutiveShiftsCount: recommendations.filter((r) => r.reason.includes('liên tiếp')).length,
-          reluctantSplitShiftsCount: recommendations.filter((r) => r.reason.includes('Miễn cưỡng')).length,
+          consecutiveShiftsCount: recommendations.filter((r) => Boolean(r.isConsecutive) || /liên tiếp/i.test(r.reason)).length,
+          reluctantSplitShiftsCount: recommendations.filter((r) => Boolean(r.isReluctant13) || /miễn cưỡng/i.test(r.reason)).length,
         },
         staffWorkloadSummary,
         slotAnalyses,

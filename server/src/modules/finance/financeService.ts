@@ -1,13 +1,20 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import ExcelJS from 'exceljs';
-import { Booking, IBooking } from '../../models/Booking';
+import { Booking } from '../../models/Booking';
 import { Payment, IPayment } from '../../models/Payment';
 import { Branch } from '../../models/Branch';
 import { effectivePaymentDate, paymentLedgerDateFilter } from '../../core/paymentLedger';
 
 export interface ReconcileIssue {
   bookingId?: string;
-  bookingCode?: string;
+  bookingCode: string;
+  status: string;
+  expectedPaid: number;
+  recordedPaymentsTotal: number;
+  difference: number;
+  issue: string;
+  createdAt?: string;
   severity: 'HIGH' | 'MEDIUM' | 'LOW';
   type:
     | 'PAID_WITHOUT_PAYMENT_ROW'
@@ -19,6 +26,8 @@ export interface ReconcileIssue {
 }
 
 export interface ReconcileResult {
+  range: { from: string | null; to: string | null };
+  branchId?: string | null;
   totalBookingsChecked: number;
   totalPaymentsChecked: number;
   totalDiscrepancies: number;
@@ -42,11 +51,22 @@ export interface ReconcileResult {
 
 /**
  * UC-120 VNPay & Operational Payment Reconciliation
- * Compares transactions in Payment collection against Bookings
+ * Compares transactions in Payment collection against Bookings, scoped by branchId when requested.
  */
-export const reconcilePayments = async (from?: Date, to?: Date): Promise<ReconcileResult> => {
+export const reconcilePayments = async (
+  from?: Date,
+  to?: Date,
+  branchId?: string
+): Promise<ReconcileResult> => {
   const bookingFilter: Record<string, unknown> = {};
-  const paymentFilter = paymentLedgerDateFilter(from, to);
+  const paymentFilter: Record<string, unknown> = { ...paymentLedgerDateFilter(from, to) };
+
+  if (branchId && mongoose.isValidObjectId(branchId)) {
+    const branchObjId = new mongoose.Types.ObjectId(branchId);
+    bookingFilter.pickupBranchId = branchObjId;
+    const allBranchBookingIds = await Booking.find({ pickupBranchId: branchObjId }).distinct('_id');
+    paymentFilter.bookingId = { $in: allBranchBookingIds };
+  }
 
   if (from || to) {
     bookingFilter.createdAt = {};
@@ -63,31 +83,54 @@ export const reconcilePayments = async (from?: Date, to?: Date): Promise<Reconci
     Payment.find(paymentFilter),
   ]);
 
+  // Fetch full lifetime payments for the checked bookings so cross-date 70% checkout settlements
+  // do not trigger false-positive AMOUNT_MISMATCH warnings.
+  const checkedBookingIds = bookings.map((b) => b._id);
+  const lifetimePaymentsForBookings =
+    checkedBookingIds.length > 0
+      ? await Payment.find({ bookingId: { $in: checkedBookingIds } })
+      : [];
+
   const issues: ReconcileIssue[] = [];
 
-  // Group payments by bookingId
+  // Group lifetime payments by bookingId for accurate per-booking ledger verification
   const paymentsByBooking = new Map<string, IPayment[]>();
-  const txnNoCounts = new Map<string, number>();
-
-  for (const payment of payments) {
+  for (const payment of lifetimePaymentsForBookings) {
     const bId = payment.bookingId.toString();
     const list = paymentsByBooking.get(bId) || [];
     list.push(payment);
     paymentsByBooking.set(bId, list);
+  }
 
+  // Track duplicate VNPay transaction numbers within the selected window & branch
+  const txnNoPayments = new Map<string, IPayment[]>();
+  for (const payment of payments) {
     if (payment.vnpTransactionNo) {
-      txnNoCounts.set(payment.vnpTransactionNo, (txnNoCounts.get(payment.vnpTransactionNo) || 0) + 1);
+      const existingList = txnNoPayments.get(payment.vnpTransactionNo) || [];
+      existingList.push(payment);
+      txnNoPayments.set(payment.vnpTransactionNo, existingList);
     }
   }
 
   // Check 1: Duplicate transaction numbers
-  for (const [txnNo, count] of txnNoCounts.entries()) {
-    if (count > 1) {
+  for (const [txnNo, dupList] of txnNoPayments.entries()) {
+    if (dupList.length > 1) {
+      const dupTotal = dupList.reduce((sum, p) => sum + Math.round(p.amount || 0), 0);
+      const firstAmt = Math.round(dupList[0]?.amount || 0);
+      const desc = `Mã giao dịch VNPay ${txnNo} bị ghi nhận trùng lặp ${dupList.length} lần trên hệ thống.`;
       issues.push({
+        bookingId: dupList[0]?.bookingId?.toString(),
+        bookingCode: `TXN-${txnNo}`,
+        status: 'Trùng mã GD',
+        expectedPaid: firstAmt,
+        recordedPaymentsTotal: dupTotal,
+        difference: dupTotal - firstAmt,
+        issue: desc,
+        createdAt: dupList[0]?.createdAt ? dupList[0].createdAt.toISOString() : undefined,
         severity: 'HIGH',
         type: 'DUPLICATE_TRANSACTION_NUMBER',
-        description: `Mã giao dịch VNPay ${txnNo} bị ghi nhận trùng lặp ${count} lần trên hệ thống.`,
-        details: { vnpTransactionNo: txnNo, count },
+        description: desc,
+        details: { vnpTransactionNo: txnNo, count: dupList.length },
       });
     }
   }
@@ -120,45 +163,72 @@ export const reconcilePayments = async (from?: Date, to?: Date): Promise<Reconci
       (p) => p.status === 'SUCCESS' && p.type !== 'REFUND'
     );
     const paymentSum = successfulPayments.reduce((sum, p) => sum + Math.round(p.amount), 0);
+    const createdIso = booking.createdAt ? booking.createdAt.toISOString() : undefined;
 
     // Paid booking with no payment record
     if ((booking.isPaid || booking.depositPaid || bPaid > 0) && relatedPayments.length === 0) {
+      const desc = `Đơn ${booking.bookingCode} ghi nhận đã thanh toán (${bPaid.toLocaleString('vi-VN')} đ) nhưng không tìm thấy bản ghi giao dịch trong bảng Payment.`;
       issues.push({
         bookingId: booking._id.toString(),
         bookingCode: booking.bookingCode,
+        status: booking.status,
+        expectedPaid: bPaid,
+        recordedPaymentsTotal: 0,
+        difference: -bPaid,
+        issue: desc,
+        createdAt: createdIso,
         severity: 'HIGH',
         type: 'PAID_WITHOUT_PAYMENT_ROW',
-        description: `Đơn ${booking.bookingCode} ghi nhận đã thanh toán (${bPaid.toLocaleString('vi-VN')} đ) nhưng không tìm thấy bản ghi giao dịch trong bảng Payment.`,
+        description: desc,
         details: { paidAmount: bPaid, status: booking.status },
       });
     }
 
     // Amount mismatch between Booking.paidAmount and sum(Payment.amount)
     if (bPaid > 0 && paymentSum > 0 && bPaid !== paymentSum) {
+      const desc = `Chênh lệch số tiền đã thu trên đơn ${booking.bookingCode}: Booking ghi nhận ${bPaid.toLocaleString('vi-VN')} đ, tổng giao dịch Payment thành công là ${paymentSum.toLocaleString('vi-VN')} đ.`;
       issues.push({
         bookingId: booking._id.toString(),
         bookingCode: booking.bookingCode,
+        status: booking.status,
+        expectedPaid: bPaid,
+        recordedPaymentsTotal: paymentSum,
+        difference: paymentSum - bPaid,
+        issue: desc,
+        createdAt: createdIso,
         severity: 'HIGH',
         type: 'AMOUNT_MISMATCH',
-        description: `Chênh lệch số tiền đã thu trên đơn ${booking.bookingCode}: Booking ghi nhận ${bPaid.toLocaleString('vi-VN')} đ, tổng giao dịch Payment thành công là ${paymentSum.toLocaleString('vi-VN')} đ.`,
+        description: desc,
         details: { bookingPaidAmount: bPaid, paymentsSum: paymentSum },
       });
     }
 
     // Paid after cancel edge case
-    if (booking.status === 'Cancelled' && paymentSum > 0) {
+    if (booking.status === 'Cancelled' && paymentSum > 0 && booking.refundStatus === 'Pending') {
+      const desc = `Đơn ${booking.bookingCode} đã bị hủy sau khi phát sinh giao dịch thanh toán (${paymentSum.toLocaleString('vi-VN')} đ) và đang chờ đối soát hoàn tiền.`;
       issues.push({
         bookingId: booking._id.toString(),
         bookingCode: booking.bookingCode,
+        status: booking.status,
+        expectedPaid: bPaid,
+        recordedPaymentsTotal: paymentSum,
+        difference: paymentSum - bPaid,
+        issue: desc,
+        createdAt: createdIso,
         severity: 'MEDIUM',
         type: 'PAID_AFTER_CANCEL',
-        description: `Đơn ${booking.bookingCode} đã bị hủy nhưng phát sinh giao dịch thanh toán thành công (${paymentSum.toLocaleString('vi-VN')} đ). Cần tiến hành hoàn tiền cho khách.`,
+        description: desc,
         details: { paidAmount: paymentSum, cancelReason: booking.cancelReason },
       });
     }
   }
 
   return {
+    range: {
+      from: from ? from.toISOString() : null,
+      to: to ? to.toISOString() : null,
+    },
+    branchId: branchId || null,
     totalBookingsChecked: bookings.length,
     totalPaymentsChecked: payments.length,
     totalDiscrepancies: issues.length,
@@ -260,8 +330,14 @@ export const streamTaxReportExcel = async (
   }
 
   for (const payment of payments) {
-    const booking = payment.bookingId as any;
-    const pickupBranch = booking?.pickupBranchId?._id || booking?.pickupBranchId;
+    const booking = payment.bookingId as unknown as {
+      bookingCode?: string;
+      pickupBranchId?: { _id?: unknown } | string;
+    } | null;
+    const pickupBranch =
+      typeof booking?.pickupBranchId === 'object' && booking?.pickupBranchId !== null
+        ? booking.pickupBranchId._id
+        : booking?.pickupBranchId;
     const branchId = pickupBranch ? String(pickupBranch) : '';
     const metric = metricsByBranch.get(branchId) || {
       name: 'Chi nhánh khác',
@@ -376,8 +452,14 @@ export const streamTaxReportExcel = async (
   transactionHeader.commit();
   const branchNameById = new Map(branches.map((branch) => [branch._id.toString(), `${branch.name} (${branch.code})`]));
   for (const payment of payments) {
-    const booking = payment.bookingId as any;
-    const pickupBranch = booking?.pickupBranchId?._id || booking?.pickupBranchId;
+    const booking = payment.bookingId as unknown as {
+      bookingCode?: string;
+      pickupBranchId?: { _id?: unknown } | string;
+    } | null;
+    const pickupBranch =
+      typeof booking?.pickupBranchId === 'object' && booking?.pickupBranchId !== null
+        ? booking.pickupBranchId._id
+        : booking?.pickupBranchId;
     const branchId = pickupBranch ? String(pickupBranch) : '';
     const isSuccessful = payment.status === 'SUCCESS';
     transactionsSheet.addRow({

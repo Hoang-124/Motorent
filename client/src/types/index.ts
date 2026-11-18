@@ -747,7 +747,16 @@ export interface KpiDashboardData {
     count: number;
     percent: number;
   }>;
-  topVehicles: any[];
+  topVehicles: Array<{
+    _id: string;
+    vehicleModel: string;
+    licensePlate: string;
+    brand: string;
+    status: string;
+    odometer: number;
+    averageRating: number;
+    dailyPrice: number;
+  }>;
 }
 
 export interface ForecastDayItem {

@@ -37,6 +37,7 @@ import {
 import axios from 'axios';
 import type { Booking, Vehicle, User, Branch } from '../types';
 import { api } from '../services/api';
+import { getSocket } from '../services/socket';
 import { useAuth } from '../context/AuthContext';
 import { getUserAvatarUrl, getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { SecureEkycImage } from '../components/SecureEkycImage';
@@ -83,6 +84,12 @@ const VALID_DESK_MODES: MainDeskMode[] = [
   'staff',
   'reports',
 ];
+
+const isRenderableSignatureUrl = (val?: string): boolean =>
+  Boolean(
+    val &&
+      (val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'))
+  );
 
 interface DamageRecordItem {
   description: string;
@@ -197,11 +204,17 @@ export const CounterDesk: React.FC = () => {
   const [assignedBranch, setAssignedBranch] = useState<Branch | null>(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const resolveAllowedMode = (raw: MainDeskMode | null): MainDeskMode => {
+    if (!raw || !VALID_DESK_MODES.includes(raw)) return 'bookings';
+    if ((raw === 'banners' || raw === 'audit') && !isAdmin) return 'bookings';
+    if ((raw === 'staff' || raw === 'reports') && !isManager) return 'bookings';
+    return raw;
+  };
   const rawModeParam = (searchParams.get('mode') || searchParams.get('tab') || 'bookings') as MainDeskMode;
-  const modeParam: MainDeskMode = rawModeParam === 'banners' && !isAdmin ? 'bookings' : rawModeParam;
-  const initialMode: MainDeskMode = VALID_DESK_MODES.includes(modeParam) ? modeParam : 'bookings';
+  const initialMode: MainDeskMode = resolveAllowedMode(rawModeParam);
 
   const [deskMode, setDeskMode] = useState<MainDeskMode>(initialMode);
+  const [downloadingContractId, setDownloadingContractId] = useState<string | null>(null);
   const [searchCode, setSearchCode] = useState<string>('');
   const [bookings, setBookings] = useState<ExtendedBooking[]>([]);
   const [selectedBooking, setSelectedBooking] = useState<ExtendedBooking | null>(null);
@@ -372,10 +385,36 @@ export const CounterDesk: React.FC = () => {
 
   const getEffectivePayableBalance = (b: Booking): number => {
     if (b.isPaid) return 0;
-    const isInitialPendingUnpaid =
-      b.status === 'Pending' && !b.depositPaid && (b.paidAmount || 0) === 0;
-    if (isInitialPendingUnpaid) return b.totalAmount || 0;
+    const isUnpaidFullBalance = !b.depositPaid && (b.paidAmount || 0) === 0;
+    if (isUnpaidFullBalance) return b.totalAmount || 0;
     return b.remainingAmount || 0;
+  };
+
+  const handleDownloadContractPdf = async (bookingId: string, bookingCode: string) => {
+    if (!bookingId) return;
+    setDownloadingContractId(bookingId);
+    try {
+      const response = await api.get(`/bookings/${bookingId}/invoice?download=true`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Hop_dong_thue_xe_2_ben_${bookingCode || bookingId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      const message =
+        axios.isAxiosError(err) && err.response?.data?.message
+          ? String(err.response.data.message)
+          : 'Không thể tải Hợp đồng PDF 2 bên lúc này. Vui lòng kiểm tra quyền chi nhánh và thử lại.';
+      setStatusMessage({ type: 'error', text: message });
+    } finally {
+      setDownloadingContractId(null);
+    }
   };
 
   const handleSelectBooking = (b: ExtendedBooking) => {
@@ -870,6 +909,27 @@ export const CounterDesk: React.FC = () => {
     }
   };
 
+  const statusFilterRef = useRef<string>(statusFilter);
+  const queueFilterRef = useRef<'today' | 'all'>(queueFilter);
+  const searchCodeRef = useRef<string>(searchCode);
+  const selectedBookingIdRef = useRef<string | null>(selectedBooking?._id || null);
+
+  useEffect(() => {
+    statusFilterRef.current = statusFilter;
+  }, [statusFilter]);
+
+  useEffect(() => {
+    queueFilterRef.current = queueFilter;
+  }, [queueFilter]);
+
+  useEffect(() => {
+    searchCodeRef.current = searchCode;
+  }, [searchCode]);
+
+  useEffect(() => {
+    selectedBookingIdRef.current = selectedBooking?._id || null;
+  }, [selectedBooking?._id]);
+
   useEffect(() => {
     fetchBookings();
     fetchPendingEkyc();
@@ -877,6 +937,101 @@ export const CounterDesk: React.FC = () => {
     fetchMaintenanceLogs();
     fetchTransferLogs();
   }, []);
+
+  useEffect(() => {
+    if (!user?._id) return;
+    const socket = getSocket();
+    const rawBranch = user.branchId;
+    const branchIdStr =
+      rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
+        ? String(rawBranch._id || '')
+        : rawBranch
+        ? String(rawBranch)
+        : '';
+
+    const refreshQueueSilently = async () => {
+      try {
+        const params: Record<string, string> = {};
+        if (statusFilterRef.current && statusFilterRef.current !== 'all') {
+          params.status = statusFilterRef.current;
+        }
+        if (queueFilterRef.current && queueFilterRef.current !== 'all') {
+          params.queue = queueFilterRef.current;
+        }
+        if (searchCodeRef.current && searchCodeRef.current.trim()) {
+          params.search = searchCodeRef.current.trim();
+        }
+        const res = await api.get('/bookings/branch', { params });
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          const list: ExtendedBooking[] = res.data.data;
+          setBookings(list);
+          if (res.data?.meta?.counts) {
+            setOrderCounts(res.data.meta.counts);
+          }
+          const currentSelectedId = selectedBookingIdRef.current;
+          if (currentSelectedId) {
+            const updatedSelected = list.find((item) => item._id === currentSelectedId);
+            if (updatedSelected) {
+              setSelectedBooking((prev) =>
+                prev && prev._id === updatedSelected._id ? { ...prev, ...updatedSelected } : prev
+              );
+            }
+          }
+        }
+      } catch {
+        // Ignore silent background sync errors
+      }
+    };
+
+    const handleSocketConnect = () => {
+      socket.emit('join_staff_console', branchIdStr || undefined);
+    };
+
+    const handleBookingLiveEvent = () => {
+      void refreshQueueSilently();
+    };
+
+    const handleNotificationNew = (payload?: { type?: string }) => {
+      if (!payload?.type || payload.type === 'BOOKING') {
+        void refreshQueueSilently();
+      }
+    };
+
+    socket.on('connect', handleSocketConnect);
+    socket.on('booking:status', handleBookingLiveEvent);
+    socket.on('booking:extended', handleBookingLiveEvent);
+    socket.on('notification:new', handleNotificationNew);
+
+    if (socket.connected) {
+      handleSocketConnect();
+    }
+
+    return () => {
+      socket.off('connect', handleSocketConnect);
+      socket.off('booking:status', handleBookingLiveEvent);
+      socket.off('booking:extended', handleBookingLiveEvent);
+      socket.off('notification:new', handleNotificationNew);
+    };
+  }, [user?._id, user?.branchId]);
+
+  useEffect(() => {
+    if (!user?._id || bookings.length === 0) return;
+    const socket = getSocket();
+    const activeBookingIds = bookings
+      .filter((b) => ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status))
+      .map((b) => b._id)
+      .filter(Boolean);
+
+    activeBookingIds.forEach((id) => {
+      socket.emit('join_booking', id);
+    });
+
+    return () => {
+      activeBookingIds.forEach((id) => {
+        socket.emit('leave_booking', id);
+      });
+    };
+  }, [user?._id, bookings]);
 
   useEffect(() => {
     if (user?._id) {
@@ -908,25 +1063,29 @@ export const CounterDesk: React.FC = () => {
 
   useEffect(() => {
     const rawM = (searchParams.get('mode') || searchParams.get('tab')) as MainDeskMode | null;
-    const m: MainDeskMode | null = rawM === 'banners' && !isAdmin ? 'bookings' : rawM;
-    if (m && VALID_DESK_MODES.includes(m)) {
+    if (rawM) {
+      const m = resolveAllowedMode(rawM);
       setDeskMode(m);
+      if (m !== rawM) {
+        setSearchParams({ mode: m }, { replace: true });
+      }
       if (m === 'vehicles') {
         fetchBranchVehicles();
         fetchMaintenanceLogs();
         fetchTransferLogs();
       }
     }
-  }, [searchParams, isAdmin]);
+  }, [searchParams, isAdmin, isManager]);
 
   const switchDeskMode = (mode: MainDeskMode) => {
-    setDeskMode(mode);
-    setSearchParams({ mode });
-    if (mode === 'vehicles') {
+    const allowedMode = resolveAllowedMode(mode);
+    setDeskMode(allowedMode);
+    setSearchParams({ mode: allowedMode });
+    if (allowedMode === 'vehicles') {
       fetchBranchVehicles();
       fetchMaintenanceLogs();
       fetchTransferLogs();
-    } else if (mode === 'complaints') {
+    } else if (allowedMode === 'complaints') {
       fetchActiveComplaintCount();
     }
   };
@@ -1291,13 +1450,13 @@ export const CounterDesk: React.FC = () => {
 
   const openCounterPayModal = () => {
     if (!selectedBooking) return;
-    const isInitialPendingUnpaid =
-      selectedBooking.status === 'Pending' &&
+    const isInitialUnpaid =
+      (selectedBooking.status === 'Pending' || selectedBooking.status === 'Approved') &&
       !selectedBooking.depositPaid &&
       (selectedBooking.paidAmount || 0) === 0;
     const maxPayable = getEffectivePayableBalance(selectedBooking);
     setCounterPayAmount(
-      isInitialPendingUnpaid ? selectedBooking.depositAmount || maxPayable : maxPayable
+      isInitialUnpaid ? selectedBooking.depositAmount || maxPayable : maxPayable
     );
     setCounterPayMethod('Cash');
     setCounterPayNotes('');
@@ -1704,9 +1863,21 @@ export const CounterDesk: React.FC = () => {
                         </h2>
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-[#A0A0A0] block">Đã cọc online 30%</span>
+                        <span className="text-[10px] text-[#A0A0A0] block">
+                          {selectedBooking.isPaid
+                            ? 'Đã tất toán 100%'
+                            : getEffectivePaidAmount(selectedBooking) > 0
+                            ? 'Đã thu tiền cọc'
+                            : 'Mức cọc yêu cầu (Chưa thu)'}
+                        </span>
                         <span className="text-sm font-bold text-[#FFC799]">
-                          {selectedBooking.depositAmount?.toLocaleString('vi-VN')} đ
+                          {(selectedBooking.isPaid
+                            ? selectedBooking.totalAmount
+                            : getEffectivePaidAmount(selectedBooking) > 0
+                            ? getEffectivePaidAmount(selectedBooking)
+                            : selectedBooking.depositAmount
+                          )?.toLocaleString('vi-VN')}{' '}
+                          đ
                         </span>
                       </div>
                     </div>
@@ -1845,7 +2016,7 @@ export const CounterDesk: React.FC = () => {
                                 {(selectedBooking.refundAmount || 0).toLocaleString('vi-VN')} đ
                               </strong>
                               {selectedBooking.refundForfeitAmount
-                                ? ` (Khấu trừ 50% cọc: ${selectedBooking.refundForfeitAmount.toLocaleString('vi-VN')} đ)`
+                                ? ` (Không hoàn tiền theo hợp đồng: ${selectedBooking.refundForfeitAmount.toLocaleString('vi-VN')} đ)`
                                 : ''}
                             </p>
                           </div>
@@ -2079,15 +2250,21 @@ export const CounterDesk: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <a
-                            href={`/api/bookings/${selectedBooking._id}/invoice`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/40 text-[#FFC799] font-bold text-[11px] flex items-center space-x-1.5"
+                          <button
+                            type="button"
+                            disabled={downloadingContractId === selectedBooking._id}
+                            onClick={() =>
+                              handleDownloadContractPdf(selectedBooking._id, selectedBooking.bookingCode)
+                            }
+                            className="px-3 py-1.5 rounded-lg bg-[#FFC799]/15 hover:bg-[#FFC799]/25 border border-[#FFC799]/40 text-[#FFC799] font-bold text-[11px] flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
                           >
                             <Receipt className="w-3.5 h-3.5" />
-                            <span>Xuất Hợp đồng PDF 2 bên</span>
-                          </a>
+                            <span>
+                              {downloadingContractId === selectedBooking._id
+                                ? 'Đang xuất PDF...'
+                                : 'Xuất Hợp đồng PDF 2 bên'}
+                            </span>
+                          </button>
                         </div>
                       </div>
 
@@ -2453,8 +2630,7 @@ export const CounterDesk: React.FC = () => {
                               </div>
                             ) : (
                               <div className="p-3 bg-[#101010] rounded-xl text-center min-h-[96px] flex items-center justify-center">
-                                {selectedBooking.lessorSignatureUrl &&
-                                selectedBooking.lessorSignatureUrl.startsWith('data:image/') ? (
+                                {isRenderableSignatureUrl(selectedBooking.lessorSignatureUrl) ? (
                                   <img
                                     src={selectedBooking.lessorSignatureUrl}
                                     alt="Chữ ký Bên cho thuê"
@@ -2515,8 +2691,7 @@ export const CounterDesk: React.FC = () => {
                               </div>
                             ) : (
                               <div className="p-3 bg-[#101010] rounded-xl text-center min-h-[96px] flex items-center justify-center">
-                                {selectedBooking.eSignatureUrl &&
-                                selectedBooking.eSignatureUrl.startsWith('data:image/') ? (
+                                {isRenderableSignatureUrl(selectedBooking.eSignatureUrl) ? (
                                   <img
                                     src={selectedBooking.eSignatureUrl}
                                     alt="Chữ ký khách hàng"
@@ -3305,13 +3480,13 @@ export const CounterDesk: React.FC = () => {
           <StaffChatConsole />
         ) : deskMode === 'banners' && isAdmin ? (
           <BannerManager />
-        ) : deskMode === 'audit' ? (
+        ) : deskMode === 'audit' && isAdmin ? (
           <AuditLogViewer />
         ) : deskMode === 'shifts' ? (
           <ShiftCalendarView />
-        ) : deskMode === 'staff' ? (
+        ) : deskMode === 'staff' && isManager ? (
           <StaffManager />
-        ) : deskMode === 'reports' ? (
+        ) : deskMode === 'reports' && isManager ? (
           <ReportsCenter />
         ) : (
           /* UC-61-63: Vehicle Fleet & Status Management Tab + Dedicated Maintenance Log */
@@ -4826,8 +5001,9 @@ export const CounterDesk: React.FC = () => {
                   khách hàng.
                 </p>
                 <p>
-                  • Nếu khách đã thanh toán cọc/toàn bộ, hệ thống sẽ tự động kích hoạt tiến trình hoàn
-                  tiền 100%.
+                  • Theo điều khoản hợp đồng đã ký, hệ thống áp dụng chính sách{' '}
+                  <strong>KHÔNG HOÀN TIỀN</strong> đối với mọi khoản cọc hoặc tiền thuê đã thanh
+                  toán.
                 </p>
               </div>
 
@@ -4966,7 +5142,7 @@ export const CounterDesk: React.FC = () => {
                   </label>
                   <textarea
                     rows={2}
-                    placeholder="VD: Đã duyệt hoàn tiền 100% theo chính sách hủy trước 24h..."
+                    placeholder="VD: Ghi chú mã chứng từ đối soát đặc biệt (nếu có)..."
                     value={refundNote}
                     onChange={(e) => setRefundNote(e.target.value)}
                     className="w-full bg-[#101010] border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"

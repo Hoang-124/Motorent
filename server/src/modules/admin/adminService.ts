@@ -3,6 +3,33 @@ import mongoose from 'mongoose';
 import { User, IUser, UserRole, UserStatus } from '../../models/User';
 import { Branch } from '../../models/Branch';
 import { AppError } from '../../core/errorHandler';
+import { decryptPiiText } from '../../core/cryptoVault';
+
+const maskIdCardNumber = (rawValue?: string | null): string => {
+  const plain = decryptPiiText(rawValue);
+  if (!plain) return '';
+  if (plain.length <= 4) return '****';
+  return `${'*'.repeat(plain.length - 4)}${plain.slice(-4)}`;
+};
+
+const sanitizeAdminUser = (userDoc: IUser): Record<string, unknown> => {
+  const obj = userDoc.toObject() as Record<string, unknown>;
+  delete obj.passwordHash;
+  delete obj.resetPasswordToken;
+  delete obj.resetPasswordExpires;
+  delete obj.emailVerificationToken;
+  delete obj.emailVerificationExpires;
+  delete obj.idCardFrontFile;
+  delete obj.idCardBackFile;
+  delete obj.drivingLicenseFile;
+  delete obj.selfieFile;
+  delete obj.idCardFrontUrl;
+  delete obj.idCardBackUrl;
+  delete obj.drivingLicenseUrl;
+  delete obj.selfieUrl;
+  obj.idCardNumber = maskIdCardNumber(typeof obj.idCardNumber === 'string' ? obj.idCardNumber : '');
+  return obj;
+};
 
 export interface CreateUserInput {
   username: string;
@@ -92,9 +119,7 @@ export const createUser = async (data: CreateUserInput): Promise<Omit<IUser, 'pa
     await Branch.findByIdAndUpdate(branchObjectId, { managerId: user._id });
   }
 
-  const userObj = user.toObject();
-  const { passwordHash: _, ...sanitizedUser } = userObj;
-  return sanitizedUser as unknown as Omit<IUser, 'passwordHash'>;
+  return sanitizeAdminUser(user) as unknown as Omit<IUser, 'passwordHash'>;
 };
 
 export const getUsers = async (query: GetUsersQuery) => {
@@ -102,7 +127,7 @@ export const getUsers = async (query: GetUsersQuery) => {
   const limit = Math.max(1, Math.min(100, Number(query.limit) || 20));
   const skip = (page - 1) * limit;
 
-  const filter: Record<string, any> = {};
+  const filter: Record<string, unknown> = {};
 
   if (query.role && query.role !== 'all') {
     filter.roles = query.role;
@@ -117,7 +142,8 @@ export const getUsers = async (query: GetUsersQuery) => {
   }
 
   if (query.search && query.search.trim()) {
-    const searchRegex = new RegExp(query.search.trim(), 'i');
+    const escapedSearch = query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const searchRegex = new RegExp(escapedSearch, 'i');
     filter.$or = [
       { username: searchRegex },
       { firstName: searchRegex },
@@ -129,7 +155,7 @@ export const getUsers = async (query: GetUsersQuery) => {
 
   const [users, total] = await Promise.all([
     User.find(filter)
-      .select('-passwordHash -resetPasswordToken -emailVerificationToken')
+      .select('-passwordHash -resetPasswordToken -emailVerificationToken -idCardFrontFile -idCardBackFile -drivingLicenseFile -selfieFile')
       .populate('branchId', 'name code address phone')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -138,7 +164,7 @@ export const getUsers = async (query: GetUsersQuery) => {
   ]);
 
   return {
-    users,
+    users: users.map((u) => sanitizeAdminUser(u)),
     pagination: {
       page,
       limit,
@@ -150,14 +176,14 @@ export const getUsers = async (query: GetUsersQuery) => {
 
 export const getUserById = async (id: string) => {
   const user = await User.findById(id)
-    .select('-passwordHash -resetPasswordToken -emailVerificationToken')
+    .select('-passwordHash -resetPasswordToken -emailVerificationToken -idCardFrontFile -idCardBackFile -drivingLicenseFile -selfieFile')
     .populate('branchId', 'name code address phone');
 
   if (!user) {
     throw new AppError(404, 'Không tìm thấy người dùng.');
   }
 
-  return user;
+  return sanitizeAdminUser(user);
 };
 
 export const updateUser = async (id: string, data: UpdateUserInput) => {
@@ -222,9 +248,7 @@ export const updateUser = async (id: string, data: UpdateUserInput) => {
 
   await user.save();
 
-  const userObj = user.toObject();
-  const { passwordHash: _, ...sanitizedUser } = userObj;
-  return sanitizedUser;
+  return sanitizeAdminUser(user);
 };
 
 export const deleteUser = async (id: string) => {

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { Notification, NotificationType } from '../models/Notification';
 import { User } from '../models/User';
+import { getSocketServer } from './socketRegistry';
 
 type BranchId = string | mongoose.Types.ObjectId;
 
@@ -56,12 +57,14 @@ export const notifyBranchOperations = async ({
     });
 
     try {
-      const { io } = await import('../server');
+      const io = getSocketServer();
       if (io) {
         io.to(`user:${recipient._id}`).emit('notification:new', notif);
-        Notification.countDocuments({ userId: recipient._id, isRead: false })
-          .then((count) => io.to(`user:${recipient._id}`).emit('notification:badge', { unreadCount: count }))
-          .catch(() => {});
+        if (mongoose.connection.readyState === 1) {
+          Notification.countDocuments({ userId: recipient._id, isRead: false })
+            .then((count) => io.to(`user:${recipient._id}`).emit('notification:badge', { unreadCount: count }))
+            .catch(() => {});
+        }
       }
     } catch {
       // Non-fatal if socket is uninitialized

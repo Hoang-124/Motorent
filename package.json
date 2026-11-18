@@ -8,6 +8,9 @@
     "dev:server": "npm --prefix server run dev",
     "dev:client": "npm --prefix client run dev",
     "seed": "npm --prefix server run seed",
+    "typecheck": "npm --prefix server run typecheck && npm --prefix client run lint",
+    "test": "npm --prefix server run test && npm --prefix client run lint",
+    "build": "npm --prefix client run build",
     "health": "powershell -Command \"Invoke-RestMethod -Uri 'http://localhost:5000/api/health'\""
   },
   "devDependencies": {

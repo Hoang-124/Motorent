@@ -482,7 +482,7 @@ export const BookingPage: React.FC = () => {
   const effectiveReturnAddrStr = sameReturnAddress ? customPickupAddress.trim() : customReturnAddress.trim();
   const computedDeliveryFee =
     deliveryMode === 'DoorDelivery'
-      ? (customPickupAddress.trim() ? 40000 : 0) + (effectiveReturnAddrStr ? 40000 : 0)
+      ? ((customPickupAddress.trim() ? 40000 : 0) + (effectiveReturnAddrStr ? 40000 : 0)) || 50000
       : 0;
   const isScheduleConflicting =
     Boolean(estimateData?.conflicting) ||
@@ -810,7 +810,7 @@ export const BookingPage: React.FC = () => {
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Invoice download error:', err);
-      window.open(`/api/bookings/${bookingId}/invoice`, '_blank');
+      setErrorMsg('Không thể tải hóa đơn PDF lúc này. Vui lòng thử lại trong mục Chuyến xe của tôi.');
     } finally {
       setDownloadingInvoice(false);
     }
@@ -2310,15 +2310,15 @@ export const BookingPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Refund & Guarantee Notice */}
-                <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] text-[11px] text-[#6E6E6E] space-y-1.5">
+                {/* Contract Policy & Guarantee Notice */}
+                <div className="p-4 rounded-xl bg-[#101010] border border-white/[0.08] text-[11px] text-[#A0A0A0] space-y-1.5">
                   <div className="flex items-center space-x-2 text-[#FFC799] font-bold">
                     <ShieldCheck className="w-4 h-4" />
-                    <span>Chính sách bảo vệ quyền lợi người thuê</span>
+                    <span>Điều khoản hợp đồng điện tử song phương</span>
                   </div>
-                  <p>• Hoàn lại 100% tiền đã thanh toán nếu thông báo hủy chuyến trước 24 giờ so với giờ nhận xe.</p>
+                  <p>• Áp dụng chính sách <strong className="text-[#FF8080]">KHÔNG HOÀN TIỀN</strong> cọc hoặc tiền thuê khi hủy đơn hoặc trả xe trước thời hạn thỏa thuận.</p>
                   <p>
-                    • Biển số xe <strong className="text-[#F5F5F5] font-mono">{vehicle.licensePlate}</strong> được khóa độc quyền cho bạn ngay sau khi hoàn tất.
+                    • Biển số xe <strong className="text-[#F5F5F5] font-mono">{vehicle.licensePlate}</strong> được khóa độc quyền cho bạn ngay sau khi hoàn tất và ký biên bản bàn giao khi nhận xe.
                   </p>
                 </div>
 

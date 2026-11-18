@@ -28,6 +28,7 @@ router.post('/check-availability', bookingController.checkAvailability);
 router.post(
   '/',
   authenticateJWT,
+  authorize('Customer'),
   bookingCreateLimiter,
   auditLogger('CREATE_BOOKING', 'Booking'),
   bookingController.createBooking

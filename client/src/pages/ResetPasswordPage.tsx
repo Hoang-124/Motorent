@@ -30,8 +30,8 @@ export const ResetPasswordPage: React.FC = () => {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setErrorMsg('Mật khẩu mới phải có độ dài ít nhất 6 ký tự.');
+    if (newPassword.length < 8) {
+      setErrorMsg('Mật khẩu mới phải có độ dài tối thiểu từ 8 ký tự.');
       return;
     }
 
@@ -52,7 +52,7 @@ export const ResetPasswordPage: React.FC = () => {
       if (res.data && res.data.success) {
         setIsSuccess(true);
         setTimeout(() => {
-          navigate('/');
+          navigate('/login');
         }, 1800);
       } else {
         setErrorMsg(res.data?.message || 'Không thể đặt lại mật khẩu.');
@@ -109,15 +109,15 @@ export const ResetPasswordPage: React.FC = () => {
                 Đặt lại mật khẩu thành công!
               </h3>
               <p className="text-xs text-[#A0A0A0] leading-relaxed max-w-sm mx-auto">
-                Mật khẩu của bạn đã được cập nhật an toàn. Hệ thống đang chuyển hướng bạn về trang chính...
+                Mật khẩu của bạn đã được cập nhật an toàn. Hệ thống đang chuyển hướng bạn tới trang đăng nhập...
               </p>
               <div className="pt-2">
                 <button
                   type="button"
-                  onClick={() => navigate('/')}
-                  className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
+                  onClick={() => navigate('/login')}
+                  className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
                 >
-                  <span>Chuyển về trang chính</span>
+                  <span>Chuyển tới trang đăng nhập</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -132,7 +132,7 @@ export const ResetPasswordPage: React.FC = () => {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    placeholder="Ít nhất 6 ký tự..."
+                    placeholder="Ít nhất 8 ký tự..."
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     required
@@ -166,7 +166,7 @@ export const ResetPasswordPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
+                className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2"
               >
                 {loading ? (
                   <span>Đang cập nhật...</span>

@@ -1,4 +1,4 @@
-import { io } from '../../server';
+import { getSocketServer } from '../../core/socketRegistry';
 import { IBooking } from '../../models/Booking';
 
 export interface BookingStatusPayload {
@@ -17,6 +17,7 @@ export interface BookingStatusPayload {
  */
 export const emitBookingStatus = (booking: IBooking): void => {
   try {
+    const io = getSocketServer();
     if (!io) return;
 
     const payload: BookingStatusPayload = {
@@ -62,6 +63,7 @@ export interface BookingExtendedPayload {
  */
 export const emitBookingExtended = (payload: BookingExtendedPayload): void => {
   try {
+    const io = getSocketServer();
     if (!io) return;
     io.to(`booking:${payload.bookingId}`).emit('booking:extended', payload);
     if (payload.pickupBranchId) {

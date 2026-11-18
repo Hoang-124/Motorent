@@ -165,67 +165,118 @@ export const AdminBannersPage: React.FC = () => {
   };
 
   // ==========================================
-  // Atomic Reorder API caller with optimistic update
+  // Atomic Reorder API caller with full-list resolution & optimistic update
   // ==========================================
-  const applyNewOrder = async (newOrderBanners: Banner[], successMessage = 'Đã cập nhật thứ tự hiển thị banner.') => {
+  const canReorder = filterStatus === 'all' && !searchQuery.trim();
+
+  const applyReorderMutation = async (
+    mutateOrder: (fullList: Banner[]) => Banner[] | null,
+    buildSuccessMessage: (movedTitle: string, nextPosition: number) => string
+  ) => {
+    if (!canReorder) {
+      showToast('Vui lòng chọn bộ lọc "Tất cả" và xóa từ khóa tìm kiếm trước khi sắp xếp thứ tự.', 'error');
+      return;
+    }
+
     const previousBanners = [...banners];
 
-    // Recalculate continuous order numbers 1..n
-    const continuousBanners = newOrderBanners.map((b, idx) => ({
-      ...b,
-      order: idx + 1,
-    }));
-
-    // Optimistic local update
-    setBanners(continuousBanners);
-
-    const payload = continuousBanners.map((b) => ({
-      id: b._id || b.id,
-      order: b.order,
-    }));
-
     try {
+      let baseList = [...banners];
+      if (totalCount > banners.length) {
+        const allRes = await api.get(`/admin/banners?page=1&limit=${Math.max(100, totalCount)}`);
+        if (allRes.data?.success && Array.isArray(allRes.data.data?.items)) {
+          baseList = (allRes.data.data.items as Banner[]).sort((a, b) => (a.order || 0) - (b.order || 0));
+        }
+      }
+
+      const reordered = mutateOrder(baseList);
+      if (!reordered) return;
+
+      const continuousBanners = reordered.map((b, idx) => ({
+        ...b,
+        order: idx + 1,
+      }));
+
+      // Optimistic local update for current page slice
+      const startIdx = (currentPage - 1) * pageSize;
+      setBanners(continuousBanners.slice(startIdx, startIdx + pageSize));
+
+      const payload = continuousBanners.map((b) => ({
+        id: b._id || b.id,
+        order: b.order,
+      }));
+
       const res = await api.patch('/admin/banners/reorder', payload);
       if (res.data?.success) {
-        showToast(successMessage);
+        const moved = continuousBanners[0];
+        showToast(buildSuccessMessage(moved?.title || '', 1));
+        if (totalCount > previousBanners.length) {
+          await fetchBanners();
+        }
       } else {
         throw new Error(res.data?.message || 'Lỗi reorder');
       }
     } catch {
-      // Rollback on error
       setBanners(previousBanners);
       showToast('Lỗi cập nhật thứ tự banner. Đã hoàn tác dữ liệu.', 'error');
     }
   };
 
-  // Button Reorder: Move Up
-  const handleMoveUp = (index: number) => {
-    if (index <= 0) return;
-    const updated = [...banners];
-    const temp = updated[index];
-    updated[index] = updated[index - 1];
-    updated[index - 1] = temp;
-    applyNewOrder(updated, `Đã chuyển "${temp.title}" lên vị trí ${index}.`);
+  // Button Reorder: Move Up by Banner ID
+  const handleMoveUp = (bannerId: string) => {
+    if (!bannerId) return;
+    let movedTitle = '';
+    let nextPos = 1;
+    void applyReorderMutation(
+      (list) => {
+        const idx = list.findIndex((b) => (b._id || b.id) === bannerId);
+        if (idx <= 0) return null;
+        const updated = [...list];
+        const temp = updated[idx];
+        updated[idx] = updated[idx - 1];
+        updated[idx - 1] = temp;
+        movedTitle = temp.title;
+        nextPos = idx;
+        return updated;
+      },
+      () => `Đã chuyển "${movedTitle}" lên vị trí ${nextPos}.`
+    );
   };
 
-  // Button Reorder: Move Down
-  const handleMoveDown = (index: number) => {
-    if (index >= banners.length - 1) return;
-    const updated = [...banners];
-    const temp = updated[index];
-    updated[index] = updated[index + 1];
-    updated[index + 1] = temp;
-    applyNewOrder(updated, `Đã chuyển "${temp.title}" xuống vị trí ${index + 2}.`);
+  // Button Reorder: Move Down by Banner ID
+  const handleMoveDown = (bannerId: string) => {
+    if (!bannerId) return;
+    let movedTitle = '';
+    let nextPos = 1;
+    void applyReorderMutation(
+      (list) => {
+        const idx = list.findIndex((b) => (b._id || b.id) === bannerId);
+        if (idx < 0 || idx >= list.length - 1) return null;
+        const updated = [...list];
+        const temp = updated[idx];
+        updated[idx] = updated[idx + 1];
+        updated[idx + 1] = temp;
+        movedTitle = temp.title;
+        nextPos = idx + 2;
+        return updated;
+      },
+      () => `Đã chuyển "${movedTitle}" xuống vị trí ${nextPos}.`
+    );
   };
 
   // HTML5 Drag and Drop Reordering
   const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    if (!canReorder) {
+      e.preventDefault();
+      return;
+    }
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(index));
   };
 
   const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    if (!canReorder) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     if (dragOverIndex !== index) {
@@ -237,17 +288,34 @@ export const AdminBannersPage: React.FC = () => {
     e.preventDefault();
     setDragOverIndex(null);
 
-    if (draggedIndex === null || draggedIndex === targetIndex) {
+    if (!canReorder || draggedIndex === null || draggedIndex === targetIndex) {
       setDraggedIndex(null);
       return;
     }
 
-    const updated = [...banners];
-    const [movedItem] = updated.splice(draggedIndex, 1);
-    updated.splice(targetIndex, 0, movedItem);
-
+    const draggedBanner = filteredBanners[draggedIndex];
+    const targetBanner = filteredBanners[targetIndex];
+    const draggedId = draggedBanner?._id || draggedBanner?.id || '';
+    const targetId = targetBanner?._id || targetBanner?.id || '';
     setDraggedIndex(null);
-    applyNewOrder(updated, `Đã kéo-thả "${movedItem.title}" sang vị trí ${targetIndex + 1}.`);
+    if (!draggedId || !targetId) return;
+
+    let movedTitle = '';
+    let finalPos = targetIndex + 1;
+    void applyReorderMutation(
+      (list) => {
+        const fromIdx = list.findIndex((b) => (b._id || b.id) === draggedId);
+        const toIdx = list.findIndex((b) => (b._id || b.id) === targetId);
+        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return null;
+        const updated = [...list];
+        const [movedItem] = updated.splice(fromIdx, 1);
+        updated.splice(toIdx, 0, movedItem);
+        movedTitle = movedItem.title;
+        finalPos = toIdx + 1;
+        return updated;
+      },
+      () => `Đã kéo-thả "${movedTitle}" sang vị trí ${finalPos}.`
+    );
   };
 
   const handleDragEnd = () => {
@@ -718,7 +786,7 @@ export const AdminBannersPage: React.FC = () => {
                   return (
                     <tr
                       key={bannerId}
-                      draggable
+                      draggable={canReorder}
                       onDragStart={(e) => handleDragStart(e, index)}
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDrop={(e) => handleDrop(e, index)}
@@ -732,8 +800,16 @@ export const AdminBannersPage: React.FC = () => {
                         <div className="flex items-center justify-center space-x-1.5">
                           {/* Drag Handle */}
                           <div
-                            className="p-1 rounded-md text-zinc-500 hover:text-white cursor-grab active:cursor-grabbing hover:bg-white/[0.05]"
-                            title="Kéo-thả để đổi thứ tự"
+                            className={`p-1 rounded-md text-zinc-500 ${
+                              canReorder
+                                ? 'hover:text-white cursor-grab active:cursor-grabbing hover:bg-white/[0.05]'
+                                : 'opacity-30 cursor-not-allowed'
+                            }`}
+                            title={
+                              canReorder
+                                ? 'Kéo-thả để đổi thứ tự'
+                                : 'Chọn tab Tất cả và xóa từ khóa tìm kiếm để sắp xếp thứ tự'
+                            }
                           >
                             <GripVertical className="w-4 h-4" />
                           </div>
@@ -747,8 +823,8 @@ export const AdminBannersPage: React.FC = () => {
                           <div className="flex flex-col space-y-0.5">
                             <button
                               type="button"
-                              onClick={() => handleMoveUp(index)}
-                              disabled={index === 0}
+                              onClick={() => handleMoveUp(bannerId)}
+                              disabled={!canReorder || (currentPage === 1 && index === 0)}
                               className="p-0.5 rounded text-zinc-400 hover:text-[#FFC799] hover:bg-white/[0.08] disabled:opacity-20 disabled:hover:text-zinc-400 cursor-pointer disabled:cursor-not-allowed"
                               title="Di chuyển lên"
                             >
@@ -756,8 +832,11 @@ export const AdminBannersPage: React.FC = () => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleMoveDown(index)}
-                              disabled={index === banners.length - 1}
+                              onClick={() => handleMoveDown(bannerId)}
+                              disabled={
+                                !canReorder ||
+                                (currentPage >= totalPages && index === filteredBanners.length - 1)
+                              }
                               className="p-0.5 rounded text-zinc-400 hover:text-[#FFC799] hover:bg-white/[0.08] disabled:opacity-20 disabled:hover:text-zinc-400 cursor-pointer disabled:cursor-not-allowed"
                               title="Di chuyển xuống"
                             >

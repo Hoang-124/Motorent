@@ -16,8 +16,12 @@ const SENSITIVE_PATTERNS = [
   /^otp$/i,
   /^idcard/i,
   /^drivinglicense/i,
-  /^secret/i,
+  /geminiapikey/i,
+  /apikey/i,
+  /api_key/i,
+  /secret/i,
   /^esignatureurl$/i,
+  /^lessorsignatureurl$/i,
 ];
 
 interface AuditTrackedRequest extends AuthenticatedRequest {

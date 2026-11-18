@@ -29,6 +29,8 @@ import { api } from '../services/api';
 import type { Branch, Vehicle, Discount } from '../types';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { DateTimePicker, normalizeReturnSchedule } from '../components/DateTimePicker';
+import { ContractSignaturePad } from '../components/ContractSignaturePad';
+import { ContractPolicyCard } from '../components/ContractPolicyCard';
 
 interface VehicleEstimateItem {
   vehicleId: string;
@@ -84,6 +86,10 @@ export const CartPage: React.FC = () => {
   const [pickupTime, setPickupTime] = useState<string>('08:30');
   const [returnDate, setReturnDate] = useState<string>(formatLocalDate(dayAfter));
   const [returnTime, setReturnTime] = useState<string>('18:00');
+  const [deliveryMode, setDeliveryMode] = useState<'BranchPickup' | 'DoorDelivery'>('BranchPickup');
+  const [customPickupAddress, setCustomPickupAddress] = useState<string>('');
+  const [customReturnAddress, setCustomReturnAddress] = useState<string>('');
+  const [eSignatureUrl, setESignatureUrl] = useState<string>('');
 
   // Step 2 state: Customer Identity & eKYC
   const [customerName, setCustomerName] = useState<string>('');
@@ -169,8 +175,8 @@ export const CartPage: React.FC = () => {
       return;
     }
 
-    const pickupIso = `${pickupDate}T${pickupTime}:00`;
-    const returnIso = `${returnDate}T${returnTime}:00`;
+    const pickupIso = `${pickupDate}T${pickupTime}:00+07:00`;
+    const returnIso = `${returnDate}T${returnTime}:00+07:00`;
     const pDate = new Date(pickupIso);
     const rDate = new Date(returnIso);
 
@@ -193,6 +199,9 @@ export const CartPage: React.FC = () => {
             returnBranchId: rBranchId || pBranchId,
             pickupDateTime: pDate.toISOString(),
             returnDateTime: rDate.toISOString(),
+            deliveryMode,
+            customPickupAddress: deliveryMode === 'DoorDelivery' ? customPickupAddress.trim() || undefined : undefined,
+            customReturnAddress: deliveryMode === 'DoorDelivery' ? customReturnAddress.trim() || undefined : undefined,
             discountCode: discountCode.trim() || undefined,
           });
           const d = res.data?.data;
@@ -253,7 +262,19 @@ export const CartPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [cartItems, pickupDate, pickupTime, returnDate, returnTime, returnBranchId, discountCode, branches]);
+  }, [
+    cartItems,
+    pickupDate,
+    pickupTime,
+    returnDate,
+    returnTime,
+    returnBranchId,
+    deliveryMode,
+    customPickupAddress,
+    customReturnAddress,
+    discountCode,
+    branches,
+  ]);
 
   const totals = useMemo(() => {
     let totalAmount = 0;
@@ -296,6 +317,10 @@ export const CartPage: React.FC = () => {
       const rDate = new Date(`${returnDate}T${returnTime}:00`);
       if (pDate >= rDate) {
         setErrorMsg('Thời gian trả xe phải diễn ra sau thời gian nhận xe ít nhất 2 giờ.');
+        return;
+      }
+      if (deliveryMode === 'DoorDelivery' && !customPickupAddress.trim()) {
+        setErrorMsg('Vui lòng nhập địa chỉ giao xe tận nơi cho đoàn.');
         return;
       }
       if (totals.unavailableCount > 0) {
@@ -409,8 +434,8 @@ export const CartPage: React.FC = () => {
     setSubmitting(true);
     setErrorMsg('');
 
-    const pickupIso = new Date(`${pickupDate}T${pickupTime}:00`).toISOString();
-    const returnIso = new Date(`${returnDate}T${returnTime}:00`).toISOString();
+    const pickupIso = new Date(`${pickupDate}T${pickupTime}:00+07:00`).toISOString();
+    const returnIso = new Date(`${returnDate}T${returnTime}:00+07:00`).toISOString();
 
     const successList: CreatedOrderSummary[] = [];
     const failedMessages: string[] = [];
@@ -427,6 +452,10 @@ export const CartPage: React.FC = () => {
           pickupDateTime: pickupIso,
           returnDateTime: returnIso,
           paymentMethod,
+          deliveryMode,
+          customPickupAddress: deliveryMode === 'DoorDelivery' ? customPickupAddress.trim() : undefined,
+          customReturnAddress: deliveryMode === 'DoorDelivery' ? customReturnAddress.trim() || undefined : undefined,
+          eSignatureUrl: eSignatureUrl || undefined,
           discountCode: discountCode.trim() || undefined,
         });
 
@@ -766,6 +795,70 @@ export const CartPage: React.FC = () => {
                           </option>
                         ))}
                       </select>
+                    </div>
+
+                    {/* Delivery Mode Selector (BranchPickup vs DoorDelivery) */}
+                    <div className="space-y-3 pt-2 border-t border-white/10">
+                      <label className="text-xs font-semibold text-[#A0A0A0] block">
+                        Hình thức giao nhận xe cho đoàn
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryMode('BranchPickup')}
+                          className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                            deliveryMode === 'BranchPickup'
+                              ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
+                              : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
+                          }`}
+                        >
+                          <span className="text-xs font-bold block">Nhận &amp; trả tại chi nhánh</span>
+                          <span className="text-[11px] text-[#99FFE4] block mt-0.5">Miễn phí vận chuyển (0 đ)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeliveryMode('DoorDelivery')}
+                          className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+                            deliveryMode === 'DoorDelivery'
+                              ? 'bg-[#FFC799]/15 border-[#FFC799] text-[#F5F5F5]'
+                              : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
+                          }`}
+                        >
+                          <span className="text-xs font-bold block">Giao / nhận xe tận nơi</span>
+                          <span className="text-[11px] text-[#FFC799] block mt-0.5">
+                            Phí vận chuyển: 40.000 đ/chiều/xe (80.000 đ khứ hồi)
+                          </span>
+                        </button>
+                      </div>
+
+                      {deliveryMode === 'DoorDelivery' && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <div>
+                            <label className="text-[11px] font-semibold text-[#A0A0A0] block mb-1">
+                              Địa chỉ giao xe tận nơi <span className="text-[#FF8080]">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={customPickupAddress}
+                              onChange={(e) => setCustomPickupAddress(e.target.value)}
+                              placeholder="VD: Sảnh Khách sạn Novotel, 36 Bạch Đằng..."
+                              className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799]"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[11px] font-semibold text-[#A0A0A0] block mb-1">
+                              Địa chỉ thu hồi xe tận nơi (Để trống nếu trả tại trạm)
+                            </label>
+                            <input
+                              type="text"
+                              value={customReturnAddress}
+                              onChange={(e) => setCustomReturnAddress(e.target.value)}
+                              placeholder="VD: Sân bay Quốc tế Đà Nẵng..."
+                              className="w-full bg-[#101010] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-[#F5F5F5] focus:outline-none focus:border-[#FFC799]"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1303,6 +1396,9 @@ export const CartPage: React.FC = () => {
                       </div>
                     </div>
                   )}
+
+                  <ContractSignaturePad value={eSignatureUrl} onChange={setESignatureUrl} />
+                  <ContractPolicyCard />
                 </div>
               )}
 

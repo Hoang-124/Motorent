@@ -11,6 +11,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
 import type { Review } from '../types';
 
 interface ReviewModalProps {
@@ -185,8 +186,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
 
       onSuccess();
       onClose();
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Có lỗi xảy ra khi gửi đánh giá. Vui lòng thử lại.';
+    } catch (err: unknown) {
+      const msg = extractApiError(err, 'Có lỗi xảy ra khi gửi đánh giá. Vui lòng thử lại.');
       setErrorMsg(msg);
     } finally {
       setSubmitting(false);

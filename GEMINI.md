@@ -13,8 +13,8 @@ Mã nguồn Backend tại `server/src/` bắt buộc phải triển khai theo m�
   - `auditMiddleware.ts`: Tự động ghi nhật ký mọi hành vi thêm/sửa/xóa nhạy cảm vào bảng `AuditLog`.
   - `uploadMiddleware.ts`: Multer xử lý tải lên ảnh xe, ảnh GPLX/CCCD (eKYC).
   - `errorHandler.ts`: Xử lý ngoại lệ và trả về cấu trúc lỗi chuẩn JSON.
-* **`models/`**: 18 Mongoose Models chuẩn hóa đã định nghĩa.
-* **`modules/`**: Phân rã nghiệp vụ theo 5 phân hệ độc lập (mỗi module có controller, service, routes):
+* **`models/`**: 24 Mongoose Models chuẩn hóa đã định nghĩa.
+* **`modules/`**: Phân rã nghiệp vụ theo 22 module tính năng độc lập (thuộc các phân hệ cốt lõi, mỗi module có controller, service, routes):
   - `modules/auth/`: Đăng ký, đăng nhập, eKYC, đổi mật khẩu.
   - `modules/branch/`: Quản lý chi nhánh, tìm kiếm chi nhánh gần nhất theo GPS.
   - `modules/vehicle/`: Quản lý danh mục, đội xe, cảnh báo bảo dưỡng ODO.

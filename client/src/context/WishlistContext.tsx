@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
 import { useAuth } from './AuthContext';
 
 interface WishlistContextType {
@@ -76,10 +77,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 
   const toggleWishlist = async (vehicleId: string): Promise<boolean> => {
-    // 1. Chưa đăng nhập bấm tim: chuyển tới login kèm returnUrl, đăng nhập xong quay lại
+    // 1. Chưa đăng nhập bấm tim: chuyển tới login kèm returnTo, đăng nhập xong quay lại
     if (!isAuthenticated || !user) {
-      const returnUrl = encodeURIComponent(location.pathname + location.search);
-      navigate(`/login?returnUrl=${returnUrl}`);
+      const returnTo = encodeURIComponent(location.pathname + location.search);
+      navigate(`/login?returnTo=${returnTo}`);
       return false;
     }
 
@@ -114,7 +115,7 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         showToast('success', 'Đã xóa khỏi danh sách xe yêu thích.');
       }
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 4. Lỗi thì rollback + toast
       setWishlistIds((prev) => {
         const rollback = new Set(prev);
@@ -126,9 +127,10 @@ export const WishlistProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         return rollback;
       });
 
-      const message =
-        error.response?.data?.message ||
-        'Không thể cập nhật danh sách yêu thích. Vui lòng thử lại sau.';
+      const message = extractApiError(
+        error,
+        'Không thể cập nhật danh sách yêu thích. Vui lòng thử lại sau.'
+      );
       showToast('error', message);
       return false;
     } finally {

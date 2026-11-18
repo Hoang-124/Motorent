@@ -42,7 +42,7 @@ export const getAllBranches = async (includeInactive = false) => {
   // Calculate real-time available & total vehicle count for each branch
   const [availableCounts, totalCounts] = await Promise.all([
     Vehicle.aggregate([
-      { $match: { isDeleted: false, status: 'Available' } },
+      { $match: { isDeleted: false, status: 'Available', requiresMaintenance: { $ne: true } } },
       { $group: { _id: '$branchId', count: { $sum: 1 } } },
     ]),
     Vehicle.aggregate([
@@ -72,7 +72,7 @@ export const getAllBranches = async (includeInactive = false) => {
 };
 
 export const getBranchById = async (id: string) => {
-  const branch = await Branch.findById(id).populate('managerId', 'firstName lastName username phone email');
+  const branch = await Branch.findById(id).populate('managerId', 'firstName lastName username phoneNumber email');
   if (!branch) {
     throw new AppError(404, 'Không tìm thấy chi nhánh.');
   }

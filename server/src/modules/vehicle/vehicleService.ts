@@ -225,7 +225,16 @@ export const getAllVehicles = async (options: VehicleFilterOptions) => {
     filter.brand = new RegExp(`^${escapeRegex(options.brand.trim())}$`, 'i');
   }
 
-  if (options.minPrice !== undefined || options.maxPrice !== undefined) {
+  const todayVn = vietnamDate(new Date());
+  const activeTodayRules = await SeasonalPricingRule.find({
+    startDate: { $lte: todayVn },
+    endDate: { $gte: todayVn },
+  })
+    .sort({ startDate: 1 })
+    .lean();
+  const hasActiveSeasonalPricing = activeTodayRules.length > 0;
+
+  if (!hasActiveSeasonalPricing && (options.minPrice !== undefined || options.maxPrice !== undefined)) {
     const priceRange: Record<string, number> = {};
     if (options.minPrice !== undefined) priceRange.$gte = options.minPrice;
     if (options.maxPrice !== undefined) priceRange.$lte = options.maxPrice;
@@ -279,6 +288,60 @@ export const getAllVehicles = async (options: VehicleFilterOptions) => {
   const pageStages: mongoose.PipelineStage.FacetPipelineStage[] = paginated
     ? [{ $skip: (page - 1) * limit }, { $limit: limit }]
     : [];
+
+  if (hasActiveSeasonalPricing) {
+    const candidateRows = await Vehicle.find(filter).lean<CatalogVehicle[]>();
+    const pricedCandidates = await attachSeasonalPricing(candidateRows);
+    const filteredCandidates = pricedCandidates.filter((v) => {
+      if (options.minPrice !== undefined && v.effectiveDailyPrice < options.minPrice) return false;
+      if (options.maxPrice !== undefined && v.effectiveDailyPrice > options.maxPrice) return false;
+      return true;
+    });
+
+    const total = filteredCandidates.length;
+    let pageSlice: CatalogVehicle[];
+    if (sortOption.startsWith('rating_')) {
+      const ratedCandidates = await addVehicleRatings(filteredCandidates);
+      const pricedRated = await attachSeasonalPricing(ratedCandidates);
+      pricedRated.sort((a, b) => {
+        const ratingDiff =
+          sortOption === 'rating_asc'
+            ? (a.ratingAverage ?? 0) - (b.ratingAverage ?? 0)
+            : (b.ratingAverage ?? 0) - (a.ratingAverage ?? 0);
+        if (ratingDiff !== 0) return ratingDiff;
+        if (a.effectiveDailyPrice !== b.effectiveDailyPrice) {
+          return a.effectiveDailyPrice - b.effectiveDailyPrice;
+        }
+        return String(a._id).localeCompare(String(b._id));
+      });
+      pageSlice = paginated ? pricedRated.slice((page - 1) * limit, page * limit) : pricedRated;
+    } else {
+      filteredCandidates.sort((a, b) => {
+        const priceDiff =
+          sortOption === 'price_desc'
+            ? b.effectiveDailyPrice - a.effectiveDailyPrice
+            : a.effectiveDailyPrice - b.effectiveDailyPrice;
+        if (priceDiff !== 0) return priceDiff;
+        return String(a._id).localeCompare(String(b._id));
+      });
+      const sliced = paginated
+        ? filteredCandidates.slice((page - 1) * limit, page * limit)
+        : filteredCandidates;
+      pageSlice = await addVehicleRatings(sliced);
+    }
+
+    const populated = await Vehicle.populate(pageSlice, [
+      { path: 'branchId', select: 'name code address phone hours_open hours_close' },
+      { path: 'category', select: 'name slug description' },
+    ]);
+    const vehicles = await attachSeasonalPricing(populated);
+    const responseLimit = paginated ? limit : Math.max(total, 1);
+    return {
+      vehicles,
+      pagination: { page, limit: responseLimit, total, pages: Math.ceil(total / responseLimit) },
+    };
+  }
+
   let rows: CatalogVehicle[];
   let total: number;
   if (sortOption.startsWith('rating_')) {
@@ -552,7 +615,7 @@ export const updateVehicle = async (
           }),
           VehicleTransfer.exists({
             vehicleId: id,
-            status: { $in: ['Pending', 'InTransit'] },
+            status: { $in: ['Pending', 'Approved', 'InTransit'] },
           }),
         ]);
         if (
@@ -602,7 +665,7 @@ export const deleteVehicle = async (id: string, actor?: IUser): Promise<IVehicle
       }),
       VehicleTransfer.exists({
         vehicleId: id,
-        status: { $in: ['Pending', 'InTransit'] },
+        status: { $in: ['Pending', 'Approved', 'InTransit'] },
       }),
     ]);
     if (
@@ -635,61 +698,109 @@ export const updateVehicleStatus = async (
   },
   user?: IUser
 ): Promise<IVehicle> => {
-  const vehicle = await Vehicle.findOne({ _id: id, isDeleted: false });
-  if (!vehicle) {
-    throw new AppError(404, 'Không tìm thấy phương tiện.');
-  }
+  parseVehicleId(id);
+  return acquireVehicleLock(id, async () => {
+    const vehicle = await Vehicle.findOne({ _id: id, isDeleted: false });
+    if (!vehicle) {
+      throw new AppError(404, 'Không tìm thấy phương tiện.');
+    }
 
-  if (user && user.roles !== 'SystemAdmin') {
-    assertBranchAccess(user, vehicle.branchId);
-  }
+    if (user) {
+      assertBranchAccess(user, vehicle.branchId);
+    }
 
-  if (vehicle.status === 'Rented' && data.status !== 'Rented') {
+    const activeTransfer = await VehicleTransfer.exists({
+      vehicleId: vehicle._id,
+      status: { $in: ['Pending', 'Approved', 'InTransit'] },
+    });
+    if (vehicle.status === 'Transferring' || activeTransfer) {
+      throw new AppError(
+        409,
+        'Phương tiện đang trong quy trình điều chuyển liên chi nhánh. Không thể đổi trạng thái thủ công.'
+      );
+    }
+
     const ongoingBooking = await Booking.findOne({
       vehicleId: vehicle._id,
       status: 'Ongoing',
     });
-    if (ongoingBooking) {
+    if (vehicle.status === 'Rented' && data.status !== 'Rented' && ongoingBooking) {
       throw new AppError(
         400,
         `Phương tiện đang trong chuyến thuê (${ongoingBooking.bookingCode}). Không thể chuyển trạng thái thủ công khi chưa hoàn tất Trả xe.`
       );
     }
-  }
+    if (data.status === 'Rented' && !ongoingBooking) {
+      throw new AppError(
+        400,
+        'Trạng thái đang thuê chỉ được kích hoạt thông qua quy trình nhận xe của đơn đặt xe.'
+      );
+    }
 
-  if (data.odometer !== undefined && data.odometer >= (vehicle.odometer || 0)) {
-    vehicle.odometer = data.odometer;
-  }
+    if (
+      (vehicle.status === 'Maintenance' || vehicle.requiresMaintenance) &&
+      data.status === 'Available'
+    ) {
+      if (!user || !['BranchManager', 'SystemAdmin'].includes(user.roles)) {
+        throw new AppError(
+          403,
+          'Chỉ Quản lý chi nhánh hoặc Quản trị viên hệ thống mới có quyền xác nhận hoàn tất bảo dưỡng và mở lại xe cho thuê.'
+        );
+      }
+    }
 
-  vehicle.status = data.status;
+    if (data.odometer !== undefined) {
+      if (data.odometer < (vehicle.odometer || 0)) {
+        throw new AppError(400, 'Chỉ số ODO mới không được nhỏ hơn chỉ số hiện tại.');
+      }
+      vehicle.odometer = data.odometer;
+    }
 
-  if (data.status === 'Maintenance') {
-    vehicle.requiresMaintenance = true;
+    vehicle.status = data.status;
+
     const performedBy =
       [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
       user?.email ||
       user?.username ||
       'Staff';
-    await MaintenanceLog.create({
-      vehicleId: vehicle._id,
-      branchId: vehicle.branchId,
-      maintenanceType: data.maintenanceType || 'Repair',
-      description: data.reason || 'Bảo trì kỹ thuật định kỳ / khắc phục sự cố',
-      cost: data.cost || 0,
-      odometerAtMaintenance: data.odometer ?? vehicle.odometer ?? 0,
-      status: 'InProgress',
-      performedBy,
-      startDate: new Date(),
-    });
-  } else if (data.status === 'Available') {
-    vehicle.requiresMaintenance = false;
-    vehicle.lastMaintenanceBucket = Math.floor((vehicle.odometer || 0) / 1500);
-    await MaintenanceLog.updateMany(
-      { vehicleId: vehicle._id, status: { $in: ['InProgress', 'Scheduled'] } },
-      { $set: { status: 'Completed', endDate: new Date() } }
-    );
-  }
 
-  await vehicle.save();
-  return vehicle;
+    if (data.status === 'Maintenance') {
+      vehicle.requiresMaintenance = true;
+      const existingInProgress = await MaintenanceLog.exists({
+        vehicleId: vehicle._id,
+        status: 'InProgress',
+      });
+      if (!existingInProgress) {
+        await MaintenanceLog.create({
+          vehicleId: vehicle._id,
+          branchId: vehicle.branchId,
+          maintenanceType: data.maintenanceType || 'Repair',
+          description: data.reason || 'Bảo trì kỹ thuật định kỳ / khắc phục sự cố',
+          cost: data.cost || 0,
+          odometerAtMaintenance: data.odometer ?? vehicle.odometer ?? 0,
+          status: 'InProgress',
+          performedBy,
+          startDate: new Date(),
+        });
+      }
+    } else if (data.status === 'Available') {
+      vehicle.requiresMaintenance = false;
+      vehicle.lastMaintenanceBucket = Math.floor((vehicle.odometer || 0) / 1500);
+      await MaintenanceLog.updateMany(
+        { vehicleId: vehicle._id, status: { $in: ['InProgress', 'Scheduled'] } },
+        {
+          $set: {
+            status: 'Completed',
+            endDate: new Date(),
+            odometerAtMaintenance: vehicle.odometer || 0,
+            performedBy,
+            ...(data.cost !== undefined ? { cost: data.cost } : {}),
+          },
+        }
+      );
+    }
+
+    await vehicle.save();
+    return vehicle;
+  });
 };

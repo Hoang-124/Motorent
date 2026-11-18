@@ -12,27 +12,70 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
 import type { StaffSchedule } from '../types';
 import { useAuth } from '../context/AuthContext';
+
+const SHIFT_CHRONO_ORDER: Record<string, number> = {
+  Morning: 1,
+  Afternoon: 2,
+  Evening: 3,
+  FullDay: 4,
+};
+
+const SHIFT_LABELS: Record<string, string> = {
+  Morning: 'Ca 1 - Sáng',
+  Afternoon: 'Ca 2 - Chiều',
+  Evening: 'Ca 3 - Tối',
+  FullDay: 'Cả ngày',
+};
+
+const selectActiveTodayShift = (
+  rawShifts: StaffSchedule[]
+): { active: StaffSchedule | null; ordered: StaffSchedule[] } => {
+  if (!Array.isArray(rawShifts) || rawShifts.length === 0) {
+    return { active: null, ordered: [] };
+  }
+  const ordered = [...rawShifts].sort(
+    (a, b) => (SHIFT_CHRONO_ORDER[a.shiftType] || 99) - (SHIFT_CHRONO_ORDER[b.shiftType] || 99)
+  );
+  const inProgress = ordered.find((s) => Boolean(s.checkInTime) && !s.checkOutTime);
+  if (inProgress) {
+    return { active: inProgress, ordered };
+  }
+  const nextUnfinished = ordered.find((s) => !s.checkOutTime && s.status !== 'Absent');
+  if (nextUnfinished) {
+    return { active: nextUnfinished, ordered };
+  }
+  return { active: ordered[ordered.length - 1] || null, ordered };
+};
 
 export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
   const { user } = useAuth();
   const [schedule, setSchedule] = useState<StaffSchedule | null>(null);
+  const [todayShifts, setTodayShifts] = useState<StaffSchedule[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [clocking, setClocking] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
-  const fetchTodayShift = async () => {
-    setLoading(true);
+  const fetchTodayShift = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await api.get('/schedules/today');
       if (res.data?.success) {
-        setSchedule(res.data.data);
+        const list: StaffSchedule[] = Array.isArray(res.data.shifts)
+          ? res.data.shifts
+          : res.data.data
+          ? [res.data.data]
+          : [];
+        const { active, ordered } = selectActiveTodayShift(list);
+        setTodayShifts(ordered);
+        setSchedule(active);
       }
     } catch {
       // Ignore if not scheduled
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -48,18 +91,27 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
     try {
       const res = await api.put(`/schedules/${schedule._id}/clock`);
       if (res.data?.success) {
-        setSchedule(res.data.data);
+        const updated: StaffSchedule = res.data.data;
+        const merged =
+          todayShifts.length > 0
+            ? todayShifts.map((s) => (s._id === updated._id ? updated : s))
+            : [updated];
+        const { active, ordered } = selectActiveTodayShift(merged);
+        setTodayShifts(ordered);
+        setSchedule(active);
+
         const isLate = res.data.isLate;
         setMessage({
           type: isLate ? 'warning' : 'success',
           text: res.data.message || 'Ghi nhận điểm danh thành công!',
         });
+        void fetchTodayShift(true);
         setTimeout(() => setMessage(null), 5000);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setMessage({
         type: 'error',
-        text: err.response?.data?.message || 'Có lỗi xảy ra khi điểm danh.',
+        text: extractApiError(err, 'Có lỗi xảy ra khi điểm danh.'),
       });
       setTimeout(() => setMessage(null), 5000);
     } finally {
@@ -92,7 +144,7 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
         </div>
         <button
           type="button"
-          onClick={fetchTodayShift}
+          onClick={() => fetchTodayShift()}
           className="text-[#D0D0D0] hover:text-[#FFC799] p-1"
           title="Kiểm tra lại"
         >
@@ -142,9 +194,9 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
           </div>
 
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="font-bold text-white text-sm">
-                Ca trực hôm nay: {schedule.shiftType}
+                Ca trực hôm nay: {SHIFT_LABELS[schedule.shiftType] || schedule.shiftType}
               </span>
               <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30 font-semibold">
                 {schedule.shiftType === 'Morning'
@@ -155,6 +207,11 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
                   ? '17:00 - 22:00'
                   : '07:00 - 22:00'}
               </span>
+              {todayShifts.length > 1 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">
+                  Ca {Math.max(1, todayShifts.findIndex((s) => s._id === schedule._id) + 1)}/{todayShifts.length} trong ngày
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-4 text-xs text-[#A0A0A0] mt-1">

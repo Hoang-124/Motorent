@@ -345,9 +345,14 @@ export const ProfilePage: React.FC = () => {
       fetchBookings(bookingPageRef.current, bookingFilterRef.current, bookingSearchRef.current);
     };
 
+    const handleBookingExtended = () => {
+      fetchBookings(bookingPageRef.current, bookingFilterRef.current, bookingSearchRef.current);
+    };
+
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('booking:status', handleBookingStatus);
+    socket.on('booking:extended', handleBookingExtended);
 
     if (socket.connected) {
       setIsSocketLive(true);
@@ -357,6 +362,7 @@ export const ProfilePage: React.FC = () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('booking:status', handleBookingStatus);
+      socket.off('booking:extended', handleBookingExtended);
     };
   }, []);
 
@@ -1256,8 +1262,7 @@ export const ProfilePage: React.FC = () => {
                       const canCancel =
                         b.status === 'Pending' ||
                         b.status === 'Approved' ||
-                        b.status === 'Confirmed' ||
-                        b.status === 'Ongoing';
+                        b.status === 'Confirmed';
                       const canExtend = b.status === 'Confirmed' || b.status === 'Ongoing';
                       const needsDepositPayment =
                         ['Pending', 'Approved', 'Confirmed', 'Ongoing'].includes(b.status) &&
@@ -1316,7 +1321,9 @@ export const ProfilePage: React.FC = () => {
                               {(b.status === 'Approved' || b.status === 'Confirmed') && (
                                 <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
                                   <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
-                                  Đã xác nhận cọc &amp; Khóa biển số
+                                  {b.depositPaid || b.isPaid || (b.paidAmount || 0) > 0
+                                    ? 'Đã xác nhận cọc & Khóa biển số'
+                                    : 'Đã duyệt giữ xe • Thanh toán tại quầy'}
                                 </span>
                               )}
                               {b.status === 'Ongoing' && (
@@ -1450,13 +1457,22 @@ export const ProfilePage: React.FC = () => {
                               <div className="text-right space-y-0.5 text-[11px]">
                                 {b.isPaid ? (
                                   <p className="text-[#FFC799] font-semibold">Đã thanh toán đủ 100%</p>
-                                ) : b.depositPaid || b.status === 'Approved' || b.status === 'Confirmed' ? (
+                                ) : b.depositPaid || (b.paidAmount || 0) > 0 ? (
                                   <>
                                     <p className="text-[#FFC799] font-semibold font-mono-tabular">
-                                      Đã cọc 30%: {b.depositAmount.toLocaleString('vi-VN')} đ
+                                      Đã cọc: {(b.paidAmount || b.depositAmount).toLocaleString('vi-VN')} đ
                                     </p>
                                     <p className="text-[#A0A0A0] font-mono-tabular">
                                       Còn lại khi nhận xe: {b.remainingAmount.toLocaleString('vi-VN')} đ
+                                    </p>
+                                  </>
+                                ) : b.status === 'Approved' ? (
+                                  <>
+                                    <p className="text-[#FFC799] font-semibold font-mono-tabular">
+                                      Chưa thu cọc online
+                                    </p>
+                                    <p className="text-[#A0A0A0] font-mono-tabular">
+                                      Cần thanh toán tại quầy: {(b.remainingAmount || b.totalAmount).toLocaleString('vi-VN')} đ
                                     </p>
                                   </>
                                 ) : (
@@ -1572,7 +1588,7 @@ export const ProfilePage: React.FC = () => {
                                   )}
                                   {(b.refundForfeitAmount ?? 0) > 0 && (
                                     <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold font-mono-tabular">
-                                      Khấu trừ &lt; 24h: {(b.refundForfeitAmount ?? 0).toLocaleString('vi-VN')} đ
+                                      Không hoàn tiền theo hợp đồng: {(b.refundForfeitAmount ?? 0).toLocaleString('vi-VN')} đ
                                     </span>
                                   )}
                                 </div>
@@ -1672,23 +1688,7 @@ export const ProfilePage: React.FC = () => {
                                   onClick={() => setSelectedBookingForCancel(b)}
                                   className="px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#FF8080]/30 text-[#A0A0A0] hover:text-[#FF8080] text-xs font-medium transition-colors cursor-pointer"
                                 >
-                                  {b.status === 'Ongoing' ? 'Hủy chuyến / Trả xe sớm' : 'Hủy đơn'}
-                                </button>
-                              )}
-
-                              {b.status === 'Cancelled' && (b.refundAmount ?? 0) > 0 && b.refundStatus !== 'Approved' && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedBookingForRefund(b);
-                                    setBankNameInput(b.refundBankInfo?.bankName || '');
-                                    setBankAccountNumberInput(b.refundBankInfo?.bankAccountNumber || '');
-                                    setBankAccountNameInput(b.refundBankInfo?.bankAccountName || '');
-                                    setRefundReasonInput(b.refundBankInfo?.reason || '');
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold transition-colors cursor-pointer inline-flex items-center space-x-1.5"
-                                >
-                                  <span>{b.refundBankInfo?.bankAccountNumber ? 'Cập nhật STK hoàn cọc' : 'Gửi STK nhận hoàn cọc'}</span>
+                                  Hủy đơn
                                 </button>
                               )}
 
@@ -2518,7 +2518,7 @@ export const ProfilePage: React.FC = () => {
       )}
 
       {/* =====================================================================
-          MODAL 2: CANCEL BOOKING CONFIRMATION WITH BR-06 POLICY
+          MODAL 2: CANCEL BOOKING CONFIRMATION (STRICT NO-REFUND POLICY)
           ===================================================================== */}
       {selectedBookingForCancel && (() => {
         const pickupTime = new Date(selectedBookingForCancel.pickupDateTime).getTime();
@@ -2527,10 +2527,8 @@ export const ProfilePage: React.FC = () => {
           selectedBookingForCancel.paidAmount ||
           (selectedBookingForCancel.depositPaid ? selectedBookingForCancel.depositAmount : 0) ||
           0;
-        const deposit = selectedBookingForCancel.depositAmount || 0;
-        const isMoreThan24h = hoursUntilPickup > 24;
-        const forfeitAmount = paid > 0 ? (isMoreThan24h ? 0 : Math.round(deposit * 0.5)) : 0;
-        const refundEstimate = Math.max(0, paid - forfeitAmount);
+        const forfeitAmount = paid;
+        const refundEstimate = 0;
 
         return (
           <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -2549,37 +2547,29 @@ export const ProfilePage: React.FC = () => {
                 </button>
               </div>
 
-              {/* BR-06 Policy Breakdown Card */}
+              {/* Strict No-Refund Policy Breakdown Card */}
               <div
                 className={`p-4 rounded-xl border space-y-2 text-xs ${
-                  paid > 0 && isMoreThan24h
-                    ? 'bg-emerald-950/20 border-[#FFC799]/25 text-emerald-200'
-                    : paid > 0
-                    ? 'bg-amber-950/20 border-amber-500/30 text-amber-200'
+                  paid > 0
+                    ? 'bg-[#FF8080]/10 border-[#FF8080]/30 text-[#F5F5F5]'
                     : 'bg-[#101010] border-white/10 text-[#A0A0A0]'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white uppercase tracking-wider text-[11px]">
-                    Chính sách hủy đơn
+                  <span className="font-semibold text-[#FF8080] uppercase tracking-wider text-[11px]">
+                    Điều khoản hợp đồng: Không hoàn tiền
                   </span>
-                  <span className="font-mono-tabular font-medium">
+                  <span className="font-mono-tabular font-medium text-[#A0A0A0]">
                     {hoursUntilPickup > 0
                       ? `Còn ${Math.max(0, Math.floor(hoursUntilPickup))} giờ trước nhận xe`
-                      : 'Đã tới giờ nhận xe'}
+                      : 'Đang trong kỳ hợp đồng'}
                   </span>
                 </div>
 
                 {paid > 0 ? (
-                  isMoreThan24h ? (
-                    <p className="leading-relaxed text-[#FFC799]">
-                      Bạn đang hủy trước giờ nhận xe hơn 24 giờ. Theo quy định chính sách hủy đơn, quý khách được <strong>miễn phí hủy 100%</strong> và sẽ được hoàn lại toàn bộ số tiền đã thanh toán.
-                    </p>
-                  ) : (
-                    <p className="leading-relaxed text-amber-300">
-                      Bạn đang hủy trong vòng 24 giờ trước giờ nhận xe. Theo chính sách hủy đơn, hệ thống sẽ <strong>khấu trừ 50% tiền đặt cọc</strong> và hoàn lại số tiền còn lại.
-                    </p>
-                  )
+                  <p className="leading-relaxed text-[#E5E5E5]">
+                    Theo điều khoản hợp đồng điện tử đã ký kết, hệ thống áp dụng chính sách <strong className="text-[#FF8080]">KHÔNG HOÀN TIỀN</strong> cọc hoặc tiền thuê khi hủy đơn hoặc kết thúc chuyến xe trước thời hạn.
+                  </p>
                 ) : (
                   <p className="leading-relaxed text-[#A0A0A0]">
                     Đơn đặt xe chưa phát sinh khoản thanh toán cọc. Hệ thống sẽ giải phóng xe về trạng thái sẵn sàng cho khách hàng khác mà không phát sinh phí.
@@ -2593,14 +2583,14 @@ export const ProfilePage: React.FC = () => {
                       <div className="font-bold text-white">{paid.toLocaleString('vi-VN')} đ</div>
                     </div>
                     <div className="bg-black/30 p-2 rounded-lg">
-                      <div className="text-[#A0A0A0] text-[10px]">Phí khấu trừ</div>
+                      <div className="text-[#A0A0A0] text-[10px]">Không hoàn lại</div>
                       <div className="font-bold text-[#FF8080]">
-                        {forfeitAmount > 0 ? `-${forfeitAmount.toLocaleString('vi-VN')} đ` : '0 đ'}
+                        -{forfeitAmount.toLocaleString('vi-VN')} đ
                       </div>
                     </div>
                     <div className="bg-black/30 p-2 rounded-lg">
-                      <div className="text-[#A0A0A0] text-[10px]">Tiền hoàn dự kiến</div>
-                      <div className="font-bold text-[#FFC799]">
+                      <div className="text-[#A0A0A0] text-[10px]">Số tiền hoàn</div>
+                      <div className="font-bold text-[#A0A0A0]">
                         {refundEstimate.toLocaleString('vi-VN')} đ
                       </div>
                     </div>

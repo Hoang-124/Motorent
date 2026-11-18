@@ -9,7 +9,7 @@ const router = Router();
 router.use(authenticateJWT);
 
 // Get my today's schedule for quick clock-in/out
-router.get('/today', scheduleController.getMyTodaySchedule);
+router.get('/today', authorize('SystemAdmin', 'BranchManager', 'Staff'), scheduleController.getMyTodaySchedule);
 
 // Staff Availability Registration (Messages & Weekly Shift Slots)
 router.get('/availability', authorize('Staff', 'BranchManager', 'SystemAdmin'), scheduleController.getStaffAvailabilities);

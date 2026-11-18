@@ -26,17 +26,53 @@ export const streamBookingInvoicePdf = async (
     (a, b) => effectivePaymentDate(a).getTime() - effectivePaymentDate(b).getTime()
   );
 
+  const extractRefId = (val: unknown): string => {
+    if (val && typeof val === 'object' && '_id' in val) {
+      return String((val as { _id?: unknown })._id || '');
+    }
+    return val ? String(val) : '';
+  };
+
   // Permission check
   if (requestingUser.roles === 'Customer') {
-    const customerId = (booking.userId as any)?._id?.toString() || booking.userId?.toString();
+    const customerId = extractRefId(booking.userId);
     if (customerId !== String(requestingUser._id)) {
       throw new AppError(403, 'Bạn không có quyền truy cập hóa đơn của khách hàng khác.');
     }
   } else if (['BranchManager', 'Staff'].includes(requestingUser.roles)) {
-    const pickupBranchId = (booking.pickupBranchId as any)?._id?.toString() || booking.pickupBranchId?.toString();
-    const returnBranchId = (booking.returnBranchId as any)?._id?.toString() || booking.returnBranchId?.toString();
-    assertBranchAccess(requestingUser as any, [pickupBranchId, returnBranchId]);
+    const pickupBranchId = extractRefId(booking.pickupBranchId);
+    const returnBranchId = extractRefId(booking.returnBranchId);
+    assertBranchAccess(requestingUser, [pickupBranchId, returnBranchId]);
   }
+
+  const resolveSignatureBuffer = async (sigSource: string | undefined): Promise<Buffer | null> => {
+    if (!sigSource) return null;
+    if (sigSource.startsWith('data:image/')) {
+      const base64Part = sigSource.split(',')[1];
+      if (!base64Part) return null;
+      try {
+        return Buffer.from(base64Part, 'base64');
+      } catch {
+        return null;
+      }
+    }
+    if (sigSource.startsWith('http://') || sigSource.startsWith('https://')) {
+      try {
+        const resp = await fetch(sigSource, { signal: AbortSignal.timeout(5000) });
+        if (!resp.ok) return null;
+        const arrayBuf = await resp.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const [lessorSigBuffer, renterSigBuffer] = await Promise.all([
+    resolveSignatureBuffer(booking.lessorSignatureUrl),
+    resolveSignatureBuffer(booking.eSignatureUrl),
+  ]);
 
   const doc = new PDFDocument({
     size: 'A4',
@@ -75,10 +111,18 @@ export const streamBookingInvoicePdf = async (
   doc.strokeColor('#DDDDDD').lineWidth(1).moveTo(40, 162).lineTo(555, 162).stroke();
 
   // --- Customer & Booking Information (2 columns) ---
-  const userObj = (booking.userId as any) || {};
-  const vehicleObj = (booking.vehicleId as any) || {};
-  const pickupBranch = (booking.pickupBranchId as any) || {};
-  const returnBranch = (booking.returnBranchId as any) || {};
+  const userObj = (typeof booking.userId === 'object' && booking.userId !== null
+    ? (booking.userId as unknown as { firstName?: string; lastName?: string; username?: string; phoneNumber?: string; email?: string })
+    : {});
+  const vehicleObj = (typeof booking.vehicleId === 'object' && booking.vehicleId !== null
+    ? (booking.vehicleId as unknown as { brand?: string; vehicleModel?: string; licensePlate?: string; dailyPrice?: number })
+    : {});
+  const pickupBranch = (typeof booking.pickupBranchId === 'object' && booking.pickupBranchId !== null
+    ? (booking.pickupBranchId as unknown as { name?: string; phone?: string; address?: string })
+    : {});
+  const returnBranch = (typeof booking.returnBranchId === 'object' && booking.returnBranchId !== null
+    ? (booking.returnBranchId as unknown as { name?: string; phone?: string; address?: string })
+    : {});
 
   const customerName = booking.receiverName || `${userObj.firstName || ''} ${userObj.lastName || ''}`.trim() || userObj.username || 'Khách hàng';
   const customerPhone = booking.receiverPhone || userObj.phoneNumber || 'N/A';
@@ -229,7 +273,11 @@ export const streamBookingInvoicePdf = async (
   // Payment status badge
   doc.rect(300, y, 245, 22).fill(booking.isPaid ? '#E8F5E9' : '#FFF3E0');
   doc.fillColor(booking.isPaid ? '#2E7D32' : '#E65100').font(boldFont).fontSize(8.5).text(
-    booking.isPaid ? 'TRẠNG THÁI: ĐÃ HOÀN TẤT THANH TOÁN 100%' : 'TRẠNG THÁI: ĐÃ THANH TOÁN TIỀN CỌC (CÒN NỢ 70%)',
+    booking.isPaid
+      ? 'TRẠNG THÁI: ĐÃ HOÀN TẤT THANH TOÁN 100%'
+      : paidAmount > 0
+        ? 'TRẠNG THÁI: ĐÃ THANH TOÁN TIỀN CỌC (CÒN LẠI TẠI QUẦY)'
+        : 'TRẠNG THÁI: CHƯA THANH TOÁN (THU 100% TẠI QUẦY)',
     305,
     y + 6,
     { align: 'center', width: 235 }
@@ -251,12 +299,9 @@ export const streamBookingInvoicePdf = async (
   doc.fillColor('#101010').font(boldFont).fontSize(9.5).text('ĐẠI DIỆN BÊN CHO THUÊ (BÊN A)', 45, boxY + 8, { align: 'center', width: 235 });
   doc.fillColor('#666666').font(primaryFont).fontSize(8).text(pickupBranch.name || 'MOTORENT VIETNAM', 45, boxY + 22, { align: 'center', width: 235 });
 
-  const renderDataUriSignature = (dataUri: string | undefined, x: number, yPos: number) => {
-    if (!dataUri || !dataUri.startsWith('data:image/')) return false;
+  const renderSignatureBuffer = (imgBuffer: Buffer | null, x: number, yPos: number) => {
+    if (!imgBuffer) return false;
     try {
-      const base64Part = dataUri.split(',')[1];
-      if (!base64Part) return false;
-      const imgBuffer = Buffer.from(base64Part, 'base64');
       doc.image(imgBuffer, x, yPos, { fit: [150, 48], align: 'center' });
       return true;
     } catch {
@@ -264,7 +309,7 @@ export const streamBookingInvoicePdf = async (
     }
   };
 
-  const drewLessorImg = renderDataUriSignature(booking.lessorSignatureUrl, 85, boxY + 36);
+  const drewLessorImg = renderSignatureBuffer(lessorSigBuffer, 85, boxY + 36);
   if (!drewLessorImg) {
     doc.rect(85, boxY + 40, 155, 38).strokeColor('#E65100').lineWidth(1).stroke();
     doc.fillColor('#E65100').font(boldFont).fontSize(8).text('ĐÃ KÝ SỐ & ĐÓNG DẤU', 85, boxY + 48, { align: 'center', width: 155 });
@@ -282,7 +327,7 @@ export const streamBookingInvoicePdf = async (
   doc.fillColor('#101010').font(boldFont).fontSize(9.5).text('ĐẠI DIỆN BÊN THUÊ XE (BÊN B)', 315, boxY + 8, { align: 'center', width: 235 });
   doc.fillColor('#666666').font(primaryFont).fontSize(8).text(customerName, 315, boxY + 22, { align: 'center', width: 235 });
 
-  const drewRenterImg = renderDataUriSignature(booking.eSignatureUrl, 355, boxY + 36);
+  const drewRenterImg = renderSignatureBuffer(renterSigBuffer, 355, boxY + 36);
   if (!drewRenterImg) {
     if (booking.eSignatureUrl) {
       doc.fillColor('#1565C0').font(boldFont).fontSize(9).text(`[Chữ ký điện tử: ${customerName}]`, 315, boxY + 52, { align: 'center', width: 235 });

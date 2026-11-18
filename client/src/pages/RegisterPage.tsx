@@ -109,7 +109,7 @@ export const RegisterPage: React.FC = () => {
   const isUsernameValid = !validateUsername(username) && username.trim().length > 0;
   const isEmailValid = !validateEmail(email, { disallowGoogle: true }) && email.trim().length > 0;
   const isPhoneValid = phoneNumber.trim().length > 0 && !validatePhoneNumber(phoneNumber);
-  const isPasswordValid = !validatePassword(password) && password.length >= 6;
+  const isPasswordValid = !validatePassword(password) && password.length >= 8;
   const isConfirmPasswordValid = !validateConfirmPassword(password, confirmPassword) && confirmPassword.length > 0;
 
   // Calculate password strength
@@ -361,8 +361,8 @@ export const RegisterPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {/* Dev Helper Notice (Chỉ xuất hiện khi chưa cấu hình SMTP thật) */}
-                  {!successData.hasRealSmtp && (
+                  {/* Dev Helper Notice (Chỉ xuất hiện khi chưa cấu hình SMTP thật và server cấp devOtp) */}
+                  {!successData.hasRealSmtp && Boolean(successData.devOtp) && (
                     <div className="p-4 bg-[#FFC799]/10 border border-[#FFC799]/30 rounded-2xl text-left space-y-2 text-xs">
                       <div className="flex items-center space-x-1.5 font-bold text-[#FFC799]">
                         <Sparkles className="w-4 h-4 text-[#FFC799] flex-shrink-0" />
@@ -375,17 +375,17 @@ export const RegisterPage: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <span className="text-[11px] text-[#A0A0A0] font-medium">Mã OTP:</span>
                           <span className="font-mono font-black text-base text-[#FFC799] tracking-wider">
-                            {successData.devOtp || '123456'}
+                            {successData.devOtp}
                           </span>
                         </div>
                         <button
                           type="button"
                           onClick={() => {
-                            const code = successData.devOtp || '123456';
-                            setOtpCode(code);
-                            handleVerifyOtp(code);
+                            if (!successData.devOtp) return;
+                            setOtpCode(successData.devOtp);
+                            handleVerifyOtp(successData.devOtp);
                           }}
-                          className="px-3 py-1.5 text-[11px] font-black bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] text-white rounded-lg transition-colors flex items-center space-x-1 active:scale-95 shadow-xs"
+                          className="px-3 py-1.5 text-[11px] font-black bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] rounded-lg transition-colors flex items-center space-x-1 active:scale-95 shadow-xs"
                         >
                           <span>Điền & Kích hoạt ngay</span>
                           <ArrowRight className="w-3 h-3" />
@@ -443,7 +443,7 @@ export const RegisterPage: React.FC = () => {
                       type="button"
                       onClick={() => handleVerifyOtp()}
                       disabled={verifyingOtp || otpCode.length !== 6}
-                      className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] disabled:bg-white/5 disabled:text-[#6E6E6E] disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
+                      className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] disabled:bg-white/5 disabled:text-[#6E6E6E] disabled:cursor-not-allowed rounded-xl font-black text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
                     >
                       {verifyingOtp ? (
                         <>
@@ -762,7 +762,7 @@ export const RegisterPage: React.FC = () => {
                     <input
                       ref={passwordRef}
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Ít nhất 6 ký tự..."
+                      placeholder="Ít nhất 8 ký tự..."
                       value={password}
                       onChange={(e) => {
                         setPassword(e.target.value);
@@ -881,7 +881,7 @@ export const RegisterPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] hover:bg-[#FFD6B3] disabled:opacity-50 text-white font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
+                className="w-full py-3 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] disabled:opacity-50 font-bold rounded-xl text-xs shadow-lg shadow-black/50 transition-all flex items-center justify-center space-x-2 active:scale-[0.99]"
               >
                 {loading ? (
                   <>

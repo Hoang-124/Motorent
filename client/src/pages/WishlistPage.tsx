@@ -191,8 +191,8 @@ export const WishlistPage: React.FC = () => {
                 }
 
                 const branchName =
-                  typeof v.branchId === 'object' && v.branchId !== null
-                    ? (v.branchId as any).name
+                  typeof v.branchId === 'object' && v.branchId !== null && 'name' in v.branchId
+                    ? String((v.branchId as { name?: string }).name || 'Trạm Trung tâm')
                     : 'Trạm Trung tâm';
 
                 const mainImage =

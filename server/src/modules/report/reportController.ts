@@ -7,7 +7,12 @@ import * as reportService from './reportService';
  */
 const resolveBranchScope = (req: AuthenticatedRequest): string | undefined => {
   if (req.user?.roles === 'BranchManager') {
-    return req.user?.branchId ? String((req.user.branchId as any)._id || req.user.branchId) : undefined;
+    if (!req.user?.branchId) return undefined;
+    const rawBranch = req.user.branchId as unknown;
+    if (typeof rawBranch === 'object' && rawBranch !== null && '_id' in rawBranch) {
+      return String((rawBranch as { _id?: unknown })._id || '');
+    }
+    return String(rawBranch);
   }
   if (req.query.branchId) {
     return String(req.query.branchId);

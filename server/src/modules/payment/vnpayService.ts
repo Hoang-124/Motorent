@@ -10,6 +10,7 @@ import { AppError } from '../../core/errorHandler';
 import { env } from '../../config/env';
 import { sendBookingStatusEmail } from '../../config/mailer';
 import { emitBookingStatus } from '../booking/bookingEvents';
+import { notifyBranchOperations } from '../../core/notificationDispatch';
 
 export type VnpParams = Record<string, string | number | undefined>;
 
@@ -384,15 +385,20 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
       const newPaidAmount = currentPaid + expectedAmount;
       const isFullPay = booking.paymentType === 'Full100' || newPaidAmount >= booking.totalAmount;
 
-      if (booking.status === 'Cancelled') {
-        await Booking.findByIdAndUpdate(booking._id, {
-          vnpayTransactionNo: String(vnpTransactionNo),
-          vnpayBankCode: String(vnpBankCode),
-          vnpayPayDate,
-          paidAmount: newPaidAmount,
-          refundAmount: (booking.refundAmount || 0) + expectedAmount,
-          refundStatus: 'Pending',
-        });
+      if (booking.status === 'Cancelled' || booking.status === 'Rejected') {
+        const updatedExpired = await Booking.findByIdAndUpdate(
+          booking._id,
+          {
+            vnpayTransactionNo: String(vnpTransactionNo),
+            vnpayBankCode: String(vnpBankCode),
+            vnpayPayDate,
+            paidAmount: newPaidAmount,
+            refundAmount: 0,
+            refundForfeitAmount: newPaidAmount,
+            refundStatus: 'None',
+          },
+          { new: true }
+        );
 
         await Payment.create({
           bookingId: booking._id,
@@ -407,15 +413,38 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
           status: 'SUCCESS',
           rawIpn: queryParams,
         }).catch((err: unknown) => console.error('[Payment Record Error]', err));
+
+        await AuditLog.create({
+          userId: booking.userId,
+          action: 'VNPAY_LATE_IPN_EXPIRED_BOOKING',
+          entity: 'Booking',
+          entityId: booking._id.toString(),
+          details: {
+            bookingCode: booking.bookingCode,
+            vnpTransactionNo,
+            vnpBankCode,
+            amount: expectedAmount,
+            paidAmount: newPaidAmount,
+            refundStatus: 'None',
+            refundAmount: 0,
+            refundForfeitAmount: newPaidAmount,
+          },
+          timestamp: new Date(),
+        }).catch((err: unknown) => console.error('[AuditLog Error]', err));
+
+        if (updatedExpired) {
+          emitBookingStatus(updatedExpired);
+        }
         continue;
       }
 
+      const nextDepositPaid = newPaidAmount >= booking.depositAmount;
       const updatePayload: Record<string, unknown> = {
         vnpayTransactionNo: String(vnpTransactionNo),
         vnpayBankCode: String(vnpBankCode),
         vnpayPayDate,
         paidAmount: newPaidAmount,
-        depositPaid: newPaidAmount >= booking.depositAmount,
+        depositPaid: nextDepositPaid,
         isPaid: isFullPay,
         status: booking.status === 'Pending' || booking.status === 'Approved' ? 'Confirmed' : booking.status,
         remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - newPaidAmount),
@@ -446,6 +475,21 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
       }).catch((err: unknown) => console.error('[Payment Record Error]', err));
 
       emitBookingStatus(updatedBooking);
+
+      await notifyBranchOperations({
+        branchIds: [updatedBooking.pickupBranchId, updatedBooking.returnBranchId],
+        title: `Thanh toán VNPay thành công #${updatedBooking.bookingCode}`,
+        body: `Đơn ${updatedBooking.bookingCode} vừa thanh toán ${expectedAmount.toLocaleString('vi-VN')} đ qua VNPay (${isFullPay ? '100% hợp đồng' : updatedBooking.extensionCount ? 'Bù cọc gia hạn' : 'Cọc 30%'}).`,
+        type: 'BOOKING',
+        relatedId: updatedBooking._id.toString(),
+        data: {
+          bookingId: updatedBooking._id.toString(),
+          bookingCode: updatedBooking.bookingCode,
+          status: updatedBooking.status,
+          paidAmount: updatedBooking.paidAmount,
+          remainingAmount: updatedBooking.remainingAmount,
+        },
+      }).catch((err: unknown) => console.error('[VNPay Branch Notify Error]', err));
 
       Promise.all([
         User.findById(booking.userId).select('email firstName lastName username'),
@@ -621,6 +665,24 @@ export const verifyReturnUrlData = async (
   const bookingCode = bookingCodes.join(', ');
 
   if (responseCode === '00') {
+    const allExpiredOrCancelled =
+      bookings.length > 0 &&
+      bookings.every((b) => b.status === 'Cancelled' || b.status === 'Rejected');
+
+    if (allExpiredOrCancelled) {
+      return {
+        isValid: true,
+        isSuccess: false,
+        bookingCode,
+        bookingCodes,
+        amount,
+        message:
+          'Đơn đặt xe đã hết thời gian giữ chỗ và bị hủy trước khi giao dịch hoàn tất. Theo hợp đồng áp dụng chính sách KHÔNG HOÀN TIỀN; vui lòng liên hệ Tổng đài 1900 6868 nếu cần hỗ trợ đối soát.',
+        booking: bookings[0] || null,
+        bookings,
+      };
+    }
+
     return {
       isValid: true,
       isSuccess: true,

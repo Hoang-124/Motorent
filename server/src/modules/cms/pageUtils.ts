@@ -1,6 +1,6 @@
 import sanitizeHtml from 'sanitize-html';
 
-export const SYSTEM_PAGE_SLUGS = ['faq', 'terms', 'privacy'] as const;
+export const SYSTEM_PAGE_SLUGS = ['faq', 'terms', 'privacy', 'dieu-khoan-dich-vu', 'chinh-sach-bao-mat'] as const;
 export type SystemPageSlug = (typeof SYSTEM_PAGE_SLUGS)[number];
 
 export const RESERVED_SLUGS = new Set<string>([

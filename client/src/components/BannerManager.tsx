@@ -17,6 +17,7 @@ import {
   Filter,
 } from 'lucide-react';
 import type { Banner } from '../types';
+import { getBannerImageUrl } from '../utils/imageHelper';
 import {
   getAdminBanners,
   deleteBanner,
@@ -181,7 +182,27 @@ export const BannerManager: React.FC = () => {
       if (imageMode === 'upload' && newImageFile) {
         formData.append('image', newImageFile);
       } else if (imageMode === 'url' && newImageUrlInput.trim()) {
-        formData.append('imageUrl', newImageUrlInput.trim());
+        const remoteUrl = newImageUrlInput.trim();
+        let fetchedFile: File | null = null;
+        try {
+          const imgRes = await fetch(remoteUrl);
+          if (!imgRes.ok) {
+            throw new Error('Không thể tải ảnh từ URL đã nhập.');
+          }
+          const blob = await imgRes.blob();
+          if (!blob.type.startsWith('image/')) {
+            throw new Error('URL không trả về định dạng tệp hình ảnh hợp lệ (JPEG/PNG/WebP).');
+          }
+          const ext = blob.type.includes('png') ? 'png' : blob.type.includes('webp') ? 'webp' : 'jpg';
+          fetchedFile = new File([blob], `banner-url.${ext}`, { type: blob.type });
+        } catch {
+          setFormError(
+            'Không thể tải trực tiếp hình ảnh từ URL này (do máy chủ đích chặn CORS hoặc URL không phải ảnh). Vui lòng lưu ảnh về máy và chọn chế độ "Tải tệp lên".'
+          );
+          setSubmitting(false);
+          return;
+        }
+        formData.append('image', fetchedFile);
       }
 
       await createBanner(formData);
@@ -426,7 +447,7 @@ export const BannerManager: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <div className="w-28 h-16 rounded-lg overflow-hidden border border-white/10 bg-[#202020] relative shrink-0">
                           <img
-                            src={banner.imageUrl}
+                            src={getBannerImageUrl(banner.imageUrl)}
                             alt={banner.title}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -582,7 +603,7 @@ export const BannerManager: React.FC = () => {
             <div className="bg-[#121212] border border-white/10 rounded-xl p-4 flex items-center space-x-4">
               <div className="w-20 h-14 rounded-lg overflow-hidden border border-white/10 bg-[#202020] shrink-0">
                 <img
-                  src={bannerToDelete.imageUrl}
+                  src={getBannerImageUrl(bannerToDelete.imageUrl)}
                   alt={bannerToDelete.title}
                   className="w-full h-full object-cover"
                   onError={(e) => {

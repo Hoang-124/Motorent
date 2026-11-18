@@ -32,6 +32,12 @@ export async function supportsTransactions(): Promise<boolean> {
  * Transaction execution wrapper.
  * Uses a replica set session if available; gracefully falls back if standalone.
  */
+const isDuplicateKeyErr = (err: unknown): boolean => {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: number; message?: string };
+  return e.code === 11000 || Boolean(e.message?.includes('E11000')) || Boolean(e.message?.includes('duplicate key'));
+};
+
 export async function withTransaction<T>(
   fn: (session: mongoose.ClientSession | null) => Promise<T>,
   maxRetries = 2
@@ -41,8 +47,8 @@ export async function withTransaction<T>(
   if (!canUseTx) {
     try {
       return await fn(null);
-    } catch (err: any) {
-      if (err?.code === 11000 || err?.message?.includes('E11000') || err?.message?.includes('duplicate key')) {
+    } catch (err: unknown) {
+      if (isDuplicateKeyErr(err)) {
         throw new AppError(409, 'Đơn đặt xe này đã được đánh giá trước đó.');
       }
       throw err;
@@ -59,8 +65,8 @@ export async function withTransaction<T>(
   if (!session) {
     try {
       return await fn(null);
-    } catch (err: any) {
-      if (err?.code === 11000 || err?.message?.includes('E11000') || err?.message?.includes('duplicate key')) {
+    } catch (err: unknown) {
+      if (isDuplicateKeyErr(err)) {
         throw new AppError(409, 'Đơn đặt xe này đã được đánh giá trước đó.');
       }
       throw err;
@@ -77,18 +83,23 @@ export async function withTransaction<T>(
         const result = await fn(session);
         await session.commitTransaction();
         return result;
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (session.inTransaction()) {
           try {
             await session.abortTransaction();
           } catch {}
         }
 
+        const errRec =
+          typeof error === 'object' && error !== null
+            ? (error as { code?: number; message?: string; hasErrorLabel?: (l: string) => boolean })
+            : {};
+
         const isTransient =
-          error?.hasErrorLabel?.('TransientTransactionError') ||
-          error?.message?.includes('WriteConflict') ||
-          error?.message?.includes('retry your operation') ||
-          error?.code === 112;
+          errRec.hasErrorLabel?.('TransientTransactionError') ||
+          errRec.message?.includes('WriteConflict') ||
+          errRec.message?.includes('retry your operation') ||
+          errRec.code === 112;
 
         if (isTransient && attempt < maxRetries) {
           // Brief backoff before retry so the competing transaction finishes
@@ -96,7 +107,7 @@ export async function withTransaction<T>(
           continue;
         }
 
-        if (error?.code === 11000 || error?.message?.includes('E11000') || error?.message?.includes('duplicate key')) {
+        if (isDuplicateKeyErr(error)) {
           throw new AppError(409, 'Đơn đặt xe này đã được đánh giá trước đó.');
         }
 
@@ -185,18 +196,21 @@ export async function recalculateVehicleRating(
  * Format user display name for public review responses (e.g., "Nguyen V.")
  * Strips email and phone number completely.
  */
-export function formatPublicDisplayName(user: any): string {
-  if (!user) return 'Khách hàng';
-  const lastName = (user.lastName || '').trim();
-  const firstName = (user.firstName || '').trim();
+export function formatPublicDisplayName(
+  user: { firstName?: string; lastName?: string; username?: string } | null | undefined | unknown
+): string {
+  if (!user || typeof user !== 'object') return 'Khách hàng';
+  const uObj = user as { firstName?: string; lastName?: string; username?: string };
+  const lastName = (uObj.lastName || '').trim();
+  const firstName = (uObj.firstName || '').trim();
 
   if (lastName && firstName) {
     return `${lastName} ${firstName.charAt(0).toUpperCase()}.`;
   }
   if (lastName) return lastName;
   if (firstName) return firstName;
-  if (user.username) {
-    const u = user.username.trim();
+  if (uObj.username) {
+    const u = uObj.username.trim();
     if (u.length <= 4) return u;
     return `${u.slice(0, 3)}***`;
   }
@@ -284,8 +298,8 @@ export async function createReview(params: CreateReviewParams): Promise<IReview>
       await recalculateVehicleRating(vehicleId, session);
 
       return reviewDoc;
-    } catch (err: any) {
-      if (err && (err.code === 11000 || err.message?.includes('E11000'))) {
+    } catch (err: unknown) {
+      if (isDuplicateKeyErr(err)) {
         throw new AppError(409, 'Đơn đặt xe này đã được đánh giá trước đó.');
       }
       throw err;
@@ -447,21 +461,27 @@ export async function getVehicleReviews(params: GetVehicleReviewsParams) {
   }
 
   // Format reviews with sanitized user info (NO email, NO phone)
-  const sanitizedReviews = reviews.map((r: any) => ({
-    _id: r._id,
-    bookingId: r.bookingId,
-    vehicleId: r.vehicleId,
-    rating: r.rating,
-    comment: r.comment || '',
-    photos: r.photos || [],
-    createdAt: r.createdAt,
-    updatedAt: r.updatedAt,
-    user: {
-      _id: r.userId?._id,
-      displayName: formatPublicDisplayName(r.userId),
-      avatarUrl: r.userId?.avatarUrl || '',
-    },
-  }));
+  const sanitizedReviews = reviews.map((r) => {
+    const uInfo =
+      typeof r.userId === 'object' && r.userId !== null
+        ? (r.userId as unknown as { _id?: unknown; firstName?: string; lastName?: string; username?: string; avatarUrl?: string })
+        : undefined;
+    return {
+      _id: r._id,
+      bookingId: r.bookingId,
+      vehicleId: r.vehicleId,
+      rating: r.rating,
+      comment: r.comment || '',
+      photos: r.photos || [],
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      user: {
+        _id: uInfo?._id,
+        displayName: formatPublicDisplayName(uInfo),
+        avatarUrl: uInfo?.avatarUrl || '',
+      },
+    };
+  });
 
   return {
     reviews: sanitizedReviews,

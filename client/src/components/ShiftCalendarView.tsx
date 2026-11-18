@@ -27,6 +27,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError, extractEntityId } from '../utils/errorHelper';
 import type {
   StaffSchedule,
   User,
@@ -195,6 +196,33 @@ const SHIFT_CHRONO_ORDER: Record<string, number> = {
   FullDay: 4,
 };
 
+const SAMPLE_SHIFT_PATTERNS = [
+  't2 1 2, t3 1 2, t4 1 2, t5 1 2, t6 1, t7 bận ca 3, cn bận',
+  't2 2 3, t3 2 3, t4 2 3, t5 bận, t6 2 3, t7 2 3, cn 3',
+  't2 1, t3 1 3, t4 1 2, t5 1 2, t6 1 2, t7 1, cn 1 2',
+];
+
+const SEEDED_FALLBACK_MULTI_STAFF_TEXT =
+  'Nguyễn Thành Nhân Viên Sân Bay: t2 1 2, t3 1 2, t4 1 2, t5 bận ca 3, t6 1 2, t7 2 3, cn 3\nĐặng Minh Nhân Viên Mỹ Khê: t2 2 3, t3 1 2, t4 2 3, t5 bận, t6 2 3, t7 2 3, cn 3';
+
+const buildSampleMultiStaffText = (staffList: User[], targetBranchId?: string): string => {
+  const scoped =
+    targetBranchId && targetBranchId !== 'all'
+      ? staffList.filter((s) => extractEntityId(s.branchId) === targetBranchId)
+      : staffList;
+  const activeRoster = scoped.length > 0 ? scoped : staffList;
+  if (activeRoster.length === 0) {
+    return SEEDED_FALLBACK_MULTI_STAFF_TEXT;
+  }
+  return activeRoster
+    .slice(0, 6)
+    .map((s, idx) => {
+      const displayName = `${s.firstName || ''} ${s.lastName || ''}`.trim() || s.username;
+      return `${displayName}: ${SAMPLE_SHIFT_PATTERNS[idx % SAMPLE_SHIFT_PATTERNS.length]}`;
+    })
+    .join('\n');
+};
+
 export const ShiftCalendarView: React.FC = () => {
   const { user: currentUser } = useAuth();
   const isAdmin = currentUser?.roles === 'SystemAdmin';
@@ -249,17 +277,15 @@ export const ShiftCalendarView: React.FC = () => {
 
   // AI Shift Optimizer Modal & Results State
   const [showAiOptimizerModal, setShowAiOptimizerModal] = useState<boolean>(false);
-  const [multiStaffInput, setMultiStaffInput] = useState<string>(
-    `Nguyễn Văn An: t2 1 2, t3 1 2, t4 1 2, t5 1 2, t6 1, t7 bận, cn bận\nPhạm Văn Ca: t2 2 3, t3 2 3, t4 2 3, t5 bận, t6 2 3, t7 2 3, cn 3\nTrần Thị Bình: t2 1, t3 1 3, t4 1 2, t5 1 2, t6 1 2, t7 1, cn 1 2`
-  );
+  const [multiStaffInput, setMultiStaffInput] = useState<string>(SEEDED_FALLBACK_MULTI_STAFF_TEXT);
+  const [hasEditedMultiStaffInput, setHasEditedMultiStaffInput] = useState<boolean>(false);
   const [overwriteExisting, setOverwriteExisting] = useState<boolean>(true);
-  const [showInputSection, setShowInputSection] = useState<boolean>(true);
+  const [, setShowInputSection] = useState<boolean>(true);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
   const [aiApplying, setAiApplying] = useState<boolean>(false);
-  const [geminiApiKey, setGeminiApiKey] = useState<string>(
-    () => localStorage.getItem('motorent_gemini_api_key') || ''
-  );
+  const [geminiApiKey, setGeminiApiKey] = useState<string>('');
   const [showApiKeyInput, setShowApiKeyInput] = useState<boolean>(false);
+  const [previewSignature, setPreviewSignature] = useState<string>('');
 
   const [aiResult, setAiResult] = useState<{
     aiEngine?: string;
@@ -297,6 +323,9 @@ export const ShiftCalendarView: React.FC = () => {
       demandScore: number;
       confidenceScore: number;
       reason: string;
+      isConsecutive?: boolean;
+      isReluctant13?: boolean;
+      isMatchRegistration?: boolean;
     }>;
   } | null>(null);
 
@@ -332,6 +361,7 @@ export const ShiftCalendarView: React.FC = () => {
   };
 
   const fetchStaff = async () => {
+    if (!isManager && !isAdmin) return;
     try {
       const res = await api.get('/staff', { params: { status: 'Active' } });
       if (res.data?.success) setStaffMembers(res.data.data);
@@ -343,7 +373,7 @@ export const ShiftCalendarView: React.FC = () => {
   const fetchSchedules = async () => {
     setLoading(true);
     try {
-      const params: Record<string, any> = {
+      const params: Record<string, string | boolean> = {
         startDate: toDateKey(currentWeekStart),
         endDate: weekEnd.toISOString(),
       };
@@ -355,8 +385,8 @@ export const ShiftCalendarView: React.FC = () => {
       if (res.data?.success) {
         setSchedules(res.data.data);
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể tải lịch trực.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể tải lịch trực.'));
     } finally {
       setLoading(false);
     }
@@ -364,7 +394,7 @@ export const ShiftCalendarView: React.FC = () => {
 
   const fetchAvailabilities = async () => {
     try {
-      const params: Record<string, any> = {
+      const params: Record<string, string | boolean> = {
         weekStartDate: toDateKey(currentWeekStart),
       };
       if (selectedBranchId !== 'all') {
@@ -385,8 +415,22 @@ export const ShiftCalendarView: React.FC = () => {
 
   useEffect(() => {
     fetchBranches();
-    fetchStaff();
-  }, []);
+    if (isManager || isAdmin) {
+      fetchStaff();
+    }
+  }, [isManager, isAdmin]);
+
+  useEffect(() => {
+    if (!hasEditedMultiStaffInput && staffMembers.length > 0) {
+      const activeBranch =
+        selectedBranchId !== 'all'
+          ? selectedBranchId
+          : isManager && currentUser?.branchId
+          ? extractEntityId(currentUser.branchId)
+          : branches[0]?._id;
+      setMultiStaffInput(buildSampleMultiStaffText(staffMembers, activeBranch));
+    }
+  }, [staffMembers, selectedBranchId, branches, isManager, currentUser?.branchId, hasEditedMultiStaffInput]);
 
   useEffect(() => {
     fetchSchedules();
@@ -419,7 +463,7 @@ export const ShiftCalendarView: React.FC = () => {
     // Check if current user already submitted availability for this week
     const currentSid = String(currentUser?._id || '');
     const existing = availabilities.find(
-      (a) => String((a.staffId as any)?._id || a.staffId) === currentSid
+      (a) => extractEntityId(a.staffId) === currentSid
     );
 
     if (existing) {
@@ -512,10 +556,10 @@ export const ShiftCalendarView: React.FC = () => {
         setShowAvailabilityModal(false);
         fetchAvailabilities();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast(
         'error',
-        err.response?.data?.message || 'Không thể lưu lịch đăng ký làm việc.'
+        extractApiError(err, 'Không thể lưu lịch đăng ký làm việc.')
       );
     } finally {
       setSubmittingAvailability(false);
@@ -523,12 +567,24 @@ export const ShiftCalendarView: React.FC = () => {
   };
 
   const handleOpenAssignModal = (dateStr?: string) => {
+    const preferredBranchId =
+      isManager && currentUser?.branchId
+        ? extractEntityId(currentUser.branchId)
+        : selectedBranchId !== 'all'
+        ? selectedBranchId
+        : branches[0]?._id || '';
+
+    const branchFilteredStaff = preferredBranchId
+      ? staffMembers.filter((s) => extractEntityId(s.branchId) === preferredBranchId)
+      : staffMembers;
+    const defaultStaff = branchFilteredStaff[0] || staffMembers[0];
+    const resolvedBranchId = defaultStaff?.branchId
+      ? extractEntityId(defaultStaff.branchId)
+      : preferredBranchId;
+
     setAssignForm({
-      staffId: staffMembers[0]?._id || '',
-      branchId:
-        isManager && currentUser?.branchId
-          ? String((currentUser.branchId as any)._id || currentUser.branchId)
-          : branches[0]?._id || '',
+      staffId: defaultStaff?._id || '',
+      branchId: resolvedBranchId,
       shiftDate: dateStr || toDateKey(new Date()),
       shiftType: 'Morning',
       notes: '',
@@ -547,8 +603,8 @@ export const ShiftCalendarView: React.FC = () => {
         setShowAssignModal(false);
         fetchSchedules();
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể xếp ca trực (kiểm tra trùng lịch).');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể xếp ca trực (kiểm tra trùng lịch).'));
     } finally {
       setSubmitting(false);
     }
@@ -563,8 +619,8 @@ export const ShiftCalendarView: React.FC = () => {
         showToast('success', 'Đã hủy ca trực thành công.');
         fetchSchedules();
       }
-    } catch (err: any) {
-      showToast('error', err.response?.data?.message || 'Không thể hủy ca trực.');
+    } catch (err: unknown) {
+      showToast('error', extractApiError(err, 'Không thể hủy ca trực.'));
     }
   };
 
@@ -581,25 +637,36 @@ export const ShiftCalendarView: React.FC = () => {
         selectedBranchId !== 'all'
           ? selectedBranchId
           : isManager && currentUser?.branchId
-          ? String((currentUser.branchId as any)?._id || currentUser.branchId)
+          ? extractEntityId(currentUser.branchId)
           : branches[0]?._id;
 
-      if (geminiApiKey) {
-        localStorage.setItem('motorent_gemini_api_key', geminiApiKey);
-      }
+      const startKey = toDateKey(currentWeekStart);
+      const currentSig = `${targetBranch || ''}|${startKey}|${overwriteExisting}|${multiStaffInput.trim()}`;
+      const canReusePreview =
+        applyImmediately &&
+        Boolean(aiResult && aiResult.recommendations.length > 0 && previewSignature === currentSig);
 
       const res = await api.post('/schedules/ai-optimize', {
         branchId: targetBranch,
-        startDate: toDateKey(currentWeekStart),
+        startDate: startKey,
         days: 7,
         applyImmediately,
         overwriteExisting,
         multiStaffText: multiStaffInput.trim() || undefined,
-        geminiApiKey: geminiApiKey.trim() || undefined,
+        geminiApiKey: !canReusePreview && geminiApiKey.trim() ? geminiApiKey.trim() : undefined,
+        ...(canReusePreview && aiResult
+          ? {
+              precomputedRecommendations: aiResult.recommendations,
+              aiEngine: aiResult.aiEngine,
+              modelUsed: aiResult.modelUsed,
+              aiOverview: aiResult.aiOverview,
+            }
+          : {}),
       });
 
       if (res.data?.success && res.data?.data) {
         setAiResult(res.data.data);
+        setPreviewSignature(currentSig);
         if (applyImmediately) {
           showToast(
             'success',
@@ -609,10 +676,10 @@ export const ShiftCalendarView: React.FC = () => {
           await fetchSchedules();
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       showToast(
         'error',
-        err.response?.data?.message || 'Không thể chạy thuật toán AI tối ưu lịch trực.'
+        extractApiError(err, 'Không thể chạy thuật toán AI tối ưu lịch trực.')
       );
     } finally {
       setAiLoading(false);
@@ -668,9 +735,8 @@ export const ShiftCalendarView: React.FC = () => {
       }
     }
     if (map.size === 0) {
-      map.set('Nguyễn Văn An', 'Nguyễn Văn An');
-      map.set('Phạm Văn Ca', 'Phạm Văn Ca');
-      map.set('Trần Thị Bình', 'Trần Thị Bình');
+      map.set('Nguyễn Thành Nhân Viên Sân Bay', 'Nguyễn Thành Nhân Viên Sân Bay');
+      map.set('Đặng Minh Nhân Viên Mỹ Khê', 'Đặng Minh Nhân Viên Mỹ Khê');
     }
     return Array.from(map.values()).map((name) => ({
       name,
@@ -730,15 +796,17 @@ export const ShiftCalendarView: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
           {/* Staff or Manager: Register Availability Button */}
-          <button
-            type="button"
-            onClick={handleOpenAvailabilityModal}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/15 text-[#D0D0D0] hover:text-white hover:border-[#FFC799] font-medium text-sm transition-all shadow-sm cursor-pointer"
-            title="Đăng ký hoặc nhắn lịch làm/bận của bạn trong tuần này"
-          >
-            <MessageSquarePlus size={17} className="text-[#FFC799]" />
-            <span>Đăng ký lịch tuần</span>
-          </button>
+          {!isAdmin && (
+            <button
+              type="button"
+              onClick={handleOpenAvailabilityModal}
+              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/15 text-[#D0D0D0] hover:text-white hover:border-[#FFC799] font-medium text-sm transition-all shadow-sm cursor-pointer"
+              title="Đăng ký hoặc nhắn lịch làm/bận của bạn trong tuần này"
+            >
+              <MessageSquarePlus size={17} className="text-[#FFC799]" />
+              <span>Đăng ký lịch tuần</span>
+            </button>
+          )}
 
           {/* Manager / Admin: Review Staff Submissions Button */}
           {(isManager || isAdmin) && (
@@ -1570,19 +1638,27 @@ export const ShiftCalendarView: React.FC = () => {
                 <div className="flex items-center gap-2 text-xs">
                   <button
                     type="button"
-                    onClick={() =>
-                      setMultiStaffInput(
-                        `Nguyễn Văn An: t2 1 2, t3 1 2, t4 1 2, t5 1 2, t6 1, t7 bận, cn bận\nPhạm Văn Ca: t2 2 3, t3 2 3, t4 2 3, t5 bận, t6 2 3, t7 2 3, cn 3\nTrần Thị Bình: t2 1, t3 1 3, t4 1 2, t5 1 2, t6 1 2, t7 1, cn 1 2`
-                      )
-                    }
+                    onClick={() => {
+                      const activeBranch =
+                        selectedBranchId !== 'all'
+                          ? selectedBranchId
+                          : isManager && currentUser?.branchId
+                          ? extractEntityId(currentUser.branchId)
+                          : branches[0]?._id;
+                      setHasEditedMultiStaffInput(false);
+                      setMultiStaffInput(buildSampleMultiStaffText(staffMembers, activeBranch));
+                    }}
                     className="text-[11px] text-[#FFC799] hover:underline cursor-pointer"
                   >
-                    Dán mẫu thực tế (An, Ca, Bình)
+                    Dán mẫu theo nhân sự trạm
                   </button>
                   <span className="text-white/20">•</span>
                   <button
                     type="button"
-                    onClick={() => setMultiStaffInput('')}
+                    onClick={() => {
+                      setHasEditedMultiStaffInput(true);
+                      setMultiStaffInput('');
+                    }}
                     className="text-[11px] text-[#A0A0A0] hover:text-white cursor-pointer"
                   >
                     Xóa
@@ -1593,8 +1669,11 @@ export const ShiftCalendarView: React.FC = () => {
               <textarea
                 rows={4}
                 value={multiStaffInput}
-                onChange={(e) => setMultiStaffInput(e.target.value)}
-                placeholder="Dán tin nhắn Zalo/Chat của nhân viên, ví dụ:&#10;Nguyễn Văn An: t2 1 2, t3 1 2, t4 1 2, t5 1 2, t6 1, t7 bận, cn bận&#10;Phạm Văn Ca: t2 2 3, t3 2 3, t4 2 3, t5 bận, t6 2 3, t7 2 3, cn 3&#10;Trần Thị Bình: t2 1, t3 1 3, t4 1 2, t5 1 2, t6 1 2, t7 1, cn 1 2"
+                onChange={(e) => {
+                  setHasEditedMultiStaffInput(true);
+                  setMultiStaffInput(e.target.value);
+                }}
+                placeholder="Dán tin nhắn Zalo/Chat của nhân viên, ví dụ:&#10;staff_dad: t2 1 2, t3 1 2, t4 bận ca 1, t5 1 2, t6 1, t7 bận, cn bận"
                 className="w-full bg-[#161616] border border-white/15 rounded-xl p-3 text-xs text-white font-mono focus:border-[#99FFE4] focus:outline-none leading-relaxed"
               />
 
@@ -1639,14 +1718,13 @@ export const ShiftCalendarView: React.FC = () => {
                       title="Mở Google AI Studio để lấy API Key miễn phí"
                     >
                       <ExternalLink size={13} />
-                      <span>Lấy Key miễn phí ↗</span>
+                      <span>Lấy Key miễn phí</span>
                     </a>
                     {geminiApiKey && (
                       <button
                         type="button"
                         onClick={() => {
                           setGeminiApiKey('');
-                          localStorage.removeItem('motorent_gemini_api_key');
                         }}
                         className="px-3 py-2 rounded-xl border border-white/10 text-xs text-[#A0A0A0] hover:text-white cursor-pointer"
                       >
@@ -1716,7 +1794,9 @@ export const ShiftCalendarView: React.FC = () => {
                       {aiResult.recommendations.length} / 21 ca ({aiResult.analytics.coverageRatePct}%)
                     </span>
                     <span className="text-[10px] text-emerald-400 block mt-0.5 font-medium">
-                      Phủ kín 100% các ca
+                      {aiResult.analytics.coverageRatePct >= 100
+                        ? 'Phủ kín 100% các ca'
+                        : 'Đã tối ưu theo định biên hiện có'}
                     </span>
                   </div>
 
@@ -1740,7 +1820,9 @@ export const ShiftCalendarView: React.FC = () => {
                       {aiResult.analytics.reluctantSplitShiftsCount || 0} ca
                     </span>
                     <span className="text-[10px] text-emerald-400 block mt-0.5 font-medium">
-                      Đã loại bỏ hoàn toàn
+                      {(aiResult.analytics.reluctantSplitShiftsCount || 0) === 0
+                        ? 'Đã loại bỏ hoàn toàn'
+                        : 'Chỉ huy động khi thiếu người'}
                     </span>
                   </div>
 
@@ -1815,8 +1897,12 @@ export const ShiftCalendarView: React.FC = () => {
                               }
 
                               const staffColor = getStaffColor(rec.staffName || rec.staffId);
-                              const isConsecutive = rec.reason.includes('liên tiếp');
-                              const isReluctant = rec.reason.includes('Miễn cưỡng');
+                              const isConsecutive = Boolean(rec.isConsecutive) || /liên tiếp/i.test(rec.reason);
+                              const isReluctant = Boolean(rec.isReluctant13) || /miễn cưỡng/i.test(rec.reason);
+                              const isMatchedReg =
+                                rec.isMatchRegistration !== undefined
+                                  ? rec.isMatchRegistration
+                                  : /khớp lịch/i.test(rec.reason);
 
                               return (
                                 <div
@@ -1853,7 +1939,7 @@ export const ShiftCalendarView: React.FC = () => {
                                         Miễn cưỡng 1 &amp; 3
                                       </span>
                                     )}
-                                    {rec.reason.includes('Khớp lịch') ? (
+                                    {isMatchedReg ? (
                                       <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-emerald-500/20 text-emerald-300">
                                         Khớp lịch
                                       </span>

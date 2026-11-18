@@ -20,6 +20,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { api } from '../services/api';
+import { extractApiError } from '../utils/errorHelper';
 import { useAuth } from '../context/AuthContext';
 import {
   getComplaintCategories,
@@ -196,11 +197,11 @@ export const SubmitComplaintPage: React.FC = () => {
       } else {
         setErrorMessage('Không nhận được mã khiếu nại từ máy chủ.');
       }
-    } catch (err: any) {
-      const serverMsg =
-        err?.response?.data?.message ||
-        err?.message ||
-        'Có lỗi xảy ra trong quá trình gửi khiếu nại. Vui lòng thử lại.';
+    } catch (err: unknown) {
+      const serverMsg = extractApiError(
+        err,
+        'Có lỗi xảy ra trong quá trình gửi khiếu nại. Vui lòng thử lại.'
+      );
       setErrorMessage(serverMsg);
     } finally {
       setIsSubmitting(false);

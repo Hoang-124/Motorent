@@ -53,6 +53,53 @@ const findBranchSupportStaff = async (
   });
 };
 
+const extractObjectIdString = (value: unknown): string => {
+  if (!value) return '';
+  if (typeof value === 'object' && '_id' in value) {
+    return String((value as { _id?: unknown })._id || '');
+  }
+  return String(value);
+};
+
+/**
+ * Enforce conversation ownership for Customer and strict branch isolation for Staff/BranchManager.
+ */
+const assertConversationAccess = (
+  conv: IConversation,
+  user: IUser,
+  options: { allowUnassignedBranchClaim?: boolean } = {}
+): void => {
+  if (user.roles === 'SystemAdmin') {
+    return;
+  }
+
+  const isCustomerOwner = extractObjectIdString(conv.customerId) === user._id.toString();
+  if (user.roles === 'Customer') {
+    if (!isCustomerOwner) {
+      throw new AppError(403, 'Bạn không có quyền truy cập cuộc trò chuyện của khách hàng khác.');
+    }
+    return;
+  }
+
+  if (['Staff', 'BranchManager'].includes(user.roles)) {
+    if (isCustomerOwner) return;
+    if (!user.branchId) {
+      throw new AppError(403, 'Tài khoản nhân sự chưa được gán chi nhánh.');
+    }
+    const convBranchStr = extractObjectIdString(conv.branchId);
+    if (!convBranchStr) {
+      if (options.allowUnassignedBranchClaim) return;
+      throw new AppError(403, 'Hội thoại chưa gắn chi nhánh hợp lệ.');
+    }
+    if (convBranchStr !== user.branchId.toString()) {
+      throw new AppError(403, 'Hội thoại này thuộc chi nhánh khác, bạn không có quyền truy cập.');
+    }
+    return;
+  }
+
+  throw new AppError(403, 'Không đủ quyền truy cập cuộc trò chuyện.');
+};
+
 /**
  * Clean up any invalid self-conversations created by Staff/Manager/Admin
  * and ensure existing conversations have a valid branchId and branch-matched assignedStaffId
@@ -71,10 +118,21 @@ export const ensureInitialConversations = async (): Promise<void> => {
     }
   }
 
-  // Ensure every existing conversation has a branchId and an assignedStaffId belonging to that branch
-  const existingConvs = await Conversation.find({});
+  // Only inspect conversations missing branchId or assignedStaffId to avoid O(N) scan on every request
+  const incompleteConvs = await Conversation.find({
+    $or: [
+      { branchId: { $exists: false } },
+      { branchId: null },
+      { assignedStaffId: { $exists: false } },
+      { assignedStaffId: null },
+    ],
+  });
+  if (incompleteConvs.length === 0) {
+    return;
+  }
+
   const defaultBranch = await Branch.findOne({ isActive: true });
-  for (const conv of existingConvs) {
+  for (const conv of incompleteConvs) {
     let changed = false;
     if (!conv.branchId && defaultBranch?._id) {
       conv.branchId = defaultBranch._id as mongoose.Types.ObjectId;
@@ -221,20 +279,7 @@ export const getConversationMessages = async (
     throw new AppError(404, 'Người dùng không tồn tại.');
   }
 
-  // Authorization check: Customer owner, or Staff/BranchManager of the SAME branch, or SystemAdmin
-  const isCustomerOwner = conv.customerId.toString() === userId;
-  const isSameBranchStaff =
-    ['Staff', 'BranchManager'].includes(user.roles) &&
-    Boolean(
-      user.branchId &&
-        conv.branchId &&
-        conv.branchId.toString() === user.branchId.toString()
-    );
-  const isAdmin = user.roles === 'SystemAdmin';
-
-  if (!isCustomerOwner && !isSameBranchStaff && !isAdmin) {
-    throw new AppError(403, 'Hội thoại này thuộc chi nhánh khác, bạn không có quyền truy cập.');
-  }
+  assertConversationAccess(conv, user);
 
   const query: Record<string, unknown> = { conversationId: conv._id };
   if (before && mongoose.isValidObjectId(before)) {
@@ -294,19 +339,10 @@ export const sendMessage = async (
     throw new AppError(404, 'Người gửi không tồn tại.');
   }
 
+  assertConversationAccess(conv, sender, { allowUnassignedBranchClaim: true });
+
   const isStaff = ['Staff', 'BranchManager', 'SystemAdmin'].includes(sender.roles);
   const isSenderCustomerOwner = conv.customerId.toString() === senderId;
-
-  // Enforce branch boundary for Staff/BranchManager
-  if (
-    ['Staff', 'BranchManager'].includes(sender.roles) &&
-    !isSenderCustomerOwner &&
-    sender.branchId &&
-    conv.branchId &&
-    sender.branchId.toString() !== conv.branchId.toString()
-  ) {
-    throw new AppError(403, 'Bạn chỉ có thể phản hồi khách hàng thuộc chi nhánh của mình.');
-  }
 
   // Auto-reopen if previously closed
   if (conv.status === 'Closed') {
@@ -393,12 +429,20 @@ export const markMessagesAsRead = async (
   conversationId: string,
   userId: string
 ): Promise<void> => {
-  if (!mongoose.isValidObjectId(conversationId)) return;
+  if (!mongoose.isValidObjectId(conversationId)) {
+    throw new AppError(400, 'ID hội thoại không hợp lệ.');
+  }
   const conv = await Conversation.findById(conversationId);
-  if (!conv) return;
+  if (!conv) {
+    throw new AppError(404, 'Không tìm thấy cuộc trò chuyện.');
+  }
 
   const user = await User.findById(userId);
-  if (!user) return;
+  if (!user) {
+    throw new AppError(404, 'Người dùng không tồn tại.');
+  }
+
+  assertConversationAccess(conv, user);
 
   const isStaff = ['Staff', 'BranchManager', 'SystemAdmin'].includes(user.roles);
   const isCustomerOwner = conv.customerId.toString() === userId;
@@ -465,19 +509,15 @@ export const claimConversation = async (
   conversationId: string,
   staffUser: IUser
 ): Promise<IConversation> => {
+  if (!mongoose.isValidObjectId(conversationId)) {
+    throw new AppError(400, 'ID hội thoại không hợp lệ.');
+  }
   const conv = await Conversation.findById(conversationId);
   if (!conv) {
     throw new AppError(404, 'Không tìm thấy cuộc trò chuyện.');
   }
 
-  if (
-    ['Staff', 'BranchManager'].includes(staffUser.roles) &&
-    staffUser.branchId &&
-    conv.branchId &&
-    staffUser.branchId.toString() !== conv.branchId.toString()
-  ) {
-    throw new AppError(403, 'Không thể nhận hội thoại thuộc chi nhánh khác.');
-  }
+  assertConversationAccess(conv, staffUser, { allowUnassignedBranchClaim: true });
 
   conv.assignedStaffId = staffUser._id as mongoose.Types.ObjectId;
   if (!conv.participants.some((p) => p.toString() === staffUser._id.toString())) {
@@ -506,10 +546,15 @@ export const closeConversation = async (
   conversationId: string,
   staffUser: IUser
 ): Promise<IConversation> => {
+  if (!mongoose.isValidObjectId(conversationId)) {
+    throw new AppError(400, 'ID hội thoại không hợp lệ.');
+  }
   const conv = await Conversation.findById(conversationId);
   if (!conv) {
     throw new AppError(404, 'Không tìm thấy cuộc trò chuyện.');
   }
+
+  assertConversationAccess(conv, staffUser);
 
   conv.status = 'Closed';
   conv.closedAt = new Date();
@@ -538,10 +583,15 @@ export const reopenConversation = async (
   conversationId: string,
   user: IUser
 ): Promise<IConversation> => {
+  if (!mongoose.isValidObjectId(conversationId)) {
+    throw new AppError(400, 'ID hội thoại không hợp lệ.');
+  }
   const conv = await Conversation.findById(conversationId);
   if (!conv) {
     throw new AppError(404, 'Không tìm thấy cuộc trò chuyện.');
   }
+
+  assertConversationAccess(conv, user);
 
   conv.status = 'Open';
   conv.closedAt = undefined;

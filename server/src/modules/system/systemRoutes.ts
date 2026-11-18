@@ -1,8 +1,12 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import mongoose from 'mongoose';
+import { env } from '../../config/env';
 import { PERMISSION_MATRIX, Permission } from '../../core/permissions';
 import { authenticateJWT, AuthenticatedRequest } from '../../core/authMiddleware';
 import { authorize } from '../../core/rbacMiddleware';
+import { csrfTokenHandler } from '../../core/securityMiddleware';
+import * as systemConfigController from './systemConfigController';
 import {
   Branch,
   Vehicle,
@@ -12,6 +16,7 @@ import {
   VehicleTransfer,
   MaintenanceLog,
   StaffSchedule,
+  StaffAvailability,
   Complaint,
   AuditLog,
   Discount,
@@ -22,9 +27,38 @@ import {
   Message,
   Banner,
   StaticPage,
+  Payment,
+  Review,
+  Wishlist,
+  SystemConfig,
 } from '../../models';
+import { SeasonalPricingRule } from '../../models/SeasonalPricingRule';
 
 const router = Router();
+
+const isAuthenticatedSystemAdmin = async (req: Request): Promise<boolean> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+  const token = authHeader.slice(7).trim();
+  if (!token) return false;
+
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId?: string; tokenVersion?: number };
+    if (!decoded.userId || !mongoose.isValidObjectId(decoded.userId)) return false;
+    const user = await User.findById(decoded.userId).select('roles status tokenVersion').lean();
+    if (!user || user.status !== 'Active' || user.roles !== 'SystemAdmin') {
+      return false;
+    }
+    if (decoded.tokenVersion !== undefined && user.tokenVersion !== decoded.tokenVersion) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Lightweight Health Check endpoint (UC-00)
@@ -42,26 +76,84 @@ router.get('/health', async (req: Request, res: Response, next: NextFunction) =>
       database: isDbConnected ? 'Connected' : 'Disconnected',
     };
 
-    if (req.query.detailed === 'true') {
+    if (req.query.detailed === 'true' && isDbConnected && (await isAuthenticatedSystemAdmin(req))) {
+      const [
+        branches,
+        users,
+        categories,
+        vehicles,
+        seasonalPricingRules,
+        bookings,
+        payments,
+        reviews,
+        wishlists,
+        vehicleTransfers,
+        maintenanceLogs,
+        staffSchedules,
+        staffAvailabilities,
+        complaints,
+        auditLogs,
+        discounts,
+        feedbacks,
+        notifications,
+        bookingReminders,
+        conversations,
+        messages,
+        banners,
+        staticPages,
+        systemConfigs,
+      ] = await Promise.all([
+        Branch.countDocuments(),
+        User.countDocuments(),
+        Category.countDocuments(),
+        Vehicle.countDocuments(),
+        SeasonalPricingRule.countDocuments(),
+        Booking.countDocuments(),
+        Payment.countDocuments(),
+        Review.countDocuments(),
+        Wishlist.countDocuments(),
+        VehicleTransfer.countDocuments(),
+        MaintenanceLog.countDocuments(),
+        StaffSchedule.countDocuments(),
+        StaffAvailability.countDocuments(),
+        Complaint.countDocuments(),
+        AuditLog.countDocuments(),
+        Discount.countDocuments(),
+        Feedback.countDocuments(),
+        Notification.countDocuments(),
+        BookingReminder.countDocuments(),
+        Conversation.countDocuments(),
+        Message.countDocuments(),
+        Banner.countDocuments(),
+        StaticPage.countDocuments(),
+        SystemConfig.countDocuments(),
+      ]);
+
       const collections = {
-        branches: await Branch.countDocuments(),
-        users: await User.countDocuments(),
-        categories: await Category.countDocuments(),
-        vehicles: await Vehicle.countDocuments(),
-        bookings: await Booking.countDocuments(),
-        vehicleTransfers: await VehicleTransfer.countDocuments(),
-        maintenanceLogs: await MaintenanceLog.countDocuments(),
-        staffSchedules: await StaffSchedule.countDocuments(),
-        complaints: await Complaint.countDocuments(),
-        auditLogs: await AuditLog.countDocuments(),
-        discounts: await Discount.countDocuments(),
-        feedbacks: await Feedback.countDocuments(),
-        notifications: await Notification.countDocuments(),
-        bookingReminders: await BookingReminder.countDocuments(),
-        conversations: await Conversation.countDocuments(),
-        messages: await Message.countDocuments(),
-        banners: await Banner.countDocuments(),
-        staticPages: await StaticPage.countDocuments(),
+        branches,
+        users,
+        categories,
+        vehicles,
+        seasonalPricingRules,
+        bookings,
+        payments,
+        reviews,
+        wishlists,
+        vehicleTransfers,
+        maintenanceLogs,
+        staffSchedules,
+        staffAvailabilities,
+        complaints,
+        auditLogs,
+        discounts,
+        feedbacks,
+        notifications,
+        bookingReminders,
+        conversations,
+        messages,
+        banners,
+        staticPages,
+        systemConfigs,
       };
       res.json({ success: true, data: { ...baseHealth, collections } });
       return;
@@ -186,85 +278,7 @@ router.get(
 );
 
 /**
- * Notifications Endpoints for Header Notification Bell
- */
-router.get(
-  '/notifications',
-  authenticateJWT,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      if (!req.user?._id) {
-        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
-        return;
-      }
-
-      const items = await Notification.find({ userId: req.user._id })
-        .sort({ createdAt: -1 })
-        .limit(30);
-
-      const unreadCount = items.filter((n) => !n.isRead).length;
-
-      res.json({
-        success: true,
-        data: {
-          items,
-          unreadCount,
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.put(
-  '/notifications/read-all',
-  authenticateJWT,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      if (!req.user?._id) {
-        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
-        return;
-      }
-
-      await Notification.updateMany(
-        { userId: req.user._id, isRead: false },
-        { $set: { isRead: true } }
-      );
-
-      res.json({ success: true, message: 'Đã đánh dấu đọc tất cả thông báo.' });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.put(
-  '/notifications/:id/read',
-  authenticateJWT,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      if (!req.user?._id) {
-        res.status(401).json({ success: false, message: 'Yêu cầu đăng nhập.' });
-        return;
-      }
-
-      if (mongoose.isValidObjectId(req.params.id)) {
-        await Notification.updateOne(
-          { _id: req.params.id, userId: req.user._id },
-          { $set: { isRead: true } }
-        );
-      }
-
-      res.json({ success: true, message: 'Đã đánh dấu đã đọc.' });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * System Policies & Configuration (UC-113, UC-114, UC-115)
+ * Notification cleanup endpoints (list/read/unread-count are served by modules/notifications)
  */
 router.delete(
   '/notifications/clear-read',
@@ -315,9 +329,6 @@ router.delete(
     }
   }
 );
-
-import { csrfTokenHandler } from '../../core/securityMiddleware';
-import * as systemConfigController from './systemConfigController';
 
 router.get('/security/csrf-token', csrfTokenHandler);
 router.get('/system/i18n', systemConfigController.getI18nTranslations);

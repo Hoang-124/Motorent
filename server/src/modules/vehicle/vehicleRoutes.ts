@@ -14,7 +14,7 @@ router.get('/categories', vehicleController.getCategories);
 router.get(
   '/management',
   authenticateJWT,
-  authorize('BranchManager', 'SystemAdmin'),
+  authorize('VEHICLE_MANAGE'),
   vehicleController.getManagedVehicles
 );
 router.get('/:id/reviews', vehicleController.getVehicleReviews);
@@ -25,7 +25,7 @@ router.get('/:id', vehicleController.getVehicle);
 router.post(
   '/categories',
   authenticateJWT,
-  authorize('SystemAdmin'),
+  authorize('CATEGORY_MANAGE'),
   auditLogger('CREATE_CATEGORY', 'Category'),
   categoryController.createCategory
 );
@@ -34,7 +34,7 @@ router.post(
 router.post(
   '/upload-images',
   authenticateJWT,
-  authorize('BranchManager', 'SystemAdmin'),
+  authorize('VEHICLE_MANAGE'),
   vehicleImagesUpload.array('images', 10),
   auditLogger('UPLOAD_VEHICLE_IMAGES', 'Vehicle'),
   vehicleController.uploadVehicleImages
@@ -44,7 +44,7 @@ router.post(
 router.post(
   '/',
   authenticateJWT,
-  authorize('BranchManager', 'SystemAdmin'),
+  authorize('VEHICLE_MANAGE'),
   auditLogger('CREATE_VEHICLE', 'Vehicle'),
   vehicleController.createVehicle
 );
@@ -52,7 +52,7 @@ router.post(
 router.put(
   '/:id/status',
   authenticateJWT,
-  authorize('Staff', 'BranchManager', 'SystemAdmin'),
+  authorize('Staff', 'VEHICLE_MANAGE'),
   auditLogger('UPDATE_VEHICLE_STATUS', 'Vehicle'),
   vehicleController.updateVehicleStatus
 );
@@ -60,7 +60,7 @@ router.put(
 router.put(
   '/:id',
   authenticateJWT,
-  authorize('BranchManager', 'SystemAdmin'),
+  authorize('VEHICLE_MANAGE'),
   auditLogger('UPDATE_VEHICLE', 'Vehicle'),
   vehicleController.updateVehicle
 );
@@ -68,7 +68,7 @@ router.put(
 router.delete(
   '/:id',
   authenticateJWT,
-  authorize('BranchManager', 'SystemAdmin'),
+  authorize('VEHICLE_MANAGE'),
   auditLogger('DELETE_VEHICLE', 'Vehicle'),
   vehicleController.deleteVehicle
 );

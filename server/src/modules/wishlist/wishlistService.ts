@@ -29,9 +29,10 @@ export async function addToWishlist(userId: string, vehicleId: string): Promise<
   try {
     const item = await Wishlist.create({ userId, vehicleId });
     return item;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errObj = typeof err === 'object' && err !== null ? (err as { code?: number; message?: string }) : {};
     // Bắt lỗi unique constraint khi 2 request đồng thời và coi là thành công
-    if (err && (err.code === 11000 || err.message?.includes('E11000') || err.message?.includes('duplicate key'))) {
+    if (errObj.code === 11000 || errObj.message?.includes('E11000') || errObj.message?.includes('duplicate key')) {
       const raceItem = await Wishlist.findOne({ userId, vehicleId });
       return raceItem;
     }
@@ -72,8 +73,32 @@ export async function getWishlist(params: GetWishlistParams) {
       .lean(),
   ]);
 
-  const formattedItems = items.map((item: any) => {
-    const v = item.vehicleId;
+  interface PopulatedWishlistVehicle {
+    _id: unknown;
+    vehicleModel?: string;
+    brand?: string;
+    licensePlate?: string;
+    odometer?: number;
+    dailyPrice?: number;
+    hourlyPrice?: number;
+    status?: string;
+    transmissionType?: string;
+    fuelType?: string;
+    yearManufactured?: number;
+    color?: string;
+    images?: string[];
+    isDeleted?: boolean;
+    averageRating?: number;
+    reviewCount?: number;
+    branchId?: unknown;
+  }
+
+  const formattedItems = items.map((item) => {
+    const rawV = item.vehicleId as unknown;
+    const v =
+      rawV && typeof rawV === 'object' && 'vehicleModel' in rawV
+        ? (rawV as PopulatedWishlistVehicle)
+        : null;
     // Rule: xe đã ngừng hoạt động/bị xóa sau khi được yêu thích: vẫn trả item nhưng kèm isAvailable=false
     const isAvailable = Boolean(v && !v.isDeleted && v.status === 'Available');
 

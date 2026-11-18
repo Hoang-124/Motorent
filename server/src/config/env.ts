@@ -73,7 +73,7 @@ const envSchema = z.object({
   }
 });
 
-const envInput: Record<string, any> = { ...process.env };
+const envInput: Record<string, string | undefined> = { ...process.env };
 if (!envInput.JWT_SECRET || envInput.JWT_SECRET.length < 32) {
   envInput.JWT_SECRET = 'your_jwt_secret_key_minimum_32_characters_long_for_security';
 }

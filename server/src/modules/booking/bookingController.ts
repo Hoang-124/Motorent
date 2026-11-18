@@ -1,9 +1,28 @@
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../../core/authMiddleware';
+import { env } from '../../config/env';
 import * as bookingService from './bookingService';
 import * as invoiceService from './invoiceService';
 import { AppError } from '../../core/errorHandler';
+
+const extractOptionalUserId = (req: Request): string | undefined => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return undefined;
+  }
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return undefined;
+  }
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId?: unknown };
+    return typeof decoded.userId === 'string' && decoded.userId ? decoded.userId : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 const createBookingSchema = z.object({
   vehicleId: z.string().min(1, 'Thiếu ID phương tiện'),
@@ -78,7 +97,9 @@ export const createBooking = async (
     }
 
     const data = createBookingSchema.parse(req.body);
-    const booking = await bookingService.createBooking(req.user._id.toString(), data);
+    const sanitizedData =
+      req.user.roles === 'Customer' ? { ...data, lessorSignatureUrl: undefined } : data;
+    const booking = await bookingService.createBooking(req.user._id.toString(), sanitizedData);
 
     res.status(201).json({
       success: true,
@@ -97,7 +118,8 @@ export const estimateBooking = async (
 ): Promise<void> => {
   try {
     const data = estimateBookingSchema.parse(req.body);
-    const estimate = await bookingService.estimateBooking(data);
+    const optionalUserId = extractOptionalUserId(req);
+    const estimate = await bookingService.estimateBooking(data, optionalUserId);
 
     res.json({
       success: true,
@@ -412,7 +434,7 @@ export const requestRefund = async (
 
     res.json({
       success: true,
-      message: 'Đã tiếp nhận yêu cầu hoàn tiền thành công. Bộ phận quản lý sẽ phê duyệt trong 24 giờ làm việc.',
+      message: 'Đã ghi nhận thông tin đối soát theo điều khoản hợp đồng.',
       data: updated,
     });
   } catch (error) {

@@ -49,27 +49,27 @@ export const PERMISSION_MATRIX: Record<Permission, readonly UserRole[]> = {
   CMS_MANAGE: ['SystemAdmin'],
   BRANCH_COMPARE: ['SystemAdmin'],
   VEHICLE_VIEW: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
-  VEHICLE_MANAGE: ['BranchManager'],
-  VEHICLE_TRANSFER: ['BranchManager'],
+  VEHICLE_MANAGE: ['SystemAdmin', 'BranchManager'],
+  VEHICLE_TRANSFER: ['SystemAdmin', 'BranchManager'],
   BOOKING_VIEW: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
   BOOKING_CREATE: ['Customer'],
-  BOOKING_CHECKIN: ['BranchManager', 'Staff'],
-  BOOKING_CHECKOUT: ['BranchManager', 'Staff'],
-  BOOKING_CANCEL: ['BranchManager', 'Staff', 'Customer'],
-  BOOKING_COUNTER_PAY: ['BranchManager', 'Staff'],
-  BOOKING_APPROVE: ['BranchManager'],
-  BOOKING_REJECT: ['BranchManager'],
-  EKYC_VIEW: ['BranchManager', 'Staff'],
-  EKYC_REVIEW: ['BranchManager', 'Staff'],
+  BOOKING_CHECKIN: ['SystemAdmin', 'BranchManager', 'Staff'],
+  BOOKING_CHECKOUT: ['SystemAdmin', 'BranchManager', 'Staff'],
+  BOOKING_CANCEL: ['SystemAdmin', 'BranchManager', 'Staff', 'Customer'],
+  BOOKING_COUNTER_PAY: ['SystemAdmin', 'BranchManager', 'Staff'],
+  BOOKING_APPROVE: ['SystemAdmin', 'BranchManager'],
+  BOOKING_REJECT: ['SystemAdmin', 'BranchManager'],
+  EKYC_VIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
+  EKYC_REVIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
   AUDIT_VIEW: ['SystemAdmin'],
   FINANCE_RECONCILE: ['SystemAdmin', 'BranchManager'],
   FINANCE_TAX_REPORT: ['SystemAdmin'],
-  MAINTENANCE_VIEW: ['BranchManager', 'Staff'],
-  MAINTENANCE_LOG: ['BranchManager', 'Staff'],
-  STAFF_MANAGE: ['BranchManager'],
-  STAFF_SCHEDULE: ['BranchManager'],
-  COMPLAINT_RESOLVE: ['BranchManager'],
-  CHAT_STAFF_CONSOLE: ['BranchManager', 'Staff'],
+  MAINTENANCE_VIEW: ['SystemAdmin', 'BranchManager', 'Staff'],
+  MAINTENANCE_LOG: ['SystemAdmin', 'BranchManager', 'Staff'],
+  STAFF_MANAGE: ['SystemAdmin', 'BranchManager'],
+  STAFF_SCHEDULE: ['SystemAdmin', 'BranchManager'],
+  COMPLAINT_RESOLVE: ['SystemAdmin', 'BranchManager'],
+  CHAT_STAFF_CONSOLE: ['SystemAdmin', 'BranchManager', 'Staff'],
 } as const;
 
 /**
@@ -86,7 +86,7 @@ export const hasPermission = (role: UserRole, permission: Permission): boolean =
  * BranchManager and Staff are restricted strictly to their assigned branch.
  */
 export const assertBranchAccess = (
-  user: IUser | { roles: UserRole; branchId?: mongoose.Types.ObjectId | string },
+  user: IUser | { roles: UserRole | string; branchId?: unknown },
   branchId: string | mongoose.Types.ObjectId | Array<string | mongoose.Types.ObjectId>
 ): void => {
   if (user.roles === 'SystemAdmin') {
@@ -97,7 +97,11 @@ export const assertBranchAccess = (
     throw new AppError(403, 'Tài khoản chưa được phân bổ chi nhánh công tác.');
   }
 
-  const userBranchStr = user.branchId.toString();
+  const rawUserBranch = user.branchId;
+  const userBranchStr =
+    typeof rawUserBranch === 'object' && rawUserBranch !== null && '_id' in rawUserBranch
+      ? String((rawUserBranch as { _id?: unknown })._id || '')
+      : String(rawUserBranch);
   const allowedBranches = Array.isArray(branchId) ? branchId : [branchId];
   const isAllowed = allowedBranches.some((b) => b.toString() === userBranchStr);
 

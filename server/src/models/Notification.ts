@@ -41,6 +41,11 @@ const NotificationSchema = new Schema<INotification>(
 NotificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
 
 NotificationSchema.pre('validate', function (next) {
+  this.$locals.wasNew = this.isNew;
+  const callStack = new Error().stack || '';
+  this.$locals.dispatchedExternally =
+    callStack.includes('notificationDispatch') || callStack.includes('notifyBranchOperations');
+
   if (!this.body && (this as unknown as { message?: string }).message) {
     this.body = (this as unknown as { message: string }).message;
   }
@@ -56,18 +61,32 @@ NotificationSchema.pre('validate', function (next) {
 });
 
 NotificationSchema.post('save', (doc: INotification) => {
-  if (doc && doc.userId) {
-    emitUserRealtimeEvent(doc.userId.toString(), 'notification:new', {
-      _id: doc._id.toString(),
-      userId: doc.userId.toString(),
-      title: doc.title,
-      body: doc.body,
-      type: doc.type,
-      relatedId: doc.relatedId,
-      isRead: doc.isRead,
-      data: doc.data,
-      createdAt: doc.createdAt || new Date(),
-    });
+  if (!doc || !doc.userId) return;
+  if (doc.$locals?.wasNew === false || doc.$locals?.dispatchedExternally) {
+    return;
+  }
+
+  const userIdStr = doc.userId.toString();
+  emitUserRealtimeEvent(userIdStr, 'notification:new', {
+    _id: doc._id.toString(),
+    userId: userIdStr,
+    title: doc.title,
+    body: doc.body,
+    type: doc.type,
+    relatedId: doc.relatedId,
+    isRead: doc.isRead,
+    data: doc.data,
+    createdAt: doc.createdAt || new Date(),
+  });
+
+  if (mongoose.connection.readyState === 1) {
+    Notification.countDocuments({ userId: doc.userId, isRead: false })
+      .then((count) => {
+        emitUserRealtimeEvent(userIdStr, 'notification:badge', { unreadCount: count });
+      })
+      .catch(() => {
+        // Non-fatal badge push
+      });
   }
 });
 

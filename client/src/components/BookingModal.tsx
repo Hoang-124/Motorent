@@ -525,7 +525,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <span className="text-base font-black text-[#FFC799]">
                   {depositAmount.toLocaleString('vi-VN')} đ
                 </span>
-                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Hoàn 100% nếu báo trước 24h</span>
+                <span className="block text-[10px] text-[#A0A0A0] mt-0.5">Khóa biển số xe độc quyền</span>
               </div>
               <div className="p-2.5 bg-[#161616] rounded-xl border border-white/10 shadow-sm">
                 <span className="block text-[11px] font-bold text-[#A0A0A0] uppercase">
@@ -768,7 +768,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           <div className="p-3 bg-white/[0.03] rounded-xl border border-white/5 text-xs text-[#A0A0A0] flex items-start space-x-2">
             <ShieldCheck className="w-4 h-4 text-[#FFC799] mt-0.5 flex-shrink-0" />
             <p className="leading-relaxed">
-              <strong className="text-white">Cam kết an toàn:</strong> Cổng thanh toán VNPay Sandbox bảo mật SSL/TLS. Miễn phí hủy đặt xe trước 24 giờ.
+              <strong className="text-white">Điều khoản thanh toán:</strong> Cổng VNPay Sandbox bảo mật SSL/TLS. Áp dụng chính sách KHÔNG HOÀN TIỀN khi hủy đơn hoặc trả xe sớm.
             </p>
           </div>
 

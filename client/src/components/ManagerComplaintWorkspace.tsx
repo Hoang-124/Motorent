@@ -23,6 +23,7 @@ import {
   Car
 } from 'lucide-react';
 import type { StaffComplaint, ComplaintStatus } from '../types';
+import { getBannerImageUrl } from '../utils/imageHelper';
 import {
   getPendingComplaints,
   getStaffComplaintById,
@@ -623,23 +624,45 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
                       Tệp đính kèm ({selectedComplaint.attachments.length})
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {selectedComplaint.attachments.map((url, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => setPreviewImage(url)}
-                          className="group relative w-16 h-16 rounded-lg overflow-hidden border border-white/15 bg-black/40 hover:border-[#FFC799] transition-all"
-                        >
-                          <img
-                            src={url}
-                            alt={`Đính kèm ${idx + 1}`}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                            <Eye className="w-4 h-4 text-white" />
-                          </div>
-                        </button>
-                      ))}
+                      {selectedComplaint.attachments.map((url, idx) => {
+                        const resolvedUrl = getBannerImageUrl(url);
+                        const isPdf = /\.pdf(\?|$)/i.test(url);
+                        if (isPdf) {
+                          return (
+                            <a
+                              key={idx}
+                              href={resolvedUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="group w-20 h-16 rounded-lg border border-white/15 bg-black/40 hover:border-[#FFC799] transition-all flex flex-col items-center justify-center gap-1 px-1 text-[#A0A0A0] hover:text-[#FFC799]"
+                              title={`Mở tệp PDF đính kèm #${idx + 1}`}
+                            >
+                              <FileText className="w-5 h-5" />
+                              <span className="text-[10px] font-semibold inline-flex items-center gap-0.5">
+                                PDF #{idx + 1}
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </span>
+                            </a>
+                          );
+                        }
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setPreviewImage(resolvedUrl)}
+                            className="group relative w-16 h-16 rounded-lg overflow-hidden border border-white/15 bg-black/40 hover:border-[#FFC799] transition-all"
+                          >
+                            <img
+                              src={resolvedUrl}
+                              alt={`Đính kèm ${idx + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <Eye className="w-4 h-4 text-white" />
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
