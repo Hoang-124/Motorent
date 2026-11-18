@@ -624,7 +624,7 @@ export const AdminCenter: React.FC = () => {
             <button
               type="button"
               onClick={() => setToastMessage(null)}
-              className="text-white/60 hover:text-white p-1"
+              className="text-[#A0A0A0] hover:text-[#F5F5F5] p-1"
             >
               <X className="w-4 h-4" />
             </button>

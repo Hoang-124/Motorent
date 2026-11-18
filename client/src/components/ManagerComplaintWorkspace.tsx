@@ -307,7 +307,7 @@ export const ManagerComplaintWorkspace: React.FC<ManagerComplaintWorkspaceProps>
           <button
             type="button"
             onClick={() => setNotice(null)}
-            className="text-white/60 hover:text-white p-1"
+            className="text-[#A0A0A0] hover:text-[#F5F5F5] p-1"
           >
             <X className="w-3.5 h-3.5" />
           </button>

@@ -15,6 +15,7 @@ import type { Vehicle, Branch } from '../types';
 import { api } from '../services/api';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
 import { useTranslation } from '../context/I18nContext';
+import { useAuth } from '../context/AuthContext';
 
 interface BookingSearchCriteria {
   pickupBranchId: string;
@@ -32,6 +33,7 @@ const ANGLE_VIEWS = [
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { isAuthenticated, user } = useAuth();
   const location = useLocation();
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -107,9 +109,13 @@ export const HomePage: React.FC = () => {
   };
 
   const handleBookVehicle = (v: Vehicle) => {
-    navigate(`/booking/${v._id}`);
+    const target = `/booking/${v._id}`;
+    if (!isAuthenticated || !user) {
+      navigate(`/login?returnTo=${encodeURIComponent(target)}`);
+      return;
+    }
+    navigate(target);
   };
-
   const activeVehicle = vehicles.find((v) => v._id === selectedVehicleId) || vehicles[0];
 
   const SCENIC_ROUTES = [
@@ -602,7 +608,7 @@ export const HomePage: React.FC = () => {
                       onClick={() => handleBookVehicle(activeVehicle)}
                       className="px-6 py-3.5 rounded-xl bg-[#F5F5F5] hover:bg-[#FFC799] text-[#101010] font-semibold text-xs sm:text-sm transition-all active:scale-95 flex items-center space-x-2 cursor-pointer shrink-0"
                     >
-                      <span>Giữ chiếc xe này</span>
+                      <span>{isAuthenticated ? 'Giữ chiếc xe này' : 'Đăng nhập để đặt xe'}</span>
                       <ArrowRight className="w-4 h-4 stroke-[2.2]" />
                     </button>
                   </div>

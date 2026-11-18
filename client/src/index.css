@@ -272,12 +272,8 @@ a {
   background-color: var(--bg-canvas) !important;
 }
 
-.bg-\[\#101010\]\/40,
-.bg-\[\#101010\]\/60 {
-  background-color: var(--bg-well) !important;
-}
-
 .bg-\[\#101010\]\/80,
+.bg-\[\#101010\]\/85,
 .bg-\[\#101010\]\/90,
 .bg-\[\#101010\]\/95,
 .bg-\[\#090D0C\]\/80,
@@ -302,6 +298,14 @@ a {
 .bg-\[\#13251C\],
 .bg-\[\#161B22\],
 .bg-\[\#1A241E\],
+.bg-\[\#161616\]\/60,
+.bg-\[\#161616\]\/75,
+.bg-\[\#161616\]\/80,
+.bg-\[\#161616\]\/95,
+.bg-\[\#141414\]\/60,
+.bg-\[\#181818\]\/95,
+.bg-\[\#1A1A1A\]\/90,
+.bg-\[\#1a1a1a\]\/90,
 .bg-slate-900,
 .bg-slate-900\/80,
 .bg-slate-900\/90,
@@ -313,16 +317,40 @@ a {
 
 /* Tier 3: Elevated Sub-Cards & Interactive Controls */
 .bg-\[\#1E1E1E\],
+.bg-\[\#1e1e1e\],
 .bg-\[\#181818\],
+.bg-\[\#191919\],
 .bg-\[\#1A1A1A\],
+.bg-\[\#1a1a1a\],
+.bg-\[\#1B1B1B\],
+.bg-\[\#1b1b1b\],
+.bg-\[\#1B1917\],
+.bg-\[\#1b1917\],
+.bg-\[\#1F1F1F\],
+.bg-\[\#1f1f1f\],
 .bg-\[\#202020\],
 .bg-\[\#222222\],
+.bg-\[\#242424\],
+.bg-\[\#262626\],
+.bg-\[\#282828\],
+.bg-\[\#2A2A2A\],
+.bg-\[\#2a2a2a\],
+.bg-\[\#2C2C2C\],
+.bg-\[\#2c2c2c\],
+.bg-\[\#303030\],
+.bg-\[\#333333\],
+.bg-\[\#6E6E6E\],
+.bg-\[\#6e6e6e\],
 .bg-\[\#121917\],
 .bg-\[\#1F2B3F\],
 .bg-\[\#0D1F18\],
 .bg-\[\#1A3226\],
 .bg-\[\#1F2630\],
 .bg-\[\#243129\],
+.bg-\[\#1E1E1E\]\/50,
+.bg-\[\#1e1e1e\]\/50,
+.bg-\[\#1A1A1A\]\/60,
+.bg-\[\#1a1a1a\]\/60,
 .bg-slate-800,
 .bg-slate-800\/50,
 .bg-slate-800\/60,
@@ -333,15 +361,32 @@ a {
 .bg-white\/\[0\.04\],
 .bg-white\/\[0\.05\],
 .bg-white\/\[0\.06\],
+.bg-white\/\[0\.07\],
+.bg-white\/\[0\.08\],
+.bg-white\/\[0\.09\],
 .bg-white\/5,
-.bg-white\/10 {
+.bg-white\/10,
+.bg-white\/15,
+.bg-white\/20,
+.bg-white\/25 {
   background-color: var(--bg-elevated) !important;
 }
 
 .hover\:bg-\[\#262626\]:hover,
 .hover\:bg-\[\#282828\]:hover,
 .hover\:bg-\[\#2c2c2c\]:hover,
+.hover\:bg-\[\#2C2C2C\]:hover,
+.hover\:bg-\[\#2A2A2A\]:hover,
+.hover\:bg-\[\#2a2a2a\]:hover,
 .hover\:bg-\[\#1E1E1E\]:hover,
+.hover\:bg-\[\#1e1e1e\]:hover,
+.hover\:bg-\[\#1f1f1f\]:hover,
+.hover\:bg-\[\#1F1F1F\]:hover,
+.hover\:bg-\[\#222222\]:hover,
+.hover\:bg-\[\#161616\]:hover,
+.hover\:bg-\[\#181818\]:hover,
+.hover\:bg-\[\#1A1A1A\]:hover,
+.hover\:bg-\[\#1a1a1a\]:hover,
 .hover\:bg-\[\#101715\]:hover,
 .hover\:bg-\[\#121917\]:hover,
 .hover\:bg-\[\#1F2B3F\]:hover,
@@ -354,18 +399,48 @@ a {
 .hover\:bg-white\/\[0\.06\]:hover,
 .hover\:bg-white\/\[0\.08\]:hover,
 .hover\:bg-white\/5:hover,
-.hover\:bg-white\/10:hover {
+.hover\:bg-white\/10:hover,
+.hover\:bg-white\/15:hover {
   background-color: var(--bg-hover) !important;
 }
 
-/* Tier 4: Recessed Input / Code Wells */
+/* Tier 4: Recessed Input / Code / Spec Pills */
 .bg-\[\#0A0A0A\],
+.bg-\[\#0a0a0a\],
 .bg-\[\#0D0D0D\],
+.bg-\[\#0d0d0d\],
 .bg-\[\#0A0F16\],
 .bg-\[\#08110D\],
 .bg-\[\#0A0D12\],
-.bg-\[\#0B100D\] {
+.bg-\[\#0B100D\],
+.bg-\[\#0D1311\],
+.bg-\[\#0d1311\],
+.bg-\[\#0D0E12\],
+.bg-\[\#0d0e12\],
+.bg-\[\#141D1A\],
+.bg-\[\#141d1a\],
+.bg-\[\#16211E\],
+.bg-\[\#16211e\],
+.bg-\[\#151F1C\],
+.bg-\[\#151f1c\],
+.bg-\[\#161313\],
+.bg-\[\#0A0A0A\]\/60,
+.bg-\[\#0a0a0a\]\/60,
+.bg-\[\#101010\]\/10,
+.bg-\[\#101010\]\/15,
+.bg-\[\#101010\]\/20,
+.bg-\[\#101010\]\/40,
+.bg-\[\#101010\]\/50,
+.bg-\[\#101010\]\/60,
+.bg-\[\#101010\]\/70,
+.bg-\[\#101010\]\/75 {
   background-color: var(--bg-well) !important;
+}
+
+/* Native Option Dropdown Legibility in Both Themes */
+option {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
 }
 
 input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
@@ -424,6 +499,17 @@ textarea:focus {
 .border-white\/12,
 .border-white\/15,
 .border-white\/20,
+/* Clean Structural Borders */
+.border-white\/\[0\.05\],
+.border-white\/\[0\.06\],
+.border-white\/\[0\.07\],
+.border-white\/\[0\.08\],
+.border-white\/\[0\.09\],
+.border-white\/5,
+.border-white\/10,
+.border-white\/12,
+.border-white\/15,
+.border-white\/20,
 .border-slate-700,
 .border-slate-800,
 .border-zinc-800,
@@ -431,7 +517,12 @@ textarea:focus {
 .border-emerald-400\/20,
 .border-emerald-400\/25,
 .border-emerald-500\/20,
-.border-emerald-500\/30 {
+.border-emerald-500\/30,
+.border-\[\#101010\],
+.border-\[\#101010\]\/40,
+.border-\[\#161616\],
+.border-\[\#F5F5F5\],
+.border-\[\#f5f5f5\] {
   border-color: var(--border-subtle) !important;
 }
 
@@ -444,23 +535,37 @@ textarea:focus {
 
 /* Vesper Typography Hierarchy */
 .text-\[\#F5F5F5\],
+.text-\[\#f5f5f5\],
 .text-\[\#F4F1EA\],
 .text-\[\#F5F2EB\],
 .text-\[\#F0F7F3\],
 .text-\[\#F8FAFC\],
+.text-\[\#E5E5E5\],
+.text-\[\#E0E0E0\],
 .text-slate-100,
 .text-slate-200,
-.hover\:text-\[\#F5F5F5\]:hover {
+.hover\:text-\[\#F5F5F5\]:hover,
+.hover\:text-\[\#f5f5f5\]:hover {
   color: var(--text-primary) !important;
 }
 
 .text-\[\#A0A0A0\],
+.text-\[\#a0a0a0\],
 .text-\[\#D0D0D0\],
+.text-\[\#d0d0d0\],
 .text-\[\#C8C2B8\],
+.text-\[\#c8c2b8\],
+.text-\[\#C8C8C8\],
+.text-\[\#B0B0B0\],
 .text-\[\#9DA8A2\],
 .text-\[\#B8C4BC\],
 .text-\[\#A8C5B5\],
 .text-\[\#94A3B8\],
+.text-\[\#A09D98\],
+.text-\[\#909090\],
+.text-\[\#8E8E8E\],
+.text-\[\#8F8F8F\],
+.text-\[\#808080\],
 .text-slate-300,
 .text-slate-400,
 .text-zinc-300,
@@ -469,8 +574,12 @@ textarea:focus {
 }
 
 .text-\[\#6E6E6E\],
+.text-\[\#6e6e6e\],
 .text-\[\#707070\],
+.text-\[\#777\],
+.text-\[\#7E7E7E\],
 .text-\[\#8A857D\],
+.text-\[\#8a857d\],
 .text-\[\#8E9B94\],
 .text-\[\#8E9B96\],
 .text-\[\#7A8680\],
@@ -479,6 +588,18 @@ textarea:focus {
 .text-\[\#759886\],
 .text-\[\#7E8F84\],
 .text-\[\#64748B\],
+.text-\[\#6E6E6E\]\/35,
+.text-\[\#6E6E6E\]\/40,
+.text-\[\#6e6e6e\]\/35,
+.text-\[\#6e6e6e\]\/40,
+.text-\[\#404040\],
+.text-\[\#4a4a4a\],
+.text-\[\#4A4A4A\],
+.text-\[\#47524D\],
+.text-\[\#47524d\],
+.text-\[\#505050\],
+.text-\[\#555555\],
+.text-\[\#606060\],
 .text-slate-500,
 .text-zinc-500 {
   color: var(--text-muted) !important;
@@ -486,17 +607,36 @@ textarea:focus {
 
 /* Vesper Signature Champagne / Bronze Text Accent */
 .text-\[\#FFC799\],
+.text-\[\#ffc799\],
+.text-\[\#FFC799\]\/40,
+.text-\[\#ffc799\]\/40,
+.text-\[\#FFC799\]\/70,
+.text-\[\#ffc799\]\/70,
+.text-\[\#FFC799\]\/80,
+.text-\[\#ffc799\]\/80,
+.text-\[\#FFD166\],
+.text-\[\#ffd166\],
 .text-\[\#D4A373\],
 .text-\[\#38BDF8\],
+.text-\[\#38bdf8\],
+.text-\[\#70A5FF\],
+.text-\[\#70a5ff\],
 .text-\[\#7DD3FC\],
 .text-\[\#E2B070\],
+.text-\[\#FFA760\],
+.text-\[\#FFB67A\],
+.text-\[\#FFB77D\],
+.text-\[\#FFD6B3\],
+.text-\[\#FFD9BA\],
 .text-sky-400,
 .text-sky-300,
 .text-cyan-400,
 .group:hover .group-hover\:text-\[\#FFC799\],
+.group:hover .group-hover\:text-\[\#ffc799\],
 .group:hover .group-hover\:text-\[\#D4A373\],
 .group:hover .group-hover\:text-\[\#38BDF8\],
 .hover\:text-\[\#FFC799\]:hover,
+.hover\:text-\[\#ffc799\]:hover,
 .hover\:text-\[\#D4A373\]:hover,
 .hover\:text-\[\#38BDF8\]:hover {
   color: var(--accent-text) !important;
@@ -504,8 +644,14 @@ textarea:focus {
 
 /* Vesper Signature Mint / Jade for Live Telemetry & Verified Status */
 .text-\[\#99FFE4\],
+.text-\[\#99ffe4\],
+.text-\[\#99FFE4\]\/40,
+.text-\[\#99ffe4\]\/40,
+.text-\[\#99FFE4\]\/90,
+.text-\[\#99ffe4\]\/90,
 .text-\[\#34D399\],
 .text-\[\#10B981\],
+.text-\[\#7CE4AB\],
 .text-emerald-400,
 .text-emerald-300 {
   color: var(--accent-status-text) !important;
@@ -513,17 +659,30 @@ textarea:focus {
 
 /* Danger / Alert Text */
 .text-\[\#FF8080\],
-.hover\:text-\[\#FF8080\]:hover {
+.text-\[\#ff8080\],
+.text-\[\#FF8585\],
+.text-\[\#FF9A9A\],
+.text-\[\#FFA8A8\],
+.text-\[\#FFAAAA\],
+.text-\[\#FFB3B3\],
+.hover\:text-\[\#FF8080\]:hover,
+.hover\:text-\[\#ff8080\]:hover {
   color: var(--accent-danger-text) !important;
 }
 
 /* Vesper Accent Borders */
 .border-\[\#FFC799\],
+.border-\[\#ffc799\],
+.border-\[\#FFC799\]\/15,
+.border-\[\#FFC799\]\/20,
 .border-\[\#FFC799\]\/25,
 .border-\[\#FFC799\]\/30,
 .border-\[\#FFC799\]\/35,
 .border-\[\#FFC799\]\/40,
 .border-\[\#FFC799\]\/50,
+.border-\[\#FFC799\]\/55,
+.border-\[\#FFC799\]\/60,
+.border-\[\#FFC799\]\/70,
 .border-\[\#D4A373\],
 .border-\[\#D4A373\]\/30,
 .border-\[\#D4A373\]\/35,
@@ -536,8 +695,14 @@ textarea:focus {
 .border-\[\#38BDF8\]\/40,
 .border-\[\#38BDF8\]\/50,
 .border-\[\#38BDF8\]\/60,
-.border-\[\#10B981\]\/40,
+.border-\[\#FFD166\]\/30,
+.border-\[\#5E4226\],
+.border-\[\#EAB308\]\/40,
+.border-\[\#eab308\]\/40,
+.border-\[\#2D456E\],
+.border-\[\#2d456e\],
 .hover\:border-\[\#FFC799\]:hover,
+.hover\:border-\[\#ffc799\]:hover,
 .hover\:border-\[\#FFC799\]\/50:hover,
 .hover\:border-\[\#FFC799\]\/60:hover,
 .hover\:border-\[\#D4A373\]:hover,
@@ -551,15 +716,60 @@ textarea:focus {
   border-color: var(--border-strong) !important;
 }
 
+/* Status Mint Borders */
+.border-\[\#99FFE4\],
+.border-\[\#99ffe4\],
+.border-\[\#99FFE4\]\/15,
+.border-\[\#99FFE4\]\/20,
+.border-\[\#99FFE4\]\/25,
+.border-\[\#99FFE4\]\/30,
+.border-\[\#99FFE4\]\/35,
+.border-\[\#99FFE4\]\/40,
+.border-\[\#99FFE4\]\/50,
+.border-\[\#99FFE4\]\/60,
+.border-\[\#22C55E\]\/30,
+.border-\[\#22C55E\]\/35,
+.border-\[\#22C55E\]\/40,
+.border-\[\#26533D\],
+.border-\[\#2A5C39\],
+.border-\[\#10B981\]\/40 {
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+/* Danger / Alert Borders */
+.border-\[\#FF8080\],
+.border-\[\#ff8080\],
+.border-\[\#FF8080\]\/20,
+.border-\[\#FF8080\]\/25,
+.border-\[\#FF8080\]\/30,
+.border-\[\#FF8080\]\/40,
+.border-\[\#FF8080\]\/50,
+.border-\[\#EF4444\]\/40,
+.border-\[\#692929\] {
+  border-color: rgba(201, 53, 53, 0.35) !important;
+}
+
 /* Primary Inverted Buttons & Active Capsules */
 .bg-\[\#F5F5F5\],
+.bg-\[\#f5f5f5\],
 .bg-\[\#F4F1EA\] {
   background-color: var(--text-primary) !important;
   color: var(--bg-canvas) !important;
 }
 
 .bg-\[\#FFC799\],
+.bg-\[\#ffc799\],
 .bg-\[\#D4A373\],
+.bg-\[\#FFA760\],
+.bg-\[\#ffa760\],
+.bg-\[\#FFB67A\],
+.bg-\[\#ffb67a\],
+.bg-\[\#FFB77D\],
+.bg-\[\#ffb77d\],
+.bg-\[\#FFD6B3\],
+.bg-\[\#ffd6b3\],
+.bg-\[\#FFD9BA\],
+.bg-\[\#ffd9ba\],
 .bg-\[\#38BDF8\],
 .bg-\[\#10B981\],
 .bg-emerald-500,
@@ -569,20 +779,157 @@ textarea:focus {
   color: #161514 !important;
 }
 
-/* Subtle Accent Tints */
+/* Status Mint Tints (AA/AAA Contrast In Both Modes) */
+.bg-\[\#18261e\],
+.bg-\[\#18261E\],
+.bg-\[\#122A1E\],
+.bg-\[\#122a1e\],
+.bg-\[\#122A1E\]\/70,
+.bg-\[\#122a1e\]\/70,
+.bg-\[\#1B3D2B\],
+.bg-\[\#1b3d2b\],
+.bg-\[\#1B3629\],
+.bg-\[\#1b3629\],
+.bg-\[\#183120\],
+.bg-\[\#20402A\],
+.bg-\[\#20402a\],
+.bg-\[\#99FFE4\]\/5,
+.bg-\[\#99ffe4\]\/5,
+.bg-\[\#99FFE4\]\/10,
+.bg-\[\#99ffe4\]\/10,
+.bg-\[\#99FFE4\]\/12,
+.bg-\[\#99ffe4\]\/12,
+.bg-\[\#99FFE4\]\/15,
+.bg-\[\#99ffe4\]\/15,
+.bg-\[\#99FFE4\]\/20,
+.bg-\[\#99ffe4\]\/20,
+.bg-\[\#99FFE4\]\/25,
+.bg-\[\#99ffe4\]\/25,
+.bg-\[\#99FFE4\]\/60,
+.bg-\[\#99ffe4\]\/60,
+.bg-\[\#99FFE4\]\/85,
+.bg-\[\#99ffe4\]\/85,
+.bg-\[\#99FFE4\]\/90,
+.bg-\[\#99ffe4\]\/90,
+.bg-\[\#99FFE4\]\/\[0\.03\],
+.bg-\[\#99FFE4\]\/\[0\.06\],
+.bg-\[\#99FFE4\]\/\[0\.07\],
+.bg-\[\#B3FFF0\],
+.bg-\[\#b3fff0\],
+.bg-emerald-500\/10,
+.bg-emerald-500\/15,
+.bg-emerald-500\/20,
+.bg-emerald-950\/20,
+.bg-emerald-950\/30 {
+  background-color: var(--accent-status-tint) !important;
+}
+
+/* Amber / Bronze Warning Tints */
+.bg-\[\#2A2012\],
+.bg-\[\#2a2012\],
+.bg-\[\#2A2218\],
+.bg-\[\#2a2218\],
+.bg-\[\#1C1812\],
+.bg-\[\#1c1812\],
+.bg-\[\#3B2C1A\],
+.bg-\[\#3b2c1a\],
+.bg-\[\#FFD166\]\/15,
+.bg-\[\#ffd166\]\/15,
+.bg-\[\#FFD166\],
+.bg-\[\#ffd166\],
+.bg-\[\#FFC799\]\/5,
+.bg-\[\#ffc799\]\/5,
 .bg-\[\#FFC799\]\/10,
+.bg-\[\#ffc799\]\/10,
 .bg-\[\#FFC799\]\/12,
+.bg-\[\#FFC799\]\/14,
+.bg-\[\#ffc799\]\/14,
 .bg-\[\#FFC799\]\/15,
+.bg-\[\#ffc799\]\/15,
 .bg-\[\#FFC799\]\/20,
+.bg-\[\#ffc799\]\/20,
+.bg-\[\#FFC799\]\/25,
+.bg-\[\#ffc799\]\/25,
+.bg-\[\#FFC799\]\/30,
+.bg-\[\#ffc799\]\/30,
+.bg-\[\#FFC799\]\/35,
+.bg-\[\#ffc799\]\/35,
+.bg-\[\#FFC799\]\/80,
+.bg-\[\#ffc799\]\/80,
+.bg-\[\#FFC799\]\/\[0\.03\],
+.bg-\[\#FFC799\]\/\[0\.04\],
+.bg-\[\#FFC799\]\/\[0\.05\],
+.bg-\[\#FFC799\]\/\[0\.06\],
+.bg-\[\#FFC799\]\/\[0\.07\],
+.bg-\[\#FFC799\]\/\[0\.12\],
+.bg-\[\#FFC799\]\/\[0\.13\],
+.bg-\[\#FFE2CC\],
+.bg-\[\#ffe2cc\],
 .bg-\[\#D4A373\]\/10,
 .bg-\[\#D4A373\]\/15,
 .bg-\[\#D4A373\]\/20,
+.bg-amber-500\/10,
+.bg-amber-500\/15,
+.bg-amber-500\/20,
+.bg-amber-950\/20,
+.bg-amber-950\/30 {
+  background-color: var(--accent-tint) !important;
+}
+
+/* Danger / Red Alert Tints */
+.bg-\[\#291717\],
+.bg-\[\#2A1616\],
+.bg-\[\#2a1616\],
+.bg-\[\#2A1212\],
+.bg-\[\#2a1212\],
+.bg-\[\#1F1414\],
+.bg-\[\#1f1414\],
+.bg-\[\#371919\],
+.bg-\[\#ff6666\],
+.bg-\[\#FF6666\],
+.bg-\[\#ff9999\],
+.bg-\[\#FF9999\],
+.bg-\[\#FF8080\]\/5,
+.bg-\[\#ff8080\]\/5,
+.bg-\[\#FF8080\]\/10,
+.bg-\[\#ff8080\]\/10,
+.bg-\[\#FF8080\]\/12,
+.bg-\[\#FF8080\]\/15,
+.bg-\[\#FF8080\]\/20,
+.bg-\[\#ff8080\]\/20,
+.bg-\[\#FF8080\]\/25,
+.bg-\[\#ff8080\]\/25,
+.bg-\[\#FF8080\]\/80,
+.bg-\[\#ff8080\]\/80,
+.bg-\[\#FF8080\]\/\[0\.06\],
+.bg-\[\#ff8080\]\/\[0\.06\],
+.bg-red-500\/10,
+.bg-red-500\/15,
+.bg-red-500\/20,
+.bg-rose-500\/10,
+.bg-rose-500\/15 {
+  background-color: var(--accent-danger-tint) !important;
+}
+
+/* Blue / Info Tints */
+.bg-\[\#1D3E5D\]\/90,
+.bg-\[\#1d3e5d\]\/90,
+.bg-\[\#254d73\],
+.bg-\[\#254D73\],
+.bg-\[\#1D2E49\],
+.bg-\[\#1d2e49\],
 .bg-\[\#38BDF8\]\/\[0\.04\],
 .bg-\[\#38BDF8\]\/\[0\.06\],
 .bg-\[\#38BDF8\]\/10,
 .bg-\[\#38BDF8\]\/15,
-.bg-\[\#38BDF8\]\/20 {
-  background-color: var(--accent-tint) !important;
+.bg-\[\#38BDF8\]\/20,
+.bg-sky-500\/10,
+.bg-sky-500\/15,
+.bg-cyan-500\/10,
+.bg-cyan-500\/15,
+.bg-cyan-950\/20,
+.bg-purple-950\/20 {
+  background-color: rgba(56, 189, 248, 0.12) !important;
 }
 
 .hover\:bg-\[\#FFD6B3\]:hover,
@@ -607,20 +954,6 @@ textarea:focus {
   background-color: var(--accent-status) !important;
 }
 
-.bg-emerald-500\/10,
-.bg-emerald-500\/15,
-.bg-emerald-500\/20,
-.bg-\[\#99FFE4\]\/10,
-.bg-\[\#99FFE4\]\/15 {
-  background-color: var(--accent-status-tint) !important;
-}
-
-.bg-\[\#FF8080\]\/10,
-.bg-\[\#FF8080\]\/12,
-.bg-\[\#FF8080\]\/15 {
-  background-color: var(--accent-danger-tint) !important;
-}
-
 /* Unify legacy gradient buttons across ProfilePage, BookingPage, LoginPage */
 .from-emerald-500.to-teal-500,
 .from-emerald-500.via-teal-500.to-emerald-600,
@@ -640,12 +973,25 @@ textarea:focus {
 /* ============================================================================
    DAYLIGHT MODE REFINEMENTS (Contrast, Inverted Pills, Surfaces & Overlays)
    ============================================================================ */
-html[data-theme='light'] .text-white:not([class*='bg-red-']):not([class*='bg-emerald-6']):not([class*='bg-sky-6']):not([class*='bg-orange-']):not([class*='bg-zinc-7']):not([class*='bg-black/6']):not([class*='bg-black/7']):not([class*='bg-black/8']):not([class*='bg-[#FF8080]']),
-html[data-theme='light'] .hover\:text-white:hover:not([class*='bg-red-']):not([class*='bg-emerald-6']):not([class*='bg-sky-6']):not([class*='bg-orange-']) {
+html[data-theme='light'] .text-white:not([class*='bg-red-']):not([class*='bg-emerald-6']):not([class*='bg-sky-6']):not([class*='bg-orange-']):not([class*='bg-zinc-7']):not([class*='bg-black/6']):not([class*='bg-black/7']):not([class*='bg-black/8']):not([class*='bg-[#FF8080]']):not([class*='bg-black']),
+html[data-theme='light'] .hover\:text-white:hover:not([class*='bg-red-']):not([class*='bg-emerald-6']):not([class*='bg-sky-6']):not([class*='bg-orange-']):not([class*='bg-black']) {
   color: var(--text-primary) !important;
 }
 
+html[data-theme='light'] .text-white\/90:not([class*='bg-black']),
+html[data-theme='light'] .text-white\/80:not([class*='bg-black']),
+html[data-theme='light'] .text-white\/70:not([class*='bg-black']),
+html[data-theme='light'] .text-white\/60:not([class*='bg-black']) {
+  color: var(--text-secondary) !important;
+}
+
+html[data-theme='light'] .text-white\/40:not([class*='bg-black']),
+html[data-theme='light'] .text-white\/20:not([class*='bg-black']) {
+  color: var(--text-muted) !important;
+}
+
 html[data-theme='light'] .bg-\[\#F5F5F5\]:not(:hover),
+html[data-theme='light'] .bg-\[\#f5f5f5\]:not(:hover),
 html[data-theme='light'] .bg-\[\#F5F5F5\]:not(:hover) .text-\[\#101010\],
 html[data-theme='light'] .bg-\[\#F5F5F5\]:not(:hover) .text-\[\#101010\]\/80 {
   color: #F6F5F0 !important;
@@ -656,7 +1002,8 @@ html[data-theme='light'] .bg-\[\#F5F5F5\] .bg-\[\#101010\] {
   color: #161514 !important;
 }
 
-html[data-theme='light'] .bg-\[\#F5F5F5\] .bg-\[\#101010\]\/15 {
+html[data-theme='light'] .bg-\[\#F5F5F5\] .bg-\[\#101010\]\/15,
+html[data-theme='light'] .bg-\[\#F5F5F5\] .bg-\[\#101010\]\/20 {
   background-color: rgba(255, 255, 255, 0.2) !important;
 }
 
@@ -674,14 +1021,37 @@ html[data-theme='light'] .shadow-\[0_24px_60px_rgba\(0\,0\,0\,0\.85\)\] {
   box-shadow: 0 20px 48px -12px rgba(22, 21, 20, 0.16), 0 0 0 1px rgba(22, 21, 20, 0.06) !important;
 }
 
-html[data-theme='light'] .text-amber-400 {
+/* Light Mode WCAG AA/AAA Accessible Colors */
+html[data-theme='light'] .text-amber-400,
+html[data-theme='light'] .text-amber-300 {
   color: #B45309 !important;
 }
 
 html[data-theme='light'] .text-red-400,
 html[data-theme='light'] .text-red-300,
-html[data-theme='light'] .text-rose-400 {
+html[data-theme='light'] .text-rose-400,
+html[data-theme='light'] .text-rose-300 {
   color: #C93535 !important;
+}
+
+html[data-theme='light'] .text-emerald-400,
+html[data-theme='light'] .text-emerald-300 {
+  color: #047857 !important;
+}
+
+html[data-theme='light'] .text-cyan-400,
+html[data-theme='light'] .text-cyan-300 {
+  color: #0E7490 !important;
+}
+
+html[data-theme='light'] .text-purple-400,
+html[data-theme='light'] .text-purple-300 {
+  color: #7E22CE !important;
+}
+
+html[data-theme='light'] .text-sky-400,
+html[data-theme='light'] .text-sky-300 {
+  color: #0369A1 !important;
 }
 
 /* Warm Studio Stone Backdrop for Vehicle Photography */

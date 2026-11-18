@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import type { Branch, Vehicle } from '../types';
+import type { Branch, Vehicle, User } from '../types';
 
 type MaintenanceStatus = 'Scheduled' | 'InProgress' | 'Completed';
 type TransferStatus = 'Pending' | 'Approved' | 'InTransit' | 'Completed' | 'Rejected';
@@ -105,6 +105,7 @@ export function FleetOperationsPage() {
   const [transferSubView, setTransferSubView] = useState<'active' | 'history'>('active');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [staffMembers, setStaffMembers] = useState<User[]>([]);
   const [branchFilter, setBranchFilter] = useState('');
   const [alerts, setAlerts] = useState<Vehicle[]>([]);
   const [alertPage, setAlertPage] = useState<Pagination>(emptyPage);
@@ -122,16 +123,44 @@ export function FleetOperationsPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [maintenanceForm, setMaintenanceForm] = useState({ vehicleId: '', maintenanceType: 'Routine', description: '', performedBy: '', cost: '0', scheduledDate: '' });
+
+  const myDisplayName = [user?.lastName, user?.firstName].filter(Boolean).join(' ') || user?.username || '';
+  const [maintenanceForm, setMaintenanceForm] = useState({
+    vehicleId: '',
+    maintenanceType: 'Routine',
+    description: '',
+    performedBy: myDisplayName,
+    cost: '0',
+    scheduledDate: '',
+  });
   const [transferForm, setTransferForm] = useState({ vehicleId: '', toBranchId: ownBranch, transferReason: '', notes: '' });
   const [review, setReview] = useState<{ id: string; reason: string } | null>(null);
   const [completion, setCompletion] = useState<{ id: string; vehicle: string; cost: string; performedBy: string; odometer: string } | null>(null);
   const maintenanceRequest = useRef(0);
   const transferRequest = useRef(0);
+
   const visibleVehicles = vehicles.filter((vehicle) => isAdmin ? !branchFilter || idOf(vehicle.branchId) === branchFilter : idOf(vehicle.branchId) === ownBranch);
-  const maintenanceVehicles = visibleVehicles.filter((vehicle) => vehicle.status === 'Available');
+  const maintenanceVehicles = visibleVehicles.filter(
+    (vehicle) => vehicle.status === 'Available' || vehicle.status === 'Maintenance' || vehicle.requiresMaintenance
+  );
+  const urgentOdoVehicles = maintenanceVehicles.filter(
+    (v) => v.requiresMaintenance || alerts.some((a) => a._id === v._id)
+  );
+  const inMaintenanceVehicles = maintenanceVehicles.filter(
+    (v) => v.status === 'Maintenance' && !v.requiresMaintenance && !alerts.some((a) => a._id === v._id)
+  );
+  const availableVehicles = maintenanceVehicles.filter(
+    (v) => v.status === 'Available' && !v.requiresMaintenance && !alerts.some((a) => a._id === v._id)
+  );
+
   const destination = isAdmin ? transferForm.toBranchId : ownBranch;
   const transferVehicles = vehicles.filter((vehicle) => vehicle.status === 'Available' && !vehicle.requiresMaintenance && idOf(vehicle.branchId) !== destination);
+
+  useEffect(() => {
+    if (myDisplayName && !maintenanceForm.performedBy) {
+      setMaintenanceForm((f) => ({ ...f, performedBy: myDisplayName }));
+    }
+  }, [myDisplayName, maintenanceForm.performedBy]);
 
   useEffect(() => {
     const requestedVehicle = searchParams.get('vehicle');
@@ -141,14 +170,27 @@ export function FleetOperationsPage() {
   }, [searchParams]);
 
   const loadLookups = useCallback(async () => {
-    const [branchResponse, vehicleResponse, alertResponse] = await Promise.all([
-      api.get<{ data: Branch[] }>('/branches'), api.get<{ data: Vehicle[] }>('/vehicles'),
+    const fetchPromises: [Promise<{ data: { data: Branch[] } }>, Promise<{ data: { data: Vehicle[] } }>, Promise<{ data: ListResponse<Vehicle, { dueCount: number }> }>] = [
+      api.get<{ data: Branch[] }>('/branches'),
+      api.get<{ data: Vehicle[] }>('/vehicles'),
       api.get<ListResponse<Vehicle, { dueCount: number }>>('/maintenance/alerts', { params: { page: alertPage.page, limit: 8, ...(branchFilter ? { branchId: branchFilter } : {}) } }),
-    ]);
+    ];
+    const [branchResponse, vehicleResponse, alertResponse] = await Promise.all(fetchPromises);
     setBranches(branchResponse.data.data.filter((branch) => branch.isActive));
     setVehicles(vehicleResponse.data.data);
     setAlerts(alertResponse.data.data); setAlertPage(alertResponse.data.pagination);
-  }, [branchFilter, alertPage.page]);
+
+    if (canManage) {
+      try {
+        const staffRes = await api.get<{ data: User[] }>('/staff', { params: { status: 'Active' } });
+        if (Array.isArray(staffRes.data?.data)) {
+          setStaffMembers(staffRes.data.data);
+        }
+      } catch {
+        // Staff lookup is non-blocking
+      }
+    }
+  }, [branchFilter, alertPage.page, canManage]);
 
   useEffect(() => {
     let cancelled = false;
@@ -238,13 +280,17 @@ export function FleetOperationsPage() {
       </div>
       {alerts.length > 0 ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{alerts.map((vehicle) => <button type="button" key={vehicle._id} className="group min-w-0 rounded-xl border border-[#FFC799]/20 bg-[#101010] p-4 text-left transition hover:border-[#FFC799]/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFC799]" onClick={() => {
         setTab('maintenance'); setHistoryVehicle(vehicle._id); setMaintenancePage(emptyPage);
-        if (vehicle.status === 'Available') setMaintenanceForm((form) => ({ ...form, vehicleId: vehicle._id }));
+        setMaintenanceForm((form) => ({
+          ...form,
+          vehicleId: vehicle._id,
+          description: `Bảo dưỡng định kỳ ODO (${vehicle.odometer.toLocaleString('vi-VN')} km). Kiểm tra dầu nhớt động cơ, hệ thống phanh và lốp xe.`,
+        }));
       }}>
         <span className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-semibold text-[#FFC799]">{vehicle.licensePlate}</span><span className="rounded-full border border-[#FFC799]/20 px-2 py-0.5 text-[10px] text-[#FFC799]">Đến hạn</span></span>
         <span className="mt-2 block break-words text-xs text-[#F5F5F5]">{vehicle.brand} {vehicle.vehicleModel}</span>
         <span className="mt-1 block break-words text-[11px] text-[#A0A0A0]">{branchName(vehicle.branchId)}</span>
         <span className="mt-4 block text-xl font-semibold tabular-nums text-[#F5F5F5]">{vehicle.odometer.toLocaleString('vi-VN')} <span className="text-xs font-normal text-[#A0A0A0]">km</span></span>
-        <span className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-[11px] text-[#FFC799]"><span>{vehicle.status === 'Available' ? 'Lập phiếu & xem lịch sử' : 'Xem phiếu & lịch sử'}</span><svg className="shrink-0 transition group-hover:translate-x-0.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 12h16m-5-5 5 5-5 5" /></svg></span>
+        <span className="mt-3 flex items-center justify-between gap-2 border-t border-white/10 pt-3 text-[11px] text-[#FFC799]"><span>Lập phiếu &amp; xem lịch sử</span><svg className="shrink-0 transition group-hover:translate-x-0.5" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M4 12h16m-5-5 5 5-5 5" /></svg></span>
       </button>)}</div> : <p className="rounded-xl border border-dashed border-white/10 px-4 py-5 text-sm text-[#A0A0A0]">{loading ? 'Đang kiểm tra cảnh báo bảo trì…' : 'Không có xe đến hạn bảo trì trong phạm vi đang xem.'}</p>}
       {alertPage.totalPages > 1 && <Pages page={alertPage} disabled={busy || loading} onChange={(page) => setAlertPage((current) => ({ ...current, page }))} />}
     </section>
@@ -261,12 +307,105 @@ export function FleetOperationsPage() {
     {tab === 'maintenance' ? <div className="grid items-start gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
       <form onSubmit={schedule} className="min-w-0 space-y-4 rounded-2xl border border-white/10 bg-[#161616] p-4 sm:p-5">
         <h2 className="text-lg font-semibold">Lập phiếu bảo trì</h2><p className="text-xs leading-relaxed text-[#A0A0A0]">Xe được giữ ở trạng thái Bảo trì ngay khi lập phiếu, kể cả khi ngày dự kiến ở tương lai.</p>
-        <Field label="Xe tại chi nhánh"><select required className={inputClass} value={maintenanceForm.vehicleId} onChange={(event) => setMaintenanceForm({ ...maintenanceForm, vehicleId: event.target.value })}>
-          <option value="">Chọn xe đang sẵn sàng</option>{maintenanceVehicles.map((vehicle) => <option key={vehicle._id} value={vehicle._id}>{vehicle.licensePlate} · {vehicle.vehicleModel}{vehicle.requiresMaintenance ? ' · Đến hạn' : ''}</option>)}</select></Field>
+        <Field label="Xe tại chi nhánh">
+          <select
+            required
+            className={inputClass}
+            value={maintenanceForm.vehicleId}
+            onChange={(event) => {
+              const selectedId = event.target.value;
+              const selectedVehicle = maintenanceVehicles.find((v) => v._id === selectedId);
+              setMaintenanceForm((prev) => ({
+                ...prev,
+                vehicleId: selectedId,
+                description:
+                  selectedVehicle?.requiresMaintenance || alerts.some((a) => a._id === selectedId)
+                    ? `Bảo dưỡng định kỳ ODO (${selectedVehicle?.odometer?.toLocaleString('vi-VN')} km). Kiểm tra dầu nhớt động cơ, hệ thống phanh và lốp xe.`
+                    : prev.description,
+              }));
+            }}
+          >
+            <option value="">-- Chọn xe tại chi nhánh --</option>
+            {urgentOdoVehicles.length > 0 && (
+              <optgroup label="[CẦN BẢO DƯỠNG] XE CẦN BẢO DƯỠNG ODO (ƯU TIÊN)">
+                {urgentOdoVehicles.map((vehicle) => (
+                  <option key={vehicle._id} value={vehicle._id}>
+                    [CẦN BẢO DƯỠNG ODO] {vehicle.licensePlate} · {vehicle.brand} {vehicle.vehicleModel} ({vehicle.odometer.toLocaleString('vi-VN')} km)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {inMaintenanceVehicles.length > 0 && (
+              <optgroup label="[BẢO TRÌ] XE ĐANG TRONG DIỆN BẢO TRÌ">
+                {inMaintenanceVehicles.map((vehicle) => (
+                  <option key={vehicle._id} value={vehicle._id}>
+                    [ĐANG BẢO TRÌ] {vehicle.licensePlate} · {vehicle.brand} {vehicle.vehicleModel} ({vehicle.odometer.toLocaleString('vi-VN')} km)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {availableVehicles.length > 0 && (
+              <optgroup label="[SẴN SÀNG] XE SẴN SÀNG (BẢO DƯỠNG CHỦ ĐỘNG)">
+                {availableVehicles.map((vehicle) => (
+                  <option key={vehicle._id} value={vehicle._id}>
+                    [SẴN SÀNG] {vehicle.licensePlate} · {vehicle.brand} {vehicle.vehicleModel} ({vehicle.odometer.toLocaleString('vi-VN')} km)
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </Field>
         <Field label="Loại công việc"><select className={inputClass} value={maintenanceForm.maintenanceType} onChange={(event) => setMaintenanceForm({ ...maintenanceForm, maintenanceType: event.target.value })}>
           <option value="Routine">Bảo dưỡng định kỳ</option><option value="Repair">Sửa chữa</option><option value="Inspection">Kiểm tra</option></select></Field>
         <Field label="Tình trạng / công việc cần thực hiện"><textarea required minLength={5} maxLength={2000} rows={3} className={inputClass} value={maintenanceForm.description} onChange={(event) => setMaintenanceForm({ ...maintenanceForm, description: event.target.value })} /></Field>
-        <Field label="Kỹ thuật viên phụ trách"><input required minLength={2} maxLength={120} className={inputClass} value={maintenanceForm.performedBy} onChange={(event) => setMaintenanceForm({ ...maintenanceForm, performedBy: event.target.value })} /></Field>
+        <Field label="Nhân viên phụ trách bảo dưỡng">
+          <div className="space-y-1.5">
+            <select
+              className={inputClass}
+              value={maintenanceForm.performedBy}
+              onChange={(event) =>
+                setMaintenanceForm({ ...maintenanceForm, performedBy: event.target.value })
+              }
+            >
+              {user && (
+                <option value={myDisplayName}>
+                  {myDisplayName} (Tôi - {user.roles === 'BranchManager' ? 'Quản lý trạm' : 'Nhân viên trạm'})
+                </option>
+              )}
+              {staffMembers
+                .filter((s) => s._id !== user?._id)
+                .map((staff) => {
+                  const staffName =
+                    [staff.lastName, staff.firstName].filter(Boolean).join(' ') || staff.username;
+                  return (
+                    <option key={staff._id} value={staffName}>
+                      {staffName} (Nhân viên trạm)
+                    </option>
+                  );
+                })}
+              {maintenanceForm.performedBy &&
+                maintenanceForm.performedBy !== myDisplayName &&
+                !staffMembers.some(
+                  (s) =>
+                    ([s.lastName, s.firstName].filter(Boolean).join(' ') || s.username) ===
+                    maintenanceForm.performedBy
+                ) && (
+                  <option value={maintenanceForm.performedBy}>
+                    {maintenanceForm.performedBy} (Khác)
+                  </option>
+                )}
+            </select>
+            <input
+              type="text"
+              placeholder="Hoặc nhập tên nhân viên/đơn vị bảo dưỡng khác..."
+              className="min-w-0 w-full rounded-lg border border-white/10 bg-[#0A0A0A] px-3 py-1.5 text-xs text-[#D0D0D0] outline-none focus:border-[#FFC799]/70"
+              value={maintenanceForm.performedBy}
+              onChange={(e) =>
+                setMaintenanceForm({ ...maintenanceForm, performedBy: e.target.value })
+              }
+            />
+          </div>
+        </Field>
         <Field label="Thời gian dự kiến (để trống nếu xử lý ngay)"><input type="datetime-local" className={inputClass} value={maintenanceForm.scheduledDate} onChange={(event) => setMaintenanceForm({ ...maintenanceForm, scheduledDate: event.target.value })} /></Field>
         <Field label="Chi phí dự kiến (VNĐ)"><input required type="number" min="0" step="1" className={inputClass} value={maintenanceForm.cost} onChange={(event) => setMaintenanceForm({ ...maintenanceForm, cost: event.target.value })} /></Field>
         <button disabled={busy || loading || !maintenanceForm.vehicleId} className={`${buttonClass} w-full`}>{busy ? 'Đang lưu…' : 'Tạo phiếu bảo trì'}</button>
@@ -288,7 +427,7 @@ export function FleetOperationsPage() {
           <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h3 className="break-words text-sm font-semibold">{vehicleName(log.vehicleId)}</h3><p className="mt-1 break-words text-xs leading-relaxed text-[#A0A0A0]">{branchName(log.branchId)} · {log.maintenanceType === 'Routine' ? 'Bảo dưỡng định kỳ' : log.maintenanceType === 'Repair' ? 'Sửa chữa' : 'Kiểm tra'}</p></div>
             <Status done={log.status === 'Completed'}>{maintenanceLabels[log.status]}</Status></div>
           <p className="my-3 whitespace-pre-wrap break-words text-sm text-[#A0A0A0]">{log.description}</p>
-          <dl className="grid gap-3 text-xs min-[420px]:grid-cols-2"><div className="min-w-0"><dt className="text-[#A0A0A0]">Kỹ thuật viên</dt><dd className="mt-1 break-words">{log.performedBy || 'Chưa phân công'}</dd></div>
+          <dl className="grid gap-3 text-xs min-[420px]:grid-cols-2"><div className="min-w-0"><dt className="text-[#A0A0A0]">Nhân viên phụ trách</dt><dd className="mt-1 break-words font-medium text-white">{log.performedBy || 'Chưa phân công'}</dd></div>
             <div className="min-w-0"><dt className="text-[#A0A0A0]">{log.status === 'Completed' ? 'Chi phí thực tế' : 'Chi phí dự kiến'}</dt><dd className="mt-1 break-words font-semibold tabular-nums text-[#FFC799]">{money(log.cost)}</dd></div>
             <div className="min-w-0"><dt className="text-[#A0A0A0]">Dự kiến</dt><dd className="mt-1 break-words">{log.scheduledDate ? <time dateTime={log.scheduledDate}>{date(log.scheduledDate)}</time> : 'Xử lý ngay'}</dd></div>
             <div className="min-w-0"><dt className="text-[#A0A0A0]">ODO ghi nhận</dt><dd className="mt-1 break-words tabular-nums">{log.odometerAtMaintenance.toLocaleString('vi-VN')} km</dd></div>
@@ -637,7 +776,7 @@ export function FleetOperationsPage() {
         <div className="flex flex-wrap justify-end gap-3"><button type="button" className={subtleButton} disabled={busy} onClick={() => setReview(null)}>Quay lại</button><button disabled={busy} className={buttonClass}>Xác nhận từ chối</button></div>
       </form> : completion && <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void mutate(() => api.put(`/maintenance/${completion.id}/complete`, { cost: Number(completion.cost), performedBy: completion.performedBy, odometer: Number(completion.odometer) }), 'Đã hoàn tất bảo trì. Xe sẵn sàng phục vụ.', () => setCompletion(null)); }}>
         <p className="break-words text-sm text-[#A0A0A0]">{completion.vehicle}</p><Field label="Chi phí thực tế (VNĐ)"><input autoFocus required type="number" min="0" step="1" className={inputClass} value={completion.cost} onChange={(event) => setCompletion({ ...completion, cost: event.target.value })} /></Field>
-        <Field label="Kỹ thuật viên thực hiện"><input required minLength={2} maxLength={120} className={inputClass} value={completion.performedBy} onChange={(event) => setCompletion({ ...completion, performedBy: event.target.value })} /></Field>
+        <Field label="Nhân viên phụ trách hoàn tất"><input required minLength={2} maxLength={120} className={inputClass} value={completion.performedBy} onChange={(event) => setCompletion({ ...completion, performedBy: event.target.value })} /></Field>
         <Field label="ODO khi hoàn tất (km)"><input required type="number" min="0" step="1" className={inputClass} value={completion.odometer} onChange={(event) => setCompletion({ ...completion, odometer: event.target.value })} /></Field>
         <p className="text-xs leading-relaxed text-[#6E6E6E]">Xe trở lại trạng thái Sẵn sàng và bắt đầu chu kỳ cảnh báo ODO tiếp theo.</p>
         <div className="flex flex-wrap justify-end gap-3"><button type="button" className={subtleButton} disabled={busy} onClick={() => setCompletion(null)}>Quay lại</button><button disabled={busy} className={buttonClass}>Xác nhận hoàn tất</button></div>

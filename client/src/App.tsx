@@ -279,8 +279,22 @@ export function App() {
                   <Route path="/profile" element={<ProfilePage />} />
 
                   {/* Dedicated Booking Multi-step Flow & Order Details (UC-36) */}
-                  <Route path="/booking/:vehicleId" element={<BookingPage />} />
-                  <Route path="/booking" element={<BookingPage />} />
+                  <Route
+                    path="/booking/:vehicleId"
+                    element={
+                      <RequireRole roles={['Customer', 'SystemAdmin', 'BranchManager', 'Staff']}>
+                        <BookingPage />
+                      </RequireRole>
+                    }
+                  />
+                  <Route
+                    path="/booking"
+                    element={
+                      <RequireRole roles={['Customer', 'SystemAdmin', 'BranchManager', 'Staff']}>
+                        <BookingPage />
+                      </RequireRole>
+                    }
+                  />
                   <Route path="/booking-details/:id" element={<OrderDetailPage />} />
                   <Route path="/orders/:id" element={<OrderDetailPage />} />
                   <Route path="/vnpay-return" element={<VnPayReturnPage />} />

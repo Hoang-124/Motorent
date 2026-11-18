@@ -228,6 +228,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       return;
     }
 
+    if (user.roles === 'Customer' && user.identityStatus !== 'Verified') {
+      if (user.identityStatus === 'Pending') {
+        setErrorMsg('Hồ sơ định danh eKYC của bạn đang chờ trạm xét duyệt. Vui lòng chờ phê duyệt hoàn tất trước khi đặt xe.');
+      } else if (user.identityStatus === 'Rejected') {
+        setErrorMsg(`Hồ sơ eKYC của bạn đã bị từ chối (${user.ekycRejectionReason || 'Giấy tờ không hợp lệ'}). Vui lòng cập nhật lại tại mục Hồ sơ.`);
+      } else {
+        setErrorMsg('Bắt buộc phải hoàn tất xác thực eKYC (CCCD/GPLX) tại mục Hồ sơ cá nhân trước khi đặt xe.');
+      }
+      return;
+    }
+
     if (startDateTime >= endDateTime) {
       setErrorMsg('Thời gian trả xe phải sau thời gian nhận xe.');
       return;

@@ -60,6 +60,12 @@ export interface Vehicle {
   averageRating?: number;
   ratingAverage?: number;
   reviewCount?: number;
+  upcomingBooking?: {
+    bookingCode: string;
+    status: string;
+    pickupDateTime: string;
+    returnDateTime: string;
+  } | null;
 }
 
 export interface VehicleReview {
@@ -106,6 +112,19 @@ export interface User {
   updatedAt?: string;
 }
 
+export type PaymentMethodType = 'Cash' | 'POS' | 'DirectBank' | 'VNPay';
+export type PaymentStageType = 'Deposit' | 'PreHandover' | 'CheckoutSettlement' | 'AdditionalFee';
+
+export interface PaymentRecord {
+  transactionCode?: string;
+  amount: number;
+  paymentMethod: PaymentMethodType;
+  paymentStage: PaymentStageType;
+  collectedBy?: string | User;
+  collectedAt: string;
+  notes?: string;
+}
+
 export interface Booking {
   _id: string;
   bookingCode: string;
@@ -131,6 +150,10 @@ export interface Booking {
   paidAmount?: number;
   counterPaidAt?: string;
   counterPaidBy?: string | User;
+  vnpayTransactionNo?: string;
+  vnpayBankCode?: string;
+  vnpayPayDate?: string;
+  paymentHistory?: PaymentRecord[];
   eSignatureUrl?: string;
   lessorSignatureUrl?: string;
   contractSignedAt?: string;
@@ -138,6 +161,11 @@ export interface Booking {
   customPickupAddress?: string;
   customReturnAddress?: string;
   deliveryFee?: number;
+  groupBookingCode?: string;
+  groupTotalAmount?: number;
+  groupDepositAmount?: number;
+  groupRemainingAmount?: number;
+  groupItemCount?: number;
   startOdometer: number;
   endOdometer?: number;
   checkinImages?: string[];

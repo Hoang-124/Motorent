@@ -399,6 +399,7 @@ export const createSchedule = async (req: AuthenticatedRequest, res: Response, n
     const existing = await StaffSchedule.findOne({
       staffId,
       shiftDate: { $gte: dayStart, $lte: dayEnd },
+      status: { $ne: 'Cancelled' },
       $or: [
         { shiftType },
         { shiftType: 'FullDay' },
@@ -414,9 +415,43 @@ export const createSchedule = async (req: AuthenticatedRequest, res: Response, n
       return;
     }
 
+    const branchIdForShift = targetBranchId || staff.branchId;
+
+    // Strict slot exclusivity: At MOTORENT stations, each shift slot (Ca 1, Ca 2, Ca 3) has at most 1 staff
+    const branchSlotOccupied = await StaffSchedule.findOne({
+      branchId: branchIdForShift,
+      shiftDate: { $gte: dayStart, $lte: dayEnd },
+      status: { $ne: 'Cancelled' },
+      $or: [
+        { shiftType },
+        { shiftType: 'FullDay' },
+        ...(shiftType === 'FullDay' ? [{ shiftType: { $in: ['Morning', 'Afternoon', 'Evening'] } }] : []),
+      ],
+    }).populate('staffId', 'firstName lastName username');
+
+    if (branchSlotOccupied) {
+      const occStaff = branchSlotOccupied.staffId as any;
+      const occName = occStaff
+        ? `${occStaff.firstName || ''} ${occStaff.lastName || ''}`.trim() || occStaff.username || 'nhân viên khác'
+        : 'nhân viên khác';
+      const shiftLabel =
+        shiftType === 'Morning'
+          ? 'Ca 1 (Sáng)'
+          : shiftType === 'Afternoon'
+          ? 'Ca 2 (Chiều)'
+          : shiftType === 'Evening'
+          ? 'Ca 3 (Tối)'
+          : 'Nguyên ngày';
+      res.status(409).json({
+        success: false,
+        message: `Ca trực ${shiftLabel} ngày này tại chi nhánh đã có ${occName} đảm nhiệm. Mỗi ca trực trạm chỉ có tối đa 1 nhân sự trực quầy.`,
+      });
+      return;
+    }
+
     const newSchedule = await StaffSchedule.create({
       staffId,
-      branchId: targetBranchId || staff.branchId,
+      branchId: branchIdForShift,
       shiftDate: dayStart,
       shiftType,
       status: 'Assigned',
@@ -482,6 +517,7 @@ export const updateSchedule = async (req: AuthenticatedRequest, res: Response, n
         _id: { $ne: schedule._id },
         staffId: schedule.staffId,
         shiftDate: { $gte: dayStart, $lte: dayEnd },
+        status: { $ne: 'Cancelled' },
         $or: [
           { shiftType },
           { shiftType: 'FullDay' },
@@ -496,6 +532,40 @@ export const updateSchedule = async (req: AuthenticatedRequest, res: Response, n
         });
         return;
       }
+
+      // Strict slot exclusivity: check if another staff is already assigned to this slot at this branch
+      const branchConflict = await StaffSchedule.findOne({
+        _id: { $ne: schedule._id },
+        branchId: schedule.branchId,
+        shiftDate: { $gte: dayStart, $lte: dayEnd },
+        status: { $ne: 'Cancelled' },
+        $or: [
+          { shiftType },
+          { shiftType: 'FullDay' },
+          ...(shiftType === 'FullDay' ? [{ shiftType: { $in: ['Morning', 'Afternoon', 'Evening'] } }] : []),
+        ],
+      }).populate('staffId', 'firstName lastName username');
+
+      if (branchConflict) {
+        const occStaff = branchConflict.staffId as any;
+        const occName = occStaff
+          ? `${occStaff.firstName || ''} ${occStaff.lastName || ''}`.trim() || occStaff.username || 'nhân viên khác'
+          : 'nhân viên khác';
+        const shiftLabel =
+          shiftType === 'Morning'
+            ? 'Ca 1 (Sáng)'
+            : shiftType === 'Afternoon'
+            ? 'Ca 2 (Chiều)'
+            : shiftType === 'Evening'
+            ? 'Ca 3 (Tối)'
+            : 'Nguyên ngày';
+        res.status(409).json({
+          success: false,
+          message: `Ca trực ${shiftLabel} ngày này tại chi nhánh đã có ${occName} đảm nhiệm. Mỗi ca trực trạm chỉ có tối đa 1 nhân sự trực quầy.`,
+        });
+        return;
+      }
+
       schedule.shiftType = shiftType;
     }
     if (status) schedule.status = status;
@@ -569,17 +639,47 @@ export const clockAttendance = async (req: AuthenticatedRequest, res: Response, 
     }
 
     const now = new Date();
+    const shiftConfig = SHIFT_HOURS[schedule.shiftType as keyof typeof SHIFT_HOURS] || SHIFT_HOURS.Morning;
+    const expectedStart = new Date(schedule.shiftDate);
+    expectedStart.setHours(shiftConfig.startHour, shiftConfig.startMinute, 0, 0);
+    const expectedEnd = new Date(schedule.shiftDate);
+    expectedEnd.setHours(shiftConfig.endHour, shiftConfig.endMinute, 0, 0);
+
+    const formatTime = (d: Date) =>
+      d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
     if (!schedule.checkInTime) {
+      // Clock IN Time Window Verification
+      // Staff is allowed to clock in from 30 minutes before shift start until shift end
+      const earlyWindowMs = 30 * 60 * 1000;
+      const allowedFrom = new Date(expectedStart.getTime() - earlyWindowMs);
+
+      // Only bypass strict time check if admin explicitly passes bypassWindow in body
+      const bypassWindow = isAdmin && req.body?.bypassTimeWindow === true;
+
+      if (!bypassWindow) {
+        if (now.getTime() < allowedFrom.getTime()) {
+          res.status(400).json({
+            success: false,
+            message: `Chưa đến giờ vào ca. Ca trực bắt đầu lúc ${formatTime(expectedStart)}. Bạn chỉ có thể điểm danh từ ${formatTime(allowedFrom)} (trước tối đa 30 phút).`,
+          });
+          return;
+        }
+
+        if (now.getTime() > expectedEnd.getTime()) {
+          res.status(400).json({
+            success: false,
+            message: `Ca trực này đã kết thúc lúc ${formatTime(expectedEnd)}. Không thể điểm danh vào ca sau khi ca trực đã qua.`,
+          });
+          return;
+        }
+      }
+
       // Clock IN
       schedule.checkInTime = now;
       schedule.status = 'Present';
 
-      // Determine late flag (>15 minutes)
-      const shiftConfig = SHIFT_HOURS[schedule.shiftType as keyof typeof SHIFT_HOURS] || SHIFT_HOURS.Morning;
-      const expectedStart = new Date(schedule.shiftDate);
-      expectedStart.setHours(shiftConfig.startHour, shiftConfig.startMinute, 0, 0);
-
+      // Determine late flag (>15 minutes after start)
       const diffMinutes = Math.floor((now.getTime() - expectedStart.getTime()) / (1000 * 60));
       let isLate = false;
 
@@ -587,6 +687,9 @@ export const clockAttendance = async (req: AuthenticatedRequest, res: Response, 
         isLate = true;
         const lateNote = `[Đi muộn ${diffMinutes} phút]`;
         schedule.notes = schedule.notes ? `${schedule.notes} ${lateNote}` : lateNote;
+      } else {
+        const onTimeNote = `[Đúng giờ - Vào lúc ${formatTime(now)}]`;
+        schedule.notes = schedule.notes ? `${schedule.notes} ${onTimeNote}` : onTimeNote;
       }
 
       await schedule.save();
@@ -597,7 +700,7 @@ export const clockAttendance = async (req: AuthenticatedRequest, res: Response, 
         isLate,
         message: isLate
           ? `Điểm danh VÀO CA thành công (Ghi nhận đi muộn ${diffMinutes} phút).`
-          : 'Điểm danh VÀO CA đúng giờ thành công.',
+          : `Điểm danh VÀO CA đúng giờ thành công lúc ${formatTime(now)}. Chúc bạn một ca trực hiệu quả!`,
         data: schedule,
       });
       return;
@@ -605,13 +708,32 @@ export const clockAttendance = async (req: AuthenticatedRequest, res: Response, 
 
     if (!schedule.checkOutTime) {
       // Clock OUT
+      // Prevent accidental double clicks within 15 seconds
+      const checkInMs = new Date(schedule.checkInTime).getTime();
+      if (now.getTime() - checkInMs < 15 * 1000 && !isAdmin) {
+        res.status(400).json({
+          success: false,
+          message: 'Bạn vừa điểm danh vào ca. Vui lòng chờ ít nhất 15 giây trước khi thực hiện ra ca.',
+        });
+        return;
+      }
+
       schedule.checkOutTime = now;
+      const workedMinutes = Math.floor((now.getTime() - checkInMs) / (1000 * 60));
+
+      // Note early leave if checking out > 15 minutes before shift end
+      const diffToEnd = Math.floor((expectedEnd.getTime() - now.getTime()) / (1000 * 60));
+      if (diffToEnd > 15) {
+        const earlyNote = `[Về sớm ${diffToEnd} phút]`;
+        schedule.notes = schedule.notes ? `${schedule.notes} ${earlyNote}` : earlyNote;
+      }
+
       await schedule.save();
 
       res.json({
         success: true,
         action: 'CHECK_OUT',
-        message: 'Điểm danh RA CA thành công. Chúc bạn một ngày làm việc tốt lành!',
+        message: `Điểm danh RA CA thành công lúc ${formatTime(now)} (Tổng thời gian trực: ${Math.floor(workedMinutes / 60)}h ${workedMinutes % 60}m).`,
         data: schedule,
       });
       return;
@@ -1024,18 +1146,11 @@ export const aiOptimizeSchedules = async (
         const rawWorkload = pickupCount * 1.0 + returnCount * 1.0 + doorDeliveryCount * 0.8 + (isWeekend ? 1.2 : 0.4);
         const demandScore = Math.round(rawWorkload * 10) / 10;
 
-        // Determine required staff headcount for this shift:
-        // If there is at least 1 DoorDelivery in the shift AND other counter bookings, or demandScore >= 2.8, require 2 staff so 1 stays at counter while 1 delivers
-        let recommendedStaffCount = 1;
-        if (
-          (demandScore >= 2.8 || (doorDeliveryCount >= 1 && pickupCount + returnCount >= 2)) &&
-          branchStaff.length >= 2
-        ) {
-          recommendedStaffCount = 2;
-        }
-        if (demandScore >= 5.5 && branchStaff.length >= 3) {
-          recommendedStaffCount = 3;
-        }
+        // Strict MOTORENT Station Operational Convention:
+        // Each station shift slot (Morning, Afternoon, Evening) has EXCLUSIVELY AT MOST 1 staff member.
+        // A single day across a branch has at most 3 shifts (Ca 1, Ca 2, Ca 3).
+        // Never assign multiple staff to the same shift slot to prevent duplicate/overlapping shifts.
+        const recommendedStaffCount = 1;
 
         // Count already assigned / preserved staff in this branch & slot
         const existingInSlot = activeExistingSchedulesInWindow.filter((s) => {
@@ -1258,6 +1373,7 @@ export const aiOptimizeSchedules = async (
 
     // Build set of preserved shift keys inside target window so neither Gemini nor persistence duplicates them
     const preservedSlotKeys = new Set<string>();
+    const preservedBranchSlotKeys = new Set<string>();
     for (const ex of activeExistingSchedulesInWindow) {
       const exSid = extractIdStr(ex.staffId);
       const exDateKey = toDateKey(new Date(ex.shiftDate));
@@ -1265,8 +1381,12 @@ export const aiOptimizeSchedules = async (
         preservedSlotKeys.add(`${exSid}_${exDateKey}_Morning`);
         preservedSlotKeys.add(`${exSid}_${exDateKey}_Afternoon`);
         preservedSlotKeys.add(`${exSid}_${exDateKey}_Evening`);
+        preservedBranchSlotKeys.add(`${exDateKey}_Morning`);
+        preservedBranchSlotKeys.add(`${exDateKey}_Afternoon`);
+        preservedBranchSlotKeys.add(`${exDateKey}_Evening`);
       } else {
         preservedSlotKeys.add(`${exSid}_${exDateKey}_${ex.shiftType}`);
+        preservedBranchSlotKeys.add(`${exDateKey}_${ex.shiftType}`);
       }
     }
 
@@ -1307,6 +1427,7 @@ export const aiOptimizeSchedules = async (
 
       recommendations.length = 0;
       const seenPrecomputed = new Set<string>(preservedSlotKeys);
+      const seenPrecomputedSlots = new Set<string>(preservedBranchSlotKeys);
 
       for (const pr of rawPrecomputed) {
         const sid = typeof pr.staffId === 'string' ? pr.staffId.trim() : '';
@@ -1324,10 +1445,14 @@ export const aiOptimizeSchedules = async (
 
         const shiftTypeVal = sType as 'Morning' | 'Afternoon' | 'Evening';
         const dedupeKey = `${sid}_${sDate}_${shiftTypeVal}`;
-        if (seenPrecomputed.has(dedupeKey)) {
+        const branchSlotKey = `${sDate}_${shiftTypeVal}`;
+
+        // Ensure slot exclusivity: only 1 staff per shift slot across the branch
+        if (seenPrecomputed.has(dedupeKey) || seenPrecomputedSlots.has(branchSlotKey)) {
           continue;
         }
         seenPrecomputed.add(dedupeKey);
+        seenPrecomputedSlots.add(branchSlotKey);
 
         const reasonStr =
           typeof pr.reason === 'string' && pr.reason.trim()
@@ -1434,13 +1559,18 @@ export const aiOptimizeSchedules = async (
           // Replace recommendations with Gemini's validated response
           recommendations.length = 0;
           const seenGemini = new Set<string>(preservedSlotKeys);
+          const seenGeminiSlots = new Set<string>(preservedBranchSlotKeys);
 
           for (const gr of geminiResult.recommendations) {
             const dedupeKey = `${gr.staffId}_${gr.shiftDate}_${gr.shiftType}`;
-            if (seenGemini.has(dedupeKey)) {
+            const branchSlotKey = `${gr.shiftDate}_${gr.shiftType}`;
+
+            // Ensure slot exclusivity: only 1 staff per shift slot across the branch
+            if (seenGemini.has(dedupeKey) || seenGeminiSlots.has(branchSlotKey)) {
               continue;
             }
             seenGemini.add(dedupeKey);
+            seenGeminiSlots.add(branchSlotKey);
 
             recommendations.push({
               staffId: gr.staffId,
@@ -1495,13 +1625,16 @@ export const aiOptimizeSchedules = async (
       }
 
       const persistedSlotKeys = new Set<string>(preservedSlotKeys);
+      const persistedBranchSlotKeys = new Set<string>(preservedBranchSlotKeys);
 
       for (const rec of recommendations) {
         const slotKey = `${rec.staffId}_${rec.shiftDate}_${rec.shiftType}`;
-        if (persistedSlotKeys.has(slotKey)) {
+        const branchSlotKey = `${rec.shiftDate}_${rec.shiftType}`;
+        if (persistedSlotKeys.has(slotKey) || persistedBranchSlotKeys.has(branchSlotKey)) {
           continue;
         }
         persistedSlotKeys.add(slotKey);
+        persistedBranchSlotKeys.add(branchSlotKey);
 
         const localDayStart = parseLocalDateKey(rec.shiftDate);
         const created = await StaffSchedule.create({

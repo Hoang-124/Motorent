@@ -239,7 +239,7 @@ export const WishlistPage: React.FC = () => {
                         type="button"
                         disabled={isToggling(vehicleId)}
                         onClick={() => handleRemove(vehicleId)}
-                        className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-lg bg-[#101010]/80 hover:bg-red-500 text-white/80 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-90 disabled:opacity-50"
+                        className="absolute top-2.5 right-2.5 z-10 w-7 h-7 rounded-lg bg-black/60 hover:bg-red-500 text-white/90 hover:text-white flex items-center justify-center transition-all cursor-pointer shadow-sm active:scale-90 disabled:opacity-50 border border-white/20"
                         title="Xóa khỏi danh sách yêu thích"
                       >
                         <Trash2 className="w-3.5 h-3.5 stroke-[2]" />
@@ -299,7 +299,14 @@ export const WishlistPage: React.FC = () => {
                           <button
                             type="button"
                             disabled={!isAvail}
-                            onClick={() => navigate(`/booking/${v._id}`)}
+                            onClick={() => {
+                              const target = `/booking/${v._id}`;
+                              if (!isAuthenticated) {
+                                navigate(`/login?returnTo=${encodeURIComponent(target)}`);
+                                return;
+                              }
+                              navigate(target);
+                            }}
                             className={`py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center space-x-1 ${
                               isAvail
                                 ? 'bg-[#FFC799] hover:bg-[#ffb67a] active:scale-95 text-[#101010] cursor-pointer'

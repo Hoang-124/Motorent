@@ -33,6 +33,8 @@ import {
   Lock,
   BarChart3,
   MapPin,
+  Landmark,
+  History,
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User, Branch } from '../types';
@@ -88,7 +90,7 @@ const VALID_DESK_MODES: MainDeskMode[] = [
 const isRenderableSignatureUrl = (val?: string): boolean =>
   Boolean(
     val &&
-      (val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'))
+    (val.startsWith('data:image/') || val.startsWith('http://') || val.startsWith('https://'))
   );
 
 interface DamageRecordItem {
@@ -359,6 +361,11 @@ export const CounterDesk: React.FC = () => {
   const [counterPayNotes, setCounterPayNotes] = useState<string>('');
   const [counterPaySubmitting, setCounterPaySubmitting] = useState<boolean>(false);
 
+  // Checkout payment settlement states (UC-59)
+  const [checkoutPayMethod, setCheckoutPayMethod] = useState<'Cash' | 'POS' | 'DirectBank' | ''>('Cash');
+  const [checkoutPayNotes, setCheckoutPayNotes] = useState<string>('');
+  const [checkoutPayError, setCheckoutPayError] = useState<string>('');
+
   // Damage Record modal states (UC-58)
   const [showDamageModal, setShowDamageModal] = useState<boolean>(false);
   const [damageDesc, setDamageDesc] = useState<string>('');
@@ -375,6 +382,157 @@ export const CounterDesk: React.FC = () => {
     const img2 = getOptimizedVehicleImageUrl(rawImgs[2] || rawImgs[1] || rawImgs[0]);
     const img3 = getOptimizedVehicleImageUrl(rawImgs[0] || rawImgs[2] || rawImgs[1]);
     return [img0, img1, img2, img3];
+  };
+
+  const renderPaymentHistoryList = (b: Booking) => {
+    const rawHistory = b.paymentHistory && b.paymentHistory.length > 0 ? b.paymentHistory : [];
+    const items: Array<{
+      title: string;
+      amount: number;
+      method: string;
+      methodType: string;
+      time: string;
+      collector?: string;
+      notes?: string;
+    }> = [];
+
+    if (rawHistory.length > 0) {
+      rawHistory.forEach((h, idx) => {
+        const methodLabel =
+          h.paymentMethod === 'Cash'
+            ? 'Tiền mặt'
+            : h.paymentMethod === 'POS'
+            ? 'Thẻ POS'
+            : h.paymentMethod === 'DirectBank'
+            ? 'Chuyển khoản quầy'
+            : 'VNPay (Online)';
+        const stageLabel =
+          h.paymentStage === 'Deposit'
+            ? 'Cọc trước 30%'
+            : h.paymentStage === 'CheckoutSettlement'
+            ? 'Tất toán khi trả xe'
+            : h.paymentStage === 'PreHandover'
+            ? 'Thanh toán tại quầy'
+            : 'Phụ phí phát sinh';
+        const staffName =
+          typeof h.collectedBy === 'object' && h.collectedBy !== null
+            ? `${(h.collectedBy as User).firstName || ''} ${(h.collectedBy as User).lastName || ''}`.trim() ||
+              (h.collectedBy as User).username
+            : undefined;
+        items.push({
+          title: `Đợt ${idx + 1}: ${stageLabel}`,
+          amount: h.amount,
+          method: methodLabel,
+          methodType: h.paymentMethod,
+          time: new Date(h.collectedAt).toLocaleString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          }),
+          collector: staffName,
+          notes: h.notes,
+        });
+      });
+    } else {
+      if (b.depositPaid || (b.paidAmount || 0) > 0) {
+        const depAmt = b.depositAmount || Math.round(b.totalAmount * 0.3);
+        items.push({
+          title: 'Đợt 1: Cọc trực tuyến',
+          amount: depAmt,
+          method: 'Cổng thanh toán VNPay',
+          methodType: 'VNPay',
+          time: b.createdAt
+            ? new Date(b.createdAt).toLocaleString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              })
+            : 'Lúc đặt xe',
+          notes: b.vnpayTransactionNo ? `Mã GD: ${b.vnpayTransactionNo}` : 'Đã thanh toán cọc',
+        });
+      }
+      if ((b.paidAmount || 0) > (b.depositAmount || 0)) {
+        const counterAmt = (b.paidAmount || 0) - (b.depositAmount || 0);
+        const staffName =
+          typeof b.counterPaidBy === 'object' && b.counterPaidBy !== null
+            ? `${(b.counterPaidBy as User).firstName || ''} ${(b.counterPaidBy as User).lastName || ''}`.trim() ||
+              (b.counterPaidBy as User).username
+            : undefined;
+        items.push({
+          title: 'Đợt 2: Thu tại quầy',
+          amount: counterAmt,
+          method: b.paymentMethod === 'Cash' ? 'Tiền mặt' : 'Quẹt thẻ POS / Chuyển khoản',
+          methodType: b.paymentMethod || 'Cash',
+          time: b.counterPaidAt
+            ? new Date(b.counterPaidAt).toLocaleString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+              })
+            : 'Tại quầy',
+          collector: staffName,
+          notes: 'Ghi nhận thanh toán tại quầy',
+        });
+      }
+    }
+
+    if (items.length === 0) {
+      return (
+        <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-[#A0A0A0] text-center">
+          Chưa phát sinh giao dịch thu tiền nào cho đơn này.
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-2">
+        {items.map((it, idx) => (
+          <div
+            key={idx}
+            className="p-3 rounded-xl bg-[#101010] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+          >
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-white">{it.title}</span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    it.methodType === 'VNPay'
+                      ? 'bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30'
+                      : it.methodType === 'POS'
+                      ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                      : it.methodType === 'DirectBank'
+                      ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                      : 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
+                  }`}
+                >
+                  {it.method}
+                </span>
+              </div>
+              <div className="text-[11px] text-[#A0A0A0] flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                <span>Thời gian: {it.time}</span>
+                {it.collector && (
+                  <span>
+                    • Thu bởi: <strong className="text-white">{it.collector}</strong>
+                  </span>
+                )}
+                {it.notes && <span>• {it.notes}</span>}
+              </div>
+            </div>
+            <div className="text-right shrink-0">
+              <span className="text-sm font-black text-[#99FFE4]">
+                +{it.amount.toLocaleString('vi-VN')} đ
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const getEffectivePaidAmount = (b: Booking): number => {
@@ -427,7 +585,7 @@ export const CounterDesk: React.FC = () => {
       typeof b.userId === 'object' && b.userId !== null ? (b.userId as User) : null;
     const defaultReceiverName = bookingOwner
       ? [bookingOwner.lastName, bookingOwner.firstName].filter(Boolean).join(' ') ||
-        bookingOwner.username
+      bookingOwner.username
       : '';
     setReceiverName(b.receiverName || defaultReceiverName);
     setReceiverPhone(b.receiverPhone || bookingOwner?.phoneNumber || '');
@@ -463,6 +621,10 @@ export const CounterDesk: React.FC = () => {
       existingCheckout[2] || '',
       existingCheckout[3] || '',
     ]);
+
+    setCheckoutPayMethod('Cash');
+    setCheckoutPayNotes('');
+    setCheckoutPayError('');
 
     if (b.status === 'Ongoing') {
       setActiveTab('checkout');
@@ -558,8 +720,8 @@ export const CounterDesk: React.FC = () => {
         rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
           ? rawBranch._id
           : rawBranch
-          ? String(rawBranch)
-          : undefined;
+            ? String(rawBranch)
+            : undefined;
       const vId = customVehicleId !== undefined ? customVehicleId : maintenanceVehicleFilter;
       const st = customStatus !== undefined ? customStatus : maintenanceStatusFilter;
       const params: Record<string, string | number> = { page: 1, limit: 50 };
@@ -589,8 +751,8 @@ export const CounterDesk: React.FC = () => {
         rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
           ? rawBranch._id
           : rawBranch
-          ? String(rawBranch)
-          : undefined;
+            ? String(rawBranch)
+            : undefined;
       const vId = customVehicleId !== undefined ? customVehicleId : transferVehicleFilter;
       const st = customStatus !== undefined ? customStatus : transferStatusFilter;
       const params: Record<string, string | number> = { page: 1, limit: 50 };
@@ -624,8 +786,8 @@ export const CounterDesk: React.FC = () => {
         rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
           ? rawBranch._id
           : rawBranch
-          ? String(rawBranch)
-          : undefined;
+            ? String(rawBranch)
+            : undefined;
       const params = bId ? { branchId: bId } : {};
       const res = await api.get('/vehicles', { params });
       if (res.data && res.data.data) {
@@ -685,7 +847,7 @@ export const CounterDesk: React.FC = () => {
     try {
       const vObj =
         typeof completeMaintenanceModal.log.vehicleId === 'object' &&
-        completeMaintenanceModal.log.vehicleId !== null
+          completeMaintenanceModal.log.vehicleId !== null
           ? completeMaintenanceModal.log.vehicleId
           : null;
 
@@ -946,8 +1108,8 @@ export const CounterDesk: React.FC = () => {
       rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
         ? String(rawBranch._id || '')
         : rawBranch
-        ? String(rawBranch)
-        : '';
+          ? String(rawBranch)
+          : '';
 
     const refreshQueueSilently = async () => {
       try {
@@ -1045,8 +1207,8 @@ export const CounterDesk: React.FC = () => {
       rawBranch && typeof rawBranch === 'object' && '_id' in rawBranch
         ? rawBranch._id
         : rawBranch
-        ? String(rawBranch)
-        : '';
+          ? String(rawBranch)
+          : '';
     if (!bId) {
       setAssignedBranch(null);
       return;
@@ -1411,6 +1573,31 @@ export const CounterDesk: React.FC = () => {
       return;
     }
 
+    const returnDate = new Date(selectedBooking.returnDateTime);
+    const now = new Date();
+    const overdueMs = now.getTime() - returnDate.getTime();
+    const graceMinutes = 15;
+    const isOverdueNow = overdueMs > graceMinutes * 60 * 1000;
+    const overdueHoursCeil = isOverdueNow ? Math.ceil(overdueMs / (3600 * 1000)) : 0;
+    const dynamicLateFee =
+      selectedBooking.lateFee !== undefined && selectedBooking.lateFee > 0
+        ? selectedBooking.lateFee
+        : isOverdueNow
+          ? overdueHoursCeil * 30000
+          : 0;
+    const totalDue =
+      (selectedBooking.remainingAmount || 0) + dynamicLateFee + (damageFee || 0);
+
+    if (totalDue > 0 && !checkoutPayMethod) {
+      setCheckoutPayError('Bắt buộc phải chọn phương thức thu tiền trước khi hoàn tất tất toán!');
+      setStatusMessage({
+        type: 'error',
+        text: 'Vui lòng chọn phương thức thu tiền (Tiền mặt, Thẻ POS hoặc Chuyển khoản) trước khi hoàn tất tất toán trả xe.',
+      });
+      return;
+    }
+    setCheckoutPayError('');
+
     setSubmitting(true);
     setStatusMessage(null);
 
@@ -1421,6 +1608,8 @@ export const CounterDesk: React.FC = () => {
         damageFee,
         returnNotes,
         checkoutImages: checkoutPhotos.filter(Boolean),
+        paymentMethod: totalDue > 0 ? checkoutPayMethod : undefined,
+        paymentNotes: checkoutPayNotes.trim() || undefined,
       });
 
       if (res.data?.data) {
@@ -1485,11 +1674,12 @@ export const CounterDesk: React.FC = () => {
         counterPayMethod === 'POS'
           ? '[Quẹt thẻ POS]'
           : counterPayMethod === 'DirectBank'
-          ? '[Chuyển khoản quầy]'
-          : '[Tiền mặt]';
+            ? '[Chuyển khoản quầy]'
+            : '[Tiền mặt]';
       const notes = [methodLabel, counterPayNotes.trim()].filter(Boolean).join(' - ');
       const res = await api.put(`/bookings/${selectedBooking._id}/counter-pay`, {
         amount: counterPayAmount,
+        paymentMethod: counterPayMethod,
         notes,
       });
       if (res.data?.success && res.data?.data) {
@@ -1587,37 +1777,37 @@ export const CounterDesk: React.FC = () => {
                 {deskMode === 'ekyc'
                   ? 'Đối soát & Xét duyệt hồ sơ eKYC'
                   : deskMode === 'vehicles'
-                  ? 'Đội xe chi nhánh & Trạng thái vận hành'
-                  : deskMode === 'chat'
-                  ? 'Tổng đài hỗ trợ Live Chat'
-                  : deskMode === 'complaints'
-                  ? 'Quản lý & Giải quyết Khiếu nại'
-                  : deskMode === 'shifts'
-                  ? 'Lịch phân ca & Chấm công nhân sự'
-                  : deskMode === 'staff'
-                  ? 'Quản lý nhân sự chi nhánh'
-                  : deskMode === 'reports'
-                  ? 'Báo cáo & Phân tích hiệu suất'
-                  : deskMode === 'audit'
-                  ? 'Nhật ký bảo mật Audit'
-                  : deskMode === 'banners'
-                  ? 'Quản lý Banner CMS'
-                  : 'Bàn giao nhận xe tại quầy'}
+                    ? 'Đội xe chi nhánh & Trạng thái vận hành'
+                    : deskMode === 'chat'
+                      ? 'Tổng đài hỗ trợ Live Chat'
+                      : deskMode === 'complaints'
+                        ? 'Quản lý & Giải quyết Khiếu nại'
+                        : deskMode === 'shifts'
+                          ? 'Lịch phân ca & Chấm công nhân sự'
+                          : deskMode === 'staff'
+                            ? 'Quản lý nhân sự chi nhánh'
+                            : deskMode === 'reports'
+                              ? 'Báo cáo & Phân tích hiệu suất'
+                              : deskMode === 'audit'
+                                ? 'Nhật ký bảo mật Audit'
+                                : deskMode === 'banners'
+                                  ? 'Quản lý Banner CMS'
+                                  : 'Bàn giao nhận xe tại quầy'}
               </h1>
               <p className="text-xs text-[#A0A0A0] mt-1">
                 {deskMode === 'ekyc'
                   ? 'Đối chiếu giấy tờ CCCD, GPLX và ảnh chân dung khách hàng để phê duyệt định danh điện tử.'
                   : deskMode === 'vehicles'
-                  ? 'Theo dõi trạng thái xe tại trạm, cập nhật bảo dưỡng và tra cứu nhật ký điều chuyển.'
-                  : deskMode === 'chat'
-                  ? 'Tiếp nhận và phản hồi tin nhắn trực tuyến từ khách hàng theo thời gian thực.'
-                  : deskMode === 'complaints'
-                  ? 'Xử lý hàng đợi khiếu nại, phản hồi khách hàng và cập nhật kết luận giải quyết.'
-                  : deskMode === 'shifts'
-                  ? 'Theo dõi ca trực trong tuần, điểm danh vào/ra ca và phân bổ nhân sự trực quầy.'
-                  : deskMode === 'staff'
-                  ? 'Quản lý danh sách nhân viên trực quầy, thông tin liên hệ và trạng thái hoạt động.'
-                  : 'Xử lý quy trình Check-in giao xe eKYC và Check-out thu hồi xe, đối soát ODO và tất toán 70% còn lại.'}
+                    ? 'Theo dõi trạng thái xe tại trạm, cập nhật bảo dưỡng và tra cứu nhật ký điều chuyển.'
+                    : deskMode === 'chat'
+                      ? 'Tiếp nhận và phản hồi tin nhắn trực tuyến từ khách hàng theo thời gian thực.'
+                      : deskMode === 'complaints'
+                        ? 'Xử lý hàng đợi khiếu nại, phản hồi khách hàng và cập nhật kết luận giải quyết.'
+                        : deskMode === 'shifts'
+                          ? 'Theo dõi ca trực trong tuần, điểm danh vào/ra ca và phân bổ nhân sự trực quầy.'
+                          : deskMode === 'staff'
+                            ? 'Quản lý danh sách nhân viên trực quầy, thông tin liên hệ và trạng thái hoạt động.'
+                            : 'Xử lý quy trình Check-in giao xe eKYC và Check-out thu hồi xe, đối soát ODO và tất toán 70% còn lại.'}
               </p>
             </div>
 
@@ -1632,16 +1822,15 @@ export const CounterDesk: React.FC = () => {
                 className="self-start inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] bg-[#161616] border border-white/10 hover:border-[#FFC799]/40 hover:text-white transition-colors cursor-pointer shrink-0 whitespace-nowrap"
               >
                 <RefreshCw
-                  className={`w-3.5 h-3.5 text-[#A0A0A0] shrink-0 ${
-                    loading || ekycLoading || loadingVehicles ? 'animate-spin' : ''
-                  }`}
+                  className={`w-3.5 h-3.5 text-[#A0A0A0] shrink-0 ${loading || ekycLoading || loadingVehicles ? 'animate-spin' : ''
+                    }`}
                 />
                 <span>
                   {deskMode === 'bookings'
                     ? 'Đồng bộ đơn chi nhánh'
                     : deskMode === 'ekyc'
-                    ? 'Làm mới hàng đợi eKYC'
-                    : 'Làm mới danh sách xe'}
+                      ? 'Làm mới hàng đợi eKYC'
+                      : 'Làm mới danh sách xe'}
                 </span>
               </button>
             )}
@@ -1656,11 +1845,10 @@ export const CounterDesk: React.FC = () => {
         {/* Global Alert / Toast Notification */}
         {statusMessage && (
           <div
-            className={`mb-6 p-4 rounded-2xl border text-xs flex items-start space-x-3 transition-all ${
-              statusMessage.type === 'success'
-                ? 'bg-[#FFC799]/10 border-[#FFC799]/30 text-[#FFC799]'
-                : 'bg-[#FF8080]/12 border-[#FF8080]/30 text-[#FF8080]'
-            }`}
+            className={`mb-6 p-4 rounded-2xl border text-xs flex items-start space-x-3 transition-all ${statusMessage.type === 'success'
+              ? 'bg-[#FFC799]/10 border-[#FFC799]/30 text-[#FFC799]'
+              : 'bg-[#FF8080]/12 border-[#FF8080]/30 text-[#FF8080]'
+              }`}
           >
             {statusMessage.type === 'success' ? (
               <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-[#FFC799] mt-0.5" />
@@ -1727,22 +1915,20 @@ export const CounterDesk: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleQueueToggle('all')}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                          queueFilter === 'all'
-                            ? 'bg-[#FFC799] text-[#101010] shadow-sm'
-                            : 'text-[#A0A0A0] hover:text-white'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${queueFilter === 'all'
+                          ? 'bg-[#FFC799] text-[#101010] shadow-sm'
+                          : 'text-[#A0A0A0] hover:text-white'
+                          }`}
                       >
                         Tất cả ({orderCounts.total})
                       </button>
                       <button
                         type="button"
                         onClick={() => handleQueueToggle('today')}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                          queueFilter === 'today'
-                            ? 'bg-[#FFC799] text-[#101010] shadow-sm'
-                            : 'text-[#A0A0A0] hover:text-white'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${queueFilter === 'today'
+                          ? 'bg-[#FFC799] text-[#101010] shadow-sm'
+                          : 'text-[#A0A0A0] hover:text-white'
+                          }`}
                       >
                         Hôm nay ({orderCounts.today})
                       </button>
@@ -1762,11 +1948,10 @@ export const CounterDesk: React.FC = () => {
                         key={tab.key}
                         type="button"
                         onClick={() => handleTabChange(tab.key)}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
-                          statusFilter === tab.key
-                            ? 'bg-white/15 text-white border border-white/20'
-                            : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/5'
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${statusFilter === tab.key
+                          ? 'bg-white/15 text-white border border-white/20'
+                          : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/5'
+                          }`}
                       >
                         <span>{tab.label}</span>
                         {tab.count !== undefined && (
@@ -1796,39 +1981,48 @@ export const CounterDesk: React.FC = () => {
                       const userName =
                         typeof b.userId === 'object' && b.userId !== null
                           ? `${(b.userId as User).firstName || ''} ${(b.userId as User).lastName || ''}`.trim() ||
-                            (b.userId as User).username
+                          (b.userId as User).username
                           : 'Khách hàng';
 
                       return (
                         <div
                           key={b._id}
                           onClick={() => handleSelectBooking(b)}
-                          className={`p-4 cursor-pointer transition-all ${
-                            isSelected
-                              ? 'bg-[#FFC799]/10 border-l-4 border-[#FFC799]'
-                              : 'hover:bg-white/[0.02]'
-                          }`}
+                          className={`p-4 cursor-pointer transition-all ${isSelected
+                            ? 'bg-[#FFC799]/10 border-l-4 border-[#FFC799]'
+                            : 'hover:bg-white/[0.02]'
+                            }`}
                         >
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="font-mono text-xs font-bold text-white">{b.bookingCode}</span>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-mono text-xs font-bold text-white shrink-0">{b.bookingCode}</span>
+                              {b.groupBookingCode && (
+                                <span
+                                  className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FFC799]/20 text-[#FFC799] border border-[#FFC799]/40 truncate flex items-center gap-1 shrink-0"
+                                  title={`Đoàn thuê cùng nhau: ${b.groupBookingCode}`}
+                                >
+                                  <Users className="w-3 h-3 shrink-0" />
+                                  <span>Đoàn ({b.groupItemCount || 2} xe)</span>
+                                </span>
+                              )}
+                            </div>
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                b.status === 'Confirmed' || b.status === 'Approved'
-                                  ? 'bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30'
-                                  : b.status === 'Ongoing'
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${b.status === 'Confirmed' || b.status === 'Approved'
+                                ? 'bg-[#FFC799]/12 text-[#FFC799] border border-[#FFC799]/30'
+                                : b.status === 'Ongoing'
                                   ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
                                   : b.status === 'Completed'
-                                  ? 'bg-[#1E1E1E] text-[#A0A0A0] border border-white/10'
-                                  : 'bg-[#1E1E1E] text-[#A0A0A0] border border-white/10'
-                              }`}
+                                    ? 'bg-[#1E1E1E] text-[#A0A0A0] border border-white/10'
+                                    : 'bg-[#1E1E1E] text-[#A0A0A0] border border-white/10'
+                                }`}
                             >
                               {b.status === 'Confirmed' || b.status === 'Approved'
                                 ? 'Chờ nhận xe'
                                 : b.status === 'Ongoing'
-                                ? 'Đang lưu hành'
-                                : b.status === 'Completed'
-                                ? 'Đã hoàn tất'
-                                : b.status}
+                                  ? 'Đang lưu hành'
+                                  : b.status === 'Completed'
+                                    ? 'Đã hoàn tất'
+                                    : b.status}
                             </span>
                           </div>
 
@@ -1867,15 +2061,15 @@ export const CounterDesk: React.FC = () => {
                           {selectedBooking.isPaid
                             ? 'Đã tất toán 100%'
                             : getEffectivePaidAmount(selectedBooking) > 0
-                            ? 'Đã thu tiền cọc'
-                            : 'Mức cọc yêu cầu (Chưa thu)'}
+                              ? 'Đã thu tiền cọc'
+                              : 'Mức cọc yêu cầu (Chưa thu)'}
                         </span>
                         <span className="text-sm font-bold text-[#FFC799]">
                           {(selectedBooking.isPaid
                             ? selectedBooking.totalAmount
                             : getEffectivePaidAmount(selectedBooking) > 0
-                            ? getEffectivePaidAmount(selectedBooking)
-                            : selectedBooking.depositAmount
+                              ? getEffectivePaidAmount(selectedBooking)
+                              : selectedBooking.depositAmount
                           )?.toLocaleString('vi-VN')}{' '}
                           đ
                         </span>
@@ -1897,7 +2091,7 @@ export const CounterDesk: React.FC = () => {
                         <span className="font-medium text-[#F5F5F5] truncate block">
                           {typeof selectedBooking.userId === 'object' && selectedBooking.userId !== null
                             ? (selectedBooking.userId as User).firstName ||
-                              (selectedBooking.userId as User).username
+                            (selectedBooking.userId as User).username
                             : 'Khách thuê'}
                         </span>
                       </div>
@@ -1940,11 +2134,10 @@ export const CounterDesk: React.FC = () => {
                               Còn lại phải thu
                             </span>
                             <span
-                              className={`font-bold text-sm ${
-                                getEffectivePayableBalance(selectedBooking) <= 0
-                                  ? 'text-[#99FFE4]'
-                                  : 'text-[#FF8080]'
-                              }`}
+                              className={`font-bold text-sm ${getEffectivePayableBalance(selectedBooking) <= 0
+                                ? 'text-[#99FFE4]'
+                                : 'text-[#FF8080]'
+                                }`}
                             >
                               {getEffectivePayableBalance(selectedBooking).toLocaleString('vi-VN')} đ
                             </span>
@@ -2077,11 +2270,10 @@ export const CounterDesk: React.FC = () => {
                   <div className="flex border-b border-white/10">
                     <button
                       onClick={() => setActiveTab('checkin')}
-                      className={`flex-1 py-3.5 text-xs font-bold text-center border-b-2 transition-all ${
-                        activeTab === 'checkin'
-                          ? 'border-[#FFC799] text-[#FFC799] bg-[#FFC799]/10'
-                          : 'border-transparent text-[#A0A0A0] hover:text-[#F5F5F5]'
-                      }`}
+                      className={`flex-1 py-3.5 text-xs font-bold text-center border-b-2 transition-all ${activeTab === 'checkin'
+                        ? 'border-[#FFC799] text-[#FFC799] bg-[#FFC799]/10'
+                        : 'border-transparent text-[#A0A0A0] hover:text-[#F5F5F5]'
+                        }`}
                     >
                       1. Check-in Bàn giao xe (
                       {selectedBooking.status === 'Confirmed' || selectedBooking.status === 'Approved'
@@ -2091,11 +2283,10 @@ export const CounterDesk: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setActiveTab('checkout')}
-                      className={`flex-1 py-3.5 text-xs font-bold text-center border-b-2 transition-all ${
-                        activeTab === 'checkout'
-                          ? 'border-[#FFC799] text-[#FFC799] bg-[#FFC799]/10'
-                          : 'border-transparent text-[#A0A0A0] hover:text-[#F5F5F5]'
-                      }`}
+                      className={`flex-1 py-3.5 text-xs font-bold text-center border-b-2 transition-all ${activeTab === 'checkout'
+                        ? 'border-[#FFC799] text-[#FFC799] bg-[#FFC799]/10'
+                        : 'border-transparent text-[#A0A0A0] hover:text-[#F5F5F5]'
+                        }`}
                     >
                       2. Check-out Thu hồi xe & Tất toán (
                       {selectedBooking.status === 'Ongoing' ? 'Đang thực hiện' : ''})
@@ -2316,11 +2507,10 @@ export const CounterDesk: React.FC = () => {
                                   selectedBooking.status !== 'Approved'
                                 }
                                 onClick={() => setStartFuel(lvl)}
-                                className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${
-                                  startFuel === lvl
-                                    ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                                    : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
-                                }`}
+                                className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${startFuel === lvl
+                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
+                                  }`}
                               >
                                 {lvl}
                               </button>
@@ -2404,15 +2594,15 @@ export const CounterDesk: React.FC = () => {
                           </div>
                           {(selectedBooking.status === 'Confirmed' ||
                             selectedBooking.status === 'Approved') && (
-                            <button
-                              type="button"
-                              onClick={handleQuickFillCheckinAngles}
-                              className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#FFC799]/15 border border-white/10 hover:border-[#FFC799]/40 text-[11px] font-bold text-[#FFC799] transition-all cursor-pointer"
-                            >
-                              <Sparkles className="w-3.5 h-3.5" />
-                              <span>Nạp nhanh 4 góc mẫu</span>
-                            </button>
-                          )}
+                              <button
+                                type="button"
+                                onClick={handleQuickFillCheckinAngles}
+                                className="shrink-0 inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-[#FFC799]/15 border border-white/10 hover:border-[#FFC799]/40 text-[11px] font-bold text-[#FFC799] transition-all cursor-pointer"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>Nạp nhanh 4 góc mẫu</span>
+                              </button>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2426,11 +2616,10 @@ export const CounterDesk: React.FC = () => {
                             return (
                               <div
                                 key={angle.code}
-                                className={`rounded-xl border p-3 transition-all ${
-                                  photoUrl
-                                    ? 'border-[#99FFE4]/30 bg-[#141414]'
-                                    : 'border-white/10 bg-[#141414]/60'
-                                }`}
+                                className={`rounded-xl border p-3 transition-all ${photoUrl
+                                  ? 'border-[#99FFE4]/30 bg-[#141414]'
+                                  : 'border-white/10 bg-[#141414]/60'
+                                  }`}
                               >
                                 <div className="flex items-center justify-between mb-1.5">
                                   <div className="flex items-center space-x-1.5">
@@ -2602,7 +2791,7 @@ export const CounterDesk: React.FC = () => {
                             </div>
 
                             {selectedBooking.status === 'Confirmed' ||
-                            selectedBooking.status === 'Approved' ? (
+                              selectedBooking.status === 'Approved' ? (
                               <div className="relative border border-white/10 rounded-xl bg-[#101010] overflow-hidden">
                                 <canvas
                                   ref={lessorCanvasRef}
@@ -2668,7 +2857,7 @@ export const CounterDesk: React.FC = () => {
                             </div>
 
                             {selectedBooking.status === 'Confirmed' ||
-                            selectedBooking.status === 'Approved' ? (
+                              selectedBooking.status === 'Approved' ? (
                               <div className="relative border border-white/10 rounded-xl bg-[#101010] overflow-hidden">
                                 <canvas
                                   ref={canvasRef}
@@ -2712,7 +2901,7 @@ export const CounterDesk: React.FC = () => {
 
                       {/* Complete Check-in Button */}
                       {selectedBooking.status === 'Confirmed' ||
-                      selectedBooking.status === 'Approved' ? (
+                        selectedBooking.status === 'Approved' ? (
                         <button
                           type="button"
                           onClick={handleCheckinSubmit}
@@ -2780,11 +2969,10 @@ export const CounterDesk: React.FC = () => {
                                 type="button"
                                 disabled={selectedBooking.status !== 'Ongoing'}
                                 onClick={() => setEndFuel(lvl)}
-                                className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${
-                                  endFuel === lvl
-                                    ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
-                                    : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
-                                }`}
+                                className={`py-2 px-1.5 rounded-xl text-xs font-bold transition-all border ${endFuel === lvl
+                                  ? 'bg-[#FFC799] text-[#101010] border-[#FFC799]'
+                                  : 'bg-[#101010] text-[#A0A0A0] border-white/10 hover:border-white/20 hover:text-white'
+                                  }`}
                               >
                                 {lvl}
                               </button>
@@ -2834,11 +3022,10 @@ export const CounterDesk: React.FC = () => {
                             return (
                               <div
                                 key={angle.code}
-                                className={`rounded-xl border p-3 transition-all ${
-                                  afterUrl
-                                    ? 'border-[#99FFE4]/30 bg-[#141414]'
-                                    : 'border-white/10 bg-[#141414]/60'
-                                }`}
+                                className={`rounded-xl border p-3 transition-all ${afterUrl
+                                  ? 'border-[#99FFE4]/30 bg-[#141414]'
+                                  : 'border-white/10 bg-[#141414]/60'
+                                  }`}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <div className="flex items-center space-x-1.5">
@@ -3066,32 +3253,32 @@ export const CounterDesk: React.FC = () => {
                           selectedBooking.lateFee !== undefined && selectedBooking.lateFee > 0
                             ? selectedBooking.lateFee
                             : isOverdueNow
-                            ? overdueHoursCeil * 30000
-                            : 0;
+                              ? overdueHoursCeil * 30000
+                              : 0;
                         const totalDue =
                           (selectedBooking.remainingAmount || 0) + dynamicLateFee + (damageFee || 0);
 
                         return (
-                          <div className="p-4 bg-[#101010] rounded-2xl border border-[#FFC799]/20 space-y-2.5 text-xs">
+                          <>
+                            <div className="p-4 bg-[#101010] rounded-2xl border border-[#FFC799]/20 space-y-2.5 text-xs">
                             <div className="flex items-center justify-between border-b border-white/5 pb-2">
                               <span className="font-bold text-white uppercase text-[11px] flex items-center gap-1.5">
                                 <Receipt className="w-3.5 h-3.5 text-[#FFC799]" />
                                 Bảng kê tất toán & Phạt vi phạm
                               </span>
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  isOverdueNow
-                                    ? 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
-                                    : isEarlyReturn
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${isOverdueNow
+                                  ? 'bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30'
+                                  : isEarlyReturn
                                     ? 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
                                     : 'bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30'
-                                }`}
+                                  }`}
                               >
                                 {isOverdueNow
                                   ? `Trễ hẹn +${overdueMinutes}p`
                                   : isEarlyReturn
-                                  ? 'Trả trước hạn'
-                                  : 'Đúng hạn (15p ân hạn)'}
+                                    ? 'Trả trước hạn'
+                                    : 'Đúng hạn (15p ân hạn)'}
                               </span>
                             </div>
 
@@ -3138,8 +3325,116 @@ export const CounterDesk: React.FC = () => {
                               </span>
                             </div>
                           </div>
-                        );
-                      })()}
+
+                          {/* Lịch sử các đợt đã thu tiền */}
+                          <div className="p-4 rounded-2xl border border-white/10 bg-[#141414] space-y-3">
+                            <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
+                              <span className="font-bold text-white text-xs flex items-center gap-2">
+                                <History className="w-4 h-4 text-[#FFC799]" />
+                                <span>Lịch sử các đợt thu tiền</span>
+                              </span>
+                              <span className="text-[11px] text-[#A0A0A0]">
+                                Đã thanh toán: <strong className="text-[#99FFE4]">{getEffectivePaidAmount(selectedBooking).toLocaleString('vi-VN')} đ</strong>
+                              </span>
+                            </div>
+                            {renderPaymentHistoryList(selectedBooking)}
+                          </div>
+
+                          {/* Bắt buộc chọn phương thức thu tiền tất toán tại quầy nếu totalDue > 0 */}
+                          {totalDue > 0 ? (
+                            <div className={`p-4 rounded-2xl border space-y-3 transition-all ${
+                              checkoutPayError ? 'border-[#FF8080] bg-[#FF8080]/5' : 'border-[#FFC799]/30 bg-[#101010]'
+                            }`}>
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                                  <CreditCard className="w-4 h-4 text-[#FFC799]" />
+                                  <span>Phương thức thu tiền tất toán tại quầy</span>
+                                  <span className="text-[#FF8080] font-black text-sm">*</span>
+                                </label>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#FF8080]/15 text-[#FF8080] border border-[#FF8080]/30">
+                                  Bắt buộc chọn trước khi hoàn tất trả xe
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCheckoutPayMethod('Cash');
+                                    setCheckoutPayError('');
+                                  }}
+                                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                    checkoutPayMethod === 'Cash'
+                                      ? 'bg-[#FFC799]/20 border-[#FFC799] text-[#FFC799] shadow-sm shadow-[#FFC799]/20'
+                                      : 'bg-[#161616] border-white/10 text-[#A0A0A0] hover:border-white/20 hover:text-white'
+                                  }`}
+                                >
+                                  <Banknote className="w-4 h-4" />
+                                  <span>Tiền mặt</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCheckoutPayMethod('POS');
+                                    setCheckoutPayError('');
+                                  }}
+                                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                    checkoutPayMethod === 'POS'
+                                      ? 'bg-[#99FFE4]/20 border-[#99FFE4] text-[#99FFE4] shadow-sm shadow-[#99FFE4]/20'
+                                      : 'bg-[#161616] border-white/10 text-[#A0A0A0] hover:border-white/20 hover:text-white'
+                                  }`}
+                                >
+                                  <CreditCard className="w-4 h-4" />
+                                  <span>Thẻ POS</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCheckoutPayMethod('DirectBank');
+                                    setCheckoutPayError('');
+                                  }}
+                                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                                    checkoutPayMethod === 'DirectBank'
+                                      ? 'bg-[#C4B5FD]/20 border-[#C4B5FD] text-[#C4B5FD] shadow-sm shadow-[#C4B5FD]/20'
+                                      : 'bg-[#161616] border-white/10 text-[#A0A0A0] hover:border-white/20 hover:text-white'
+                                  }`}
+                                >
+                                  <Landmark className="w-4 h-4" />
+                                  <span>Chuyển khoản</span>
+                                </button>
+                              </div>
+
+                              {checkoutPayError && (
+                                <p className="text-xs font-bold text-[#FF8080] flex items-center gap-1.5 pt-1">
+                                  <AlertCircle className="w-4 h-4 shrink-0" />
+                                  <span>{checkoutPayError}</span>
+                                </p>
+                              )}
+
+                              <div>
+                                <label className="block text-[11px] font-medium text-[#A0A0A0] mb-1">
+                                  Ghi chú biên nhận / Mã chuẩn chi POS / Bill ngân hàng (Tùy chọn):
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="VD: Quẹt thẻ Vietcombank POS / CK MBBank 9999 / Mã GD..."
+                                  value={checkoutPayNotes}
+                                  onChange={(e) => setCheckoutPayNotes(e.target.value)}
+                                  className="w-full bg-[#161616] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-[#6E6E6E] outline-none focus:border-[#FFC799]"
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-[#99FFE4]/10 border border-[#99FFE4]/30 rounded-xl flex items-center space-x-2 text-xs text-[#99FFE4]">
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                              <span>Hợp đồng đã thanh toán 100% trước đó và không phát sinh phụ thu. Có thể hoàn tất Check-out ngay.</span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
 
                       {/* Complete Checkout Button */}
                       {selectedBooking.status === 'Ongoing' ? (
@@ -3222,11 +3517,10 @@ export const CounterDesk: React.FC = () => {
                         <div
                           key={customer._id}
                           onClick={() => setSelectedEkycUser(customer)}
-                          className={`p-4 cursor-pointer transition-all flex items-start space-x-3 ${
-                            isSelected
-                              ? 'bg-[#FFC799]/10 border-l-4 border-[#FFC799] pl-3'
-                              : 'hover:bg-white/[0.02]'
-                          }`}
+                          className={`p-4 cursor-pointer transition-all flex items-start space-x-3 ${isSelected
+                            ? 'bg-[#FFC799]/10 border-l-4 border-[#FFC799] pl-3'
+                            : 'hover:bg-white/[0.02]'
+                            }`}
                         >
                           <div className="w-9 h-9 rounded-full overflow-hidden bg-[#101010] border border-[#FFC799]/30 flex-shrink-0 flex items-center justify-center font-bold text-[#FFC799] text-xs">
                             {customerAvatar ? (
@@ -3440,11 +3734,10 @@ export const CounterDesk: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setComplaintSubTab('manager')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    complaintSubTab === 'manager'
-                      ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
-                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${complaintSubTab === 'manager'
+                    ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
+                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
                 >
                   <ShieldAlert className="w-3.5 h-3.5" />
                   <span>01. Cần kết luận (Quản lý)</span>
@@ -3458,11 +3751,10 @@ export const CounterDesk: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setComplaintSubTab('queue')}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    complaintSubTab === 'queue'
-                      ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
-                      : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${complaintSubTab === 'queue'
+                    ? 'bg-[#FFC799] text-[#101010] shadow-sm font-black'
+                    : 'bg-[#161616] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
                   <span>02. Hàng đợi tiếp nhận &amp; xử lý</span>
@@ -3564,11 +3856,10 @@ export const CounterDesk: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setVehicleSubView('fleet')}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    vehicleSubView === 'fleet'
-                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
-                      : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${vehicleSubView === 'fleet'
+                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
+                    : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
                 >
                   <Gauge className="w-4 h-4" />
                   <span>01. Danh sách đội xe &amp; Đổi trạng thái ({branchVehicles.length})</span>
@@ -3580,20 +3871,18 @@ export const CounterDesk: React.FC = () => {
                     setVehicleSubView('maintenance_logs');
                     fetchMaintenanceLogs();
                   }}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    vehicleSubView === 'maintenance_logs'
-                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
-                      : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${vehicleSubView === 'maintenance_logs'
+                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
+                    : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
                 >
                   <Wrench className="w-4 h-4" />
                   <span>02. Nhật ký bảo dưỡng xe</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                      vehicleSubView === 'maintenance_logs'
-                        ? 'bg-[#101010]/20 text-[#101010]'
-                        : 'bg-[#99FFE4]/20 text-[#99FFE4]'
-                    }`}
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${vehicleSubView === 'maintenance_logs'
+                      ? 'bg-[#101010]/20 text-[#101010]'
+                      : 'bg-[#99FFE4]/20 text-[#99FFE4]'
+                      }`}
                   >
                     {maintenanceSummary.completedCount + maintenanceSummary.pendingCount}
                   </span>
@@ -3605,20 +3894,18 @@ export const CounterDesk: React.FC = () => {
                     setVehicleSubView('transfer_logs');
                     fetchTransferLogs();
                   }}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${
-                    vehicleSubView === 'transfer_logs'
-                      ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
-                      : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
-                  }`}
+                  className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer ${vehicleSubView === 'transfer_logs'
+                    ? 'bg-[#FFC799] text-[#101010] font-black shadow-sm'
+                    : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                    }`}
                 >
                   <RefreshCw className="w-4 h-4" />
                   <span>03. Nhật ký điều chuyển xe</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
-                      vehicleSubView === 'transfer_logs'
-                        ? 'bg-[#101010]/20 text-[#101010]'
-                        : 'bg-[#FFC799]/20 text-[#FFC799]'
-                    }`}
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${vehicleSubView === 'transfer_logs'
+                      ? 'bg-[#101010]/20 text-[#101010]'
+                      : 'bg-[#FFC799]/20 text-[#FFC799]'
+                      }`}
                   >
                     {transferSummary.pending + transferSummary.completedCount + transferSummary.rejectedCount}
                   </span>
@@ -3636,9 +3923,8 @@ export const CounterDesk: React.FC = () => {
                 className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold text-[#A0A0A0] hover:text-white bg-[#101010] border border-white/10 hover:border-[#FFC799]/40 transition-colors cursor-pointer"
               >
                 <RefreshCw
-                  className={`w-3.5 h-3.5 ${
-                    loadingVehicles || loadingMaintenanceLogs ? 'animate-spin text-[#FFC799]' : ''
-                  }`}
+                  className={`w-3.5 h-3.5 ${loadingVehicles || loadingMaintenanceLogs ? 'animate-spin text-[#FFC799]' : ''
+                    }`}
                 />
                 <span>Làm mới dữ liệu</span>
               </button>
@@ -3680,11 +3966,10 @@ export const CounterDesk: React.FC = () => {
                       <button
                         key={tab.id}
                         onClick={() => setVehicleFilterStatus(tab.id)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          vehicleFilterStatus === tab.id
-                            ? 'bg-[#FFC799] text-[#101010]'
-                            : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${vehicleFilterStatus === tab.id
+                          ? 'bg-[#FFC799] text-[#101010]'
+                          : 'bg-[#101010] text-[#A0A0A0] hover:text-white border border-white/10'
+                          }`}
                       >
                         {tab.label}
                       </button>
@@ -3827,11 +4112,10 @@ export const CounterDesk: React.FC = () => {
                                     type="button"
                                     disabled={isAvailable || vehicleSubmitting}
                                     onClick={() => handleUpdateVehicleStatus(v._id, 'Available')}
-                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
-                                      isAvailable
-                                        ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                        : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30'
-                                    }`}
+                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${isAvailable
+                                      ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                      : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30'
+                                      }`}
                                   >
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     <span>{isMaintenance ? 'Hoàn tất bảo dưỡng' : 'Sẵn sàng'}</span>
@@ -3850,11 +4134,10 @@ export const CounterDesk: React.FC = () => {
                                         odometer: v.odometer || 0,
                                       })
                                     }
-                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${
-                                      isMaintenance
-                                        ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                        : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30'
-                                    }`}
+                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${isMaintenance
+                                      ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                      : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30'
+                                      }`}
                                   >
                                     <Wrench className="w-3.5 h-3.5" />
                                     <span>Bảo dưỡng</span>
@@ -3920,11 +4203,10 @@ export const CounterDesk: React.FC = () => {
                             setMaintenanceStatusFilter(st.id);
                             fetchMaintenanceLogs(maintenanceVehicleFilter, st.id);
                           }}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            maintenanceStatusFilter === st.id
-                              ? 'bg-[#FFC799] text-[#101010]'
-                              : 'text-[#A0A0A0] hover:text-white'
-                          }`}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${maintenanceStatusFilter === st.id
+                            ? 'bg-[#FFC799] text-[#101010]'
+                            : 'text-[#A0A0A0] hover:text-white'
+                            }`}
                         >
                           {st.label}
                         </button>
@@ -3983,17 +4265,16 @@ export const CounterDesk: React.FC = () => {
                         log.maintenanceType === 'Routine'
                           ? 'Bảo dưỡng định kỳ'
                           : log.maintenanceType === 'Repair'
-                          ? 'Sửa chữa / Khắc phục sự cố'
-                          : 'Kiểm định kỹ thuật';
+                            ? 'Sửa chữa / Khắc phục sự cố'
+                            : 'Kiểm định kỹ thuật';
 
                       return (
                         <div
                           key={log._id}
-                          className={`rounded-xl border p-4 transition-all ${
-                            isDone
-                              ? 'bg-[#101010] border-white/10 hover:border-[#99FFE4]/30'
-                              : 'bg-amber-500/5 border-amber-500/25'
-                          }`}
+                          className={`rounded-xl border p-4 transition-all ${isDone
+                            ? 'bg-[#101010] border-white/10 hover:border-[#99FFE4]/30'
+                            : 'bg-amber-500/5 border-amber-500/25'
+                            }`}
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex items-center space-x-3">
@@ -4078,8 +4359,8 @@ export const CounterDesk: React.FC = () => {
                                 {log.endDate
                                   ? new Date(log.endDate).toLocaleString('vi-VN')
                                   : log.startDate
-                                  ? new Date(log.startDate).toLocaleString('vi-VN')
-                                  : new Date(log.createdAt).toLocaleString('vi-VN')}
+                                    ? new Date(log.startDate).toLocaleString('vi-VN')
+                                    : new Date(log.createdAt).toLocaleString('vi-VN')}
                               </span>
                             </div>
                           </div>
@@ -4140,11 +4421,10 @@ export const CounterDesk: React.FC = () => {
                             setTransferStatusFilter(st.id);
                             fetchTransferLogs(transferVehicleFilter, st.id);
                           }}
-                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            transferStatusFilter === st.id
-                              ? 'bg-[#FFC799] text-[#101010]'
-                              : 'text-[#A0A0A0] hover:text-white'
-                          }`}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${transferStatusFilter === st.id
+                            ? 'bg-[#FFC799] text-[#101010]'
+                            : 'text-[#A0A0A0] hover:text-white'
+                            }`}
                         >
                           {st.label}
                         </button>
@@ -4212,14 +4492,14 @@ export const CounterDesk: React.FC = () => {
                       const reqPerson =
                         typeof tr.requestedBy === 'object' && tr.requestedBy !== null
                           ? [tr.requestedBy.lastName, tr.requestedBy.firstName].filter(Boolean).join(' ') ||
-                            tr.requestedBy.username ||
-                            'Quản lý'
+                          tr.requestedBy.username ||
+                          'Quản lý'
                           : 'Quản lý';
                       const appPerson =
                         typeof tr.approvedBy === 'object' && tr.approvedBy !== null
                           ? [tr.approvedBy.lastName, tr.approvedBy.firstName].filter(Boolean).join(' ') ||
-                            tr.approvedBy.username ||
-                            'Quản lý'
+                          tr.approvedBy.username ||
+                          'Quản lý'
                           : 'Chờ chi nhánh xuất xác nhận';
                       const isDone = tr.status === 'Approved' || tr.status === 'Completed';
                       const isRejected = tr.status === 'Rejected';
@@ -4227,13 +4507,12 @@ export const CounterDesk: React.FC = () => {
                       return (
                         <div
                           key={tr._id}
-                          className={`rounded-xl border p-4 transition-all ${
-                            isDone
-                              ? 'bg-[#101010] border-white/10 hover:border-[#99FFE4]/30'
-                              : isRejected
+                          className={`rounded-xl border p-4 transition-all ${isDone
+                            ? 'bg-[#101010] border-white/10 hover:border-[#99FFE4]/30'
+                            : isRejected
                               ? 'bg-[#FF8080]/5 border-[#FF8080]/25'
                               : 'bg-[#FFC799]/5 border-[#FFC799]/25'
-                          }`}
+                            }`}
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="flex items-center space-x-3">
@@ -4696,6 +4975,22 @@ export const CounterDesk: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Lịch sử các đợt đã thu trước đó */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[11px] text-[#A0A0A0]">
+                    <span className="flex items-center gap-1 font-semibold text-white">
+                      <History className="w-3.5 h-3.5 text-[#FFC799]" />
+                      <span>Lịch sử các đợt đã thu:</span>
+                    </span>
+                    <span className="text-[#99FFE4] font-bold">
+                      {getEffectivePaidAmount(selectedBooking).toLocaleString('vi-VN')} đ
+                    </span>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                    {renderPaymentHistoryList(selectedBooking)}
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-[#A0A0A0] mb-1.5">
                     Số tiền thu thực tế (VNĐ) <span className="text-[#FF8080]">*</span>
@@ -4757,11 +5052,10 @@ export const CounterDesk: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setCounterPayMethod('Cash')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
-                        counterPayMethod === 'Cash'
-                          ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
-                          : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${counterPayMethod === 'Cash'
+                        ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
+                        : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                        }`}
                     >
                       <Banknote className="w-4 h-4" />
                       <span>Tiền mặt</span>
@@ -4769,11 +5063,10 @@ export const CounterDesk: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setCounterPayMethod('POS')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
-                        counterPayMethod === 'POS'
-                          ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
-                          : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${counterPayMethod === 'POS'
+                        ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
+                        : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                        }`}
                     >
                       <CreditCard className="w-4 h-4" />
                       <span>Thẻ POS</span>
@@ -4781,11 +5074,10 @@ export const CounterDesk: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setCounterPayMethod('DirectBank')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
-                        counterPayMethod === 'DirectBank'
-                          ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
-                          : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
-                      }`}
+                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${counterPayMethod === 'DirectBank'
+                        ? 'bg-[#FFC799]/10 border-[#FFC799] text-[#FFC799]'
+                        : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:border-white/20'
+                        }`}
                     >
                       <Receipt className="w-4 h-4" />
                       <span>Chuyển khoản</span>
@@ -4915,11 +5207,10 @@ export const CounterDesk: React.FC = () => {
                         key={sev.key}
                         type="button"
                         onClick={() => setDamageSeverity(sev.key)}
-                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all ${
-                          damageSeverity === sev.key
-                            ? 'bg-[#FF8080]/15 border-[#FF8080] text-[#FF8080]'
-                            : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:text-white'
-                        }`}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all ${damageSeverity === sev.key
+                          ? 'bg-[#FF8080]/15 border-[#FF8080] text-[#FF8080]'
+                          : 'bg-[#101010] border-white/10 text-[#A0A0A0] hover:text-white'
+                          }`}
                       >
                         {sev.label}
                       </button>
@@ -5085,9 +5376,9 @@ export const CounterDesk: React.FC = () => {
                     <span className="text-[#A0A0A0]">Khách hàng:</span>
                     <span className="font-bold text-white">
                       {typeof approveRefundModal.userId === 'object' &&
-                      approveRefundModal.userId !== null
+                        approveRefundModal.userId !== null
                         ? (approveRefundModal.userId as User).firstName ||
-                          (approveRefundModal.userId as User).username
+                        (approveRefundModal.userId as User).username
                         : 'Khách hàng'}
                     </span>
                   </div>
@@ -5212,9 +5503,9 @@ export const CounterDesk: React.FC = () => {
                     <span className="text-[#A0A0A0]">Khách hàng:</span>
                     <span className="font-bold text-white">
                       {typeof rejectRefundModal.userId === 'object' &&
-                      rejectRefundModal.userId !== null
+                        rejectRefundModal.userId !== null
                         ? (rejectRefundModal.userId as User).firstName ||
-                          (rejectRefundModal.userId as User).username
+                        (rejectRefundModal.userId as User).username
                         : 'Khách hàng'}
                     </span>
                   </div>

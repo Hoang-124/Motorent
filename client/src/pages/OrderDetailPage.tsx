@@ -20,6 +20,10 @@ import {
   Gauge,
   Radio,
   ExternalLink,
+  Users,
+  History,
+  Banknote,
+  Landmark,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { getSocket } from '../services/socket';
@@ -106,6 +110,29 @@ export const OrderDetailPage: React.FC = () => {
   const [savingDelivery, setSavingDelivery] = useState<boolean>(false);
   const [deliveryFeedback, setDeliveryFeedback] = useState<string | null>(null);
   const [downloadingContractPdf, setDownloadingContractPdf] = useState<boolean>(false);
+  const [downloadingGroupInvoice, setDownloadingGroupInvoice] = useState<boolean>(false);
+
+  const handleDownloadGroupInvoice = async (groupCode: string) => {
+    try {
+      setDownloadingGroupInvoice(true);
+      const response = await api.get(`/bookings/group/${groupCode}/invoice`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `MOTORENT-GROUP-INVOICE-${groupCode}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setDeliveryFeedback('Không thể tải hóa đơn đoàn xe lúc này. Vui lòng thử lại sau.');
+    } finally {
+      setDownloadingGroupInvoice(false);
+    }
+  };
   const [signingParty, setSigningParty] = useState<'renter' | 'lessor' | null>(null);
   const sigCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const [isDrawingSig, setIsDrawingSig] = useState<boolean>(false);
@@ -429,7 +456,7 @@ export const OrderDetailPage: React.FC = () => {
         );
       default:
         return (
-          <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-white/10 text-white/70">
+          <span className="inline-flex items-center px-3 py-1 rounded-md text-xs font-semibold bg-white/10 text-[#A0A0A0]">
             {booking.status}
           </span>
         );
@@ -489,6 +516,37 @@ export const OrderDetailPage: React.FC = () => {
             {getStatusBadge()}
           </div>
         </div>
+
+        {/* Multi-Vehicle Group Rental Banner */}
+        {booking.groupBookingCode && (
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-[#FFC799]/15 via-[#1E1E1E] to-[#161616] border border-[#FFC799]/35 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center space-x-3.5">
+              <div className="w-11 h-11 rounded-xl bg-[#FFC799]/20 text-[#FFC799] flex items-center justify-center shrink-0 border border-[#FFC799]/40">
+                <Users className="w-5 h-5 text-[#FFC799]" />
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-[#FFC799] block font-mono">
+                  Đoàn thuê cùng nhau ({booking.groupItemCount || 2} xe) • Mã đoàn: {booking.groupBookingCode}
+                </span>
+                <span className="text-sm font-bold text-white">
+                  Đơn xe này nằm trong đoàn thuê {booking.groupItemCount || 2} xe cùng lúc
+                </span>
+                <p className="text-xs text-[#A0A0A0] mt-0.5">
+                  Quý khách có thể xuất trình mã hợp đồng {booking.bookingCode} tại quầy để nhận toàn bộ đoàn xe và đối soát chung một lần.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={downloadingGroupInvoice}
+              onClick={() => handleDownloadGroupInvoice(booking.groupBookingCode!)}
+              className="px-4 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer shadow-md disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{downloadingGroupInvoice ? 'Đang xuất PDF...' : 'Tải hóa đơn cả đoàn PDF'}</span>
+            </button>
+          </div>
+        )}
 
         {/* =====================================================================
             1. ORDER LIFECYCLE TIMELINE (ACCEPTANCE CRITERIA)
@@ -1208,6 +1266,147 @@ export const OrderDetailPage: React.FC = () => {
                     </span>
                   </div>
                 )}
+              </div>
+
+              {/* Lịch sử thanh toán & Phương thức thu */}
+              <div className="p-4 rounded-xl bg-[#101010] border border-white/10 space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-white/[0.06] pb-2">
+                  <span className="font-bold text-white flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-[#FFC799]" />
+                    <span>Lịch sử thanh toán & Phương thức thu</span>
+                  </span>
+                  <span className="text-[11px] text-[#99FFE4] font-bold">
+                    Đã thanh toán: {(pricing.paidAmount || (pricing.depositPaid ? pricing.depositAmount : 0)).toLocaleString('vi-VN')} đ
+                  </span>
+                </div>
+
+                {(() => {
+                  const history = booking.paymentHistory && booking.paymentHistory.length > 0 ? booking.paymentHistory : [];
+                  const items: Array<{
+                    title: string;
+                    amount: number;
+                    method: string;
+                    methodType: string;
+                    time: string;
+                    notes?: string;
+                  }> = [];
+
+                  if (history.length > 0) {
+                    history.forEach((h, idx) => {
+                      const methodLabel =
+                        h.paymentMethod === 'Cash'
+                          ? 'Tiền mặt tại quầy'
+                          : h.paymentMethod === 'POS'
+                          ? 'Thẻ POS tại quầy'
+                          : h.paymentMethod === 'DirectBank'
+                          ? 'Chuyển khoản quầy'
+                          : 'VNPay (Trực tuyến)';
+                      const stageLabel =
+                        h.paymentStage === 'Deposit'
+                          ? 'Cọc giữ xe 30%'
+                          : h.paymentStage === 'CheckoutSettlement'
+                          ? 'Tất toán khi trả xe'
+                          : h.paymentStage === 'PreHandover'
+                          ? 'Thanh toán tại quầy'
+                          : 'Phụ phí phát sinh';
+                      items.push({
+                        title: `Đợt ${idx + 1}: ${stageLabel}`,
+                        amount: h.amount,
+                        method: methodLabel,
+                        methodType: h.paymentMethod,
+                        time: new Date(h.collectedAt).toLocaleString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        }),
+                        notes: h.notes,
+                      });
+                    });
+                  } else {
+                    if (pricing.depositPaid || (pricing.paidAmount || 0) > 0) {
+                      const depAmt = pricing.depositAmount || Math.round(pricing.totalAmount * 0.3);
+                      items.push({
+                        title: 'Đợt 1: Cọc trực tuyến',
+                        amount: depAmt,
+                        method: booking.vnpayBankCode ? `VNPay (${booking.vnpayBankCode})` : 'Cổng VNPay',
+                        methodType: 'VNPay',
+                        time: booking.vnpayPayDate
+                          ? new Date(booking.vnpayPayDate).toLocaleString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: '2-digit',
+                            })
+                          : 'Đã hoàn tất',
+                        notes: booking.vnpayTransactionNo ? `Mã GD: ${booking.vnpayTransactionNo}` : 'Đã xác nhận cọc',
+                      });
+                    }
+                    if ((pricing.paidAmount || 0) > (pricing.depositAmount || 0)) {
+                      const counterAmt = (pricing.paidAmount || 0) - (pricing.depositAmount || 0);
+                      items.push({
+                        title: 'Đợt 2: Thu tại quầy',
+                        amount: counterAmt,
+                        method: booking.paymentMethod === 'Cash' ? 'Tiền mặt tại quầy' : 'Quẹt thẻ POS / Chuyển khoản',
+                        methodType: booking.paymentMethod || 'Cash',
+                        time: booking.counterPaidAt
+                          ? new Date(booking.counterPaidAt).toLocaleString('vi-VN', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              day: '2-digit',
+                              month: '2-digit',
+                            })
+                          : 'Tại trạm xe',
+                        notes: 'Ghi nhận thanh toán tại quầy',
+                      });
+                    }
+                  }
+
+                  if (items.length === 0) {
+                    return (
+                      <p className="text-[#6E6E6E] text-[11px] py-1 text-center">
+                        Chưa có lịch sử thu tiền cho đơn này.
+                      </p>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      {items.map((it, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2.5 rounded-lg bg-white/[0.02] border border-white/5 flex items-center justify-between gap-2"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-white">{it.title}</span>
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                  it.methodType === 'VNPay'
+                                    ? 'bg-[#99FFE4]/15 text-[#99FFE4] border border-[#99FFE4]/30'
+                                    : it.methodType === 'POS'
+                                    ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30'
+                                    : it.methodType === 'DirectBank'
+                                    ? 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
+                                    : 'bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30'
+                                }`}
+                              >
+                                {it.method}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-[#A0A0A0]">
+                              {it.time} {it.notes ? `• ${it.notes}` : ''}
+                            </p>
+                          </div>
+                          <span className="font-mono-tabular font-bold text-[#99FFE4] text-xs shrink-0">
+                            +{it.amount.toLocaleString('vi-VN')} đ
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Actions Area */}

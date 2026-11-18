@@ -448,11 +448,21 @@ export const processVnPayIpn = async (queryParams: VnpParams): Promise<VnPayIpnR
         isPaid: isFullPay,
         status: booking.status === 'Pending' || booking.status === 'Approved' ? 'Confirmed' : booking.status,
         remainingAmount: isFullPay ? 0 : Math.max(0, booking.totalAmount - newPaidAmount),
+        $push: {
+          paymentHistory: {
+            transactionCode: String(vnpTransactionNo || txnRef),
+            amount: expectedAmount,
+            paymentMethod: 'VNPay',
+            paymentStage: isFullPay ? 'PreHandover' : 'Deposit',
+            collectedAt: vnpayPayDate || new Date(),
+            notes: `Thanh toán qua cổng VNPay (${vnpBankCode || 'VNPay'})`,
+          },
+        },
       };
 
       const updatedBooking = await Booking.findOneAndUpdate(
         { _id: booking._id, status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] } },
-        { $set: updatePayload },
+        updatePayload,
         { new: true }
       );
 
@@ -768,9 +778,20 @@ export const confirmVietQrPayment = async (options: {
     updatePayload.paidAt = new Date();
   }
 
+  const pushPayload = {
+    paymentHistory: {
+      transactionCode: txnRef,
+      amount: amountToPay,
+      paymentMethod: 'DirectBank',
+      paymentStage: isFullPay ? 'PreHandover' : 'Deposit',
+      collectedAt: new Date(),
+      notes: 'Chuyển khoản VietQR 24/7 (MBBank)',
+    },
+  };
+
   const updatedBooking = await Booking.findByIdAndUpdate(
     booking._id,
-    { $set: updatePayload },
+    { $set: updatePayload, $push: pushPayload },
     { new: true }
   )
     .populate('vehicleId')

@@ -49,11 +49,13 @@ interface CreatedOrderSummary {
   licensePlate: string;
   totalAmount: number;
   depositAmount: number;
+  remainingAmount?: number;
+  groupBookingCode?: string;
 }
 
 const STEPS = [
   { id: 1, title: 'Lịch trình & Trạm trả', subtitle: 'Chọn khung giờ & điểm trả xe' },
-  { id: 2, title: 'Thông tin & eKYC', subtitle: 'Người đại diện nhận đoàn xe' },
+  { id: 2, title: 'Thông tin người nhận', subtitle: 'Người đại diện nhận đoàn xe' },
   { id: 3, title: 'Ưu đãi & Báo giá', subtitle: 'Áp dụng Voucher giảm giá' },
   { id: 4, title: 'Thanh toán gộp', subtitle: 'VNPay Sandbox 1 lần cho cả giỏ' },
 ];
@@ -114,6 +116,38 @@ export const CartPage: React.FC = () => {
   const [redirectingVnPay, setRedirectingVnPay] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [createdOrders, setCreatedOrders] = useState<CreatedOrderSummary[]>([]);
+  const [createdGroupCode, setCreatedGroupCode] = useState<string | null>(null);
+  const [downloadingGroupPdf, setDownloadingGroupPdf] = useState<boolean>(false);
+  const [copiedGroupCode, setCopiedGroupCode] = useState<boolean>(false);
+
+  const handleCopyGroupCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedGroupCode(true);
+    setTimeout(() => setCopiedGroupCode(false), 2000);
+  };
+
+  const handleDownloadGroupPdf = async (groupCode: string) => {
+    setDownloadingGroupPdf(true);
+    try {
+      const res = await api.get(`/bookings/group/${groupCode}/invoice`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `MOTORENT-GROUP-INVOICE-${groupCode}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      console.error('Download group invoice error:', err);
+      alert('Không thể tải hóa đơn đoàn xe. Vui lòng thử lại sau.');
+    } finally {
+      setDownloadingGroupPdf(false);
+    }
+  };
 
   useEffect(() => {
     Promise.all([
@@ -434,6 +468,11 @@ export const CartPage: React.FC = () => {
     setSubmitting(true);
     setErrorMsg('');
 
+    const isMulti = cartItems.length > 1;
+    const groupCode = isMulti
+      ? 'GRP-' + Math.random().toString(36).substring(2, 8).toUpperCase()
+      : undefined;
+
     const pickupIso = new Date(`${pickupDate}T${pickupTime}:00+07:00`).toISOString();
     const returnIso = new Date(`${returnDate}T${returnTime}:00+07:00`).toISOString();
 
@@ -457,6 +496,11 @@ export const CartPage: React.FC = () => {
           customReturnAddress: deliveryMode === 'DoorDelivery' ? customReturnAddress.trim() || undefined : undefined,
           eSignatureUrl: eSignatureUrl || undefined,
           discountCode: discountCode.trim() || undefined,
+          groupBookingCode: groupCode,
+          groupTotalAmount: totals.totalAmount,
+          groupDepositAmount: totals.depositAmount,
+          groupRemainingAmount: totals.remainingAmount,
+          groupItemCount: cartItems.length,
         });
 
         const created = res.data?.data;
@@ -468,6 +512,8 @@ export const CartPage: React.FC = () => {
             licensePlate: v.licensePlate,
             totalAmount: created.totalAmount,
             depositAmount: created.depositAmount,
+            remainingAmount: created.remainingAmount,
+            groupBookingCode: groupCode,
           });
           removeFromCart(v._id);
         }
@@ -483,6 +529,9 @@ export const CartPage: React.FC = () => {
     setSubmitting(false);
 
     if (successList.length > 0) {
+      if (groupCode) {
+        setCreatedGroupCode(groupCode);
+      }
       const allCreated = [...createdOrders, ...successList];
       setCreatedOrders(allCreated);
 
@@ -504,21 +553,62 @@ export const CartPage: React.FC = () => {
   if (createdOrders.length > 0 && cartItems.length === 0) {
     const combinedTotal = createdOrders.reduce((s, o) => s + o.totalAmount, 0);
     const combinedDeposit = createdOrders.reduce((s, o) => s + o.depositAmount, 0);
+    const combinedRemaining = Math.max(0, combinedTotal - combinedDeposit);
 
     return (
       <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-3xl mx-auto bg-[#161616] border border-white/10 rounded-3xl p-6 sm:p-10 space-y-6 shadow-2xl">
-          <div className="flex items-center space-x-3 text-[#99FFE4]">
-            <CheckCircle2 className="w-8 h-8 shrink-0" />
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-[#F5F5F5]">
-                Đã khởi tạo thành công {createdOrders.length} đơn thuê xe!
-              </h1>
-              <p className="text-xs text-[#A0A0A0] mt-0.5">
-                Bạn có thể thanh toán gộp tất cả {createdOrders.length} xe trong 1 lần duy nhất qua cổng VNPay Sandbox bên dưới.
-              </p>
+          {/* Header & Success Banner */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
+            <div className="flex items-center space-x-3 text-[#99FFE4]">
+              <CheckCircle2 className="w-8 h-8 shrink-0" />
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-[#F5F5F5]">
+                  Hóa đơn đặt chung &amp; Biên lai gộp ({createdOrders.length} xe)
+                </h1>
+                <p className="text-xs text-[#A0A0A0] mt-0.5">
+                  Đã khóa giữ xe thành công cho toàn bộ {createdOrders.length} phương tiện trong đoàn xe của bạn.
+                </p>
+              </div>
             </div>
+
+            {createdGroupCode && (
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <button
+                  type="button"
+                  disabled={downloadingGroupPdf}
+                  onClick={() => handleDownloadGroupPdf(createdGroupCode)}
+                  className="px-3.5 py-2 rounded-xl bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 border border-[#99FFE4]/40 text-[#99FFE4] text-xs font-bold transition-all flex items-center space-x-2 cursor-pointer shadow-sm"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>{downloadingGroupPdf ? 'Đang xuất PDF...' : 'Tải Hóa đơn đặt chung PDF'}</span>
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Group Booking Badge Card */}
+          {createdGroupCode && (
+            <div className="p-4 rounded-2xl bg-[#FFC799]/10 border border-[#FFC799]/30 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <span className="text-xs font-semibold text-[#A0A0A0]">MÃ ĐẶT CHUNG TOÀN ĐOÀN:</span>
+                <span className="font-mono text-sm sm:text-base font-black text-[#FFC799] tracking-wider px-3 py-1 rounded-lg bg-black/40 border border-[#FFC799]/40">
+                  {createdGroupCode}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleCopyGroupCode(createdGroupCode)}
+                  className="p-1.5 rounded-md hover:bg-white/10 text-[#FFC799] transition-colors cursor-pointer"
+                  title="Sao chép mã nhóm"
+                >
+                  {copiedGroupCode ? <Check className="w-4 h-4 text-[#99FFE4]" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <span className="text-xs font-bold text-[#99FFE4] bg-[#99FFE4]/10 border border-[#99FFE4]/30 px-3 py-1 rounded-full">
+                Đơn đoàn {createdOrders.length} xe liên kết
+              </span>
+            </div>
+          )}
 
           {errorMsg && (
             <div className="p-4 rounded-2xl bg-[#FF8080]/10 border border-[#FF8080]/30 text-[#FF8080] text-xs flex items-start space-x-2.5">
@@ -527,14 +617,41 @@ export const CartPage: React.FC = () => {
             </div>
           )}
 
+          {/* Financial Breakdown Summary */}
+          <div className="p-5 rounded-2xl bg-[#101010] border border-white/10 space-y-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#A0A0A0] block">
+              Tổng kết tài chính đơn đặt chung
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <span className="text-[10px] text-[#A0A0A0] block">Tổng chi phí đoàn xe</span>
+                <span className="text-base font-bold text-[#F5F5F5] font-mono-tabular mt-0.5 block">
+                  {combinedTotal.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#FFC799]/10 border border-[#FFC799]/25">
+                <span className="text-[10px] text-[#FFC799] block font-semibold">Tổng cọc 30% giữ xe</span>
+                <span className="text-base font-bold text-[#FFC799] font-mono-tabular mt-0.5 block">
+                  {combinedDeposit.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/5">
+                <span className="text-[10px] text-[#A0A0A0] block">Còn lại thanh toán tại quầy</span>
+                <span className="text-base font-bold text-[#A0A0A0] font-mono-tabular mt-0.5 block">
+                  {combinedRemaining.toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* Batch VNPay Sandbox Action Card */}
           <div className="p-5 rounded-2xl bg-[#101010] border border-[#FFC799]/35 space-y-4">
             <div>
               <span className="text-[11px] font-bold uppercase tracking-wider text-[#FFC799] block">
-                Thanh toán gộp 1 lần cho tất cả {createdOrders.length} xe (VNPay Sandbox)
+                Cổng thanh toán gộp 1 lần cho tất cả {createdOrders.length} xe (VNPay Sandbox)
               </span>
               <p className="text-xs text-[#A0A0A0] mt-0.5">
-                Tổng cọc 30%: <strong className="text-[#FFC799] font-mono-tabular">{combinedDeposit.toLocaleString('vi-VN')} đ</strong> · Tổng 100%: <strong className="text-[#F5F5F5] font-mono-tabular">{combinedTotal.toLocaleString('vi-VN')} đ</strong>
+                Chọn phương thức cọc 30% hoặc thanh toán đủ 100% để hoàn tất giao dịch tự động.
               </p>
             </div>
 
@@ -548,13 +665,13 @@ export const CartPage: React.FC = () => {
                     'Deposit30'
                   )
                 }
-                className="py-3 px-4 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] disabled:opacity-50 text-[#101010] text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                className="py-3 px-4 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] disabled:opacity-50 text-[#101010] text-xs font-bold transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-md"
               >
                 <CreditCard className="w-4 h-4" />
                 <span>
                   {redirectingVnPay
                     ? 'Đang chuyển tới VNPay Sandbox...'
-                    : `Cọc 30% tất cả ${createdOrders.length} xe (${combinedDeposit.toLocaleString('vi-VN')} đ)`}
+                    : `Cọc 30% toàn đoàn (${combinedDeposit.toLocaleString('vi-VN')} đ)`}
                 </span>
               </button>
 
@@ -573,43 +690,54 @@ export const CartPage: React.FC = () => {
                 <span>
                   {redirectingVnPay
                     ? 'Đang chuyển tới VNPay Sandbox...'
-                    : `Thanh toán 100% tất cả ${createdOrders.length} xe (${combinedTotal.toLocaleString('vi-VN')} đ)`}
+                    : `Thanh toán 100% toàn đoàn (${combinedTotal.toLocaleString('vi-VN')} đ)`}
                 </span>
               </button>
             </div>
           </div>
 
+          {/* List of Vehicles in Group */}
           <div className="space-y-3">
-            {createdOrders.map((ord) => (
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#A0A0A0] block">
+              Danh sách chi tiết phương tiện trong nhóm ({createdOrders.length} xe)
+            </span>
+            {createdOrders.map((ord, idx) => (
               <div
                 key={ord.bookingId}
                 className="p-4 rounded-2xl bg-[#101010] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
               >
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
-                      {ord.bookingCode}
-                    </span>
-                    <span className="text-sm font-bold text-[#F5F5F5]">{ord.vehicleName}</span>
-                    <span className="text-xs font-mono text-[#A0A0A0]">({ord.licensePlate})</span>
+                <div className="flex items-start space-x-3">
+                  <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-[#A0A0A0] shrink-0 mt-0.5">
+                    {idx + 1}
+                  </span>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30">
+                        {ord.bookingCode}
+                      </span>
+                      <span className="text-sm font-bold text-[#F5F5F5]">{ord.vehicleName}</span>
+                      <span className="text-xs font-mono font-bold text-[#99FFE4] bg-white/5 px-1.5 py-0.5 rounded border border-white/10">
+                        {ord.licensePlate}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#A0A0A0] mt-1">
+                      Tổng tiền:{' '}
+                      <strong className="text-[#F5F5F5] font-mono-tabular">
+                        {ord.totalAmount.toLocaleString('vi-VN')} đ
+                      </strong>{' '}
+                      · Cọc 30%:{' '}
+                      <strong className="text-[#FFC799] font-mono-tabular">
+                        {ord.depositAmount.toLocaleString('vi-VN')} đ
+                      </strong>
+                    </p>
                   </div>
-                  <p className="text-xs text-[#A0A0A0] mt-1">
-                    Tổng tiền thuê:{' '}
-                    <strong className="text-[#F5F5F5] font-mono-tabular">
-                      {ord.totalAmount.toLocaleString('vi-VN')} đ
-                    </strong>{' '}
-                    · Cọc 30%:{' '}
-                    <strong className="text-[#FFC799] font-mono-tabular">
-                      {ord.depositAmount.toLocaleString('vi-VN')} đ
-                    </strong>
-                  </p>
                 </div>
 
                 <Link
                   to={`/booking-details/${ord.bookingId}`}
                   className="inline-flex items-center justify-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-[#F5F5F5] text-xs font-semibold transition-colors shrink-0"
                 >
-                  <span>Xem hợp đồng</span>
+                  <span>Hợp đồng xe này</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
@@ -625,7 +753,7 @@ export const CartPage: React.FC = () => {
             </Link>
             <Link
               to="/profile?tab=bookings"
-              className="px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold transition-colors inline-flex items-center space-x-2"
+              className="px-5 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] text-xs font-bold transition-colors inline-flex items-center space-x-2 shadow-sm"
             >
               <span>Quản lý tất cả chuyến xe của tôi</span>
               <ArrowRight className="w-4 h-4" />
@@ -953,14 +1081,14 @@ export const CartPage: React.FC = () => {
                 </div>
               )}
 
-              {/* STEP 2: CUSTOMER IDENTITY & EKYC */}
+              {/* STEP 2: CUSTOMER IDENTITY */}
               {currentStep === 2 && (
                 <div className="bg-[#161616] border border-white/10 rounded-3xl p-6 space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h2 className="text-base font-bold text-[#F5F5F5] flex items-center space-x-2">
                         <User className="w-4 h-4 text-[#FFC799]" />
-                        <span>Bước 2: Thông tin người đại diện nhận xe &amp; Hồ sơ eKYC</span>
+                        <span>Bước 2: Thông tin người đại diện nhận đoàn xe</span>
                       </h2>
                       <p className="text-xs text-[#A0A0A0] mt-0.5">
                         Thông tin này sẽ được dùng để lập hợp đồng điện tử cho cả {cartItems.length} xe trong giỏ.
@@ -976,39 +1104,6 @@ export const CartPage: React.FC = () => {
                       </button>
                     )}
                   </div>
-
-                  {/* eKYC Status Banner */}
-                  {user && (
-                    <div
-                      className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs ${
-                        user.identityStatus === 'Verified'
-                          ? 'bg-[#99FFE4]/10 border-[#99FFE4]/30 text-[#99FFE4]'
-                          : 'bg-[#FFC799]/10 border-[#FFC799]/30 text-[#FFC799]'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <ShieldCheck className="w-4 h-4 shrink-0" />
-                        <span>
-                          Trạng thái hồ sơ GPLX/CCCD (eKYC):{' '}
-                          <strong>
-                            {user.identityStatus === 'Verified'
-                              ? 'Đã xác thực eKYC'
-                              : user.identityStatus === 'Pending'
-                              ? 'Đang chờ duyệt eKYC'
-                              : 'Chưa xác thực (Sẽ đối chiếu trực tiếp tại quầy)'}
-                          </strong>
-                        </span>
-                      </div>
-                      {user.identityStatus !== 'Verified' && (
-                        <Link
-                          to="/profile?tab=ekyc"
-                          className="underline font-bold hover:text-white ml-2 shrink-0"
-                        >
-                          Cập nhật eKYC
-                        </Link>
-                      )}
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -1515,17 +1610,7 @@ export const CartPage: React.FC = () => {
                 </div>
               </div>
 
-              {currentStep < 4 ? (
-                <button
-                  type="button"
-                  disabled={estimating || totals.unavailableCount > 0}
-                  onClick={handleNextStep}
-                  className="w-full py-3.5 px-5 rounded-2xl bg-[#FFC799] hover:bg-[#FFD6B3] disabled:opacity-50 text-[#101010] font-bold text-xs sm:text-sm transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-lg"
-                >
-                  <span>Tiếp tục: {STEPS[currentStep]?.title}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              ) : (
+              {currentStep === 4 && (
                 <button
                   type="button"
                   disabled={

@@ -268,7 +268,7 @@ export const BannerManager: React.FC = () => {
           <button
             type="button"
             onClick={() => setToast(null)}
-            className="text-white/60 hover:text-white transition-colors"
+            className="text-[#A0A0A0] hover:text-[#F5F5F5] transition-colors"
           >
             <X className="w-4 h-4" />
           </button>

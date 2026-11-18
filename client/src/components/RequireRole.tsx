@@ -21,7 +21,8 @@ export const RequireRole: React.FC<RequireRoleProps> = ({ roles, children }) => 
   }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to={`/login?returnTo=${encodeURIComponent(location.pathname)}`} replace />;
+    const fullPath = location.pathname + (location.search || '');
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(fullPath)}`} replace />;
   }
 
   if (!roles.includes(user.roles)) {

@@ -43,6 +43,11 @@ export interface CreateBookingDto {
   customReturnAddress?: string;
   eSignatureUrl?: string;
   lessorSignatureUrl?: string;
+  groupBookingCode?: string;
+  groupTotalAmount?: number;
+  groupDepositAmount?: number;
+  groupRemainingAmount?: number;
+  groupItemCount?: number;
 }
 
 export interface EstimateBookingDto {
@@ -78,6 +83,8 @@ export interface CheckoutDto {
   notes?: string;
   returnNotes?: string;
   settleNow?: boolean;
+  paymentMethod?: 'Cash' | 'POS' | 'DirectBank' | 'VNPay';
+  paymentNotes?: string;
 }
 
 export interface RecordDamageDto {
@@ -409,6 +416,11 @@ export const createBooking = async (
         depositPaid: false,
         paidAmount: 0,
         startOdometer: vehicle.odometer || 0,
+        groupBookingCode: data.groupBookingCode ? data.groupBookingCode.trim().toUpperCase() : undefined,
+        groupTotalAmount: data.groupTotalAmount,
+        groupDepositAmount: data.groupDepositAmount,
+        groupRemainingAmount: data.groupRemainingAmount,
+        groupItemCount: data.groupItemCount || 1,
       });
 
       // Only send immediate notification for Cash hold at counter; online Banking notifications are sent after VNPay/VietQR payment succeeds
@@ -620,6 +632,7 @@ export interface GetMyBookingsOptions {
   page?: number;
   limit?: number;
   search?: string;
+  sortBy?: string;
 }
 
 export interface GetMyBookingsResult {
@@ -674,6 +687,17 @@ export const getMyBookings = async (
     query.bookingCode = { $regex: options.search.trim(), $options: 'i' };
   }
 
+  let sortCriteria: Record<string, 1 | -1> = { createdAt: -1 };
+  if (options.sortBy === 'createdAt_asc') {
+    sortCriteria = { createdAt: 1 };
+  } else if (options.sortBy === 'pickup_asc') {
+    sortCriteria = { pickupDateTime: 1, createdAt: -1 };
+  } else if (options.sortBy === 'pickup_desc') {
+    sortCriteria = { pickupDateTime: -1, createdAt: -1 };
+  } else {
+    sortCriteria = { createdAt: -1 };
+  }
+
   const [bookings, total, allCount, activeCount, completedCount, cancelledCount] =
     await Promise.all([
       Booking.find(query)
@@ -683,7 +707,8 @@ export const getMyBookings = async (
         )
         .populate('pickupBranchId', 'name code address phone hours_open hours_close')
         .populate('returnBranchId', 'name code address phone hours_open hours_close')
-        .sort({ createdAt: -1 })
+        .populate('paymentHistory.collectedBy', 'username firstName lastName')
+        .sort(sortCriteria)
         .skip(skip)
         .limit(limit),
       Booking.countDocuments(query),
@@ -849,6 +874,7 @@ export const getBranchBookings = async (
         .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
         .populate('pickupBranchId', 'name code address phone hours_open hours_close')
         .populate('returnBranchId', 'name code address phone hours_open hours_close')
+        .populate('paymentHistory.collectedBy', 'username firstName lastName')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -1127,7 +1153,8 @@ const populateBookingDetails = async (bookingId: mongoose.Types.ObjectId | strin
     .populate('userId', 'firstName lastName username phoneNumber email avatarUrl selfieUrl identityStatus')
     .populate('pickupBranchId', 'name code address phone hours_open hours_close')
     .populate('returnBranchId', 'name code address phone hours_open hours_close')
-    .populate('counterPaidBy', 'username firstName lastName');
+    .populate('counterPaidBy', 'username firstName lastName')
+    .populate('paymentHistory.collectedBy', 'username firstName lastName');
 };
 
 /**
@@ -1378,6 +1405,25 @@ export const checkoutBooking = async (
   });
   const { lateHours, lateFee, damageFee, finalDue } = settlement;
 
+  if (finalDue > 0) {
+    if (!input.paymentMethod || !['Cash', 'POS', 'DirectBank'].includes(input.paymentMethod)) {
+      throw new AppError(
+        400,
+        'Vui lòng chọn phương thức thu tiền (Tiền mặt, Thẻ POS hoặc Chuyển khoản) trước khi hoàn tất tất toán trả xe.'
+      );
+    }
+    booking.paymentHistory = booking.paymentHistory || [];
+    booking.paymentHistory.push({
+      transactionCode: `SETTLE-${Date.now().toString().slice(-6)}`,
+      amount: finalDue,
+      paymentMethod: input.paymentMethod as any,
+      paymentStage: 'CheckoutSettlement',
+      collectedBy: staffUser._id as mongoose.Types.ObjectId,
+      collectedAt: now,
+      notes: input.paymentNotes?.trim() || input.returnNotes?.trim() || 'Thu tất toán khi trả xe (Check-out)',
+    });
+  }
+
   booking.actualReturnDateTime = now;
   booking.checkoutAt = now;
   booking.checkoutBy = staffUser._id as mongoose.Types.ObjectId;
@@ -1429,7 +1475,7 @@ export const checkoutBooking = async (
       }
       vehicle.branchId = booking.returnBranchId;
       vehicle.odometer = input.endOdometer;
-      vehicle.status = damageFee >= 500000 ? 'Maintenance' : 'Available';
+      vehicle.status = (damageFee >= 500000 || vehicle.requiresMaintenance) ? 'Maintenance' : 'Available';
       await vehicle.save(session ? { session } : undefined);
     }
   });
@@ -1510,7 +1556,8 @@ export const recordCounterPayment = async (
   bookingId: string,
   staffUser: IUser,
   amount: number,
-  notes?: string
+  notes?: string,
+  paymentMethod?: 'Cash' | 'POS' | 'DirectBank'
 ): Promise<IBooking> => {
   if (!mongoose.isValidObjectId(bookingId)) {
     throw new AppError(400, 'Mã đơn đặt xe không hợp lệ.');
@@ -1567,6 +1614,16 @@ export const recordCounterPayment = async (
   }
   booking.counterPaidBy = staffUser._id as mongoose.Types.ObjectId;
   booking.counterPaidAt = new Date();
+  booking.paymentHistory = booking.paymentHistory || [];
+  booking.paymentHistory.push({
+    transactionCode: `CTR-${Date.now().toString().slice(-6)}`,
+    amount,
+    paymentMethod: paymentMethod || 'Cash',
+    paymentStage: wasPreHandover ? 'PreHandover' : 'AdditionalFee',
+    collectedBy: staffUser._id as mongoose.Types.ObjectId,
+    collectedAt: new Date(),
+    notes: notes || '',
+  });
   await booking.save();
 
   if (booking.status === 'Ongoing') {
@@ -2956,5 +3013,140 @@ export const updateBookingDeliveryAndSignatures = async (
 
   const populated = await populateBookingDetails(booking._id);
   return (populated || booking) as unknown as IBooking;
+};
+
+export interface GroupBookingDetailsResult {
+  groupBookingCode: string;
+  itemCount: number;
+  totalAmount: number;
+  depositAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  isAllPaid: boolean;
+  statusSummary: string;
+  bookings: IBooking[];
+}
+
+export const getGroupBookingDetails = async (
+  rawCode: string,
+  requestingUser: { _id: unknown; roles: string; branchId?: unknown }
+): Promise<GroupBookingDetailsResult> => {
+  const code = (rawCode || '').trim().toUpperCase();
+  if (!code) {
+    throw new AppError(400, 'Mã nhóm đơn đặt xe không hợp lệ.');
+  }
+
+  const bookings = await Booking.find({ groupBookingCode: code })
+    .populate('userId', 'firstName lastName username email phoneNumber')
+    .populate('vehicleId', 'vehicleModel brand licensePlate transmissionType fuelType dailyPrice images')
+    .populate('pickupBranchId', 'name code address phone hours_open hours_close')
+    .populate('returnBranchId', 'name code address phone hours_open hours_close')
+    .sort({ createdAt: 1 });
+
+  if (!bookings || bookings.length === 0) {
+    throw new AppError(404, `Không tìm thấy nhóm đơn đặt xe mang mã "${code}".`);
+  }
+
+  const isStaffOrAdmin = ['SystemAdmin', 'BranchManager', 'Staff'].includes(requestingUser.roles);
+  const ownerId = String((bookings[0].userId as any)?._id || bookings[0].userId);
+  if (!isStaffOrAdmin && ownerId !== String(requestingUser._id)) {
+    throw new AppError(403, 'Bạn không có quyền truy cập thông tin nhóm đơn này.');
+  }
+
+  const totalAmount = bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+  const depositAmount = bookings.reduce((sum, b) => sum + (b.depositAmount || 0), 0);
+  const paidAmount = bookings.reduce((sum, b) => sum + (b.paidAmount || 0), 0);
+  const remainingAmount = bookings.reduce((sum, b) => sum + (b.remainingAmount || 0), 0);
+  const isAllPaid = bookings.every((b) => b.isPaid || (b.remainingAmount || 0) === 0);
+
+  return {
+    groupBookingCode: code,
+    itemCount: bookings.length,
+    totalAmount,
+    depositAmount,
+    paidAmount,
+    remainingAmount,
+    isAllPaid,
+    statusSummary: isAllPaid ? 'Đã tất toán toàn bộ' : `Còn lại ${remainingAmount.toLocaleString('vi-VN')} đ`,
+    bookings: bookings as unknown as IBooking[],
+  };
+};
+
+export interface SettleGroupCounterPaymentResult {
+  groupBookingCode: string;
+  settledCount: number;
+  totalCollected: number;
+  bookings: IBooking[];
+}
+
+export const settleGroupCounterPayment = async (
+  rawCode: string,
+  requestingUser: { _id: unknown; roles: string; fullName?: string; username?: string }
+): Promise<SettleGroupCounterPaymentResult> => {
+  const code = (rawCode || '').trim().toUpperCase();
+  if (!code) {
+    throw new AppError(400, 'Mã nhóm đơn đặt xe không hợp lệ.');
+  }
+
+  const bookings = await Booking.find({ groupBookingCode: code });
+  if (!bookings || bookings.length === 0) {
+    throw new AppError(404, `Không tìm thấy nhóm đơn đặt xe mang mã "${code}".`);
+  }
+
+  let totalCollected = 0;
+  let settledCount = 0;
+
+  for (const b of bookings) {
+    const remaining = b.remainingAmount || 0;
+    if (remaining > 0 || !b.isPaid) {
+      totalCollected += remaining;
+      b.paidAmount = (b.paidAmount || 0) + remaining;
+      b.remainingAmount = 0;
+      b.isPaid = true;
+      b.depositPaid = true;
+      if (b.status === 'Pending') {
+        b.status = 'Confirmed';
+      }
+      await b.save();
+      settledCount++;
+
+      await Payment.create({
+        bookingId: b._id,
+        txnRef: `COUNTER-${b.bookingCode}-${Date.now()}`,
+        amount: remaining,
+        type: 'COUNTER',
+        status: 'SUCCESS',
+      }).catch((err: unknown) => console.error('[Group Payment Record Error]', err));
+
+      await AuditLog.create({
+        userId: requestingUser._id,
+        action: 'COUNTER_SETTLE_GROUP',
+        entity: 'Booking',
+        entityId: b._id.toString(),
+        details: {
+          groupBookingCode: code,
+          bookingCode: b.bookingCode,
+          collectedAmount: remaining,
+        },
+        timestamp: new Date(),
+      }).catch(() => {});
+
+      emitBookingStatus(b);
+    }
+  }
+
+  const updatedBookings = await Booking.find({ groupBookingCode: code })
+    .populate('userId', 'firstName lastName username email phoneNumber')
+    .populate('vehicleId', 'vehicleModel brand licensePlate transmissionType fuelType dailyPrice images')
+    .populate('pickupBranchId', 'name code address phone hours_open hours_close')
+    .populate('returnBranchId', 'name code address phone hours_open hours_close')
+    .sort({ createdAt: 1 });
+
+  return {
+    groupBookingCode: code,
+    settledCount,
+    totalCollected,
+    bookings: updatedBookings as unknown as IBooking[],
+  };
 };
 

@@ -126,6 +126,54 @@ export const attachSeasonalPricing = async <
   });
 };
 
+export interface UpcomingBookingSummary {
+  bookingCode: string;
+  status: string;
+  pickupDateTime: Date;
+  returnDateTime: Date;
+}
+
+export const attachUpcomingBookings = async <T extends { _id: mongoose.Types.ObjectId | string }>(
+  vehicles: T[]
+): Promise<(T & { upcomingBooking?: UpcomingBookingSummary | null })[]> => {
+  if (vehicles.length === 0) return [];
+  const vehicleIds = vehicles.map((v) => v._id);
+  const now = new Date();
+  const next48h = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+  const bookings = await Booking.find({
+    vehicleId: { $in: vehicleIds },
+    status: { $in: ['Confirmed', 'Ongoing'] },
+    pickupDateTime: { $lte: next48h },
+    returnDateTime: { $gte: now },
+  })
+    .select('vehicleId status pickupDateTime returnDateTime bookingCode')
+    .sort({ pickupDateTime: 1 })
+    .lean();
+
+  const bookingMap = new Map<string, UpcomingBookingSummary>();
+  for (const b of bookings) {
+    const vid = String(b.vehicleId);
+    if (!bookingMap.has(vid)) {
+      bookingMap.set(vid, {
+        bookingCode: b.bookingCode,
+        status: b.status,
+        pickupDateTime: b.pickupDateTime,
+        returnDateTime: b.returnDateTime,
+      });
+    }
+  }
+
+  return vehicles.map((v) => {
+    const vid = String(v._id);
+    const upcoming = bookingMap.get(vid) || null;
+    return {
+      ...v,
+      upcomingBooking: upcoming,
+    };
+  });
+};
+
 interface VehicleRatingSummary {
   _id: mongoose.Types.ObjectId;
   ratingAverage: number;
@@ -334,7 +382,8 @@ export const getAllVehicles = async (options: VehicleFilterOptions) => {
       { path: 'branchId', select: 'name code address phone hours_open hours_close' },
       { path: 'category', select: 'name slug description' },
     ]);
-    const vehicles = await attachSeasonalPricing(populated);
+    const pricedVehicles = await attachSeasonalPricing(populated);
+    const vehicles = await attachUpcomingBookings(pricedVehicles);
     const responseLimit = paginated ? limit : Math.max(total, 1);
     return {
       vehicles,
@@ -371,7 +420,8 @@ export const getAllVehicles = async (options: VehicleFilterOptions) => {
     { path: 'branchId', select: 'name code address phone hours_open hours_close' },
     { path: 'category', select: 'name slug description' },
   ]);
-  const vehicles = await attachSeasonalPricing(populated);
+  const pricedVehicles = await attachSeasonalPricing(populated);
+  const vehicles = await attachUpcomingBookings(pricedVehicles);
   const responseLimit = paginated ? limit : Math.max(total, 1);
   return {
     vehicles,
@@ -445,13 +495,22 @@ export const getAvailabilityMonthRange = (month: string) => {
 
 export const getBlockedDatesForMonth = (
   month: string,
-  bookings: { pickupDateTime: Date; returnDateTime: Date }[]
+  bookings: { pickupDateTime: Date; returnDateTime: Date; status?: string }[]
 ): string[] => {
   const { monthStart, monthEnd } = getAvailabilityMonthRange(month);
   const blockedDates = new Set<string>();
+  const nowMs = Date.now();
+
   for (const booking of bookings) {
+    // If the booking is Ongoing (actively out with customer) and past scheduled returnDateTime,
+    // the vehicle is overdue and physically unreturned. It must remain blocked until at least today.
+    let effectiveEndMs = booking.returnDateTime.getTime();
+    if (booking.status === 'Ongoing' && effectiveEndMs < nowMs) {
+      effectiveEndMs = Math.max(effectiveEndMs, nowMs);
+    }
+
     const start = Math.max(booking.pickupDateTime.getTime(), monthStart.getTime());
-    const end = Math.min(booking.returnDateTime.getTime(), monthEnd.getTime());
+    const end = Math.min(effectiveEndMs, monthEnd.getTime());
     if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) continue;
     const firstDay = Math.floor((start + VIETNAM_OFFSET_MS) / DAY_MS) * DAY_MS;
     const lastDay = Math.floor((end - 1 + VIETNAM_OFFSET_MS) / DAY_MS) * DAY_MS;
@@ -468,18 +527,22 @@ export const getVehicleAvailability = async (vehicleId: string, month: string) =
   if (!(await Vehicle.exists({ _id: id, isDeleted: false }))) {
     throw new AppError(404, 'Không tìm thấy phương tiện.');
   }
+  const now = new Date();
   const bookings = await Booking.find({
     vehicleId: id,
     status: { $in: ['Pending', 'Approved', 'Confirmed', 'Ongoing'] },
     pickupDateTime: { $lt: monthEnd },
-    returnDateTime: { $gt: monthStart },
+    $or: [
+      { returnDateTime: { $gt: monthStart } },
+      { status: 'Ongoing', pickupDateTime: { $lt: now } },
+    ],
   })
-    .select('pickupDateTime returnDateTime')
+    .select('pickupDateTime returnDateTime status')
     .lean();
   return { month, blockedDates: getBlockedDatesForMonth(month, bookings) };
 };
 
-export const getVehicleById = async (id: string): Promise<IVehicle> => {
+export const getVehicleById = async (id: string): Promise<IVehicle & { upcomingBooking?: UpcomingBookingSummary | null }> => {
   const vehicle = await Vehicle.findOne({ _id: parseVehicleId(id), isDeleted: false })
     .populate('branchId', 'name code address phone hours_open hours_close')
     .populate('category', 'name slug description');
@@ -488,7 +551,8 @@ export const getVehicleById = async (id: string): Promise<IVehicle> => {
     throw new AppError(404, 'Không tìm thấy phương tiện hoặc xe đã bị xóa.');
   }
 
-  return vehicle;
+  const [enriched] = await attachUpcomingBookings([vehicle.toObject()]);
+  return enriched as any;
 };
 
 export const getAllCategories = async (): Promise<ICategory[]> => {

@@ -161,9 +161,13 @@ export const getVehicle = async (
 ): Promise<void> => {
   try {
     const vehicle = await vehicleService.getVehicleById(req.params.id);
+    const vehicleObj =
+      typeof (vehicle as any).toObject === 'function'
+        ? (vehicle as any).toObject()
+        : vehicle;
     const [rating, [enriched]] = await Promise.all([
       vehicleService.getVehicleRatingSummary(req.params.id),
-      vehicleService.attachSeasonalPricing([vehicle.toObject()]),
+      vehicleService.attachSeasonalPricing([vehicleObj]),
     ]);
     res.json({
       success: true,

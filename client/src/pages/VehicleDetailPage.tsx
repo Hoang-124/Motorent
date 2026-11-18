@@ -21,6 +21,7 @@ import {
   X,
   Zap,
   ShoppingCart,
+  LogIn,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -354,16 +355,28 @@ export const VehicleDetailPage: React.FC = () => {
     .map((image) => safeImageUrl(getOptimizedVehicleImageUrl(image)))
     .filter(Boolean);
   const imageUrl = images[activeImage] || '';
-  const canBook = vehicle.status === 'Available' && !vehicle.requiresMaintenance;
+  const isCurrentlyRented = vehicle.status === 'Rented';
+  const isMaintenanceOrTransfer =
+    Boolean(vehicle.requiresMaintenance) ||
+    vehicle.status === 'Maintenance' ||
+    vehicle.status === 'Transferring';
+  // Allow advance booking for currently rented vehicles for upcoming available dates
+  const canBook = !isMaintenanceOrTransfer;
+  const upcoming = vehicle.upcomingBooking;
+  const isUpcomingConfirmed = Boolean(
+    upcoming && (upcoming.status === 'Confirmed' || upcoming.status === 'Ongoing')
+  );
   const statusLabel = vehicle.requiresMaintenance
     ? 'Cần bảo dưỡng trước khi cho thuê'
-    : vehicle.status === 'Available'
-    ? 'Sẵn sàng nhận đặt xe'
-    : vehicle.status === 'Rented'
-    ? 'Đang có khách thuê'
+    : vehicle.status === 'Maintenance'
+    ? 'Đang bảo dưỡng'
     : vehicle.status === 'Transferring'
     ? 'Đang điều chuyển'
-    : 'Đang bảo dưỡng';
+    : isUpcomingConfirmed
+    ? `Đã cọc giữ chỗ (Khóa từ ${new Date(upcoming!.pickupDateTime).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })})`
+    : isCurrentlyRented
+    ? 'Đang có khách thuê (Nhận đặt trước)'
+    : 'Sẵn sàng nhận đặt xe';
   const blocked = new Set(blockedDates || []);
   const todayParts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
@@ -506,9 +519,11 @@ export const VehicleDetailPage: React.FC = () => {
               <div className="mb-4 flex flex-wrap items-center gap-2">
                 <span
                   className={`rounded-full border px-3 py-1 text-xs font-bold ${
-                    canBook
-                      ? 'border-[#99FFE4]/25 bg-[#99FFE4]/10 text-[#99FFE4]'
-                      : 'border-[#FFC799]/30 bg-[#FFC799]/10 text-[#FFC799]'
+                    isMaintenanceOrTransfer
+                      ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                      : isUpcomingConfirmed || isCurrentlyRented
+                      ? 'border-[#FFC799]/40 bg-[#FFC799]/10 text-[#FFC799]'
+                      : 'border-[#99FFE4]/25 bg-[#99FFE4]/10 text-[#99FFE4]'
                   }`}
                 >
                   {statusLabel}
@@ -623,18 +638,35 @@ export const VehicleDetailPage: React.FC = () => {
                 <button
                   type="button"
                   disabled={!canBook}
-                  onClick={() =>
-                    navigate(
-                      `/booking/${vehicle._id}${bookingSearch ? `?${bookingSearch}` : ''}`
-                    )
-                  }
+                  onClick={() => {
+                    const target = `/booking/${vehicle._id}${bookingSearch ? `?${bookingSearch}` : ''}`;
+                    if (!isAuthenticated || !user) {
+                      navigate(`/login?returnTo=${encodeURIComponent(target)}`);
+                      return;
+                    }
+                    navigate(target);
+                  }}
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#FFC799] px-5 py-3.5 text-sm font-semibold text-[#101010] transition hover:bg-[#FFD9BA] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-[#6E6E6E]"
                 >
-                  {canBook ? 'Chọn thời gian và đặt xe' : 'Xe hiện chưa nhận đặt'}
-                  {canBook && <ChevronRight className="h-4 w-4" />}
+                  {canBook
+                    ? !isAuthenticated
+                      ? isUpcomingConfirmed || isCurrentlyRented
+                        ? 'Đăng nhập để đặt trước'
+                        : 'Đăng nhập để đặt xe'
+                      : isUpcomingConfirmed || isCurrentlyRented
+                      ? 'Chọn ngày đặt trước xe này'
+                      : 'Chọn thời gian và đặt xe'
+                    : 'Xe hiện chưa nhận đặt'}
+                  {canBook && (
+                    !isAuthenticated ? (
+                      <LogIn className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )
+                  )}
                 </button>
 
-                {canBook && (
+                {canBook && !isUpcomingConfirmed && (
                   <button
                     type="button"
                     onClick={() => toggleCart(vehicle)}

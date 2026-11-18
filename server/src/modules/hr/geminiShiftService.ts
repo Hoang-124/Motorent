@@ -104,10 +104,11 @@ Bạn là chuyên gia AI điều phối nhân sự hàng đầu của hệ thố
 Nhiệm vụ của bạn là xếp lịch trực phân ca tối ưu nhất cho chi nhánh: ${input.branch.name} (${input.branch.code}) trong tuần từ ${input.period.startDate} đến ${input.period.endDate}.
 
 QUY TẮC NGHIỆP VỤ BẮT BUỘC:
-1. Mỗi ngày có đúng 3 ca làm việc:
+1. Mỗi ngày có đúng 3 ca làm việc và MỖI CA CHỈ CÓ ĐÚNG 1 NHÂN VIÊN TRỰC:
    - Ca 1: Sáng (Morning) 07:00 - 12:00
    - Ca 2: Chiều (Afternoon) 12:00 - 17:00
    - Ca 3: Tối (Evening) 17:00 - 22:00
+   TUYỆT ĐỐI KHÔNG xếp 2 nhân viên cùng trực 1 ca trong cùng một ngày (ví dụ: không xếp 2 người cùng trực Ca 1 Sáng ngày 20/11). Một ngày tại trạm chi nhánh chỉ có tối đa 3 ca trực tương ứng 3 slot (Ca 1, Ca 2, Ca 3).
 2. TÔN TRỌNG NGUYỆN VỌNG & LỊCH ĐĂNG KÝ CỦA NHÂN VIÊN:
    - Nhân viên gửi tin nhắn đăng ký (ví dụ: "t2 2 3, t3 1 3, t4 1 2, t5 bận...").
    - Ca nhân viên đăng ký "có thể làm" -> Ưu tiên cao nhất.
@@ -204,6 +205,7 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
         const staffMap = new Map(input.staffList.map((s) => [s.sid, s]));
         const validWeekDates = new Set(input.period.weekDates);
         const seenAssignments = new Set<string>();
+        const seenBranchSlots = new Set<string>();
         const staffDayShifts = new Map<string, Set<string>>();
 
         for (const ex of input.existingSchedules) {
@@ -215,11 +217,15 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
             seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_Morning`);
             seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_Afternoon`);
             seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_Evening`);
+            seenBranchSlots.add(`${ex.shiftDate}_Morning`);
+            seenBranchSlots.add(`${ex.shiftDate}_Afternoon`);
+            seenBranchSlots.add(`${ex.shiftDate}_Evening`);
             staffDayShifts.get(dayKey)!.add('Morning');
             staffDayShifts.get(dayKey)!.add('Afternoon');
             staffDayShifts.get(dayKey)!.add('Evening');
           } else {
             seenAssignments.add(`${ex.staffId}_${ex.shiftDate}_${ex.shiftType}`);
+            seenBranchSlots.add(`${ex.shiftDate}_${ex.shiftType}`);
             staffDayShifts.get(dayKey)!.add(ex.shiftType);
           }
         }
@@ -241,10 +247,14 @@ Trả về DUY NHẤT một JSON hợp lệ (không kèm markdown \`\`\`json th�
 
           const shiftTypeVal = rawShiftType as 'Morning' | 'Afternoon' | 'Evening';
           const dedupeKey = `${staff.sid}_${rawShiftDate}_${shiftTypeVal}`;
-          if (seenAssignments.has(dedupeKey)) {
+          const branchSlotKey = `${rawShiftDate}_${shiftTypeVal}`;
+
+          // Slot exclusivity: only 1 staff per shift slot across the entire branch
+          if (seenAssignments.has(dedupeKey) || seenBranchSlots.has(branchSlotKey)) {
             continue;
           }
           seenAssignments.add(dedupeKey);
+          seenBranchSlots.add(branchSlotKey);
 
           const dayKey = `${staff.sid}_${rawShiftDate}`;
           if (!staffDayShifts.has(dayKey)) {

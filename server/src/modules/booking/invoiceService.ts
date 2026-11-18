@@ -447,3 +447,232 @@ export const streamBookingInvoicePdf = async (
 
   doc.end();
 };
+
+/**
+ * Stream a combined invoice PDF for an entire group booking (multi-vehicle)
+ */
+export const streamGroupInvoicePdf = async (
+  groupBookingCode: string,
+  requestingUser: { _id: unknown; roles: string; fullName?: string; email?: string; branchId?: unknown },
+  res: Response
+): Promise<void> => {
+  const code = groupBookingCode.trim().toUpperCase();
+  const bookings = await Booking.find({ groupBookingCode: code })
+    .populate('userId', 'firstName lastName username email phoneNumber')
+    .populate('vehicleId', 'vehicleModel brand licensePlate transmissionType fuelType dailyPrice')
+    .populate('pickupBranchId', 'name code address phone email')
+    .populate('returnBranchId', 'name code address phone email')
+    .sort({ createdAt: 1 });
+
+  if (!bookings || bookings.length === 0) {
+    throw new AppError(404, `Không tìm thấy nhóm đơn đặt xe ${code}.`);
+  }
+
+  const extractRefId = (val: unknown): string => {
+    if (val && typeof val === 'object' && '_id' in val) {
+      return String((val as { _id?: unknown })._id || '');
+    }
+    return val ? String(val) : '';
+  };
+
+  // Permission check
+  if (requestingUser.roles === 'Customer') {
+    const isOwner = bookings.every((b) => {
+      const cId = extractRefId(b.userId);
+      return cId === String(requestingUser._id);
+    });
+    if (!isOwner) {
+      throw new AppError(403, 'Bạn không có quyền truy cập hóa đơn nhóm xe của khách hàng khác.');
+    }
+  }
+
+  const firstBooking = bookings[0];
+  const customer = firstBooking.userId as {
+    firstName?: string;
+    lastName?: string;
+    username?: string;
+    email?: string;
+    phoneNumber?: string;
+  } | null;
+
+  const totalAmount = bookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+  const depositAmount = bookings.reduce((sum, b) => sum + (b.depositAmount || 0), 0);
+  const paidAmount = bookings.reduce(
+    (sum, b) => sum + (b.paidAmount || (b.depositPaid ? b.depositAmount : 0)),
+    0
+  );
+  const remainingAmount = bookings.reduce((sum, b) => sum + (b.remainingAmount || 0), 0);
+  const isAllDepositPaid = bookings.every((b) => b.depositPaid || b.isPaid);
+  const isAllPaid = bookings.every((b) => b.isPaid || b.remainingAmount === 0);
+
+  const doc = new PDFDocument({
+    size: 'A4',
+    margin: 40,
+    info: {
+      Title: `Group Invoice - ${code}`,
+      Author: 'MOTORENT VIETNAM',
+      Subject: 'Multi-Vehicle Rental Combined Invoice & Payment Receipt',
+    },
+  });
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="MOTORENT-GROUP-INVOICE-${code}.pdf"`
+  );
+
+  doc.pipe(res);
+
+  const fonts = registerUnicodePdfFonts(doc);
+  const primaryFont = fonts.regular;
+  const boldFont = fonts.bold;
+
+  // --- Header & Company Branding ---
+  doc.rect(40, 40, 515, 60).fill('#0F172A');
+  doc.fillColor('#FFFFFF').font(boldFont).fontSize(20).text('MOTORENT VIETNAM', 55, 52);
+  doc
+    .fillColor('#94A3B8')
+    .font(primaryFont)
+    .fontSize(8.5)
+    .text('Hệ Thống Cho Thuê Xe Máy Trực Tuyến & Tự Động Hóa · Hotline: 1900 633 633', 55, 78);
+
+  // Document Title
+  doc.fillColor('#0F172A').font(boldFont).fontSize(16).text('HÓA ĐƠN ĐẶT THUÊ GỘP NHIỀU XE', 40, 115);
+  doc.fillColor('#64748B').font(primaryFont).fontSize(8.5).text('BIÊN LAI ĐẶT CỌC & BÀN GIAO TOÀN ĐOÀN', 40, 134);
+
+  // Top Info Box (Group Code & Date)
+  doc.rect(40, 150, 515, 62).fill('#F8FAFC');
+  doc.strokeColor('#E2E8F0').lineWidth(1).rect(40, 150, 515, 62).stroke();
+
+  doc.fillColor('#334155').font(boldFont).fontSize(9);
+  doc.text(`MÃ NHÓM ĐƠN: ${code}`, 55, 160);
+  doc.text(`SỐ LƯỢNG XE: ${bookings.length} phương tiện`, 250, 160);
+  doc.text(`NGÀY LẬP BIÊN LAI: ${new Date().toLocaleDateString('vi-VN')}`, 400, 160);
+
+  const customerName = customer ? `${customer.lastName || ''} ${customer.firstName || customer.username || ''}`.trim() : 'Khách vãng lai';
+  doc.font(primaryFont).fontSize(8.5).fillColor('#475569');
+  doc.text(`Khách hàng đại diện: ${customerName}`, 55, 178);
+  doc.text(`Số điện thoại: ${customer?.phoneNumber || 'N/A'}`, 250, 178);
+  doc.text(`Email: ${customer?.email || 'N/A'}`, 400, 178);
+
+  const deliveryText = firstBooking.deliveryMode === 'DoorDelivery'
+    ? `Giao tận nơi: ${firstBooking.customPickupAddress || 'Theo yêu cầu khách'}`
+    : 'Nhận trực tiếp tại trạm';
+  doc.text(`Hình thức nhận: ${deliveryText}`, 55, 194, { width: 480, ellipsis: true });
+
+  // Vehicles Table Header
+  let tableY = 225;
+  doc.rect(40, tableY, 515, 24).fill('#1E293B');
+  doc.fillColor('#FFFFFF').font(boldFont).fontSize(8);
+  doc.text('STT', 45, tableY + 8, { width: 25, align: 'center' });
+  doc.text('Mã đơn / Biển số', 75, tableY + 8, { width: 100 });
+  doc.text('Dòng xe & Phân loại', 180, tableY + 8, { width: 110 });
+  doc.text('Thời gian thuê', 295, tableY + 8, { width: 90 });
+  doc.text('Tổng tiền', 390, tableY + 8, { width: 55, align: 'right' });
+  doc.text('Đã cọc 30%', 450, tableY + 8, { width: 50, align: 'right' });
+  doc.text('Còn lại', 505, tableY + 8, { width: 45, align: 'right' });
+  tableY += 24;
+
+  // Vehicles Table Rows
+  bookings.forEach((b, idx) => {
+    if (tableY > 710) {
+      doc.addPage();
+      tableY = 40;
+    }
+    const rowBg = idx % 2 === 0 ? '#FFFFFF' : '#F1F5F9';
+    doc.rect(40, tableY, 515, 30).fill(rowBg);
+
+    const vehicle = b.vehicleId as {
+      vehicleModel?: string;
+      brand?: string;
+      licensePlate?: string;
+      transmissionType?: string;
+    } | null;
+
+    doc.fillColor('#1E293B').font(boldFont).fontSize(8);
+    doc.text(String(idx + 1), 45, tableY + 6, { width: 25, align: 'center' });
+
+    doc.fillColor('#0F172A').font(boldFont).fontSize(8);
+    doc.text(b.bookingCode, 75, tableY + 5, { width: 100 });
+    doc.fillColor('#059669').font(boldFont).fontSize(7.5);
+    doc.text(vehicle?.licensePlate || 'Chưa gán xe', 75, tableY + 16, { width: 100 });
+
+    doc.fillColor('#334155').font(boldFont).fontSize(8);
+    doc.text(`${vehicle?.brand || ''} ${vehicle?.vehicleModel || 'Xe máy'}`, 180, tableY + 5, { width: 110, ellipsis: true });
+    doc.fillColor('#64748B').font(primaryFont).fontSize(7);
+    doc.text(vehicle?.transmissionType || 'Tự động', 180, tableY + 16, { width: 110 });
+
+    const pickupStr = new Date(b.pickupDateTime).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    const returnStr = new Date(b.returnDateTime).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+    doc.fillColor('#475569').font(primaryFont).fontSize(7.5);
+    doc.text(`${pickupStr} - ${returnStr}`, 295, tableY + 10, { width: 90 });
+
+    doc.fillColor('#0F172A').font(boldFont).fontSize(7.5);
+    doc.text(`${(b.totalAmount || 0).toLocaleString('vi-VN')} đ`, 390, tableY + 10, { width: 55, align: 'right' });
+    doc.text(`${(b.depositAmount || 0).toLocaleString('vi-VN')} đ`, 450, tableY + 10, { width: 50, align: 'right' });
+    doc.text(`${(b.remainingAmount || 0).toLocaleString('vi-VN')} đ`, 505, tableY + 10, { width: 45, align: 'right' });
+
+    tableY += 30;
+  });
+
+  // Financial Summary Box
+  tableY += 15;
+  if (tableY > 640) {
+    doc.addPage();
+    tableY = 40;
+  }
+
+  doc.rect(260, tableY, 295, 95).fill('#F8FAFC');
+  doc.strokeColor('#CBD5E1').lineWidth(1).rect(260, tableY, 295, 95).stroke();
+
+  doc.fillColor('#475569').font(primaryFont).fontSize(8.5);
+  doc.text('Tổng chi phí toàn đoàn (A):', 275, tableY + 12);
+  doc.fillColor('#0F172A').font(boldFont).fontSize(9);
+  doc.text(`${totalAmount.toLocaleString('vi-VN')} VNĐ`, 425, tableY + 12, { width: 120, align: 'right' });
+
+  doc.fillColor('#475569').font(primaryFont).fontSize(8.5);
+  doc.text('Tổng tiền cọc đã thu 30% (B):', 275, tableY + 30);
+  doc.fillColor('#059669').font(boldFont).fontSize(9);
+  doc.text(`${paidAmount.toLocaleString('vi-VN')} VNĐ`, 425, tableY + 30, { width: 120, align: 'right' });
+
+  doc.fillColor('#475569').font(primaryFont).fontSize(8.5);
+  doc.text('Số dư còn lại khi nhận xe (C = A - B):', 275, tableY + 48);
+  doc.fillColor('#D97706').font(boldFont).fontSize(9.5);
+  doc.text(`${remainingAmount.toLocaleString('vi-VN')} VNĐ`, 425, tableY + 48, { width: 120, align: 'right' });
+
+  doc.fillColor('#475569').font(primaryFont).fontSize(8.5);
+  doc.text('Trạng thái thanh toán:', 275, tableY + 70);
+  doc.fillColor(isAllPaid ? '#059669' : isAllDepositPaid ? '#2563EB' : '#DC2626').font(boldFont).fontSize(9);
+  doc.text(
+    isAllPaid ? 'ĐÃ TẤT TOÁN 100%' : isAllDepositPaid ? 'ĐÃ ĐẶT CỌC 30% (CHỜ QUẦY)' : 'CHƯA HOÀN TẤT CỌC',
+    400,
+    tableY + 70,
+    { width: 145, align: 'right' }
+  );
+
+  // Signatures section
+  tableY += 120;
+  if (tableY > 720) {
+    doc.addPage();
+    tableY = 40;
+  }
+
+  doc.fillColor('#334155').font(boldFont).fontSize(9);
+  doc.text('ĐẠI DIỆN KHÁCH HÀNG', 80, tableY);
+  doc.text('ĐẠI DIỆN MOTORENT VIETNAM', 370, tableY);
+
+  doc.fillColor('#94A3B8').font(primaryFont).fontSize(7.5);
+  doc.text('(Ký và ghi rõ họ tên)', 80, tableY + 12);
+  doc.text('(Xác nhận bàn giao & đóng dấu)', 370, tableY + 12);
+
+  doc.fillColor('#64748B').font(primaryFont).fontSize(7);
+  doc.text(
+    'Biên lai được tạo tự động bởi Hệ thống Quản trị Đội xe MOTORENT. Hợp đồng có giá trị pháp lý đầy đủ.',
+    40,
+    tableY + 65,
+    { width: 515, align: 'center' }
+  );
+
+  doc.end();
+};
+

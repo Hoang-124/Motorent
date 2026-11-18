@@ -37,6 +37,11 @@ const createBookingSchema = z.object({
   customReturnAddress: z.string().trim().max(300).optional(),
   eSignatureUrl: z.string().optional(),
   lessorSignatureUrl: z.string().optional(),
+  groupBookingCode: z.string().trim().optional(),
+  groupTotalAmount: z.number().optional(),
+  groupDepositAmount: z.number().optional(),
+  groupRemainingAmount: z.number().optional(),
+  groupItemCount: z.number().optional(),
 });
 
 const estimateBookingSchema = z.object({
@@ -70,6 +75,11 @@ const updateContractAndDeliverySchema = z.object({
   customReturnAddress: z.string().trim().max(300).optional(),
   eSignatureUrl: z.string().optional(),
   lessorSignatureUrl: z.string().optional(),
+  groupBookingCode: z.string().trim().optional(),
+  groupTotalAmount: z.number().optional(),
+  groupDepositAmount: z.number().optional(),
+  groupRemainingAmount: z.number().optional(),
+  groupItemCount: z.number().optional(),
 });
 
 const checkoutSchema = z.object({
@@ -79,6 +89,8 @@ const checkoutSchema = z.object({
   damageFee: z.coerce.number().min(0).optional(),
   notes: z.string().optional(),
   returnNotes: z.string().optional(),
+  paymentMethod: z.enum(['Cash', 'POS', 'DirectBank']).optional(),
+  paymentNotes: z.string().optional(),
 });
 
 const cancelSchema = z.object({
@@ -140,13 +152,14 @@ export const getMyBookings = async (
       throw new AppError(401, 'Yêu cầu đăng nhập.');
     }
 
-    const { status, page, limit, search } = req.query;
+    const { status, page, limit, search, sort } = req.query;
 
     const result = await bookingService.getMyBookings(req.user._id.toString(), {
       status: typeof status === 'string' ? status : undefined,
       page: page ? Number(page) : 1,
       limit: limit ? Number(limit) : 10,
       search: typeof search === 'string' ? search : undefined,
+      sortBy: typeof sort === 'string' ? sort : undefined,
     });
 
     res.json({
@@ -318,6 +331,7 @@ export const cancel = async (
 
 const counterPaySchema = z.object({
   amount: z.coerce.number().min(1, 'Số tiền thanh toán phải lớn hơn 0'),
+  paymentMethod: z.enum(['Cash', 'POS', 'DirectBank']).optional(),
   notes: z.string().optional(),
 });
 
@@ -332,7 +346,13 @@ export const counterPay = async (
     }
 
     const data = counterPaySchema.parse(req.body);
-    const updated = await bookingService.recordCounterPayment(req.params.id, req.user, data.amount, data.notes);
+    const updated = await bookingService.recordCounterPayment(
+      req.params.id,
+      req.user,
+      data.amount,
+      data.notes,
+      data.paymentMethod
+    );
 
     res.json({
       success: true,
@@ -701,4 +721,72 @@ export const updateContractAndDelivery = async (
     next(error);
   }
 };
+
+export const getGroupByCode = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+    const group = await bookingService.getGroupBookingDetails(
+      req.params.groupBookingCode,
+      req.user
+    );
+    res.json({
+      success: true,
+      data: group,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const downloadGroupInvoice = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập để tải hóa đơn.');
+    }
+    await invoiceService.streamGroupInvoicePdf(
+      req.params.groupBookingCode,
+      req.user,
+      res
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const counterPayGroup = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, 'Yêu cầu đăng nhập.');
+    }
+    if (!['SystemAdmin', 'BranchManager', 'Staff'].includes(req.user.roles)) {
+      throw new AppError(403, 'Chỉ nhân viên hoặc quản lý mới có quyền thu tiền tại quầy.');
+    }
+    const result = await bookingService.settleGroupCounterPayment(
+      req.params.groupBookingCode,
+      req.user
+    );
+    res.json({
+      success: true,
+      message: `Đã thu tất toán thành công cho ${result.settledCount} xe trong nhóm đơn ${result.groupBookingCode}.`,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 

@@ -688,16 +688,33 @@ export const ShiftCalendarView: React.FC = () => {
   };
 
   // Group schedules by date string YYYY-MM-DD and sort chronologically (Ca 1 -> Ca 2 -> Ca 3)
+  // Ensures strictly at most 1 card per shift slot (Ca 1, Ca 2, Ca 3) per day to prevent duplicate UI cards
   const schedulesByDate = useMemo(() => {
     const map: Record<string, StaffSchedule[]> = {};
     for (const s of schedules) {
+      if (s.status === 'Cancelled') continue;
       const dateKey = toDateKey(s.shiftDate);
       if (!map[dateKey]) map[dateKey] = [];
       map[dateKey].push(s);
     }
-    // Strict chronological sort: Ca 1 (Sáng) -> Ca 2 (Chiều) -> Ca 3 (Tối)
+    // Strict chronological sort and deduplicate duplicate shift slots if any anomaly exists
     for (const key of Object.keys(map)) {
-      map[key].sort((a, b) => (SHIFT_CHRONO_ORDER[a.shiftType] || 99) - (SHIFT_CHRONO_ORDER[b.shiftType] || 99));
+      map[key].sort((a, b) => {
+        const orderA = SHIFT_CHRONO_ORDER[a.shiftType] || 99;
+        const orderB = SHIFT_CHRONO_ORDER[b.shiftType] || 99;
+        if (orderA !== orderB) return orderA - orderB;
+        const prioA = a.checkInTime ? 2 : a.status === 'Assigned' ? 1 : 0;
+        const prioB = b.checkInTime ? 2 : b.status === 'Assigned' ? 1 : 0;
+        return prioB - prioA;
+      });
+
+      // Strict station exclusivity: keep only unique shift slot (Morning, Afternoon, Evening)
+      const seenSlots = new Set<string>();
+      map[key] = map[key].filter((item) => {
+        if (seenSlots.has(item.shiftType)) return false;
+        seenSlots.add(item.shiftType);
+        return true;
+      });
     }
     return map;
   }, [schedules]);

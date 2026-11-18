@@ -11,13 +11,15 @@ import {
   Heart,
   Star,
   ShoppingCart,
-  Check
+  Check,
+  LogIn
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '../types';
 import { getOptimizedVehicleImageUrl, getVehicleImageProps } from '../utils/imageHelper';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 
 interface VehicleCardProps {
   vehicle: Vehicle;
@@ -39,6 +41,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
   viewMode = 'grid',
 }) => {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const { isInWishlist, toggleWishlist, isToggling } = useWishlist();
   const { isInCart, toggleCart } = useCart();
   const inCart = isInCart(vehicle._id);
@@ -54,6 +57,10 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
   }, [vehicle._id, activeAngle]);
 
   const isAvailable = vehicle.status === 'Available' && !vehicle.requiresMaintenance;
+  const upcoming = vehicle.upcomingBooking;
+  const isUpcomingConfirmed = Boolean(
+    upcoming && (upcoming.status === 'Confirmed' || upcoming.status === 'Ongoing')
+  );
   const angleViews = ANGLE_VIEWS.filter((angle) => Boolean(vehicle.images?.[angle.id]));
   const branchName =
     typeof vehicle.branchId === 'object' && vehicle.branchId !== null
@@ -85,11 +92,16 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
   };
 
   const handleBookClick = () => {
+    const target = `/booking/${vehicle._id}`;
+    if (!isAuthenticated || !user) {
+      navigate(`/login?returnTo=${encodeURIComponent(target)}`);
+      return;
+    }
     if (onBookNow) {
       onBookNow(vehicle);
       return;
     }
-    navigate(`/booking/${vehicle._id}`);
+    navigate(target);
   };
 
   const currentImageUrl =
@@ -116,7 +128,9 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
         <div className="absolute top-3.5 left-3.5 right-3.5 z-20 flex items-center justify-between pointer-events-none">
           <span
             className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide shadow-sm ${
-              isAvailable
+              isUpcomingConfirmed
+                ? 'bg-[#101010]/95 text-[#FFC799] border border-[#FFC799]/30'
+                : isAvailable
                 ? 'bg-[#101010]/90 text-[#F5F5F5]'
                 : vehicle.status === 'Rented'
                 ? 'bg-[#101010]/90 text-[#FFC799]'
@@ -125,14 +139,18 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
           >
             <span
               className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
-                isAvailable
+                isUpcomingConfirmed
+                  ? 'bg-[#FFC799]'
+                  : isAvailable
                   ? 'bg-[#99FFE4]'
                   : vehicle.status === 'Rented'
                   ? 'bg-[#FFC799]'
                   : 'bg-slate-400'
               }`}
             />
-            {isAvailable
+            {isUpcomingConfirmed
+              ? `Đã cọc giữ chỗ (Khóa từ ${new Date(upcoming!.pickupDateTime).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })})`
+              : isAvailable
               ? 'Sẵn sàng tại trạm'
               : vehicle.status === 'Rented'
               ? 'Đang có khách thuê'
@@ -157,7 +175,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
               className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer backdrop-blur-md shadow-sm ${
                 isInWishlist(vehicle._id)
                   ? 'bg-[#FF8080] text-white hover:bg-[#ff6666]'
-                  : 'bg-[#101010]/80 hover:bg-[#101010] text-white/80 hover:text-white border border-white/20'
+                  : 'bg-black/60 hover:bg-black/80 text-white/90 hover:text-white border border-white/20'
               } ${isToggling(vehicle._id) ? 'opacity-50 cursor-not-allowed' : 'active:scale-90'}`}
               title={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
               aria-label={isInWishlist(vehicle._id) ? 'Bỏ lưu yêu thích' : 'Lưu vào yêu thích'}
@@ -183,7 +201,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             setActiveAngle(angleViews[nextIndex].id);
             setImgError(false);
           }}
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#101010]/75 hover:bg-[#101010] text-[#F5F5F5] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 cursor-pointer"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 text-white border border-white/15 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 cursor-pointer"
           aria-label="Góc trước đó"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -200,7 +218,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             setActiveAngle(angleViews[nextIndex].id);
             setImgError(false);
           }}
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-[#101010]/75 hover:bg-[#101010] text-[#F5F5F5] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 cursor-pointer"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/60 hover:bg-black/85 text-white border border-white/15 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-95 cursor-pointer"
           aria-label="Góc tiếp theo"
         >
           <ChevronRight className="w-4 h-4" />
@@ -248,7 +266,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             Đời {vehicle.yearManufactured || 2024}
           </span>
 
-          <div className="flex items-center space-x-0.5 bg-[#101010]/85 backdrop-blur-md p-0.5 rounded-lg">
+          <div className="flex items-center space-x-0.5 bg-black/75 backdrop-blur-md p-0.5 rounded-lg border border-white/15">
             {angleViews.map((ang) => (
               <button
                 key={ang.id}
@@ -260,8 +278,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
                 }}
                 className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-all cursor-pointer ${
                   activeAngle === ang.id
-                    ? 'bg-[#F5F5F5] text-[#101010] font-semibold'
-                    : 'text-[#A0A0A0] hover:text-[#F5F5F5]'
+                    ? 'bg-white text-neutral-900 font-bold shadow-sm'
+                    : 'text-white/80 hover:text-white'
                 }`}
               >
                 {ang.label}
@@ -331,35 +349,35 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
 
           {/* Clean Recessed Spec Pills */}
           <div className="grid grid-cols-3 gap-2 mt-3.5">
-            <div className="bg-[#101010]/70 border border-white/[0.07] rounded-xl px-2.5 py-2">
-              <span className="text-[10px] text-[#6E6E6E] block">Đồng hồ ODO</span>
-              <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
-                <Gauge className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
+            <div className="bg-neutral-100 dark:bg-white/[0.04] border border-neutral-200/80 dark:border-white/[0.08] rounded-xl px-2.5 py-2">
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block font-medium">Đồng hồ ODO</span>
+              <span className="font-mono-tabular font-semibold text-neutral-900 dark:text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
+                <Gauge className="w-3 h-3 text-amber-600 dark:text-[#FFC799] mr-1 shrink-0" />
                 {vehicle.odometer.toLocaleString('vi-VN')}km
               </span>
             </div>
 
-            <div className="bg-[#101010]/70 border border-white/[0.07] rounded-xl px-2.5 py-2">
-              <span className="text-[10px] text-[#6E6E6E] block">Mức tiêu hao</span>
-              <span className="font-mono-tabular font-semibold text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
+            <div className="bg-neutral-100 dark:bg-white/[0.04] border border-neutral-200/80 dark:border-white/[0.08] rounded-xl px-2.5 py-2">
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block font-medium">Mức tiêu hao</span>
+              <span className="font-mono-tabular font-semibold text-neutral-900 dark:text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
                 {isElectric ? (
                   <>
-                    <Zap className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
+                    <Zap className="w-3 h-3 text-amber-600 dark:text-[#FFC799] mr-1 shrink-0" />
                     <span>198km/sạc</span>
                   </>
                 ) : (
                   <>
-                    <Fuel className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
+                    <Fuel className="w-3 h-3 text-amber-600 dark:text-[#FFC799] mr-1 shrink-0" />
                     <span className="break-all">~1.7L/100km</span>
                   </>
                 )}
               </span>
             </div>
 
-            <div className="bg-[#101010]/70 border border-white/[0.07] rounded-xl px-2.5 py-2">
-              <span className="text-[10px] text-[#6E6E6E] block">Đi kèm</span>
-              <span className="font-semibold text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
-                <ShieldCheck className="w-3 h-3 text-[#FFC799] mr-1 shrink-0" />
+            <div className="bg-neutral-100 dark:bg-white/[0.04] border border-neutral-200/80 dark:border-white/[0.08] rounded-xl px-2.5 py-2">
+              <span className="text-[10px] text-neutral-500 dark:text-neutral-400 block font-medium">Đi kèm</span>
+              <span className="font-semibold text-neutral-900 dark:text-[#F5F5F5] text-[11px] flex items-center mt-0.5">
+                <ShieldCheck className="w-3 h-3 text-amber-600 dark:text-[#FFC799] mr-1 shrink-0" />
                 <span>02 Mũ + Áo mưa</span>
               </span>
             </div>
@@ -381,7 +399,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
           </div>
 
           <div className="flex items-center space-x-2 shrink-0">
-            {isAvailable && (
+            {isAvailable && !isUpcomingConfirmed && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -402,22 +420,55 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
 
             <button
               type="button"
-              disabled={!isAvailable}
+              disabled={!isAvailable && vehicle.status !== 'Rented'}
               onClick={(e) => {
                 e.stopPropagation();
                 handleBookClick();
               }}
+              title={
+                !isAvailable && vehicle.status !== 'Rented'
+                  ? undefined
+                  : !isAuthenticated
+                  ? 'Vui lòng đăng nhập để tiến hành đặt xe'
+                  : isAuthenticated && user?.roles === 'Customer' && user?.identityStatus !== 'Verified'
+                  ? 'Bắt buộc hoàn tất xác thực eKYC trước khi đặt xe'
+                  : isUpcomingConfirmed
+                  ? `Xe đã có lịch cọc từ ${new Date(upcoming!.pickupDateTime).toLocaleDateString('vi-VN')}. Bạn có thể chọn ngày khác để đặt trước.`
+                  : vehicle.status === 'Rented'
+                  ? 'Đặt trước xe này cho các ngày tới'
+                  : 'Đặt xe ngay'
+              }
               className={`px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center space-x-1.5 shrink-0 ${
-                isAvailable
+                isUpcomingConfirmed
+                  ? 'bg-[#FFC799]/15 border border-[#FFC799]/40 text-[#FFC799] hover:bg-[#FFC799] hover:text-[#101010] active:scale-95 cursor-pointer shadow-sm'
+                  : isAvailable
                   ? 'bg-[#F5F5F5] group-hover:bg-[#FFC799] text-[#101010] active:scale-95 cursor-pointer shadow-sm'
+                  : vehicle.status === 'Rented'
+                  ? 'bg-[#FFC799]/15 border border-[#FFC799]/40 text-[#FFC799] hover:bg-[#FFC799] hover:text-[#101010] active:scale-95 cursor-pointer shadow-sm'
                   : 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
               }`}
             >
               <span>
-                {isAvailable ? 'Đặt xe' : vehicle.status === 'Rented' ? 'Đang thuê' : 'Chưa sẵn sàng'}
+                {isUpcomingConfirmed
+                  ? !isAuthenticated
+                    ? 'Đăng nhập để đặt'
+                    : 'Đặt trước ngày khác'
+                  : isAvailable
+                  ? !isAuthenticated
+                    ? 'Đăng nhập để đặt'
+                    : 'Đặt xe'
+                  : vehicle.status === 'Rented'
+                  ? !isAuthenticated
+                    ? 'Đăng nhập để đặt'
+                    : 'Đặt trước'
+                  : 'Chưa sẵn sàng'}
               </span>
-              {isAvailable && (
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.2] transition-transform group-hover:translate-x-0.5" />
+              {(isAvailable || vehicle.status === 'Rented') && (
+                !isAuthenticated ? (
+                  <LogIn className="w-3.5 h-3.5 stroke-[2.2] transition-transform group-hover:translate-x-0.5" />
+                ) : (
+                  <ArrowRight className="w-3.5 h-3.5 stroke-[2.2] transition-transform group-hover:translate-x-0.5" />
+                )
               )}
             </button>
           </div>

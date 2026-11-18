@@ -24,9 +24,11 @@ import { BookingModal } from '../components/BookingModal';
 import type { Vehicle, Branch, Category, Discount } from '../types';
 import { api } from '../services/api';
 import { getOptimizedVehicleImageUrl } from '../utils/imageHelper';
+import { useAuth } from '../context/AuthContext';
 
 export const FleetPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const pickupParam = searchParams.get('pickup') || '';
   const returnParam = searchParams.get('return') || '';
@@ -195,7 +197,12 @@ export const FleetPage: React.FC = () => {
     if (returnDateParam) params.set('returnDate', returnDateParam);
     if (selectedVoucher) params.set('voucher', selectedVoucher);
     const qs = params.toString();
-    navigate(`/booking/${v._id}${qs ? `?${qs}` : ''}`);
+    const target = `/booking/${v._id}${qs ? `?${qs}` : ''}`;
+    if (!isAuthenticated || !user) {
+      navigate(`/login?returnTo=${encodeURIComponent(target)}`);
+      return;
+    }
+    navigate(target);
   };
 
   const handleNavigateToDetail = (vehicle: Vehicle) => {

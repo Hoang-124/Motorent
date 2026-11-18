@@ -28,6 +28,19 @@ export interface IDamageRecord {
   recordedAt: Date;
 }
 
+export type PaymentMethodType = 'Cash' | 'POS' | 'DirectBank' | 'VNPay';
+export type PaymentStageType = 'Deposit' | 'PreHandover' | 'CheckoutSettlement' | 'AdditionalFee';
+
+export interface IPaymentRecord {
+  transactionCode?: string;
+  amount: number;
+  paymentMethod: PaymentMethodType;
+  paymentStage: PaymentStageType;
+  collectedBy?: mongoose.Types.ObjectId;
+  collectedAt: Date;
+  notes?: string;
+}
+
 export interface IBooking extends Document {
   bookingCode: string;
   userId: mongoose.Types.ObjectId;
@@ -59,6 +72,7 @@ export interface IBooking extends Document {
   settlementAmount?: number;
   counterPaidBy?: mongoose.Types.ObjectId;
   counterPaidAt?: Date;
+  paymentHistory?: IPaymentRecord[];
   loyaltyAwarded?: boolean;
   paymentType?: 'Deposit30' | 'Full100';
   paymentExpiresAt?: Date;
@@ -102,6 +116,11 @@ export interface IBooking extends Document {
   extensionCount?: number;
   lastExtendedAt?: Date;
   originalReturnDateTime?: Date;
+  groupBookingCode?: string;
+  groupTotalAmount?: number;
+  groupDepositAmount?: number;
+  groupRemainingAmount?: number;
+  groupItemCount?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -152,6 +171,25 @@ const BookingSchema = new Schema<IBooking>(
     settlementAmount: { type: Number, default: 0 },
     counterPaidBy: { type: Schema.Types.ObjectId, ref: 'User' },
     counterPaidAt: { type: Date },
+    paymentHistory: [
+      {
+        transactionCode: { type: String, trim: true },
+        amount: { type: Number, required: true },
+        paymentMethod: {
+          type: String,
+          enum: ['Cash', 'POS', 'DirectBank', 'VNPay'],
+          required: true,
+        },
+        paymentStage: {
+          type: String,
+          enum: ['Deposit', 'PreHandover', 'CheckoutSettlement', 'AdditionalFee'],
+          required: true,
+        },
+        collectedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+        collectedAt: { type: Date, default: Date.now },
+        notes: { type: String, trim: true },
+      },
+    ],
     loyaltyAwarded: { type: Boolean, default: false },
     paymentType: { type: String, enum: ['Deposit30', 'Full100'], default: 'Deposit30' },
     paymentExpiresAt: { type: Date },
@@ -209,6 +247,11 @@ const BookingSchema = new Schema<IBooking>(
     extensionCount: { type: Number, default: 0 },
     lastExtendedAt: { type: Date },
     originalReturnDateTime: { type: Date },
+    groupBookingCode: { type: String, index: true, uppercase: true, trim: true },
+    groupTotalAmount: { type: Number },
+    groupDepositAmount: { type: Number },
+    groupRemainingAmount: { type: Number },
+    groupItemCount: { type: Number, default: 1 },
   },
   { timestamps: true }
 );

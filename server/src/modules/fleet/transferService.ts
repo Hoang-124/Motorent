@@ -259,9 +259,15 @@ export const listTransfers = async (
     ...(scope ? { $or: [{ fromBranchId: scope }, { toBranchId: scope }] } : {}),
     ...(options.vehicleId ? { vehicleId: objectId(options.vehicleId, 'Mã xe') } : {}),
   };
+  const statusFilter =
+    options.status === 'InTransit'
+      ? { $in: ['InTransit', 'Approved'] }
+      : options.status
+        ? options.status
+        : undefined;
   const filter: FilterQuery<IVehicleTransfer> = {
     ...baseScopeFilter,
-    ...(options.status ? { status: options.status } : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
   };
   const { page, limit, skip } = pagination(options.page, options.limit);
   const [data, total, pending, inTransitCount, completedCount, rejectedCount] = await Promise.all([

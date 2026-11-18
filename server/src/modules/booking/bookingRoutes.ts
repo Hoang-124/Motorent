@@ -94,6 +94,27 @@ router.post(
   bookingController.recordDamage
 );
 
+// Multi-vehicle Group Booking endpoints (Placed before /:id)
+router.get(
+  '/group/:groupBookingCode',
+  authenticateJWT,
+  bookingController.getGroupByCode
+);
+
+router.get(
+  '/group/:groupBookingCode/invoice',
+  authenticateJWT,
+  bookingController.downloadGroupInvoice
+);
+
+router.put(
+  '/group/:groupBookingCode/counter-pay',
+  authenticateJWT,
+  authorize('Staff', 'BranchManager', 'SystemAdmin'),
+  auditLogger('COUNTER_PAY_GROUP_BOOKING', 'Booking'),
+  bookingController.counterPayGroup
+);
+
 // Common endpoints
 router.get('/:id', authenticateJWT, bookingController.getBookingById);
 

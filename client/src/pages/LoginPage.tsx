@@ -81,6 +81,10 @@ export const LoginPage: React.FC = () => {
   const successNotice = queryParams.get('verified') === 'true' 
     ? 'Email của bạn đã được xác thực thành công! Vui lòng đăng nhập.' 
     : '';
+  const returnToParam = queryParams.get('returnTo');
+  const bookingNotice = returnToParam && returnToParam.includes('/booking')
+    ? 'Vui lòng đăng nhập tài khoản để tiến hành đặt xe và xác lập hợp đồng điện tử.'
+    : '';
 
   const resolvePostLoginPath = (role: string, rawReturnTo: string | null): string => {
     const defaultHome =
@@ -375,6 +379,13 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Notice Message */}
+        {bookingNotice && (
+          <div className="p-3.5 bg-[#FFC799]/15 border border-[#FFC799]/35 text-[#FFC799] rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
+            <AlertCircle className="w-4 h-4 text-[#FFC799] shrink-0" />
+            <span>{bookingNotice}</span>
+          </div>
+        )}
+
         {successNotice && (
           <div className="p-3.5 bg-[#FFC799]/10 border border-[#FFC799]/30 text-[#FFC799] rounded-2xl text-xs flex items-center space-x-2.5 animate-fade-in">
             <CheckCircle2 className="w-4 h-4 text-[#FFC799] shrink-0" />

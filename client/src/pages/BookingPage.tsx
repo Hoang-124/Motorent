@@ -29,8 +29,8 @@ import {
   RefreshCw,
   Download,
   CalendarPlus,
-  Lock,
   ExternalLink,
+  ShieldAlert,
 } from 'lucide-react';
 import axios from 'axios';
 import { api } from '../services/api';
@@ -94,7 +94,14 @@ export const BookingPage: React.FC = () => {
   const { vehicleId } = useParams<{ vehicleId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, isAuthenticated, updateUser } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, updateUser } = useAuth();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      const returnUrl = window.location.pathname + window.location.search;
+      navigate(`/login?returnTo=${encodeURIComponent(returnUrl)}`, { replace: true });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   const pickupParam = searchParams.get('pickup') || '';
   const returnParam = searchParams.get('return') || '';
@@ -108,6 +115,10 @@ export const BookingPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  const isUnverifiedCustomer = Boolean(
+    isAuthenticated && user && user.roles === 'Customer' && user.identityStatus !== 'Verified'
+  );
 
   // Stepper state: 1 -> 2 -> 3 -> 4 -> 5 (Success)
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -548,6 +559,18 @@ export const BookingPage: React.FC = () => {
     setErrorMsg('');
 
     if (currentStep === 1) {
+      if (isUnverifiedCustomer) {
+        if (user?.identityStatus === 'Pending') {
+          setErrorMsg('Hồ sơ định danh eKYC của bạn đang chờ nhân viên trạm xét duyệt. Vui lòng chờ xét duyệt hoàn tất trước khi đặt xe.');
+        } else if (user?.identityStatus === 'Rejected') {
+          setErrorMsg(`Hồ sơ eKYC của bạn đã bị từ chối (${user.ekycRejectionReason || 'Giấy tờ không hợp lệ'}). Vui lòng cập nhật lại tại mục Hồ sơ cá nhân.`);
+        } else {
+          setErrorMsg('Bắt buộc phải hoàn tất xác thực eKYC (CCCD/GPLX) tại mục Hồ sơ cá nhân trước khi tiến hành đặt xe.');
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
       if (startDateTime >= endDateTime) {
         setErrorMsg('Thời gian trả xe phải diễn ra sau thời gian nhận xe ít nhất 2 giờ.');
         return;
@@ -659,6 +682,11 @@ export const BookingPage: React.FC = () => {
   const handleConfirmBooking = async () => {
     if (!isAuthenticated || !user) {
       navigate(`/login?returnTo=${encodeURIComponent(window.location.pathname)}`);
+      return;
+    }
+
+    if (isUnverifiedCustomer) {
+      setErrorMsg('Bắt buộc phải hoàn tất xác thực eKYC trước khi thanh toán cọc và hoàn tất đặt xe.');
       return;
     }
 
@@ -883,7 +911,7 @@ export const BookingPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#101010] text-[#F5F5F5] py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
-        {/* Breadcrumb Navigation & Polish Badge */}
+        {/* Breadcrumb Navigation */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <nav className="flex items-center space-x-2 text-xs text-[#6E6E6E]">
             <Link to="/" className="hover:text-[#F5F5F5] transition-colors">
@@ -896,14 +924,6 @@ export const BookingPage: React.FC = () => {
             <ChevronRight className="w-3.5 h-3.5 text-[#6E6E6E]" />
             <span className="text-[#F5F5F5] font-semibold truncate max-w-xs">{vehicle.vehicleModel}</span>
           </nav>
-
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-[#161616] border border-white/10 text-[11px] text-[#A0A0A0] shadow-sm self-start sm:self-auto">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#99FFE4] opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#99FFE4]"></span>
-            </span>
-            <span>Ước tính: <strong className="text-[#F5F5F5]">~2 phút hoàn tất</strong> • Khóa biển số ngay lập tức</span>
-          </div>
         </div>
 
         {/* Dynamic Stepper Header */}
@@ -987,8 +1007,8 @@ export const BookingPage: React.FC = () => {
             })}
           </div>
 
-          {/* Stepper Progress bar & Hint */}
-          <div className="mt-3 pt-3 border-t border-white/[0.06] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-[#A0A0A0]">
+          {/* Stepper Hint */}
+          <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center text-[11px] text-[#A0A0A0]">
             <div className="flex items-center space-x-2">
               <Sparkles className="w-3.5 h-3.5 text-[#FFC799]" />
               <span>
@@ -998,17 +1018,6 @@ export const BookingPage: React.FC = () => {
                 {currentStep === 4 && 'Bước 4/5: Quét mã QR VietQR hoặc thanh toán VNPay để khóa xe'}
                 {currentStep === 5 && 'Bước 5/5: Hoàn tất đặt xe • Xuất biên lai và hợp đồng điện tử'}
               </span>
-            </div>
-            <div className="flex items-center space-x-2.5 shrink-0">
-              <span className="font-mono text-[10px] text-[#6E6E6E]">
-                {Math.round((currentStep / 5) * 100)}% hoàn thành
-              </span>
-              <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-[#FFC799] via-[#99FFE4] to-[#99FFE4] transition-all duration-500 ease-out"
-                  style={{ width: `${(currentStep / 5) * 100}%` }}
-                />
-              </div>
             </div>
           </div>
         </div>
@@ -1042,11 +1051,72 @@ export const BookingPage: React.FC = () => {
               </div>
             )}
 
+            {/* eKYC Mandatory Verification Gate for Customers */}
+            {isUnverifiedCustomer && currentStep < 5 && (
+              <div className="p-5 sm:p-6 rounded-2xl bg-[#1B1917] border-2 border-[#FFC799]/40 space-y-4 shadow-xl animate-fade-in relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                  <div className="flex items-start space-x-3.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/40 text-[#FFC799] flex items-center justify-center shrink-0 mt-0.5">
+                      <ShieldAlert className="w-5 h-5 text-[#FFC799]" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] uppercase tracking-wider font-mono font-bold text-[#FFC799] bg-[#FFC799]/15 px-2.5 py-0.5 rounded-md border border-[#FFC799]/30">
+                          {user?.identityStatus === 'Pending'
+                            ? 'eKYC Đang Chờ Duyệt'
+                            : user?.identityStatus === 'Rejected'
+                            ? 'eKYC Bị Từ Chối'
+                            : 'Bắt Buộc Xác Thực eKYC'}
+                        </span>
+                        <span className="text-sm font-bold text-[#F5F5F5]">
+                          Bắt buộc xác thực eKYC trước khi đặt xe
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#C8C2B8] leading-relaxed">
+                        {user?.identityStatus === 'Pending'
+                          ? 'Hồ sơ định danh (CCCD/GPLX) của bạn đã được gửi và đang trong hàng đợi kiểm duyệt của nhân viên trạm. Bạn sẽ được phép tiếp tục đặt xe ngay khi hồ sơ được phê duyệt.'
+                          : user?.identityStatus === 'Rejected'
+                          ? `Hồ sơ định danh eKYC của bạn đã bị từ chối (${user.ekycRejectionReason || 'Giấy tờ mờ hoặc không hợp lệ'}). Vui lòng chụp lại ảnh mới rõ nét để tiếp tục.`
+                          : 'Theo quy chế vận hành an toàn của MOTORENT, khách hàng bắt buộc phải hoàn tất xác thực định danh điện tử eKYC (CCCD 12 số & GPLX) trước khi tạo đơn đặt xe để lập hợp đồng điện tử và nhận xe không cần giữ giấy tờ gốc.'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-1 flex flex-wrap items-center gap-2.5">
+                  {user?.identityStatus === 'Pending' ? (
+                    <Link
+                      to="/profile?tab=ekyc"
+                      className="px-4 py-2.5 rounded-xl bg-[#FFC799]/20 hover:bg-[#FFC799]/30 text-[#FFC799] border border-[#FFC799]/40 text-xs font-bold transition-all flex items-center space-x-1.5"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Xem tiến độ xét duyệt eKYC</span>
+                    </Link>
+                  ) : (
+                    <Link
+                      to={`/profile?tab=ekyc&returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                      className="px-4 py-2.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD9BA] text-[#101010] text-xs font-bold transition-all shadow-md flex items-center space-x-1.5 active:scale-95"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>{user?.identityStatus === 'Rejected' ? 'Cập nhật lại eKYC ngay' : 'Xác thực eKYC ngay (2 phút)'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+                  <Link
+                    to="/bikes"
+                    className="px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-[#A0A0A0] hover:text-[#F5F5F5] text-xs font-semibold transition-all border border-white/10"
+                  >
+                    Xem xe khác
+                  </Link>
+                </div>
+              </div>
+            )}
+
             {/* STEP 1: Schedule & Branches */}
             {currentStep === 1 && (
               <div className="bg-[#161616] rounded-2xl p-6 sm:p-8 border border-white/10 space-y-6 animate-step-fade shadow-xl">
-                {/* Live Availability & Instant Plate Locking Badge (100% Real-time Server Sync) */}
-                {isScheduleConflicting ? (
+                {/* Conflict Alert (Only shown when schedule is conflicting) */}
+                {isScheduleConflicting && (
                   <div className="p-3.5 rounded-xl bg-[#FF8080]/12 border border-[#FF8080]/30 flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center space-x-2.5 text-[#FF8080]">
                       <AlertCircle className="w-4 h-4 shrink-0" />
@@ -1096,22 +1166,6 @@ export const BookingPage: React.FC = () => {
                         )}
                       </span>
                     </div>
-                  </div>
-                ) : (
-                  <div className="p-3.5 rounded-xl bg-emerald-500/[0.08] border border-emerald-500/25 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center space-x-2.5">
-                      <span className="relative flex h-2.5 w-2.5 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-                      </span>
-                      <span className="font-semibold text-emerald-300">
-                        {estimateLoading ? 'Đang kiểm tra lịch trống thực tế...' : 'Khung giờ hợp lệ & xe sẵn sàng'} • Khóa giữ biển số <strong className="font-mono text-white">{vehicle.licensePlate}</strong> ngay khi hoàn tất
-                      </span>
-                    </div>
-                    <span className="hidden sm:inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold shrink-0">
-                      <Lock className="w-3 h-3" />
-                      <span>Khóa độc quyền</span>
-                    </span>
                   </div>
                 )}
 
@@ -1427,10 +1481,23 @@ export const BookingPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="w-full py-3.5 rounded-xl bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 cursor-pointer"
+                  className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center space-x-2 cursor-pointer ${
+                    isUnverifiedCustomer
+                      ? 'bg-[#FFC799]/20 hover:bg-[#FFC799]/30 text-[#FFC799] border border-[#FFC799]/50'
+                      : 'bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010]'
+                  }`}
                 >
-                  <span>Tiếp tục: Thông tin người thuê</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isUnverifiedCustomer ? (
+                    <>
+                      <ShieldAlert className="w-4 h-4 text-[#FFC799]" />
+                      <span>{user?.identityStatus === 'Pending' ? 'Đang chờ duyệt eKYC — Chưa thể tiếp tục' : 'Bắt buộc xác thực eKYC trước khi tiếp tục'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Tiếp tục: Thông tin người thuê</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -2562,7 +2629,7 @@ export const BookingPage: React.FC = () => {
 
               {/* Full Bike Showcase */}
               <div className="relative w-full h-56 bg-gradient-to-b from-[#E8F1ED] via-[#F4F8F6] to-[#DCE9E3] overflow-hidden flex items-center justify-center">
-                <div className="absolute top-3 left-4 z-20 flex items-center space-x-1.5 bg-[#101010]/90 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[10px] font-semibold text-[#F5F5F5]">
+                <div className="absolute top-3 left-4 z-20 flex items-center space-x-1.5 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/15 text-[10px] font-semibold text-white">
                   <Camera className="w-3 h-3 text-[#FFC799]" />
                   <span>{ANGLE_VIEWS.find((a) => a.id === activeAngle)?.title}</span>
                 </div>
@@ -2602,7 +2669,7 @@ export const BookingPage: React.FC = () => {
                 </div>
 
                 {/* 3-Angle Switcher Buttons */}
-                <div className="absolute bottom-2.5 left-4 z-20 flex items-center bg-[#101010]/90 backdrop-blur-md p-1 rounded-lg border border-white/15 space-x-1">
+                <div className="absolute bottom-2.5 left-4 z-20 flex items-center bg-black/75 backdrop-blur-md p-1 rounded-lg border border-white/15 space-x-1">
                   {ANGLE_VIEWS.map((ang) => (
                     <button
                       key={ang.id}
@@ -2613,8 +2680,8 @@ export const BookingPage: React.FC = () => {
                       }}
                       className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
                         activeAngle === ang.id
-                          ? 'bg-[#FFC799] text-[#101010] font-black'
-                          : 'text-[#C8C2B8] hover:text-[#F5F5F5]'
+                          ? 'bg-white text-neutral-900 font-black shadow-sm'
+                          : 'text-white/80 hover:text-white'
                       }`}
                     >
                       {ang.label}

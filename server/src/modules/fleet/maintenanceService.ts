@@ -34,7 +34,9 @@ export const scheduleMaintenance = async (user: IUser, input: MaintenanceInput) 
     if (!vehicle) throw new AppError(404, 'Không tìm thấy xe.');
     assertBranchAccess(user, vehicle.branchId);
     await assertActiveBranch(vehicle.branchId);
-    if (vehicle.status !== 'Available') throw new AppError(409, 'Chỉ có thể lập phiếu cho xe đang sẵn sàng. Xe đang thuê, điều chuyển hoặc bảo trì không thể lập thêm phiếu.');
+    if (vehicle.status !== 'Available' && vehicle.status !== 'Maintenance') {
+      throw new AppError(409, 'Chỉ có thể lập phiếu cho xe đang sẵn sàng hoặc đang chờ bảo trì. Xe đang thuê hoặc điều chuyển không thể lập phiếu.');
+    }
     await assertNoBooking(vehicleId);
     if (await MaintenanceLog.exists({ vehicleId, status: { $in: ['Scheduled', 'InProgress'] } })) {
       throw new AppError(409, 'Xe đã có phiếu bảo trì chưa hoàn tất.');
@@ -42,15 +44,19 @@ export const scheduleMaintenance = async (user: IUser, input: MaintenanceInput) 
     if (await VehicleTransfer.exists({ vehicleId, status: { $in: ['Pending', 'InTransit'] } })) {
       throw new AppError(409, 'Xe đang có yêu cầu điều chuyển. Vui lòng xử lý yêu cầu trước khi bảo trì.');
     }
-    const reserved = await Vehicle.updateOne({ _id: vehicleId, branchId: vehicle.branchId, isDeleted: false, status: 'Available' },
-      { $set: { status: 'Maintenance' } });
-    if (reserved.modifiedCount !== 1) throw new AppError(409, 'Trạng thái xe vừa thay đổi. Vui lòng tải lại.');
+    if (vehicle.status === 'Available') {
+      const reserved = await Vehicle.updateOne({ _id: vehicleId, branchId: vehicle.branchId, isDeleted: false, status: 'Available' },
+        { $set: { status: 'Maintenance' } });
+      if (reserved.modifiedCount !== 1) throw new AppError(409, 'Trạng thái xe vừa thay đổi. Vui lòng tải lại.');
+    }
     try {
       const log = await MaintenanceLog.create({ ...input, vehicleId, branchId: vehicle.branchId,
         createdBy: user._id, status: 'Scheduled', odometerAtMaintenance: vehicle.odometer });
       return populatedLog(log._id as mongoose.Types.ObjectId);
     } catch (error) {
-      await Vehicle.updateOne({ _id: vehicleId, branchId: vehicle.branchId, status: 'Maintenance' }, { $set: { status: 'Available' } });
+      if (vehicle.status === 'Available') {
+        await Vehicle.updateOne({ _id: vehicleId, branchId: vehicle.branchId, status: 'Maintenance' }, { $set: { status: 'Available' } });
+      }
       throw error;
     }
   });

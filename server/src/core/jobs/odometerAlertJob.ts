@@ -21,9 +21,22 @@ export const runOdometerAlertSweep = async (): Promise<number> => {
       const bucket = Math.floor(vehicle.odometer / ODOMETER_MAINTENANCE_INTERVAL);
       const lastBucket = vehicle.lastMaintenanceBucket ?? 0;
       if (bucket > lastBucket) {
-        const flagged = await Vehicle.updateOne({ _id: vehicle._id, isDeleted: false, odometer: vehicle.odometer,
-          lastMaintenanceBucket: { $in: [lastBucket, null] } },
-        { $set: { requiresMaintenance: true, lastMaintenanceBucket: bucket } });
+        const updateDoc: Record<string, unknown> = {
+          requiresMaintenance: true,
+          lastMaintenanceBucket: bucket,
+        };
+        if (vehicle.status === 'Available') {
+          updateDoc.status = 'Maintenance';
+        }
+        const flagged = await Vehicle.updateOne(
+          {
+            _id: vehicle._id,
+            isDeleted: false,
+            odometer: vehicle.odometer,
+            lastMaintenanceBucket: { $in: [lastBucket, null] },
+          },
+          { $set: updateDoc }
+        );
         if (flagged.modifiedCount !== 1) continue;
       } else if (!vehicle.requiresMaintenance) {
         continue;

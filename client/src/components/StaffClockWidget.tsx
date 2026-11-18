@@ -7,14 +7,21 @@ import {
   LogOut,
   Building2,
   Calendar,
-  Sparkles,
   RefreshCw,
   X,
+  Timer,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { extractApiError } from '../utils/errorHelper';
 import type { StaffSchedule } from '../types';
 import { useAuth } from '../context/AuthContext';
+
+const SHIFT_HOURS: Record<string, { startHour: number; startMinute: number; endHour: number; endMinute: number }> = {
+  Morning: { startHour: 7, startMinute: 0, endHour: 12, endMinute: 0 },
+  Afternoon: { startHour: 12, startMinute: 0, endHour: 17, endMinute: 0 },
+  Evening: { startHour: 17, startMinute: 0, endHour: 22, endMinute: 0 },
+  FullDay: { startHour: 7, startMinute: 0, endHour: 22, endMinute: 0 },
+};
 
 const SHIFT_CHRONO_ORDER: Record<string, number> = {
   Morning: 1,
@@ -57,6 +64,12 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
   const [loading, setLoading] = useState<boolean>(true);
   const [clocking, setClocking] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchTodayShift = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -113,7 +126,7 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
         type: 'error',
         text: extractApiError(err, 'Có lỗi xảy ra khi điểm danh.'),
       });
-      setTimeout(() => setMessage(null), 5000);
+      setTimeout(() => setMessage(null), 6000);
     } finally {
       setClocking(false);
     }
@@ -158,6 +171,21 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
   const isCheckedOut = Boolean(schedule.checkOutTime);
   const branchObj = typeof schedule.branchId === 'object' ? schedule.branchId : null;
 
+  const shiftConfig = SHIFT_HOURS[schedule.shiftType] || SHIFT_HOURS.Morning;
+  const shiftDate = new Date(schedule.shiftDate);
+  const expectedStart = new Date(shiftDate);
+  expectedStart.setHours(shiftConfig.startHour, shiftConfig.startMinute, 0, 0);
+  const expectedEnd = new Date(shiftDate);
+  expectedEnd.setHours(shiftConfig.endHour, shiftConfig.endMinute, 0, 0);
+  const allowFrom = new Date(expectedStart.getTime() - 30 * 60 * 1000);
+
+  const formatTime = (d: Date | string) =>
+    new Date(d).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+  const isBeforeWindow = now.getTime() < allowFrom.getTime();
+  const isAfterEnd = now.getTime() > expectedEnd.getTime();
+  const canClockIn = !isCheckedIn && !isBeforeWindow && !isAfterEnd;
+
   return (
     <div className="bg-gradient-to-r from-[#181818] to-[#141414] border border-[#FFC799]/30 rounded-2xl p-4 shadow-xl">
       {message && (
@@ -188,49 +216,80 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/30 flex items-center justify-center text-[#FFC799]">
+        <div className="flex items-start sm:items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-[#FFC799]/15 border border-[#FFC799]/30 flex items-center justify-center text-[#FFC799] shrink-0">
             <Clock size={20} />
           </div>
 
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-bold text-white text-sm">
                 Ca trực hôm nay: {SHIFT_LABELS[schedule.shiftType] || schedule.shiftType}
               </span>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30 font-semibold">
-                {schedule.shiftType === 'Morning'
-                  ? '07:00 - 12:00'
-                  : schedule.shiftType === 'Afternoon'
-                  ? '12:00 - 17:00'
-                  : schedule.shiftType === 'Evening'
-                  ? '17:00 - 22:00'
-                  : '07:00 - 22:00'}
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#FFC799]/15 text-[#FFC799] border border-[#FFC799]/30 font-semibold tabular-nums">
+                {`${String(shiftConfig.startHour).padStart(2, '0')}:${String(shiftConfig.startMinute).padStart(2, '0')} - ${String(shiftConfig.endHour).padStart(2, '0')}:${String(shiftConfig.endMinute).padStart(2, '0')}`}
               </span>
-              {todayShifts.length > 1 && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 font-semibold">
-                  Ca {Math.max(1, todayShifts.findIndex((s) => s._id === schedule._id) + 1)}/{todayShifts.length} trong ngày
-                </span>
-              )}
-            </div>
 
-            <div className="flex items-center gap-4 text-xs text-[#A0A0A0] mt-1">
-              {branchObj && (
-                <span className="flex items-center gap-1 text-[#D0D0D0]">
-                  <Building2 size={13} className="text-[#FFC799]" />
-                  {branchObj.name}
-                </span>
-              )}
-
-              {isCheckedIn && (
-                <span className="text-emerald-400 font-medium">
-                  Vào: {new Date(schedule.checkInTime!).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              {/* Status Badges */}
+              {isCheckedIn && !isCheckedOut && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[11px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                  ĐÃ ĐIỂM DANH VÀO CA ({formatTime(schedule.checkInTime!)})
                 </span>
               )}
 
               {isCheckedOut && (
-                <span className="text-sky-300 font-medium">
-                  Ra: {new Date(schedule.checkOutTime!).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 text-[11px] font-bold">
+                  <CheckCircle2 size={12} />
+                  ĐÃ HOÀN THÀNH CA
+                </span>
+              )}
+
+              {!isCheckedIn && isBeforeWindow && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[11px] font-medium">
+                  <Timer size={12} />
+                  Chưa đến giờ vào ca (Mở từ {formatTime(allowFrom)})
+                </span>
+              )}
+
+              {!isCheckedIn && isAfterEnd && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30 text-[11px] font-medium">
+                  <AlertTriangle size={12} />
+                  Ca trực đã qua khung giờ ({formatTime(expectedEnd)})
+                </span>
+              )}
+
+              {!isCheckedIn && canClockIn && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-medium">
+                  <Timer size={12} />
+                  Đang mở điểm danh vào ca
+                </span>
+              )}
+
+              {todayShifts.length > 1 && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#D0D0D0] border border-white/15 font-semibold">
+                  Ca {Math.max(1, todayShifts.findIndex((s) => s._id === schedule._id) + 1)}/{todayShifts.length}
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 text-xs text-[#A0A0A0] mt-1.5">
+              {branchObj && (
+                <span className="flex items-center gap-1 text-[#D0D0D0] truncate max-w-[220px]">
+                  <Building2 size={13} className="text-[#FFC799] shrink-0" />
+                  <span className="truncate">{branchObj.name}</span>
+                </span>
+              )}
+
+              {isCheckedIn && (
+                <span className="text-emerald-400 font-semibold tabular-nums">
+                  Vào: {formatTime(schedule.checkInTime!)}
+                </span>
+              )}
+
+              {isCheckedOut && (
+                <span className="text-sky-300 font-semibold tabular-nums">
+                  Ra: {formatTime(schedule.checkOutTime!)}
                 </span>
               )}
             </div>
@@ -238,31 +297,48 @@ export const StaffClockWidget: React.FC<{ compact?: boolean }> = ({ compact = fa
         </div>
 
         {/* Action Button */}
-        <div>
+        <div className="shrink-0 flex items-center gap-2">
           {!isCheckedIn ? (
             <button
               type="button"
               onClick={handleClock}
-              disabled={clocking}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 text-white font-semibold text-xs uppercase tracking-wider hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+              disabled={clocking || !canClockIn}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-xs uppercase tracking-wider transition-all shadow-lg ${
+                canClockIn
+                  ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 cursor-pointer active:scale-95'
+                  : 'bg-white/10 text-[#888888] border border-white/10 cursor-not-allowed opacity-60'
+              }`}
+              title={
+                isBeforeWindow
+                  ? `Chưa đến giờ vào ca. Mở lúc ${formatTime(allowFrom)}`
+                  : isAfterEnd
+                  ? `Ca trực đã kết thúc lúc ${formatTime(expectedEnd)}`
+                  : 'Điểm danh vào ca làm'
+              }
             >
               <LogIn size={15} />
-              {clocking ? 'Đang chấm công...' : 'Điểm danh Vào ca'}
+              {clocking
+                ? 'Đang chấm công...'
+                : isBeforeWindow
+                ? `Mở lúc ${formatTime(allowFrom)}`
+                : isAfterEnd
+                ? 'Đã hết giờ ca'
+                : 'Điểm danh Vào ca'}
             </button>
           ) : !isCheckedOut ? (
             <button
               type="button"
               onClick={handleClock}
               disabled={clocking}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 text-white font-semibold text-xs uppercase tracking-wider hover:bg-sky-600 transition-all shadow-lg shadow-sky-500/20 disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 text-white font-semibold text-xs uppercase tracking-wider hover:bg-sky-600 transition-all shadow-lg shadow-sky-500/20 disabled:opacity-50 cursor-pointer active:scale-95"
             >
               <LogOut size={15} />
               {clocking ? 'Đang chấm công...' : 'Điểm danh Ra ca'}
             </button>
           ) : (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
-              <CheckCircle2 size={14} />
-              Hoàn thành ca trực
+            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+              <CheckCircle2 size={15} />
+              <span>Đã hoàn thành ca trực</span>
             </div>
           )}
         </div>

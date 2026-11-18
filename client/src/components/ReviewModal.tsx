@@ -208,7 +208,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
       <div className="bg-[#161616] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
         {/* Modal Header */}
-        <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between bg-[#191919]">
+        <div className="px-6 py-5 border-b border-white/[0.08] flex items-center justify-between bg-[#161616]">
           <div className="flex items-center space-x-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#FFC799]/15 border border-[#FFC799]/30 flex items-center justify-center text-[#FFC799]">
               <Sparkles className="w-4 h-4 stroke-[2]" />
