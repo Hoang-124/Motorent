@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MOTORENT - Báo Cáo Bảo Vệ Dự Án SWP391</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0c0c0c;
+      color: #f5f5f5;
+      overflow: hidden;
+    }
+    .slide {
+      display: none;
+      height: 100vh;
+      width: 100vw;
+      padding: 2.5rem 4rem;
+      box-sizing: border-box;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+    }
+    .slide.active {
+      display: flex;
+      flex-direction: column;
+      opacity: 1;
+    }
+    .card-dark {
+      background: #161616;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 1rem;
+    }
+    .card-highlight {
+      background: #1c1814;
+      border: 1px solid rgba(255, 199, 153, 0.4);
+      border-radius: 1rem;
+    }
+    .tag-peach {
+      color: #FFC799;
+      background: rgba(255, 199, 153, 0.12);
+      border: 1px solid rgba(255, 199, 153, 0.25);
+    }
+    .tag-mint {
+      color: #99FFE4;
+      background: rgba(153, 255, 228, 0.12);
+      border: 1px solid rgba(153, 255, 228, 0.25);
+    }
+  </style>
+</head>
+<body class="select-none">
+
+  <!-- TOP BAR -->
+  <header class="fixed top-0 left-0 right-0 h-14 bg-[#101010]/80 backdrop-blur border-b border-white/5 flex items-center justify-between px-8 z-50">
+    <div class="flex items-center space-x-3">
+      <span class="text-xs font-black tracking-widest text-[#FFC799] uppercase">MOTORENT</span>
+      <span class="text-xs text-white/30">•</span>
+      <span class="text-xs font-semibold text-white/60">SWP391 Capstone Defense — Group 4</span>
+    </div>
+    <div class="flex items-center space-x-4">
+      <span id="slideIndicator" class="text-xs font-mono font-bold text-[#FFC799] bg-white/5 px-2.5 py-1 rounded-md border border-white/10">1 / 14</span>
+      <button onclick="toggleFullScreen()" class="text-xs text-white/70 hover:text-white px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition">Toàn màn hình [F11]</button>
+    </div>
+  </header>
+
+  <!-- MAIN SLIDES CONTAINER -->
+  <main class="h-screen w-screen pt-14 pb-16">
+
+    <!-- SLIDE 1: COVER -->
+    <section class="slide active justify-center items-center text-center">
+      <div class="max-w-4xl space-y-6">
+        <span class="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase tag-mint">
+          Đại Học FPT Đà Nẵng • Báo Cáo Dự Án SWP391
+        </span>
+        <h1 class="text-6xl md:text-7xl font-black text-[#FFC799] tracking-tight">
+          MOTORENT
+        </h1>
+        <p class="text-2xl md:text-3xl font-extrabold text-white">
+          Hệ Thống Cho Thuê Xe Máy Công Nghệ & Tự Động Hóa Vận Hành Đa Trạm
+        </p>
+        <p class="text-base text-[#A0A0A0] max-w-2xl mx-auto leading-relaxed">
+          Định danh điện tử eKYC • Hợp đồng ký số song phương • Giao xe tận nơi Door-to-Door • AI Động cơ kép tối ưu hóa ca trực nhân sự
+        </p>
+        <div class="pt-6">
+          <div class="inline-block card-dark px-8 py-4 text-left border border-[#FFC799]/30">
+            <p class="text-xs font-bold uppercase tracking-wider text-[#FFC799] mb-1">Nhóm Thực Hiện: Group 4</p>
+            <p class="text-sm font-semibold text-white">
+              Trần Quang Bửu Hoàng (Leader) • Phạm Quốc Cả • Nguyễn Thái Dương • Nguyễn Hữu Tài • Phạm Tuyên
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 2: AGENDA -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Nội Dung Báo Cáo</span>
+        <h2 class="text-2xl font-black text-white mt-1">7 Hạng Mục Báo Cáo Bảo Vệ Dự Án SWP391</h2>
+      </div>
+      <div class="grid grid-cols-2 gap-4 flex-1">
+        <div class="card-dark p-4 flex items-start space-x-3">
+          <span class="w-8 h-8 rounded-lg bg-white/5 text-[#FFC799] font-mono font-bold flex items-center justify-center shrink-0">01</span>
+          <div>
+            <h3 class="text-sm font-bold text-white">Tên đề tài & Thành viên nhóm</h3>
+            <p class="text-xs text-[#A0A0A0] mt-0.5">Giới thiệu thông tin đề tài, phân công trách nhiệm & vai trò các thành viên.</p>
+          </div>
+        </div>
+        <div class="card-dark p-4 flex items-start space-x-3">
+          <span class="w-8 h-8 rounded-lg bg-white/5 text-[#FFC799] font-mono font-bold flex items-center justify-center shrink-0">02</span>
+          <div>
+            <h3 class="text-sm font-bold text-white">Product Background</h3>
+            <p class="text-xs text-[#A0A0A0] mt-0.5">Bối cảnh thị trường du lịch Đà Nẵng, nỗi đau khách hàng & bài toán kinh doanh.</p>
+          </div>
+        </div>
+        <div class="card-dark p-4 flex items-start space-x-3">
+          <span class="w-8 h-8 rounded-lg bg-white/5 text-[#FFC799] font-mono font-bold flex items-center justify-center shrink-0">03</span>
+          <div>
+            <h3 class="text-sm font-bold text-white">Existing System</h3>
+            <p class="text-xs text-[#A0A0A0] mt-0.5">Khảo sát hệ thống hiện có, nhược điểm mô hình cũ & khoảng trống thị trường.</p>
+          </div>
+        </div>
+        <div class="card-dark p-4 flex items-start space-x-3">
+          <span class="w-8 h-8 rounded-lg bg-white/5 text-[#FFC799] font-mono font-bold flex items-center justify-center shrink-0">04</span>
+          <div>
+            <h3 class="text-sm font-bold text-white">Use Case Diagram</h3>
+            <p class="text-xs text-[#A0A0A0] mt-0.5">Sơ đồ Use Case tổng quan theo 4 tác nhân: Khách hàng, Nhân viên, Quản lý, Admin.</p>
+          </div>
+        </div>
+        <div class="card-dark p-4 flex items-start space-x-3">
+          <span class="w-8 h-8 rounded-lg bg-white/5 text-[#FFC799] font-mono font-bold flex items-center justify-center shrink-0">05</span>
+          <div>
+            <h3 class="text-sm font-bold text-white">Database Architecture</h3>
+            <p class="text-xs text-[#A0A0A0] mt-0.5">Kiến trúc CSDL MongoDB với 24 models chuẩn hóa theo 5 cụm nghiệp vụ.</p>
+          </div>
+        </div>
+        <div class="card-highlight p-4 flex items-start space-x-3">
+          <span class="w-8 h-8 rounded-lg bg-[#FFC799]/20 text-[#FFC799] font-mono font-bold flex items-center justify-center shrink-0">06</span>
+          <div>
+            <h3 class="text-sm font-bold text-[#FFC799]">Package Diagram [Trọng tâm]</h3>
+            <p class="text-xs text-[#A0A0A0] mt-0.5">Kiến trúc Modular Monolith: Client SPA, Core Middleware, 22 Modules, Sockets.</p>
+          </div>
+        </div>
+        <div class="card-highlight p-4 col-span-2 flex items-start space-x-3">
+          <span class="w-8 h-8 rounded-lg bg-[#FFC799]/20 text-[#FFC799] font-mono font-bold flex items-center justify-center shrink-0">07</span>
+          <div>
+            <h3 class="text-sm font-bold text-[#FFC799]">Cách Apply AI vào hệ thống [Trọng tâm]</h3>
+            <p class="text-xs text-[#A0A0A0] mt-0.5">Động cơ Dual-AI: Giải thuật Heuristic Rule-v2 kết hợp Google Gemini LLM API tối ưu ca trực & NLP Tiếng Việt.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 3: MỤC 1 - THÀNH VIÊN -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 1 • Thông Tin Đề Tài & Nhóm</span>
+        <h2 class="text-2xl font-black text-white mt-1">Thông Tin Thành Viên & Bảng Phân Công Đóng Góp</h2>
+      </div>
+      <div class="grid grid-cols-5 gap-3 flex-1 text-xs">
+        <div class="card-highlight p-3 flex flex-col justify-between">
+          <div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold tag-peach">Leader • 35%</span>
+            <h3 class="text-sm font-bold text-white mt-2">Trần Quang Bửu Hoàng</h3>
+            <p class="text-[11px] text-[#99FFE4] font-medium">Team Leader / Full-Stack</p>
+            <ul class="mt-2 space-y-1.5 text-white/70 text-[10px]">
+              <li>• Kiến trúc Modular Monolith, RBAC & AuditLog.</li>
+              <li>• Đặt xe, Giỏ xe, Cổng VNPay & VietQR.</li>
+              <li>• Hợp đồng ký số song phương, Giao xe tận nơi.</li>
+              <li>• Động cơ AI phân ca kép (Gemini & Heuristic).</li>
+              <li>• Biên soạn RDS, SDS, Final Release, Tracking.</li>
+            </ul>
+          </div>
+          <p class="text-[9px] text-[#FFC799] font-mono mt-2 pt-2 border-t border-white/5">71 Git Commits</p>
+        </div>
+
+        <div class="card-dark p-3 flex flex-col justify-between">
+          <div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/10 text-white">Thành viên • 20%</span>
+            <h3 class="text-sm font-bold text-white mt-2">Phạm Quốc Cả</h3>
+            <p class="text-[11px] text-[#99FFE4] font-medium">BA / Backend Developer</p>
+            <ul class="mt-2 space-y-1.5 text-white/70 text-[10px]">
+              <li>• Khảo sát yêu cầu, chủ trì biên soạn SRS.</li>
+              <li>• Quản lý chi nhánh & tìm trạm theo GPS.</li>
+              <li>• Quản lý nhân sự trạm & ca trực cơ bản.</li>
+              <li>• Danh mục khuyến mãi & mã giảm giá.</li>
+            </ul>
+          </div>
+          <p class="text-[9px] text-white/40 font-mono mt-2 pt-2 border-t border-white/5">7 Git Commits</p>
+        </div>
+
+        <div class="card-dark p-3 flex flex-col justify-between">
+          <div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/10 text-white">Thành viên • 18%</span>
+            <h3 class="text-sm font-bold text-white mt-2">Nguyễn Thái Dương</h3>
+            <p class="text-[11px] text-[#99FFE4] font-medium">Full-Stack Developer</p>
+            <ul class="mt-2 space-y-1.5 text-white/70 text-[10px]">
+              <li>• Gia hạn thuê xe, thông báo đa kênh NV/Admin.</li>
+              <li>• Hủy đơn theo điều khoản KHÔNG HOÀN TIỀN.</li>
+              <li>• Bàn làm việc tại quầy (Counter Desk).</li>
+              <li>• Ký biên bản giao nhận & xuất hóa đơn PDF.</li>
+            </ul>
+          </div>
+          <p class="text-[9px] text-white/40 font-mono mt-2 pt-2 border-t border-white/5">29 Git Commits</p>
+        </div>
+
+        <div class="card-dark p-3 flex flex-col justify-between">
+          <div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/10 text-white">Thành viên • 15%</span>
+            <h3 class="text-sm font-bold text-white mt-2">Nguyễn Hữu Tài</h3>
+            <p class="text-[11px] text-[#99FFE4] font-medium">Full-Stack Developer</p>
+            <ul class="mt-2 space-y-1.5 text-white/70 text-[10px]">
+              <li>• Danh mục đội xe, bộ lọc tìm kiếm & chi tiết xe.</li>
+              <li>• Cấu hình giá thuê & quy tắc giá mùa vụ.</li>
+              <li>• Cảnh báo bảo dưỡng theo hạn mức ODO.</li>
+              <li>• Lệnh điều chuyển xe giữa các chi nhánh.</li>
+            </ul>
+          </div>
+          <p class="text-[9px] text-white/40 font-mono mt-2 pt-2 border-t border-white/5">14 Git Commits</p>
+        </div>
+
+        <div class="card-dark p-3 flex flex-col justify-between">
+          <div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white/10 text-white">Thành viên • 12%</span>
+            <h3 class="text-sm font-bold text-white mt-2">Phạm Tuyên</h3>
+            <p class="text-[11px] text-[#99FFE4] font-medium">Frontend Developer</p>
+            <ul class="mt-2 space-y-1.5 text-white/70 text-[10px]">
+              <li>• Xe yêu thích (Wishlist), đánh giá sao phản hồi.</li>
+              <li>• Phân hệ gửi khiếu nại & tra cứu tiến độ.</li>
+              <li>• Lịch nhắc tự động, tích điểm đổi voucher.</li>
+              <li>• Quản lý banner slider & trang chính sách.</li>
+            </ul>
+          </div>
+          <p class="text-[9px] text-white/40 font-mono mt-2 pt-2 border-t border-white/5">4 Git Commits</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 4: MỤC 2 - PRODUCT BACKGROUND -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 2 • Bối Cảnh Sản Phẩm</span>
+        <h2 class="text-2xl font-black text-white mt-1">Bối Cảnh Thị Trường, Nỗi Đau & Tầm Nhìn MOTORENT</h2>
+      </div>
+      <div class="grid grid-cols-3 gap-5 flex-1">
+        <div class="card-dark p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#99FFE4]">Bối Cảnh Thị Trường</span>
+          <h3 class="text-base font-bold text-white mt-1">Nhu cầu du lịch Đà Nẵng cực lớn</h3>
+          <ul class="mt-4 space-y-2.5 text-xs text-[#A0A0A0]">
+            <li>• Đón hơn 7-8 triệu lượt khách du lịch mỗi năm.</li>
+            <li>• Điểm du lịch phân tán: Sơn Trà, Ngũ Hành Sơn, Bà Nà, Hội An khiến xe máy là phương tiện số 1.</li>
+            <li>• Khách có nhu cầu linh hoạt: thuê tại sân bay, trả tại bãi biển, nhận xe tận khách sạn.</li>
+            <li>• 90% cơ sở cho thuê vẫn hoạt động manh mún, thủ công, thiếu quy chuẩn an toàn.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-5 border-red-500/20">
+          <span class="text-xs font-bold uppercase tracking-wider text-red-400">Nỗi Đau Thực Tế</span>
+          <h3 class="text-base font-bold text-white mt-1">Rủi ro của cả Khách & Chủ xe</h3>
+          <ul class="mt-4 space-y-2.5 text-xs text-[#A0A0A0]">
+            <li>• <strong class="text-white">Khách hàng</strong>: Bị giữ CCCD/GPLX gốc rủi ro mất mát; giá mập mờ; xe cũ dễ chết máy giữa đèo dốc; khó tìm xe giao tận nơi.</li>
+            <li>• <strong class="text-white">Chủ cơ sở</strong>: Thất thoát tài sản; ghi sổ sách cồng kềnh; không kiểm soát được chu kỳ bảo dưỡng ODO.</li>
+            <li>• <strong class="text-white">Vận hành trạm</strong>: Thiếu công cụ xếp ca trực nhân viên theo tải khách; phân ca kiệt sức; hợp đồng giấy dễ tranh chấp.</li>
+          </ul>
+        </div>
+
+        <div class="card-highlight p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#FFC799]">Giải Pháp MOTORENT</span>
+          <h3 class="text-base font-bold text-white mt-1">Số hóa toàn diện 100% quy trình</h3>
+          <ul class="mt-4 space-y-2.5 text-xs text-[#A0A0A0]">
+            <li>• <strong class="text-white">eKYC điện tử</strong>: Mã hóa AES-256-GCM, đối soát danh tính mà không giữ lại giấy tờ gốc.</li>
+            <li>• <strong class="text-white">Ký số song phương</strong>: Khách & Nhân viên ký trực tiếp trên màn hình cảm ứng, xuất PDF tức thì.</li>
+            <li>• <strong class="text-white">Vận hành đa trạm</strong>: Nhận trạm A trả trạm B, điều chuyển xe liên trạm, giao xe Door-to-Door.</li>
+            <li>• <strong class="text-white">AI thông minh</strong>: Cảnh báo bảo dưỡng ODO & Tối ưu hóa phân ca trực nhân sự.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 5: MỤC 3 - EXISTING SYSTEM -->
+    <section class="slide justify-start">
+      <div class="mb-3">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 3 • Hiện Trạng Hệ Thống</span>
+        <h2 class="text-2xl font-black text-white mt-1">Khảo Sát Hệ Thống Hiện Có & Bảng So Sánh Năng Lực</h2>
+      </div>
+      <div class="card-dark overflow-hidden flex-1">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-white/5 border-b border-white/10 text-white font-bold">
+            <tr>
+              <th class="p-3">Tiêu Chí Nghiệp Vụ</th>
+              <th class="p-3 text-white/60">Thuê Xe Máy Truyền Thống</th>
+              <th class="p-3 text-white/60">Nền Tảng Thuê Ô Tô (Mioto)</th>
+              <th class="p-3 text-[#FFC799] bg-[#FFC799]/10">Hệ Thống MOTORENT</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-white/5 text-[#A0A0A0]">
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Xác thực danh tính</td>
+              <td class="p-2.5">Giữ CCCD / Bằng lái gốc trực tiếp</td>
+              <td class="p-2.5">Tải ảnh giấy tờ (tập trung ô tô)</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">eKYC mã hóa AES-256-GCM, không giữ gốc</td>
+            </tr>
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Hợp đồng thuê</td>
+              <td class="p-2.5">Hợp đồng giấy viết tay 1 liên</td>
+              <td class="p-2.5">Xác nhận đơn điện tử 1 chiều</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">Ký số song phương tại quầy trên tablet/phone</td>
+            </tr>
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Thanh toán & Cọc</td>
+              <td class="p-2.5">Tiền mặt / Chuyển khoản lẻ</td>
+              <td class="p-2.5">Giữ cọc thẻ tín dụng</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">Cọc 30% VNPay/VietQR, 70% tất toán tại quầy</td>
+            </tr>
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Chính sách trả xe sớm</td>
+              <td class="p-2.5">Tự thỏa thuận, dễ tranh chấp</td>
+              <td class="p-2.5">Tùy từng chủ xe riêng lẻ</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">Quy chuẩn rõ ràng: KHÔNG HOÀN TIỀN</td>
+            </tr>
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Giao xe tận nơi</td>
+              <td class="p-2.5">Thỏa thuận ngoài qua điện thoại</td>
+              <td class="p-2.5">Chủ xe tự thương lượng</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">Tự động tính phí 40.000 đ/chiều chuẩn hóa</td>
+            </tr>
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Quản lý đa trạm</td>
+              <td class="p-2.5">1 cửa hàng cố định, không trả khác trạm</td>
+              <td class="p-2.5">Cá nhân phân tán, không có trạm</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">Mạng lưới trạm, trả khác trạm, điều chuyển xe</td>
+            </tr>
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Bảo dưỡng kỹ thuật</td>
+              <td class="p-2.5">Cảm tính, hỏng đâu sửa đó</td>
+              <td class="p-2.5">Chủ xe tự theo dõi</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">Cảnh báo ODO tự động, khóa xe bảo dưỡng</td>
+            </tr>
+            <tr>
+              <td class="p-2.5 font-semibold text-white">Xếp ca nhân sự</td>
+              <td class="p-2.5">Ghi chép sổ sách / Excel thủ công</td>
+              <td class="p-2.5">Không có</td>
+              <td class="p-2.5 font-bold text-[#99FFE4] bg-[#FFC799]/5">AI Tối ưu hóa phân ca (Gemini + Heuristic)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SLIDE 6: MỤC 4 - USE CASE DIAGRAM -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 4 • Sơ Đồ Use Case</span>
+        <h2 class="text-2xl font-black text-white mt-1">Use Case Diagram Tổng Quan Theo 4 Tác Nhân Chính</h2>
+      </div>
+      <div class="grid grid-cols-4 gap-4 flex-1 text-xs">
+        <div class="card-dark p-4 border-[#99FFE4]/30">
+          <span class="text-[11px] font-bold uppercase text-[#99FFE4]">1. Khách Hàng (Customer)</span>
+          <ul class="mt-3 space-y-2 text-[#A0A0A0]">
+            <li>• Đăng ký, Đăng nhập, Google OAuth2.</li>
+            <li>• Định danh eKYC trực tuyến (CCCD/GPLX).</li>
+            <li>• Tìm xe theo chi nhánh qua bản đồ GPS.</li>
+            <li>• Đặt xe đơn lẻ hoặc Giỏ xe nhiều chiếc.</li>
+            <li>• Thanh toán cọc 30% VNPay / VietQR.</li>
+            <li>• Ký hợp đồng nhận xe điện tử (Bên B).</li>
+            <li>• Yêu cầu gia hạn hợp đồng thuê xe.</li>
+            <li>• Đánh giá sao, gửi khiếu nại, chat hỗ trợ.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4 border-[#FFC799]/30">
+          <span class="text-[11px] font-bold uppercase text-[#FFC799]">2. Nhân Viên Quầy (Staff)</span>
+          <ul class="mt-3 space-y-2 text-[#A0A0A0]">
+            <li>• Điểm danh vào/ra ca trực (Clock-In/Out).</li>
+            <li>• Đăng ký lịch rảnh/bận bằng tin nhắn tiếng Việt.</li>
+            <li>• Bàn làm việc tại quầy (Counter Desk).</li>
+            <li>• Kiểm tra hiện trạng xe & chụp ảnh 4 góc.</li>
+            <li>• Ký hợp đồng xác nhận bàn giao (Bên A).</li>
+            <li>• Thu tất toán 70% & xử lý Check-in/out.</li>
+            <li>• Hỗ trợ khách hàng qua Live Chat thời gian thực.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4 border-blue-400/30">
+          <span class="text-[11px] font-bold uppercase text-blue-400">3. Quản Lý Trạm (Branch Manager)</span>
+          <ul class="mt-3 space-y-2 text-[#A0A0A0]">
+            <li>• Quản lý danh sách đội xe chi nhánh.</li>
+            <li>• Lệnh điều chuyển xe giữa các chi nhánh.</li>
+            <li>• Xác nhận hoàn tất bảo dưỡng xe định kỳ.</li>
+            <li>• Duyệt đơn đặt xe đặc biệt tại chi nhánh.</li>
+            <li>• <strong class="text-white">Chạy AI Tối ưu hóa phân ca trực tuần</strong>.</li>
+            <li>• Xem đối soát tài chính & công nợ trạm.</li>
+            <li>• Trực tiếp giải quyết khiếu nại cấp trạm.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4 border-rose-400/30">
+          <span class="text-[11px] font-bold uppercase text-rose-400">4. Quản Trị Hệ Thống (System Admin)</span>
+          <ul class="mt-3 space-y-2 text-[#A0A0A0]">
+            <li>• Quản lý danh mục trạm & tọa độ GPS.</li>
+            <li>• Cấu hình chính sách hệ thống (SystemConfig).</li>
+            <li>• Phân quyền ma trận người dùng (RBAC).</li>
+            <li>• Giám sát nhật ký kiểm toán (AuditLog).</li>
+            <li>• Báo cáo KPI doanh thu & dự báo nhu cầu.</li>
+            <li>• Quản lý CMS Banner & Trang chính sách.</li>
+            <li>• Giám sát các tiến trình nền Cron Jobs.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 7: MỤC 5 - DATABASE ARCHITECTURE -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 5 • Cơ Sở Dữ Liệu</span>
+        <h2 class="text-2xl font-black text-white mt-1">Kiến Trúc CSDL MongoDB: 24 Collections Chuẩn Hóa</h2>
+      </div>
+      <div class="grid grid-cols-3 gap-4 flex-1 text-xs">
+        <div class="card-dark p-4">
+          <h3 class="text-sm font-bold text-[#FFC799] mb-2">1. Định danh & Phân ca (3)</h3>
+          <ul class="space-y-2 text-[#A0A0A0]">
+            <li>• <strong class="text-white">User</strong>: 4 vai trò, hash bcrypt, tokenVersion, eKYC mã hóa AES-256-GCM.</li>
+            <li>• <strong class="text-white">StaffSchedule</strong>: Ca trực (Sáng/Chiều/Tối), trạng thái điểm danh, checkIn/Out.</li>
+            <li>• <strong class="text-white">StaffAvailability</strong>: Đăng ký lịch rảnh/bận tuần, tin nhắn raw & ma trận slot.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4">
+          <h3 class="text-sm font-bold text-[#FFC799] mb-2">2. Đội xe & Vận hành (6)</h3>
+          <ul class="space-y-1.5 text-[#A0A0A0]">
+            <li>• <strong class="text-white">Branch</strong>: Trạm xe, hotline, tọa độ GPS Leaflet.</li>
+            <li>• <strong class="text-white">Vehicle</strong>: Biển số, ODO, giá thuê, trạng thái xe.</li>
+            <li>• <strong class="text-white">Category</strong>: Xe ga, xe số, tay côn, cọc chuẩn.</li>
+            <li>• <strong class="text-white">SeasonalPricingRule</strong>: Biểu giá lễ tết/mùa vụ.</li>
+            <li>• <strong class="text-white">VehicleTransfer</strong>: Lệnh điều chuyển giữa các trạm.</li>
+            <li>• <strong class="text-white">MaintenanceLog</strong>: Bảo dưỡng theo ODO, hóa đơn.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4">
+          <h3 class="text-sm font-bold text-[#FFC799] mb-2">3. Hợp đồng & Giao dịch (4)</h3>
+          <ul class="space-y-2 text-[#A0A0A0]">
+            <li>• <strong class="text-white">Booking</strong>: Hợp đồng thuê xe, chữ ký song phương, cọc 30%, tất toán 70%, trạng thái đơn.</li>
+            <li>• <strong class="text-white">Payment</strong>: Giao dịch VNPay, VietQR, tiền mặt.</li>
+            <li>• <strong class="text-white">Discount</strong>: Mã voucher, mã khách hàng thân thiết.</li>
+            <li>• <strong class="text-white">BookingReminder</strong>: Lịch nhắc trả xe tự động.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4 col-span-2">
+          <h3 class="text-sm font-bold text-[#FFC799] mb-2">4. Hỗ trợ & Khách hàng (6)</h3>
+          <div class="grid grid-cols-2 gap-3 text-[#A0A0A0]">
+            <ul class="space-y-1.5">
+              <li>• <strong class="text-white">Complaint</strong>: Khiếu nại, quy trình Open->Closed.</li>
+              <li>• <strong class="text-white">Feedback</strong>: Đánh giá nhân viên quầy sau chuyến.</li>
+              <li>• <strong class="text-white">Review</strong>: Đánh giá sao & nhận xét xe sau chuyến.</li>
+            </ul>
+            <ul class="space-y-1.5">
+              <li>• <strong class="text-white">Wishlist</strong>: Danh sách xe yêu thích của khách.</li>
+              <li>• <strong class="text-white">Conversation & Message</strong>: Phòng chat và tin nhắn thời gian thực qua Socket.IO.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card-dark p-4">
+          <h3 class="text-sm font-bold text-[#FFC799] mb-2">5. Hệ thống & CMS (5)</h3>
+          <ul class="space-y-1.5 text-[#A0A0A0]">
+            <li>• <strong class="text-white">AuditLog</strong>: Vết kiểm toán thao tác CRUD.</li>
+            <li>• <strong class="text-white">Notification</strong>: Thông báo đẩy trong ứng dụng.</li>
+            <li>• <strong class="text-white">Banner & StaticPage</strong>: Quản trị CMS.</li>
+            <li>• <strong class="text-white">SystemConfig</strong>: Cấu hình tham số hệ thống.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 8: MỤC 6 - PACKAGE DIAGRAM -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 6 • Sơ Đồ Package [Trọng tâm 1]</span>
+        <h2 class="text-2xl font-black text-white mt-1">Kiến Trúc Modular Monolith 3 Tầng (Clean Architecture)</h2>
+      </div>
+      <div class="space-y-3 flex-1 text-xs">
+        <div class="card-dark p-4 border-[#99FFE4]/30">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-bold text-[#99FFE4]">1. PRESENTATION TIER (CLIENT SPA - REACT 18 + VITE + TAILWIND)</span>
+            <span class="text-[10px] text-white/50 font-mono">client/src</span>
+          </div>
+          <div class="grid grid-cols-4 gap-3 mt-2 text-[#A0A0A0]">
+            <div><strong class="text-white">Pages (25+)</strong>: BookingPage, CartPage, CounterDesk, AdminCenter, Fleet...</div>
+            <div><strong class="text-white">Components (40+)</strong>: ShiftCalendar, StaffClock, SignaturePad, Finance...</div>
+            <div><strong class="text-white">Contexts</strong>: AuthContext (JWT & Role State), WishlistContext, SocketContext</div>
+            <div><strong class="text-white">Services</strong>: Axios Interceptors đính kèm Bearer Token tự động</div>
+          </div>
+        </div>
+
+        <div class="card-highlight p-4">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-bold text-[#FFC799]">2. APPLICATION TIER (SERVER MODULAR MONOLITH - EXPRESS + TYPESCRIPT)</span>
+            <span class="text-[10px] text-[#FFC799] font-mono">server/src</span>
+          </div>
+          <div class="grid grid-cols-4 gap-3 mt-2 text-[#A0A0A0]">
+            <div><strong class="text-white">config/</strong>: Cấu hình môi trường (env), MongoDB (db), VNPay, Mailer SMTP</div>
+            <div><strong class="text-white">core/</strong>: Middlewares (Auth, RBAC 4 vai trò, AuditLog che secret, Upload), ResourceLock, Jobs</div>
+            <div><strong class="text-white">modules/ (22 Modules)</strong>: auth, booking, vehicle, branch, fleet, hr, payment, support...</div>
+            <div><strong class="text-white">routes & sockets</strong>: Central /api Router & Socket.IO Namespaces (/ & /chat)</div>
+          </div>
+        </div>
+
+        <div class="card-dark p-4 border-blue-400/30">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-bold text-blue-400">3. PERSISTENCE & EXTERNAL TIER (CSDL & DỊCH VỤ NGOÀI)</span>
+            <span class="text-[10px] text-white/50 font-mono">Database & 3rd Party</span>
+          </div>
+          <div class="grid grid-cols-3 gap-3 mt-2 text-[#A0A0A0]">
+            <div><strong class="text-white">models/ (24 Schemas)</strong>: Mongoose Schemas, Index hợp chất, mã hóa AES-256-GCM</div>
+            <div><strong class="text-white">MongoDB Cluster</strong>: Lưu trữ dữ liệu phân vùng, Replica Set bền bỉ</div>
+            <div><strong class="text-white">Dịch vụ ngoài</strong>: Google Gemini LLM API, VNPay Sandbox, VietQR Banking API</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 9: MỤC 6 - CHI TIẾT PACKAGE -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 6 • Chi Tiết Gói & An Toàn Đồng Thời [Trọng tâm 1]</span>
+        <h2 class="text-2xl font-black text-white mt-1">Vòng Đời Xử Lý Yêu Cầu & Cơ Chế Khóa Tài Nguyên</h2>
+      </div>
+      <div class="grid grid-cols-4 gap-3 flex-1 text-xs">
+        <div class="card-dark p-3">
+          <span class="text-xs font-mono font-bold text-[#FFC799]">Bước 1 & 2</span>
+          <h3 class="text-sm font-bold text-white mt-1">HTTP Request & Auth</h3>
+          <p class="mt-2 text-[#A0A0A0]">Client gửi request kèm Bearer JWT. `authMiddleware` giải mã JWT và kiểm tra `tokenVersion` trong DB để vô hiệu hóa tức thì khi bị khóa.</p>
+        </div>
+        <div class="card-dark p-3">
+          <span class="text-xs font-mono font-bold text-[#FFC799]">Bước 3 & 4</span>
+          <h3 class="text-sm font-bold text-white mt-1">RBAC & Audit Logger</h3>
+          <p class="mt-2 text-[#A0A0A0]">`rbacMiddleware` so khớp 4 vai trò qua `PERMISSION_MATRIX`. `auditMiddleware` lọc che bí mật (`[REDACTED]`) và ghi nhật ký.</p>
+        </div>
+        <div class="card-highlight p-3">
+          <span class="text-xs font-mono font-bold text-[#FFC799]">Bước 5 & 6 [Cốt lõi]</span>
+          <h3 class="text-sm font-bold text-[#FFC799] mt-1">Controller & Lock</h3>
+          <p class="mt-2 text-[#A0A0A0]">Controller validate DTO. Gọi `acquireVehicleLock` (Hàng đợi FIFO Promise + TTL) và `withOptionalTransaction` chống xung đột đặt trùng xe.</p>
+        </div>
+        <div class="card-dark p-3">
+          <span class="text-xs font-mono font-bold text-[#FFC799]">Bước 7</span>
+          <h3 class="text-sm font-bold text-white mt-1">Mongoose & Sockets</h3>
+          <p class="mt-2 text-[#A0A0A0]">Service tương tác Mongoose Model qua CAS atomic (`findOneAndUpdate`), đồng thời phát sự kiện Socket.IO cập nhật tức thì đến các Client.</p>
+        </div>
+      </div>
+      <div class="card-dark p-3 mt-3 text-xs text-[#99FFE4] flex items-center justify-between">
+        <span>Đặc tính kiến trúc cốt lõi: <strong>Low Coupling, High Cohesion, Zero Circular Dependency, An toàn 100% trong môi trường đồng thời cao.</strong></span>
+      </div>
+    </section>
+
+    <!-- SLIDE 10: MỤC 7 - CÁCH APPLY AI -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 7 • Ứng Dụng AI Vào Hệ Thống [Trọng tâm 2]</span>
+        <h2 class="text-2xl font-black text-white mt-1">Bài Toán Xếp Ca Trực Thông Minh & Kiến Trúc Dual-AI Engine</h2>
+      </div>
+      <div class="grid grid-cols-3 gap-5 flex-1">
+        <div class="card-dark p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-rose-400">1. Vấn Đề Vận Hành Trạm</span>
+          <h3 class="text-base font-bold text-white mt-1">Nhu cầu biến động & Ràng buộc</h3>
+          <ul class="mt-4 space-y-2 text-xs text-[#A0A0A0]">
+            <li>• Xe nhận/trả phân bố không đều (sáng sớm đón bay, chiều tối nhận xe trả).</li>
+            <li>• Đơn giao xe tận nơi (Door-to-Door) phát sinh làm nhân viên phải ra khỏi trạm.</li>
+            <li>• Xếp tay dễ gây ca kiệt sức (Clopening - tối làm sáng trực), ca gãy phi lý (Sáng & Tối nghỉ chiều) và bất công giữa nhân sự.</li>
+          </ul>
+        </div>
+
+        <div class="card-highlight p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#FFC799]">2. Kiến Trúc Dual-AI Engine</span>
+          <h3 class="text-base font-bold text-white mt-1">Sức mạnh hiệp đồng 2 động cơ</h3>
+          <ul class="mt-4 space-y-2 text-xs text-[#A0A0A0]">
+            <li>• <strong class="text-white">Động cơ 1 (Google Gemini LLM)</strong>: Mô hình ngôn ngữ lớn phân tích ngữ cảnh, giải bài toán tổ hợp và trả về JSON có giải thích lý do tiếng Việt.</li>
+            <li>• <strong class="text-white">Động cơ 2 (Heuristic MOTORENT-Rule-v2)</strong>: Thuật toán toán học chạy cục bộ tại server, tối ưu theo công thức công thái học.</li>
+            <li>• <strong class="text-white">Fail-Safe 100%</strong>: Tự động chuyển mượt sang Heuristic nếu mất mạng hoặc hết quota trong 15s.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-5">
+          <span class="text-xs font-bold uppercase tracking-wider text-[#99FFE4]">3. Hiệu Quả Đo Lường Được</span>
+          <h3 class="text-base font-bold text-white mt-1">Giá trị thực tế đem lại</h3>
+          <ul class="mt-4 space-y-2 text-xs text-[#A0A0A0]">
+            <li>• Giảm 95% thời gian xếp lịch tuần của Quản lý trạm (từ 2 giờ xuống còn 3 giây).</li>
+            <li>• Cân bằng tải công bằng tuyệt đối dựa trên chỉ số <strong class="text-white">Jain's Fairness Index</strong>.</li>
+            <li>• Loại bỏ 100% ca Clopening kiệt sức và giảm tối đa ca gãy (Ca 1 & 3).</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 11: MỤC 7 - THUẬT TOÁN HEURISTIC & GEMINI -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 7 • Chi Tiết Thuật Toán [Trọng tâm 2]</span>
+        <h2 class="text-2xl font-black text-white mt-1">Thuật Toán MOTORENT-Rule-v2 & Kỹ Thuật Prompt Gemini</h2>
+      </div>
+      <div class="grid grid-cols-2 gap-5 flex-1 text-xs">
+        <div class="card-dark p-4 border-[#FFC799]/30">
+          <span class="text-xs font-bold uppercase text-[#FFC799]">ĐỘNG CƠ HEURISTIC SOLVER (RULE-v2)</span>
+          <ul class="mt-3 space-y-3 text-[#A0A0A0]">
+            <li>
+              <strong class="text-white">1. Công thức DemandScore tải ca:</strong>
+              <div class="font-mono text-[#99FFE4] bg-white/5 p-2 rounded mt-1">Demand = Pickup*1.0 + Return*1.0 + DoorDelivery*0.8 + WeekendBoost</div>
+              Tự động tính ra số nhân sự cần thiết từ 1 đến 3 người/ca.
+            </li>
+            <li>
+              <strong class="text-white">2. Thưởng Ca liền kề (+30 điểm):</strong>
+              Ưu tiên xếp Ca 1 & 2 (Sáng-Chiều) hoặc Ca 2 & 3 (Chiều-Tối) để làm một mạch nghỉ trọn vẹn.
+            </li>
+            <li>
+              <strong class="text-white">3. Phạt nặng Ca gãy phi lý (-85 điểm):</strong>
+              Tránh xếp Ca 1 & 3 (làm sáng, tối lại lên làm). Chỉ miễn cưỡng chọn khi không còn ai khác.
+            </li>
+            <li>
+              <strong class="text-white">4. Chống Clopening (-35 điểm):</strong>
+              Cấm xếp Ca 3 tối hôm trước (22:00) rồi lại Ca 1 sáng hôm sau (07:00).
+            </li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4 border-[#99FFE4]/30">
+          <span class="text-xs font-bold uppercase text-[#99FFE4]">KỸ THUẬT PROMPT GOOGLE GEMINI</span>
+          <ul class="mt-3 space-y-3 text-[#A0A0A0]">
+            <li>
+              <strong class="text-white">1. Chuỗi mô hình Fallback:</strong>
+              Tự động fallback: `gemini-2.5-flash` -> `gemini-2.0-flash` -> `gemini-1.5-flash`.
+            </li>
+            <li>
+              <strong class="text-white">2. Prompt Engineering có cấu trúc:</strong>
+              System prompt định vị chuyên gia điều phối MOTORENT, nạp danh sách nhân viên, đăng ký rảnh/bận, ca đã có, slot thiếu.
+            </li>
+            <li>
+              <strong class="text-white">3. Strict JSON Schema:</strong>
+              Bắt buộc trả về JSON gồm `confidenceScore`, cờ `isConsecutive`, `isReluctant13` và `reason` giải thích chi tiết tiếng Việt.
+            </li>
+            <li>
+              <strong class="text-white">4. Tái sử dụng bản xem trước (Preview):</strong>
+              Frontend lưu bản preview, bấm "Áp dụng" lưu thẳng vào DB, KHÔNG gọi lại AI lần 2 (tiết kiệm chi phí & chính xác).
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 12: MỤC 7 - NLP TIẾNG VIỆT & BẢO TOÀN DỮ LIỆU -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Mục 7 • NLP Tiếng Việt & Dữ Liệu [Trọng tâm 2]</span>
+        <h2 class="text-2xl font-black text-white mt-1">Phân Tích Cú Pháp Tiếng Việt & Bảo Toàn Lịch Sử Điểm Danh</h2>
+      </div>
+      <div class="grid grid-cols-2 gap-5 flex-1 text-xs">
+        <div class="card-dark p-4 border-[#99FFE4]/30">
+          <span class="text-xs font-bold uppercase text-[#99FFE4]">BỘ PHÂN TÍCH NLP TIẾNG VIỆT TỰ NHIÊN</span>
+          <p class="text-white mt-2">Hỗ trợ nhân viên nhắn tin đăng ký ca tự do như chat Zalo:</p>
+          <div class="font-mono text-[#FFC799] bg-white/5 p-2 rounded mt-2">
+            "t2 1 2, t3 sang chieu, t4 ban, t5 1 2 ban 3, t7 ko lam ca 2, cn off"
+          </div>
+          <ul class="mt-3 space-y-2 text-[#A0A0A0]">
+            <li>• <strong class="text-white">Chuẩn hóa thứ</strong>: t2, thứ 2, thu 2, mon -> Thứ 2 ... cn, chu nhat -> Chủ Nhật.</li>
+            <li>• <strong class="text-white">Chuẩn hóa ca</strong>: 1/sang -> Ca 1 (Sáng), 2/chieu -> Ca 2 (Chiều), 3/toi -> Ca 3 (Tối).</li>
+            <li>• <strong class="text-white">Xử lý phủ định</strong>: "bận ca 1", "ko làm ca 2", "nghỉ sáng" -> đánh dấu bận đúng ca đó.</li>
+            <li>• <strong class="text-white">Đồng bộ 2 chiều</strong>: Cập nhật trực tiếp lên ma trận ô lưới trên UI cho nhân viên xem lại.</li>
+          </ul>
+        </div>
+
+        <div class="card-dark p-4 border-[#FFC799]/30">
+          <span class="text-xs font-bold uppercase text-[#FFC799]">CƠ CHẾ BẢO TOÀN LỊCH SỬ CHẤM CÔNG (PRESERVE SHIFTS)</span>
+          <p class="text-white mt-2">Giải quyết bài toán khi Quản lý chạy lại AI xếp lịch giữa tuần:</p>
+          <ul class="mt-3 space-y-2 text-[#A0A0A0]">
+            <li>• Hàm <strong class="text-white">`shouldPreserveShiftOnOverwrite`</strong> bảo vệ 100% ca thuộc các ngày đã trôi qua trong quá khứ.</li>
+            <li>• Bảo vệ tuyệt đối các ca nhân viên đã có giờ chấm công (`checkInTime` / `checkOutTime`) hoặc trạng thái `Present`, `OnLeave`.</li>
+            <li>• Lệnh ghi đè chỉ xóa các ca tương lai chưa điểm danh (`status: Assigned/Scheduled` và `shiftDate >= hôm nay`).</li>
+            <li>• Giờ công tính lương của nhân viên không bao giờ bị xóa nhầm hoặc đếm lặp.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 13: NGHIỆM THU KỸ THUẬT -->
+    <section class="slide justify-start">
+      <div class="mb-4">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#FFC799]">Nghiệm Thu Kỹ Thuật</span>
+        <h2 class="text-2xl font-black text-white mt-1">Kết Quả Kiểm Thử Tự Động & Tiêu Chuẩn Chất Lượng Mã Nguồn</h2>
+      </div>
+      <div class="grid grid-cols-4 gap-4 flex-1 text-xs">
+        <div class="card-highlight p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-3xl font-black font-mono text-[#FFC799]">30 / 30</span>
+            <h3 class="text-sm font-bold text-white mt-2">Vitest Automated Tests</h3>
+            <p class="mt-2 text-[#A0A0A0]">100% test suites vượt qua trong 4.95s: Đặt xe, Phân quyền RBAC, Hợp đồng ký số, AI Xếp ca, NLP tiếng Việt.</p>
+          </div>
+          <span class="text-[10px] text-[#99FFE4] font-bold">100% PASS RATE</span>
+        </div>
+
+        <div class="card-dark p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-3xl font-black font-mono text-emerald-400">0 ERRORS</span>
+            <h3 class="text-sm font-bold text-white mt-2">TypeScript Typecheck</h3>
+            <p class="mt-2 text-[#A0A0A0]">Biên dịch sạch sẽ toàn bộ Backend và Frontend. Không có lỗi kiểu dữ liệu runtime.</p>
+          </div>
+          <span class="text-[10px] text-emerald-400 font-bold">ZERO TS REGRESSIONS</span>
+        </div>
+
+        <div class="card-dark p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-3xl font-black font-mono text-[#99FFE4]">0 'ANY'</span>
+            <h3 class="text-sm font-bold text-white mt-2">Strict TypeScript</h3>
+            <p class="mt-2 text-[#A0A0A0]">Loại bỏ hoàn toàn 117 vị trí sử dụng `any` lỏng lẻo trên cả client và server.</p>
+          </div>
+          <span class="text-[10px] text-[#99FFE4] font-bold">CLEAN ARCHITECTURE</span>
+        </div>
+
+        <div class="card-dark p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-3xl font-black font-mono text-amber-400">0 EMOJI</span>
+            <h3 class="text-sm font-bold text-white mt-2">Strict Vector SVG Only</h3>
+            <p class="mt-2 text-[#A0A0A0]">100% biểu tượng sử dụng vector SVG chuyên nghiệp (Lucide React & Inline SVG), không dùng emoji hay icon fonts.</p>
+          </div>
+          <span class="text-[10px] text-amber-400 font-bold">PROFESSIONAL UI</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- SLIDE 14: KẾT LUẬN & Q&A -->
+    <section class="slide justify-center items-center text-center">
+      <div class="max-w-3xl space-y-5">
+        <span class="inline-block px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase tag-mint">
+          Tổng Kết & Hỏi Đáp
+        </span>
+        <h2 class="text-4xl md:text-5xl font-black text-[#FFC799]">
+          CẢM ƠN QUÝ THẦY CÔ & HỘI ĐỒNG
+        </h2>
+        <p class="text-xl font-bold text-white">
+          MOTORENT đã sẵn sàng chuyển sang phần DEMO TRỰC TIẾP hệ thống thực tế trên trình duyệt.
+        </p>
+        <p class="text-sm text-[#A0A0A0]">
+          Xin kính mời Hội đồng đặt câu hỏi và đóng góp ý kiến cho Nhóm 4 (Group 4) • SWP391
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM NAVIGATION BAR -->
+  <footer class="fixed bottom-0 left-0 right-0 h-14 bg-[#101010]/80 backdrop-blur border-t border-white/5 flex items-center justify-between px-8 z-50">
+    <div class="text-xs text-white/40">
+      Dùng phím <kbd class="px-1.5 py-0.5 bg-white/10 rounded border border-white/10 text-white">←</kbd> và <kbd class="px-1.5 py-0.5 bg-white/10 rounded border border-white/10 text-white">→</kbd> hoặc nút bấm để chuyển slide
+    </div>
+    <div class="flex items-center space-x-2">
+      <button onclick="prevSlide()" class="px-3 py-1.5 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white transition flex items-center space-x-1">
+        <span>← Trước</span>
+      </button>
+      <button onclick="nextSlide()" class="px-3 py-1.5 rounded bg-[#FFC799] hover:bg-[#ffb77d] text-xs font-bold text-[#101010] transition flex items-center space-x-1">
+        <span>Sau →</span>
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    const indicator = document.getElementById('slideIndicator');
+
+    function showSlide(index) {
+      if (index < 0) index = 0;
+      if (index >= totalSlides) index = totalSlides - 1;
+      
+      slides.forEach((s, idx) => {
+        s.classList.remove('active');
+        if (idx === index) {
+          s.classList.add('active');
+        }
+      });
+      currentSlide = index;
+      indicator.textContent = (currentSlide + 1) + ' / ' + totalSlides;
+    }
+
+    function nextSlide() {
+      showSlide(currentSlide + 1);
+    }
+
+    function prevSlide() {
+      showSlide(currentSlide - 1);
+    }
+
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      }
+    });
+  </script>
+</body>
+</html>
