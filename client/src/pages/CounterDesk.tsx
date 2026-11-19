@@ -35,6 +35,8 @@ import {
   MapPin,
   Landmark,
   History,
+  KeyRound,
+  ArrowRightCircle,
 } from 'lucide-react';
 import axios from 'axios';
 import type { Booking, Vehicle, User, Branch } from '../types';
@@ -254,6 +256,7 @@ export const CounterDesk: React.FC = () => {
     cost: number;
     odometer: number;
   } | null>(null);
+  const [rentedActionVehicle, setRentedActionVehicle] = useState<Vehicle | null>(null);
   const [vehicleSubmitting, setVehicleSubmitting] = useState<boolean>(false);
   const [maintenanceLogs, setMaintenanceLogs] = useState<MaintenanceLogEntry[]>([]);
   const [maintenanceSummary, setMaintenanceSummary] = useState<MaintenanceSummaryInfo>({
@@ -808,6 +811,7 @@ export const CounterDesk: React.FC = () => {
       maintenanceType?: 'Routine' | 'Repair' | 'Inspection';
       cost?: number;
       odometer?: number;
+      force?: boolean;
     }
   ) => {
     setVehicleSubmitting(true);
@@ -818,6 +822,7 @@ export const CounterDesk: React.FC = () => {
         maintenanceType: details?.maintenanceType,
         cost: details?.cost,
         odometer: details?.odometer,
+        force: details?.force,
       });
       setVehicleActionModal(null);
       await Promise.all([fetchBranchVehicles(), fetchMaintenanceLogs()]);
@@ -826,14 +831,18 @@ export const CounterDesk: React.FC = () => {
         text:
           targetStatus === 'Maintenance'
             ? 'Đã chuyển xe sang trạng thái Bảo dưỡng và ghi vào Nhật ký bảo dưỡng!'
+            : details?.force
+            ? 'Đã xác nhận thu hồi phương tiện và khôi phục về trạng thái Sẵn sàng đón khách!'
             : 'Đã hoàn tất bảo dưỡng, cập nhật Nhật ký bảo dưỡng và mở xe Sẵn sàng đón khách!',
       });
+      setTimeout(() => setStatusMessage(null), 5000);
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         setStatusMessage({
           type: 'error',
           text: err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật trạng thái phương tiện.',
         });
+        setTimeout(() => setStatusMessage(null), 6000);
       }
     } finally {
       setVehicleSubmitting(false);
@@ -4108,40 +4117,54 @@ export const CounterDesk: React.FC = () => {
                                   </button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
-                                  <button
-                                    type="button"
-                                    disabled={isAvailable || vehicleSubmitting}
-                                    onClick={() => handleUpdateVehicleStatus(v._id, 'Available')}
-                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${isAvailable
-                                      ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                      : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30'
-                                      }`}
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" />
-                                    <span>{isMaintenance ? 'Hoàn tất bảo dưỡng' : 'Sẵn sàng'}</span>
-                                  </button>
+                                  {isRented ? (
+                                    <button
+                                      type="button"
+                                      disabled={vehicleSubmitting}
+                                      onClick={() => setRentedActionVehicle(v)}
+                                      className="col-span-2 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all cursor-pointer bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 active:scale-95 shadow-md shadow-sky-500/10"
+                                    >
+                                      <KeyRound className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                                      <span>Đang cho thuê · Xử lý thu hồi</span>
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button
+                                        type="button"
+                                        disabled={isAvailable || vehicleSubmitting}
+                                        onClick={() => handleUpdateVehicleStatus(v._id, 'Available')}
+                                        className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${isAvailable
+                                          ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                          : 'bg-[#99FFE4]/15 hover:bg-[#99FFE4]/25 text-[#99FFE4] border border-[#99FFE4]/30 active:scale-95'
+                                          }`}
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                        <span>{isMaintenance ? 'Hoàn tất bảo dưỡng' : 'Sẵn sàng'}</span>
+                                      </button>
 
-                                  <button
-                                    type="button"
-                                    disabled={isMaintenance || vehicleSubmitting}
-                                    onClick={() =>
-                                      setVehicleActionModal({
-                                        vehicle: v,
-                                        targetStatus: 'Maintenance',
-                                        reason: 'Bảo dưỡng định kỳ / Kiểm tra phanh lốp dầu nhớt',
-                                        maintenanceType: 'Routine',
-                                        cost: 0,
-                                        odometer: v.odometer || 0,
-                                      })
-                                    }
-                                    className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${isMaintenance
-                                      ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
-                                      : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30'
-                                      }`}
-                                  >
-                                    <Wrench className="w-3.5 h-3.5" />
-                                    <span>Bảo dưỡng</span>
-                                  </button>
+                                      <button
+                                        type="button"
+                                        disabled={isMaintenance || vehicleSubmitting}
+                                        onClick={() =>
+                                          setVehicleActionModal({
+                                            vehicle: v,
+                                            targetStatus: 'Maintenance',
+                                            reason: 'Bảo dưỡng định kỳ / Kiểm tra phanh lốp dầu nhớt',
+                                            maintenanceType: 'Routine',
+                                            cost: 0,
+                                            odometer: v.odometer || 0,
+                                          })
+                                        }
+                                        className={`px-2.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1 transition-all cursor-pointer ${isMaintenance
+                                          ? 'bg-white/5 text-[#6E6E6E] cursor-not-allowed border border-white/5'
+                                          : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 active:scale-95'
+                                          }`}
+                                      >
+                                        <Wrench className="w-3.5 h-3.5" />
+                                        <span>Bảo dưỡng</span>
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -4860,6 +4883,92 @@ export const CounterDesk: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Rented Vehicle Action Dialog Modal */}
+            {rentedActionVehicle && (
+              <div
+                onClick={() => setRentedActionVehicle(null)}
+                className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-[#161616] border border-white/15 rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl"
+                >
+                  <div className="p-4 border-b border-white/10 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <KeyRound className="w-4 h-4 text-sky-400" />
+                      <span className="font-extrabold text-sm text-white">
+                        Xử lý phương tiện đang cho thuê ({rentedActionVehicle.licensePlate})
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRentedActionVehicle(null)}
+                      className="text-[#A0A0A0] hover:text-white"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="p-5 space-y-4 text-xs">
+                    <div className="bg-[#101010] p-3.5 rounded-xl border border-white/10 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-white block text-sm">
+                          {rentedActionVehicle.brand} {rentedActionVehicle.vehicleModel}
+                        </span>
+                        <span className="text-[#A0A0A0] text-xs">
+                          ODO hiện tại: {(rentedActionVehicle.odometer || 0).toLocaleString('vi-VN')} km
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40">
+                        {rentedActionVehicle.licensePlate}
+                      </span>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-200 leading-relaxed space-y-1">
+                      <p className="font-semibold text-white">Xe đang được ghi nhận trong chuyến thuê của khách hàng</p>
+                      <p className="text-[#B0D0F0]">
+                        Để đưa xe về trạng thái Sẵn sàng phục vụ khách tiếp theo, nhân viên cần thực hiện quy trình Bàn giao trả xe (đối soát ODO, tất toán hợp đồng). Quản lý chi nhánh cũng có thể xác nhận thu hồi xe trực tiếp nếu hợp đồng đã hoàn tất bên ngoài.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const plate = rentedActionVehicle.licensePlate;
+                          setRentedActionVehicle(null);
+                          switchDeskMode('bookings');
+                          setActiveTab('checkout');
+                          setSearchCode(plate);
+                          fetchBookings('all', 'all', plate);
+                        }}
+                        className="w-full py-2.5 px-4 bg-[#FFC799] hover:bg-[#FFD6B3] text-[#101010] font-bold rounded-xl flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-lg shadow-[#FFC799]/15"
+                      >
+                        <ArrowRightCircle className="w-4 h-4" />
+                        <span>Đến quầy Bàn giao Trả xe &amp; Tất toán</span>
+                      </button>
+
+                      {(isManager || isAdmin) && (
+                        <button
+                          type="button"
+                          disabled={vehicleSubmitting}
+                          onClick={async () => {
+                            const vId = rentedActionVehicle._id;
+                            setRentedActionVehicle(null);
+                            await handleUpdateVehicleStatus(vId, 'Available', { force: true });
+                          }}
+                          className="w-full py-2.5 px-4 bg-white/5 hover:bg-white/10 text-[#C8C2B8] hover:text-white font-semibold rounded-xl flex items-center justify-center space-x-2 border border-white/10 transition-all cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                          <span>Quản lý xác nhận đã thu hồi xe (Khôi phục Sẵn sàng)</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -5562,6 +5671,32 @@ export const CounterDesk: React.FC = () => {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Floating Desk Toast Notification for Immediate Action Feedback */}
+        {statusMessage && (
+          <div
+            role="status"
+            className={`fixed bottom-6 right-6 z-[99999] shadow-2xl flex items-center gap-3 p-4 rounded-2xl border transition-all max-w-md ${
+              statusMessage.type === 'success'
+                ? 'bg-[#141414] border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/30'
+                : 'bg-[#141414] border-rose-500/40 text-rose-300 ring-1 ring-rose-500/30'
+            }`}
+          >
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+            ) : (
+              <AlertCircle className="w-5 h-5 flex-shrink-0 text-rose-400" />
+            )}
+            <div className="flex-1 font-medium text-xs leading-relaxed">{statusMessage.text}</div>
+            <button
+              type="button"
+              onClick={() => setStatusMessage(null)}
+              className="ml-auto text-current opacity-70 hover:opacity-100 p-1"
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
       </div>

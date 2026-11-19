@@ -64,6 +64,7 @@ const updateVehicleStatusSchema = z.object({
   maintenanceType: z.enum(['Routine', 'Repair', 'Inspection']).optional(),
   cost: z.coerce.number().nonnegative().optional(),
   odometer: z.coerce.number().nonnegative().optional(),
+  force: z.boolean().optional(),
 });
 
 const readQueryString = (value: unknown, label: string): string | undefined => {

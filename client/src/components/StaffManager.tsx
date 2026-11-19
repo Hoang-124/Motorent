@@ -50,6 +50,7 @@ export const StaffManager: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [editingStaff, setEditingStaff] = useState<User | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   // Form State
   const [formData, setFormData] = useState<StaffFormData>({
@@ -125,11 +126,13 @@ export const StaffManager: React.FC = () => {
 
   const handleOpenAddModal = () => {
     resetForm();
+    setModalError(null);
     setShowAddModal(true);
   };
 
   const handleOpenEditModal = (staff: User) => {
     setEditingStaff(staff);
+    setModalError(null);
     const branchIdVal = staff.branchId ? (typeof staff.branchId === 'object' ? staff.branchId._id : staff.branchId) : '';
     setFormData({
       username: staff.username,
@@ -146,6 +149,7 @@ export const StaffManager: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setModalError(null);
 
     try {
       if (editingStaff) {
@@ -181,7 +185,9 @@ export const StaffManager: React.FC = () => {
         }
       }
     } catch (err: unknown) {
-      showToast('error', extractApiError(err, 'Có lỗi xảy ra khi lưu thông tin nhân viên.'));
+      const errMsg = extractApiError(err, 'Có lỗi xảy ra khi lưu thông tin nhân viên.');
+      setModalError(errMsg);
+      showToast('error', errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -218,14 +224,14 @@ export const StaffManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert */}
+      {/* Floating Toast Alert */}
       {toast && (
         <div
           role="status"
-          className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${
+          className={`fixed top-6 right-6 z-[99999] shadow-2xl flex items-center gap-3 p-4 rounded-xl border transition-all max-w-md ${
             toast.type === 'success'
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
-              : 'bg-rose-950/40 border-rose-500/40 text-rose-300'
+              ? 'bg-[#101010] border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/30'
+              : 'bg-[#101010] border-rose-500/40 text-rose-300 ring-1 ring-rose-500/30'
           }`}
         >
           {toast.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
@@ -504,6 +510,13 @@ export const StaffManager: React.FC = () => {
                 <X size={20} />
               </button>
             </div>
+
+            {modalError && (
+              <div className="p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-2.5">
+                <AlertCircle size={16} className="shrink-0 mt-0.5 text-rose-400" />
+                <span className="leading-relaxed font-medium">{modalError}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">

@@ -50,8 +50,10 @@ export const scheduleMaintenance = async (user: IUser, input: MaintenanceInput) 
       if (reserved.modifiedCount !== 1) throw new AppError(409, 'Trạng thái xe vừa thay đổi. Vui lòng tải lại.');
     }
     try {
-      const log = await MaintenanceLog.create({ ...input, vehicleId, branchId: vehicle.branchId,
-        createdBy: user._id, status: 'Scheduled', odometerAtMaintenance: vehicle.odometer });
+      const log = await MaintenanceLog.create({
+        ...input, vehicleId, branchId: vehicle.branchId,
+        createdBy: user._id, status: 'Scheduled', odometerAtMaintenance: vehicle.odometer
+      });
       return populatedLog(log._id as mongoose.Types.ObjectId);
     } catch (error) {
       if (vehicle.status === 'Available') {
@@ -106,18 +108,30 @@ export const completeMaintenance = async (id: string, user: IUser, input: { cost
     if (odometer < vehicle.odometer) throw new AppError(400, 'ODO hoàn tất không được nhỏ hơn ODO hiện tại của xe.');
     const previousBucket = vehicle.lastMaintenanceBucket ?? 0;
     const released = await Vehicle.updateOne({ _id: vehicle._id, branchId: log.branchId, status: 'Maintenance', odometer: vehicle.odometer },
-      { $set: { status: 'Available', odometer, requiresMaintenance: false,
-        lastMaintenanceBucket: Math.floor(odometer / ODOMETER_MAINTENANCE_INTERVAL) } });
+      {
+        $set: {
+          status: 'Available', odometer, requiresMaintenance: false,
+          lastMaintenanceBucket: Math.floor(odometer / ODOMETER_MAINTENANCE_INTERVAL)
+        }
+      });
     if (released.modifiedCount !== 1) throw new AppError(409, 'Trạng thái xe vừa thay đổi. Vui lòng tải lại.');
     try {
       const completed = await MaintenanceLog.updateOne({ _id: log._id, status: 'InProgress' },
-        { $set: { status: 'Completed', cost: input.cost, performedBy: input.performedBy ?? log.performedBy,
-          odometerAtMaintenance: odometer, endDate: new Date() } });
+        {
+          $set: {
+            status: 'Completed', cost: input.cost, performedBy: input.performedBy ?? log.performedBy,
+            odometerAtMaintenance: odometer, endDate: new Date()
+          }
+        });
       if (completed.modifiedCount !== 1) throw new AppError(409, 'Phiếu đã được cập nhật. Vui lòng tải lại.');
     } catch (error) {
       await Vehicle.updateOne({ _id: vehicle._id, branchId: log.branchId, status: 'Available', odometer },
-        { $set: { status: 'Maintenance', odometer: vehicle.odometer, requiresMaintenance: vehicle.requiresMaintenance,
-          lastMaintenanceBucket: previousBucket } });
+        {
+          $set: {
+            status: 'Maintenance', odometer: vehicle.odometer, requiresMaintenance: vehicle.requiresMaintenance,
+            lastMaintenanceBucket: previousBucket
+          }
+        });
       throw error;
     }
     return populatedLog(log._id as mongoose.Types.ObjectId);
@@ -148,11 +162,13 @@ export const listMaintenance = async (user: IUser, options: MaintenanceListOptio
   ]);
   const completed = totals.find((row) => row._id === 'Completed');
   const pending = totals.filter((row) => row._id !== 'Completed');
-  return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, summary: {
-    totalCost: completed?.cost ?? 0, completedCount: completed?.count ?? 0,
-    pendingEstimatedCost: pending.reduce((sum, row) => sum + row.cost, 0),
-    pendingCount: pending.reduce((sum, row) => sum + row.count, 0),
-  } };
+  return {
+    data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, summary: {
+      totalCost: completed?.cost ?? 0, completedCount: completed?.count ?? 0,
+      pendingEstimatedCost: pending.reduce((sum, row) => sum + row.cost, 0),
+      pendingCount: pending.reduce((sum, row) => sum + row.count, 0),
+    }
+  };
 };
 
 export const listOdometerAlerts = async (user: IUser, options: { page?: number; limit?: number; branchId?: string }) => {
@@ -163,6 +179,8 @@ export const listOdometerAlerts = async (user: IUser, options: { page?: number; 
       .sort({ odometer: -1 }).skip(skip).limit(limit).populate('branchId', 'name code'),
     Vehicle.countDocuments(filter),
   ]);
-  return { data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-    summary: { dueCount: total, intervalKm: ODOMETER_MAINTENANCE_INTERVAL } };
+  return {
+    data, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+    summary: { dueCount: total, intervalKm: ODOMETER_MAINTENANCE_INTERVAL }
+  };
 };

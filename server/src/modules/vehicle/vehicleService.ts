@@ -759,6 +759,7 @@ export const updateVehicleStatus = async (
     cost?: number;
     odometer?: number;
     requiresMaintenance?: boolean;
+    force?: boolean;
   },
   user?: IUser
 ): Promise<IVehicle> => {
@@ -789,10 +790,19 @@ export const updateVehicleStatus = async (
       status: 'Ongoing',
     });
     if (vehicle.status === 'Rented' && data.status !== 'Rented' && ongoingBooking) {
-      throw new AppError(
-        400,
-        `Phương tiện đang trong chuyến thuê (${ongoingBooking.bookingCode}). Không thể chuyển trạng thái thủ công khi chưa hoàn tất Trả xe.`
-      );
+      if ((user?.roles === 'BranchManager' || user?.roles === 'SystemAdmin') && data.force) {
+        ongoingBooking.status = 'Completed';
+        ongoingBooking.actualReturnDateTime = new Date();
+        ongoingBooking.returnNotes = ongoingBooking.returnNotes
+          ? `${ongoingBooking.returnNotes} | [Quản lý trạm thu hồi xe thủ công]`
+          : '[Quản lý trạm thu hồi xe thủ công]';
+        await ongoingBooking.save();
+      } else {
+        throw new AppError(
+          400,
+          `Phương tiện đang trong chuyến thuê (${ongoingBooking.bookingCode}). Không thể chuyển trạng thái thủ công khi chưa hoàn tất Trả xe.`
+        );
+      }
     }
     if (data.status === 'Rented' && !ongoingBooking) {
       throw new AppError(

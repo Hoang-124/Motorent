@@ -105,14 +105,72 @@ export const createStaff = async (req: AuthenticatedRequest, res: Response, next
       $or: [{ email: cleanEmail }, { username: (username || cleanEmail).trim() }],
     });
 
-    if (existingUser) {
-      res.status(400).json({ success: false, message: 'Email hoặc tên tài khoản đã tồn tại trong hệ thống.' });
-      return;
-    }
-
     const branch = await Branch.findById(targetBranchId);
     if (!branch) {
       res.status(404).json({ success: false, message: 'Chi nhánh được chọn không tồn tại.' });
+      return;
+    }
+
+    if (existingUser) {
+      if (existingUser.roles === 'Customer') {
+        // Upgrade existing Customer account to Staff of this branch
+        existingUser.roles = 'Staff';
+        existingUser.branchId = targetBranchId as any;
+        existingUser.firstName = firstName.trim();
+        existingUser.lastName = lastName.trim();
+        existingUser.phoneNumber = phoneNumber.trim();
+        if (password) {
+          const salt = await bcrypt.genSalt(10);
+          existingUser.passwordHash = await bcrypt.hash(password, salt);
+        }
+        existingUser.status = 'Active';
+        existingUser.isEmailVerified = true;
+        existingUser.identityStatus = 'Verified';
+        await existingUser.save();
+
+        await AuditLog.create({
+          userId: req.user?._id,
+          action: 'UPGRADE_STAFF',
+          entity: 'User',
+          entityId: String(existingUser._id),
+          details: {
+            staffName: `${existingUser.firstName} ${existingUser.lastName}`,
+            email: existingUser.email,
+            branchId: targetBranchId,
+            branchCode: branch.code,
+            note: 'Nâng cấp tài khoản Khách hàng thành Nhân viên chi nhánh',
+          },
+          ipAddress: req.ip,
+        });
+
+        res.status(200).json({
+          success: true,
+          message: `Tài khoản (${cleanEmail}) đã được nâng cấp thành Nhân viên của chi nhánh thành công!`,
+          data: {
+            _id: existingUser._id,
+            username: existingUser.username,
+            email: existingUser.email,
+            fullName: `${existingUser.firstName} ${existingUser.lastName}`,
+            roles: existingUser.roles,
+            branchId: targetBranchId,
+            status: existingUser.status,
+          },
+        });
+        return;
+      }
+
+      if (existingUser.roles === 'Staff') {
+        res.status(400).json({
+          success: false,
+          message: `Email hoặc tên tài khoản (${existingUser.username}) đã được sử dụng bởi một nhân viên khác.`,
+        });
+        return;
+      }
+
+      res.status(400).json({
+        success: false,
+        message: 'Email hoặc tên tài khoản đã tồn tại dưới vai trò Quản lý / Quản trị viên.',
+      });
       return;
     }
 

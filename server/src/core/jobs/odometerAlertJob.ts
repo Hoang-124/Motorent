@@ -13,10 +13,12 @@ export const runOdometerAlertSweep = async (): Promise<number> => {
   sweepRunning = true;
   let dueCount = 0;
   try {
-    const vehicles = Vehicle.find({ isDeleted: false, $or: [
-      { requiresMaintenance: true },
-      { $expr: { $gt: [{ $floor: { $divide: ['$odometer', ODOMETER_MAINTENANCE_INTERVAL] } }, { $ifNull: ['$lastMaintenanceBucket', 0] }] } },
-    ] }).cursor();
+    const vehicles = Vehicle.find({
+      isDeleted: false, $or: [
+        { requiresMaintenance: true },
+        { $expr: { $gt: [{ $floor: { $divide: ['$odometer', ODOMETER_MAINTENANCE_INTERVAL] } }, { $ifNull: ['$lastMaintenanceBucket', 0] }] } },
+      ]
+    }).cursor();
     for await (const vehicle of vehicles) {
       const bucket = Math.floor(vehicle.odometer / ODOMETER_MAINTENANCE_INTERVAL);
       const lastBucket = vehicle.lastMaintenanceBucket ?? 0;
@@ -44,10 +46,12 @@ export const runOdometerAlertSweep = async (): Promise<number> => {
       // Recheck after the cursor read so completion does not emit a stale alert.
       if (!await Vehicle.exists({ _id: vehicle._id, isDeleted: false, requiresMaintenance: true, odometer: vehicle.odometer })) continue;
       dueCount += 1;
-      const recipients = await User.find({ status: 'Active', $or: [
-        { branchId: vehicle.branchId, roles: { $in: ['BranchManager', 'Staff'] } },
-        { roles: 'SystemAdmin' },
-      ] }).select('_id');
+      const recipients = await User.find({
+        status: 'Active', $or: [
+          { branchId: vehicle.branchId, roles: { $in: ['BranchManager', 'Staff'] } },
+          { roles: 'SystemAdmin' },
+        ]
+      }).select('_id');
       const relatedId = `odo:${vehicle._id.toString()}:${bucket}`;
       for (const recipient of recipients) {
         const alreadyNotified = await Notification.exists({ userId: recipient._id, type: 'MAINTENANCE', relatedId });
